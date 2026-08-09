@@ -1,0 +1,157 @@
+/* ============================================================
+   NetOps 2.0 · 设计令牌 (Design Tokens)
+   零外部依赖 · 全部基于原生 CSS 自定义属性
+   ============================================================ */
+
+:root {
+  /* ---- 品牌色阶 ---- */
+  --c-blue-50:  #eff6ff;  --c-blue-100: #dbeafe; --c-blue-300: #93c5fd;
+  --c-blue-500: #3b82f6;  --c-blue-600: #2563eb; --c-blue-700: #1d4ed8;
+  --c-teal-50:  #f0fdfa;  --c-teal-100: #ccfbf1; --c-teal-300: #5eead4;
+  --c-teal-500: #14b8a6;  --c-teal-600: #0d9488; --c-teal-700: #0f766e;
+  --c-purple-50:#f5f3ff;  --c-purple-100:#ede9fe;--c-purple-300:#c4b5fd;
+  --c-purple-500:#8b5cf6; --c-purple-600:#7c3aed;--c-purple-700:#6d28d9;
+  --c-rose-50:  #fff1f2;  --c-rose-100: #ffe4e6; --c-rose-300: #fda4af;
+  --c-rose-500: #f43f5e;  --c-rose-600: #e11d48; --c-rose-700: #be123c;
+  --c-amber-50: #fffbeb;  --c-amber-100:#fef3c7; --c-amber-300:#fcd34d;
+  --c-amber-500:#f59e0b;  --c-amber-600:#d97706; --c-amber-700:#b45309;
+  --c-emerald-50:#ecfdf5; --c-emerald-100:#d1fae5;--c-emerald-300:#6ee7b7;
+  --c-emerald-500:#10b981;--c-emerald-600:#059669;--c-emerald-700:#047857;
+
+  /* ---- 中性色阶 ---- */
+  --c-slate-50: #f8fafc; --c-slate-100:#f1f5f9; --c-slate-200:#e2e8f0;
+  --c-slate-300:#cbd5e1; --c-slate-400:#94a3b8; --c-slate-500:#64748b;
+  --c-slate-600:#475569; --c-slate-700:#334155; --c-slate-800:#1e293b;
+  --c-slate-900:#0f172a; --c-slate-950:#020617;
+
+  /* ---- 语义化：亮色主题 ---- */
+  --bg:            var(--c-slate-50);
+  --bg-elevated:   #ffffff;
+  --surface:       #ffffff;
+  --surface-2:     var(--c-slate-100);
+  --surface-3:     var(--c-slate-200);
+  --surface-glass: rgba(255,255,255,.82);
+  --border:        var(--c-slate-200);
+  --border-strong: var(--c-slate-300);
+  --text:          var(--c-slate-900);
+  --text-2:        var(--c-slate-600);
+  --text-3:        var(--c-slate-400);
+  --text-inv:      #ffffff;
+
+  --accent:        var(--c-blue-600);
+  --accent-soft:   var(--c-blue-50);
+  --accent-border: var(--c-blue-100);
+  --accent-text:   var(--c-blue-700);
+
+  --ok:            var(--c-emerald-600);
+  --ok-soft:       var(--c-emerald-50);
+  --warn:          var(--c-amber-600);
+  --warn-soft:     var(--c-amber-50);
+  --danger:        var(--c-rose-600);
+  --danger-soft:   var(--c-rose-50);
+
+  /* 终端配色（明暗主题下保持深色，符合工程师直觉） */
+  --term-bg:       #0b1120;
+  --term-bg-2:     #060b16;
+  --term-border:   #1e293b;
+  --term-text:     #e2e8f0;
+  --term-green:    #4ade80;
+  --term-cyan:     #22d3ee;
+  --term-amber:    #fbbf24;
+  --term-rose:     #fb7185;
+  --term-dim:      #64748b;
+
+  /* ---- 阴影 ---- */
+  --sh-xs: 0 1px 2px rgba(15,23,42,.05);
+  --sh-sm: 0 1px 3px rgba(15,23,42,.08), 0 1px 2px rgba(15,23,42,.04);
+  --sh-md: 0 4px 12px rgba(15,23,42,.08), 0 2px 4px rgba(15,23,42,.04);
+  --sh-lg: 0 12px 32px rgba(15,23,42,.12), 0 4px 8px rgba(15,23,42,.06);
+  --sh-xl: 0 24px 56px rgba(15,23,42,.18);
+
+  /* ---- 圆角 ---- */
+  --r-xs: 6px;  --r-sm: 8px;  --r-md: 12px;
+  --r-lg: 16px; --r-xl: 22px; --r-full: 999px;
+
+  /* ---- 字体 ---- */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+               "Noto Sans SC", "PingFang SC", "Microsoft YaHei",
+               "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Fira Code",
+               Consolas, Monaco, "Courier New", monospace;
+
+  /* ---- 安全区域（Android/iOS 刘海与手势条） ---- */
+  --sa-top:    env(safe-area-inset-top, 0px);
+  --sa-bottom: env(safe-area-inset-bottom, 0px);
+  --sa-left:   env(safe-area-inset-left, 0px);
+  --sa-right:  env(safe-area-inset-right, 0px);
+
+  /* ---- 结构尺寸 ---- */
+  --appbar-h:  54px;
+  --tabbar-h:  58px;
+  --tap-min:   44px;   /* 最小可点击尺寸，符合无障碍规范 */
+
+  /* ---- 动效 ---- */
+  --ease-out:   cubic-bezier(.22,.61,.36,1);
+  --ease-in-out:cubic-bezier(.65,.05,.36,1);
+  --ease-spring:cubic-bezier(.34,1.56,.64,1);
+  --t-fast: .16s;
+  --t-base: .26s;
+  --t-slow: .42s;
+}
+
+/* ============================================================
+   暗色主题
+   ============================================================ */
+html.dark {
+  --bg:            var(--c-slate-950);
+  --bg-elevated:   var(--c-slate-900);
+  --surface:       var(--c-slate-900);
+  --surface-2:     var(--c-slate-800);
+  --surface-3:     var(--c-slate-700);
+  --surface-glass: rgba(15,23,42,.86);
+  --border:        #26334a;
+  --border-strong: var(--c-slate-700);
+  --text:          var(--c-slate-100);
+  --text-2:        var(--c-slate-400);
+  --text-3:        var(--c-slate-500);
+  --text-inv:      var(--c-slate-900);
+
+  --accent:        var(--c-blue-500);
+  --accent-soft:   rgba(37,99,235,.14);
+  --accent-border: rgba(59,130,246,.30);
+  --accent-text:   var(--c-blue-300);
+
+  --ok:            var(--c-emerald-500);
+  --ok-soft:       rgba(16,185,129,.13);
+  --warn:          var(--c-amber-500);
+  --warn-soft:     rgba(245,158,11,.13);
+  --danger:        var(--c-rose-500);
+  --danger-soft:   rgba(244,63,94,.13);
+
+  --term-bg:       #05090f;
+  --term-bg-2:     #020509;
+  --term-border:   #1c2942;
+
+  --sh-xs: 0 1px 2px rgba(0,0,0,.4);
+  --sh-sm: 0 1px 3px rgba(0,0,0,.5);
+  --sh-md: 0 4px 14px rgba(0,0,0,.55);
+  --sh-lg: 0 14px 36px rgba(0,0,0,.6);
+  --sh-xl: 0 24px 60px rgba(0,0,0,.7);
+}
+
+/* ============================================================
+   阶段主题色：通过 data-accent 属性驱动，避免为每个色系写重复类
+   ============================================================ */
+[data-accent="teal"]    { --ph: var(--c-teal-600);    --ph-soft: var(--c-teal-50);    --ph-line: var(--c-teal-500); }
+[data-accent="blue"]    { --ph: var(--c-blue-600);    --ph-soft: var(--c-blue-50);    --ph-line: var(--c-blue-500); }
+[data-accent="purple"]  { --ph: var(--c-purple-600);  --ph-soft: var(--c-purple-50);  --ph-line: var(--c-purple-500); }
+[data-accent="rose"]    { --ph: var(--c-rose-600);    --ph-soft: var(--c-rose-50);    --ph-line: var(--c-rose-500); }
+[data-accent="amber"]   { --ph: var(--c-amber-600);   --ph-soft: var(--c-amber-50);   --ph-line: var(--c-amber-500); }
+[data-accent="emerald"] { --ph: var(--c-emerald-600); --ph-soft: var(--c-emerald-50); --ph-line: var(--c-emerald-500); }
+
+html.dark [data-accent="teal"]    { --ph: var(--c-teal-300);    --ph-soft: rgba(20,184,166,.13); }
+html.dark [data-accent="blue"]    { --ph: var(--c-blue-300);    --ph-soft: rgba(59,130,246,.13); }
+html.dark [data-accent="purple"]  { --ph: var(--c-purple-300);  --ph-soft: rgba(139,92,246,.13); }
+html.dark [data-accent="rose"]    { --ph: var(--c-rose-300);    --ph-soft: rgba(244,63,94,.13); }
+html.dark [data-accent="amber"]   { --ph: var(--c-amber-300);   --ph-soft: rgba(245,158,11,.13); }
+html.dark [data-accent="emerald"] { --ph: var(--c-emerald-300); --ph-soft: rgba(16,185,129,.13); }

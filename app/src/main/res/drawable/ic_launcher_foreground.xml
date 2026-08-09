@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- 拓扑链路（保持在 66dp 安全区内） -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#8CD8F5"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round"
+        android:pathData="M54,54L31,35 M54,54L77,35 M54,54L31,73 M54,54L77,73" />
+
+    <!-- 四个接入节点 -->
+    <path android:fillColor="#FFE8F1F8" android:pathData="M24.5,35a6.5,6.5 0 1,0 13,0a6.5,6.5 0 1,0 -13,0z" />
+    <path android:fillColor="#FFE8F1F8" android:pathData="M70.5,35a6.5,6.5 0 1,0 13,0a6.5,6.5 0 1,0 -13,0z" />
+    <path android:fillColor="#FFE8F1F8" android:pathData="M24.5,73a6.5,6.5 0 1,0 13,0a6.5,6.5 0 1,0 -13,0z" />
+    <path android:fillColor="#FFE8F1F8" android:pathData="M70.5,73a6.5,6.5 0 1,0 13,0a6.5,6.5 0 1,0 -13,0z" />
+
+    <!-- 核心节点 -->
+    <path android:fillColor="#FF38BDF8" android:pathData="M43.5,54a10.5,10.5 0 1,0 21,0a10.5,10.5 0 1,0 -21,0z" />
+    <path android:fillColor="#FF0B1220" android:pathData="M49.2,54a4.8,4.8 0 1,0 9.6,0a4.8,4.8 0 1,0 -9.6,0z" />
+</vector>

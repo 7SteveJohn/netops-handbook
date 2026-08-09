@@ -1,0 +1,21 @@
+*.iml
+.gradle
+/local.properties
+/.idea/
+.DS_Store
+/build
+/app/build
+/app/release
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# 发布签名密钥与密码（绝不提交）
+keystore.properties
+*.jks
+*.keystore
+
+# 内部/缓存（绝不提交）
+.workbuddy/
+.jdk17_extract/

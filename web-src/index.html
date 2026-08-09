@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#ffffff">
+<meta name="color-scheme" content="light dark">
+<meta name="format-detection" content="telephone=no,email=no,address=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="referrer" content="no-referrer">
+<title>NetOps 2.0 · 全栈网络运维技能导航</title>
+<style>/*__CSS__*/</style>
+</head>
+<body>
+
+<!--__SPRITE__-->
+
+<div class="app">
+
+  <!-- ============ 顶部应用栏 ============ -->
+  <header class="appbar" id="appbar">
+    <div class="appbar__row">
+      <button class="ibtn" id="btnNav" type="button" aria-label="导航">
+        <svg class="icon" aria-hidden="true"><use href="#i-menu" id="navUse"/></svg>
+      </button>
+      <div class="appbar__title">
+        <div class="appbar__name ellipsis" id="barName">NetOps 2.0</div>
+        <div class="appbar__sub ellipsis" id="barSub">全栈网络运维技能导航</div>
+      </div>
+      <div class="grow"></div>
+      <button class="ibtn" id="btnSearch" type="button" aria-label="搜索">
+        <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
+      </button>
+      <button class="ibtn" id="btnTheme" type="button" aria-label="切换主题">
+        <svg class="icon" aria-hidden="true"><use href="#i-sun" id="themeUse"/></svg>
+      </button>
+    </div>
+
+    <div class="searchwrap" id="searchWrap">
+      <div class="searchbar">
+        <svg class="icon icon--sm t-mute" aria-hidden="true"><use href="#i-search"/></svg>
+        <input id="q" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off"
+               spellcheck="false" placeholder="搜模块 / 命令 / 故障 / 面试题…">
+        <button class="ibtn" id="btnClearQ" type="button" aria-label="清空" style="width:32px;height:32px">
+          <svg class="icon icon--sm" aria-hidden="true"><use href="#i-x"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="topbar-progress"><div class="topbar-progress__fill" id="barFill"></div></div>
+  </header>
+
+  <!-- ============ 主滚动区 ============ -->
+  <main class="scroll" id="scroll">
+    <div class="view is-active" id="view"></div>
+  </main>
+
+  <!-- ============ 底部标签栏 ============ -->
+  <nav class="tabbar" id="tabbar" role="tablist">
+    <button class="tab is-active" type="button" data-tab="learn" role="tab">
+      <svg class="icon tab__icon" aria-hidden="true"><use href="#i-layers"/></svg><span>学习</span>
+    </button>
+    <button class="tab" type="button" data-tab="fault" role="tab">
+      <svg class="icon tab__icon" aria-hidden="true"><use href="#i-wrench"/></svg><span>排障</span>
+    </button>
+    <button class="tab" type="button" data-tab="dict" role="tab">
+      <svg class="icon tab__icon" aria-hidden="true"><use href="#i-terminal"/></svg><span>字典</span>
+    </button>
+    <button class="tab" type="button" data-tab="iv" role="tab">
+      <svg class="icon tab__icon" aria-hidden="true"><use href="#i-briefcase"/></svg><span>面试</span>
+    </button>
+    <button class="tab" type="button" data-tab="me" role="tab">
+      <svg class="icon tab__icon" aria-hidden="true"><use href="#i-user"/></svg><span>我的</span>
+    </button>
+  </nav>
+
+  <button class="fab" id="fab" type="button" aria-label="回到顶部">
+    <svg class="icon" aria-hidden="true"><use href="#i-arrow-up"/></svg>
+  </button>
+</div>
+
+<!-- ============ 抽屉导航 ============ -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-label="目录">
+  <div class="drawer__head">
+    <div class="row gap-3">
+      <svg class="icon icon--lg" style="color:var(--accent)" aria-hidden="true"><use href="#i-network"/></svg>
+      <div class="grow">
+        <div style="font-size:15px;font-weight:800">NetOps 2.0</div>
+        <div class="t-xs t-mute" id="drawerSub">全栈技能导航 · 离线版</div>
+      </div>
+    </div>
+    <div class="row gap-1" style="margin-top:12px">
+      <div class="bar grow"><div class="bar__fill" id="drawerBar"></div></div>
+      <span class="t-xs t-mute mono" id="drawerPct">0%</span>
+    </div>
+  </div>
+  <div class="drawer__body" id="drawerBody"></div>
+  <div class="drawer__foot">
+    <div class="row gap-1">
+      <button class="btn btn--soft btn--sm grow" type="button" data-go="roadmap">
+        <svg class="icon icon--sm" aria-hidden="true"><use href="#i-map"/></svg>学习路线
+      </button>
+      <button class="btn btn--soft btn--sm grow" type="button" data-go="cli">
+        <svg class="icon icon--sm" aria-hidden="true"><use href="#i-terminal"/></svg>CLI 模拟
+      </button>
+    </div>
+  </div>
+</aside>
+<div class="edge-catcher" id="edge"></div>
+
+<script>/*__JS__*/</script>
+</body>
+</html>
