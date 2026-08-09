@@ -6,8 +6,10 @@
       刻意不声明 android.permission.INTERNET：
       全部知识库、样式、脚本、图标均内联在 assets/index.html 中，
       应用在飞行模式下功能完全一致，安装后也无法发起任何网络请求。
+
+      触感反馈走 View.performHapticFeedback（尊重系统「触感反馈」开关，不需要
+      VIBRATE 权限），因此本应用声明的权限为零。
     -->
-    <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
         android:allowBackup="true"
@@ -28,6 +30,16 @@
             android:enableOnBackInvokedCallback="true"
             android:launchMode="singleTop"
             android:windowSoftInputMode="adjustResize">
+            <!--
+              不锁方向：平板横屏学习体验更好，手机也可随传感器旋转。
+              configChanges 已声明 orientation|screenSize，旋转不会重建 Activity，
+              WebView 的导航栈与进度因此不会丢失；网页侧 CSS 媒体查询自动重排。
+            -->
+            <!--
+              adjustResize（而非 adjustPan）：网页把输入法高度当作底部安全区使用，
+              键盘弹出时标签栏与悬浮按钮自行收起、输入框留在可视区内。
+              若改成 adjustPan，整页被顶起会导致顶栏移出屏幕，且拿不到 ime inset。
+            -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

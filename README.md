@@ -2,9 +2,9 @@
 
 > 从零基础数通到云原生架构，把整个网络运维知识体系装进口袋。**完全离线，无需任何网络连接。**
 
-[![Platform](https://img.shields.io/badge/platform-Android%2024%2B-green.svg)](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.0)
+[![Platform](https://img.shields.io/badge/platform-Android%2024%2B-green.svg)](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.1)
 [![Offline](https://img.shields.io/badge/network-100%25%20offline-orange.svg)](#)
-[![Release](https://img.shields.io/badge/release-v2.0.0-blue.svg)](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.0)
+[![Release](https://img.shields.io/badge/release-v2.0.1-blue.svg)](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.1)
 
 ---
 
@@ -85,13 +85,13 @@ NetOps 2.0 是一个为零基础萌新打造的 **Android 离线网络运维学�
 
 ## 使用方式
 
-1. **下载安装** → [Releases 页面](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.0) 下载 `app-release.apk`，允许「未知来源」安装即可
+1. **下载安装** → [Releases 页面](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.1) 下载 `app-release.apk`，允许「未知来源」安装即可
 2. **打开即用** → 底部五个 Tab 切换：**学习 / 排障 / 字典 / 面试 / 我的**
 3. **搜索** → 右上角 🔍 图标全局搜索任意关键词
 4. **深色模式** → 右上角 ☀️ 图标切换明暗主题
 5. **返回导航** → Android 物理返回键逐层回退，到根页可退出
 
-> **注意**：本应用声明了 `android.permission.VIBRATE`（触控反馈震动），无任何网络相关权限。首次安装时系统可能提示「未知的开发者」，这是正常的安全提示，选择「仍然安装」即可。
+> **注意**：本应用**不申请任何权限**——没有网络，没有存储，没有震动。首次安装时系统可能提示「未知的开发者」，这是正常的安全提示，选择「仍然安装」即可。
 
 ## 内容一览
 
@@ -106,14 +106,29 @@ NetOps 2.0 是一个为零基础萌新打造的 **Android 离线网络运维学�
 
 ## 技术细节
 
-- **纯离线**：不声明 `INTERNET` 权限，零外部请求，所有内容与美术资源（SVG/CSS）内联打包
-- **移动优化**：安全区域适配（刘海屏/挖孔屏）、边到边沉浸界面、触控动效
+- **纯离线**：零权限声明，零外部请求，所有内容与美术资源（SVG/CSS）内联打包
+- **移动优化**：安全区域适配（刘海屏/挖孔屏）、边到边沉浸界面、输入法弹出时标签栏自动让位、左缘抽屉手势与系统返回手势互不打架、冷启动不闪白
 - **单文件 SPA**：全部前端代码打包为一个 `index.html`，通过 Android WebView 加载
 - **开源协议**：MIT License
 
+## 更新日志
+
+### v2.0.1 · 离线体验优化
+- **零权限**：移除振动权限，App 不申请任何系统权限
+- **平板友好**：取消强制竖屏，平板横屏学习体验更佳；旋转不再丢失进度
+- **键盘不再遮挡**：搜索框 / CLI 输入时，底部导航与悬浮按钮自动让位，输入区始终在视野内
+- **手势更顺**：左侧抽屉与 Android 系统侧滑返回不再冲突
+- **启动无闪白**：冷启动按上次主题着色
+- **触感反馈**：震动改走系统 API，跟随系统开关
+- **CLI 体验**：终端输出随键盘自动滚底
+- **导航修正**：切底部标签回到顶部，不再误滚到上次位置
+
+### v2.0.0 · 首个公开发布
+- 初始版本：58 知识模块 / 25 排障案例 / 58 条命令对照 / 30 道面试题，完全离线
+
 ## 下载
 
-📥 [**v2.0.0 Release（含 APK）**](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.0)
+📥 [**v2.0.1 Release（含 APK）**](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.1)
 
 ## 许可
 

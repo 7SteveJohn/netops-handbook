@@ -28,8 +28,16 @@
 
   UI.$ = $; UI.$$ = $$; UI.esc = esc; UI.icon = icon; UI.debounce = debounce; UI.raf = raf;
 
-  /* ---------------- 触感反馈 ---------------- */
-  function buzz(ms) { try { if (w.navigator && navigator.vibrate) navigator.vibrate(ms || 8); } catch (e) {} }
+  /* ---------------- 触感反馈 ----------------
+     优先走原生桥：performHapticFeedback 会尊重系统「触感反馈」开关，
+     力度也和系统控件一致；浏览器里退回 navigator.vibrate。 */
+  function buzz(ms) {
+    var d0 = ms || 8;
+    try {
+      if (w.NetBridge && w.NetBridge.haptic) { w.NetBridge.haptic(d0); return; }
+    } catch (e) {}
+    try { if (w.navigator && navigator.vibrate) navigator.vibrate(d0); } catch (e) {}
+  }
   UI.buzz = buzz;
 
   /* ---------------- 本地存储（带内存兜底） ---------------- */
@@ -384,7 +392,36 @@
     if (o.right != null) r.setProperty('--sa-right', o.right + 'px');
   }
   UI.applyInsets = applyInsets;
-  w.NetOpsSetInsets = function (t, b, l, r) { applyInsets({ top: t, bottom: b, left: l, right: r }); };
+
+  /* ---------------- 输入法状态 ----------------
+     原生壳把键盘高度作为第五个参数下发。96px 的阈值用来避开手势条、
+     悬浮工具条一类的小幅 inset 抖动，只有真正的键盘才会触发让位。 */
+  var kbOpen = false;
+  function setKeyboard(px) {
+    var h = +px || 0;
+    var on = h > 96;
+    if (on === kbOpen) return;
+    kbOpen = on;
+    d.documentElement.setAttribute('data-kb', on ? '1' : '0');
+    if (on) {
+      /* 键盘完全展开后布局才稳定，延一拍再把焦点元素带回可视区 */
+      setTimeout(function () {
+        var el = d.activeElement;
+        if (!el || el === d.body || !el.scrollIntoView) return;
+        try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+        catch (e) { el.scrollIntoView(); }
+      }, 120);
+    }
+    try {
+      w.dispatchEvent(new CustomEvent('netops:keyboard', { detail: { open: on, height: h } }));
+    } catch (e) {}
+  }
+  UI.isKeyboardOpen = function () { return kbOpen; };
+
+  w.NetOpsSetInsets = function (t, b, l, r, kb) {
+    applyInsets({ top: t, bottom: b, left: l, right: r });
+    setKeyboard(kb);
+  };
 
   /* ---------------- 减弱动效 ---------------- */
   UI.motion = {
