@@ -25,9 +25,9 @@ NetOps 2.0 是一个面向网络运维工程师的 **Android 离线知识导航 
 
 | | |
 |---|---|
-| **首页 — 学习路径与进度总览** | <img src="screenshots/home.png" width="280" alt="首页截图：离线状态卡片 + 4 项数据统计（58模块/25案例/58命令/30面试）+ 学习进度圆环 + 学习路径列表" /> |
-| **学习路线图 — 0-12 月成长节奏** | <img src="screenshots/roadmap.png" width="280" alt="学习路线图截图：5 个阶段时间轴（打地基→园区网实战→广域与安全→云原生转型→架构与SRE），每阶段含具体知识点和学习目标" /> |
-| **我的 — 进度 / 收藏 / 资源入口** | <img src="screenshots/profile.png" width="280" alt="我的页面截图：总进度圆环 + 四项统计卡片 + 收藏夹 + 资源入口（速查表/术语词典/学习路线图）" /> |
+| **首页 — 学习路径与进度总览** | <img src="screenshots/home.jpg" width="280" alt="首页截图" /> |
+| **学习路线图 — 0-12 月成长节奏** | <img src="screenshots/roadmap.jpg" width="280" alt="学习路线图截图" /> |
+| **我的 — 进度 / 收藏 / 资源入口** | <img src="screenshots/profile.jpg" width="280" alt="我的页面截图" /> |
 
 ## 五大功能
 
