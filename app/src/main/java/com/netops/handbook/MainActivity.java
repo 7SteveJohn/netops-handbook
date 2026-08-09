@@ -2,13 +2,17 @@ package com.netops.handbook;
 
 import android.annotation.SuppressLint;
 import android.content.ContentValues;
+import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
+import android.graphics.Rect;
+import android.graphics.drawable.ColorDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
 import android.util.Log;
+import android.view.HapticFeedbackConstants;
 import android.view.View;
 import android.view.Window;
 import android.webkit.JavascriptInterface;
@@ -32,6 +36,8 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * NetOps 2.0 离线壳。
@@ -47,6 +53,18 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "NetOps";
     private static final String PAGE = "file:///android_asset/index.html";
+
+    private static final String PREFS = "netops.shell";
+    /** 网页最近一次生效的配色（"dark" / "light"），用于下次冷启动首帧配色。 */
+    private static final String KEY_THEME = "theme";
+
+    private static final int BG_DARK = 0xFF0B1220;
+    private static final int BG_LIGHT = 0xFFF5F7FB;
+
+    /** 与 css/03-layout.css 中 .edge-catcher 的宽度保持一致。 */
+    private static final int EDGE_DP = 18;
+    /** 系统对单侧手势排除区的高度上限（超出部分会被系统忽略）。 */
+    private static final int EXCLUSION_MAX_DP = 200;
 
     /** 询问网页是否消费了本次返回；返回字符串 "true" / "false"。 */
     private static final String JS_BACK =
@@ -69,6 +87,11 @@ public class MainActivity extends AppCompatActivity {
         // 边到边：内容自己铺满，安全区由 WindowInsets 下发给网页
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
 
+        // 冷启动首帧直接采用网页上次生效的配色：深色用户不会再看到一闪而过的白底
+        boolean dark = resolvedDark();
+        int bg = dark ? BG_DARK : BG_LIGHT;
+        getWindow().setBackgroundDrawable(new ColorDrawable(bg));
+
         root = new FrameLayout(this);
         root.setId(View.generateViewId());
         root.setFitsSystemWindows(false);
@@ -77,14 +100,15 @@ public class MainActivity extends AppCompatActivity {
         webView.setLayoutParams(new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
-        webView.setBackgroundColor(bgColor());
-        root.setBackgroundColor(bgColor());
+        webView.setBackgroundColor(bg);
+        root.setBackgroundColor(bg);
         root.addView(webView);
         setContentView(root);
 
         configureWebView();
-        applyBarAppearance(isNightMode());
+        applyBarAppearance(dark);
         bindInsets();
+        bindGestureExclusion();
         bindBackKey();
 
         webView.addJavascriptInterface(new Bridge(), "NetBridge");
@@ -177,13 +201,16 @@ public class MainActivity extends AppCompatActivity {
             int left = Math.round(bars.left / dp);
             int right = Math.round(bars.right / dp);
             // 键盘弹出时底部安全区让位给输入法，避免搜索框被遮挡
-            int bottom = Math.round(Math.max(bars.bottom, ime.bottom) / dp);
+            int keyboard = Math.round(ime.bottom / dp);
+            int bottom = Math.max(Math.round(bars.bottom / dp), keyboard);
 
-            int sig = (top * 31 + bottom) * 31 * 31 + left * 31 + right;
+            // 第五个参数是输入法高度：网页据此收起标签栏与悬浮按钮，
+            // 不然它们会被顶到键盘正上方挡住内容
+            int sig = ((((top * 31 + bottom) * 31 + left) * 31 + right) * 31) + keyboard;
             if (sig != lastInsetSig) {
                 lastInsetSig = sig;
                 pendingInsetsJs = "window.NetOpsSetInsets && NetOpsSetInsets("
-                        + top + "," + bottom + "," + left + "," + right + ");";
+                        + top + "," + bottom + "," + left + "," + right + "," + keyboard + ");";
                 flushInsets();
             }
             return insets;
@@ -199,6 +226,34 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    // ------------------------------------------------------------------ 手势冲突
+
+    /**
+     * Android 10+ 的系统返回手势会吃掉屏幕左缘的横滑，而网页左缘恰好是抽屉的拉出热区，
+     * 两者叠在一起时抽屉几乎拉不出来。把这条竖条声明为手势排除区即可让网页优先响应。
+     * 系统对每侧的排除高度上限为 200dp，因此只保留拇指最容易够到的中段。
+     */
+    private void bindGestureExclusion() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return;
+        root.addOnLayoutChangeListener(
+                (v, l, t, r, b, ol, ot, orr, ob) -> applyGestureExclusion());
+        applyGestureExclusion();
+    }
+
+    private void applyGestureExclusion() {
+        if (root == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return;
+        float dp = getResources().getDisplayMetrics().density;
+        if (dp <= 0) dp = 1f;
+        int w = Math.round(EDGE_DP * dp);
+        int h = root.getHeight();
+        if (w <= 0 || h <= 0) return;
+        int band = Math.min(h, Math.round(EXCLUSION_MAX_DP * dp));
+        int top = Math.max(0, (h - band) / 2);
+        List<Rect> rects = new ArrayList<>();
+        rects.add(new Rect(0, top, w, top + band));
+        ViewCompat.setSystemGestureExclusionRects(root, rects);
+    }
+
     // ------------------------------------------------------------------ 主题
 
     private boolean isNightMode() {
@@ -207,8 +262,18 @@ public class MainActivity extends AppCompatActivity {
         return mode == android.content.res.Configuration.UI_MODE_NIGHT_YES;
     }
 
-    private int bgColor() {
-        return isNightMode() ? 0xFF0B1220 : 0xFFF5F7FB;
+    /** 网页记过配色就以网页为准（含用户手动切换的深/浅色），否则跟随系统。 */
+    private boolean resolvedDark() {
+        String t = getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_THEME, null);
+        if ("dark".equals(t)) return true;
+        if ("light".equals(t)) return false;
+        return isNightMode();
+    }
+
+    private void rememberTheme(boolean dark) {
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                .putString(KEY_THEME, dark ? "dark" : "light")
+                .apply();
     }
 
     /** 网页主题变化后同步系统栏图标明暗与窗口底色。 */
@@ -217,7 +282,7 @@ public class MainActivity extends AppCompatActivity {
         WindowInsetsControllerCompat c = WindowCompat.getInsetsController(w, w.getDecorView());
         c.setAppearanceLightStatusBars(!dark);
         c.setAppearanceLightNavigationBars(!dark);
-        int bg = dark ? 0xFF0B1220 : 0xFFF5F7FB;
+        int bg = dark ? BG_DARK : BG_LIGHT;
         if (root != null) root.setBackgroundColor(bg);
         if (webView != null) webView.setBackgroundColor(bg);
         w.getDecorView().setBackgroundColor(bg);
@@ -240,6 +305,8 @@ public class MainActivity extends AppCompatActivity {
                         // 网页已在根页面，交还给系统（退出）
                         self.setEnabled(false);
                         getOnBackPressedDispatcher().onBackPressed();
+                        // 万一没退成（例如还有别的拦截者），恢复拦截，避免返回键从此失灵
+                        self.setEnabled(true);
                     }
                 });
             }
@@ -263,7 +330,28 @@ public class MainActivity extends AppCompatActivity {
 
         @JavascriptInterface
         public void setTheme(String mode) {
-            pushTheme("dark".equals(mode));
+            boolean dark = "dark".equals(mode);
+            rememberTheme(dark);
+            pushTheme(dark);
+        }
+
+        /**
+         * 触感反馈。用 View.performHapticFeedback 而非 Vibrator：
+         * 尊重系统「触感反馈」开关、不需要 VIBRATE 权限，力度也和原生控件一致。
+         */
+        @JavascriptInterface
+        public void haptic(int ms) {
+            runOnUiThread(() -> {
+                if (webView == null) return;
+                int effect = ms >= 16
+                        ? HapticFeedbackConstants.LONG_PRESS
+                        : HapticFeedbackConstants.VIRTUAL_KEY;
+                try {
+                    webView.performHapticFeedback(effect);
+                } catch (Exception e) {
+                    Log.w(TAG, "触感反馈不可用", e);
+                }
+            });
         }
 
         /** 导出 Markdown：Q 及以上写入公共 Downloads，低版本写应用私有目录，均无需权限。 */
@@ -320,7 +408,10 @@ public class MainActivity extends AppCompatActivity {
     public void onConfigurationChanged(@NonNull android.content.res.Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         // 系统深浅色切换时同步系统栏；网页侧 auto 模式由 CSS media query 自行响应
-        applyBarAppearance(isNightMode());
-        if (root != null) ViewCompat.requestApplyInsets(root);
+        applyBarAppearance(resolvedDark());
+        if (root != null) {
+            ViewCompat.requestApplyInsets(root);
+            applyGestureExclusion();
+        }
     }
 }

@@ -114,14 +114,16 @@
   }
   A.go = go;
 
-  function goTab(tab) {
+  function goTab(tab, restorePos) {
     if (cur.r === tab) { scroll.scrollTo({ top: 0, behavior: 'smooth' }); return; }
     scrollMem[keyOf(cur)] = scroll.scrollTop;
     /* 切主标签：回到根层级，清空返回栈，避免栈无限膨胀 */
     stack.length = 0;
     cur = { r: tab, a: null };
     syncHash(cur);
-    render(cur, true);
+    /* 直接点底部导航栏：该专栏回到顶部（符合直觉），不恢复历史滚动位置；
+       历史位置由返回键（back）按需恢复，避免“一切换就自动下滑” */
+    render(cur, !!restorePos);
     U.buzz(6);
   }
 
@@ -130,7 +132,7 @@
     if (U.sheet.isOpen()) { U.sheet.close(); return true; }
     if (drawerCtl && drawerCtl.isOpen && drawerCtl.isOpen()) { drawerCtl.close(); return true; }
     if (!stack.length) {
-      if (!isRoot(cur.r)) { goTab(META[cur.r] ? META[cur.r].tab : 'learn'); return true; }
+      if (!isRoot(cur.r)) { goTab(META[cur.r] ? META[cur.r].tab : 'learn', true); return true; }
       return false;
     }
     scrollMem[keyOf(cur)] = scroll.scrollTop;
@@ -521,7 +523,7 @@
     });
     return CLI_DB;
   }
-  var cliHist = [], cliPos = -1, cliMode = 'hw';
+  var cliHist = [], cliPos = -1, cliMode = 'hw', cliKbBound = false;
   function initCli() {
     var out = $('#cliOut'), inp = $('#cliIn'), btn = $('#cliRun'), quick = $('#cliQuick');
     if (!out) return;
@@ -535,6 +537,17 @@
       var b = e.target.closest('[data-cli]'); if (!b) return;
       inp.value = b.getAttribute('data-cli'); runCli();
     };
+    /* 键盘弹出会压掉终端一半高度，把输出滚回最新一行 */
+    if (!cliKbBound) {
+      cliKbBound = true;
+      var toBottom = function () {
+        var o = $('#cliOut');
+        if (o) o.scrollTop = o.scrollHeight;
+      };
+      w.addEventListener('netops:keyboard', function () { setTimeout(toBottom, 160); });
+      w.addEventListener('resize', function () { setTimeout(toBottom, 60); });
+    }
+
     btn.onclick = runCli;
     inp.onkeydown = function (e) {
       if (e.key === 'Enter') { runCli(); return; }
@@ -640,6 +653,8 @@
       setTheme(next);
     });
     $$('.tab').forEach(function (b) {
+      /* 阻止点击时按钮抢焦点引发的“焦点自动滚动”（底部栏被顶起 / 内容下移） */
+      b.addEventListener('mousedown', function (e) { e.preventDefault(); });
       b.addEventListener('click', function () { goTab(b.dataset.tab); });
     });
     fab.addEventListener('click', function () { scroll.scrollTo({ top: 0, behavior: 'smooth' }); });

@@ -204,10 +204,32 @@
 .drawer__body { flex: 1; overflow-y: auto; padding: 10px 10px 24px; overscroll-behavior: contain; }
 .drawer__foot { padding: 10px 14px; border-top: 1px solid var(--border); }
 
-/* 抽屉左缘手势热区 */
+/* 抽屉左缘手势热区（原生壳把同宽的一条竖带设为系统手势排除区） */
 .edge-catcher {
   position: fixed;
   top: var(--appbar-h); bottom: 0; left: 0;
   width: 18px;
   z-index: 35;
+}
+
+/* ---------------- 输入法适配 ----------------
+   原生壳把输入法高度写进 --sa-bottom，并在根节点置 data-kb="1"。
+   键盘占了半屏时标签栏和悬浮按钮必须退场，否则它们会被抬到键盘正上方
+   压住正在输入的内容。 */
+.tabbar { transition: transform var(--t-base) var(--ease-out); }
+
+html[data-kb="1"] .tabbar {
+  transform: translate3d(0, 100%, 0);
+  pointer-events: none;
+}
+html[data-kb="1"] .scroll {
+  padding-bottom: calc(var(--sa-bottom) + 14px);
+}
+html[data-kb="1"] .fab {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+html[data-kb="1"] .toast {
+  bottom: calc(var(--sa-bottom) + 14px);
 }
