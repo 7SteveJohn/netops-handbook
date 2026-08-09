@@ -1,0 +1,408 @@
+[
+ [
+  "1. 查看版本",
+  "display version",
+  "show version",
+  "show version",
+  "uname -a"
+ ],
+ [
+  "2. 运行配置",
+  "display cur",
+  "show run",
+  "show run",
+  "cat /etc/network/interfaces"
+ ],
+ [
+  "3. 保存配置",
+  "save",
+  "write memory",
+  "save config",
+  "netplan apply"
+ ],
+ [
+  "4. 日志缓存",
+  "display logbuffer",
+  "show logging",
+  "show log",
+  "journalctl -xe"
+ ],
+ [
+  "5. NTP 同步",
+  "ntp-service enable",
+  "ntp server",
+  "ntp server",
+  "timedatectl set-ntp true"
+ ],
+ [
+  "6. 接口状态",
+  "dis ip int br",
+  "show ip int br",
+  "show interface br",
+  "ip -br link show"
+ ],
+ [
+  "7. 配置 IP",
+  "ip address x.x.x.x m",
+  "ip address x.x.x.x m",
+  "ip address x.x.x.x m",
+  "ip addr add x.x.x.x/m dev eth0"
+ ],
+ [
+  "8. 流量统计",
+  "display interface",
+  "show interfaces",
+  "show interface",
+  "ifconfig -a"
+ ],
+ [
+  "9. 速率双工",
+  "speed 1000 / duplex full",
+  "speed 1000 / duplex full",
+  "speed 1000",
+  "ethtool eth0"
+ ],
+ [
+  "10. 接口描述",
+  "description",
+  "description",
+  "description",
+  "-"
+ ],
+ [
+  "11. 批量VLAN",
+  "vlan batch 10 20",
+  "vlan 10,20",
+  "vlan 10,20",
+  "-"
+ ],
+ [
+  "12. VLAN成员",
+  "display vlan",
+  "show vlan",
+  "show vlan",
+  "-"
+ ],
+ [
+  "13. Access模式",
+  "port link-type access",
+  "switchport mode access",
+  "port link-type access",
+  "-"
+ ],
+ [
+  "14. Trunk放行",
+  "port trunk allow-pass vlan 10",
+  "switchport trunk allowed",
+  "port trunk permit vlan",
+  "-"
+ ],
+ [
+  "15. Hybrid模式",
+  "port link-type hybrid",
+  "无(类似general)",
+  "port link-type hybrid",
+  "-"
+ ],
+ [
+  "16. MAC表",
+  "display mac-address",
+  "show mac address-table",
+  "show mac-address",
+  "ip neigh show"
+ ],
+ [
+  "17. 默认路由",
+  "ip route-static 0.0.0.0 0.0.0.0",
+  "ip route 0.0.0.0 0.0.0.0",
+  "ip route 0.0.0.0 0.0.0.0",
+  "ip route add default"
+ ],
+ [
+  "18. OSPF宣告",
+  "network x.x.x.x y.y.y.y area 0",
+  "network x.x.x.x y.y.y.y area 0",
+  "network x.x.x.x y.y.y.y",
+  "bird: protocol ospf"
+ ],
+ [
+  "19. OSPF邻居",
+  "display ospf peer",
+  "show ip ospf neighbor",
+  "show ospf neighbor",
+  "birdc show ospf neighbors"
+ ],
+ [
+  "20. BGP邻居",
+  "peer x.x.x.x as-number 100",
+  "neighbor x.x.x.x remote-as",
+  "peer x.x.x.x as 100",
+  "bird: protocol bgp"
+ ],
+ [
+  "21. BGP路由表",
+  "display bgp routing-table",
+  "show ip bgp",
+  "show bgp",
+  "birdc show route"
+ ],
+ [
+  "22. 全局IPv6",
+  "ipv6 enable",
+  "ipv6 unicast-routing",
+  "ipv6 enable",
+  "sysctl net.ipv6.conf.all"
+ ],
+ [
+  "23. IPv6地址",
+  "ipv6 address x::x/64",
+  "ipv6 address x::x/64",
+  "ipv6 address x::x/64",
+  "ip -6 addr add x::x/64"
+ ],
+ [
+  "24. IPv6路由",
+  "display ipv6 routing-table",
+  "show ipv6 route",
+  "show ipv6 route",
+  "ip -6 route show"
+ ],
+ [
+  "25. 基本ACL",
+  "acl number 2000",
+  "access-list 1 permit",
+  "acl 1",
+  "iptables -A INPUT"
+ ],
+ [
+  "26. 高级ACL",
+  "acl number 3000",
+  "access-list 100 permit",
+  "acl 100",
+  "iptables -A INPUT -p tcp"
+ ],
+ [
+  "27. 防火墙Zone",
+  "security-policy",
+  "zone security",
+  "zone",
+  "firewalld"
+ ],
+ [
+  "28. 链路聚合",
+  "interface Eth-Trunk 1",
+  "interface Port-channel 1",
+  "interface aggregation",
+  "bonding"
+ ],
+ [
+  "29. VRRP网关",
+  "vrrp vrid 1 virtual-ip",
+  "vrrp 1 ip x.x.x.x",
+  "vrrp 1 ip x.x.x.x",
+  "keepalived"
+ ],
+ [
+  "30. 查看堆叠",
+  "display stack",
+  "show switch",
+  "show stack",
+  "-"
+ ],
+ [
+  "31. AP状态",
+  "display ap all",
+  "show ap summary",
+  "show ap",
+  "-"
+ ],
+ [
+  "32. 无线SSID",
+  "ssid-profile",
+  "ssid",
+  "ssid",
+  "hostapd"
+ ],
+ [
+  "33. K8s网关",
+  "-",
+  "-",
+  "-",
+  "kubectl get ingress"
+ ],
+ [
+  "34. NAPALM",
+  "-",
+  "-",
+  "-",
+  "Python napalm"
+ ],
+ [
+  "35. RESTCONF",
+  "-",
+  "-",
+  "-",
+  "curl -X GET restconf/"
+ ],
+ [
+  "36. K8s排障",
+  "-",
+  "-",
+  "-",
+  "kubectl describe pod"
+ ],
+ [
+  "37. MPLS LSP",
+  "display mpls lsp",
+  "show mpls lsp",
+  "show mpls lsp",
+  "-"
+ ],
+ [
+  "38. SRv6",
+  "segment-routing ipv6",
+  "-",
+  "-",
+  "ip -6 route"
+ ],
+ [
+  "39. BGP EVPN",
+  "display bgp l2vpn evpn",
+  "show bgp evpn",
+  "show bgp evpn",
+  "-"
+ ],
+ [
+  "40. MPLS LDP",
+  "display mpls ldp session",
+  "show mpls ldp neighbor",
+  "show mpls ldp",
+  "-"
+ ],
+ [
+  "41. DHCP池",
+  "dhcp server ip-pool",
+  "ip dhcp pool",
+  "dhcp pool",
+  "dnsmasq"
+ ],
+ [
+  "42. QoS整形",
+  "traffic-policy",
+  "policy-map",
+  "qos",
+  "tc qdisc"
+ ],
+ [
+  "43. 策略路由",
+  "traffic-policy / redirect",
+  "route-map",
+  "policy-based-route",
+  "ip rule"
+ ],
+ [
+  "44. CSS堆叠",
+  "display css status",
+  "show switch",
+  "show stack",
+  "-"
+ ],
+ [
+  "45. 堆叠优先级",
+  "stack member 1 priority",
+  "switch 1 priority",
+  "stack priority",
+  "-"
+ ],
+ [
+  "46. 路径追踪",
+  "tracert",
+  "traceroute",
+  "traceroute",
+  "mtr"
+ ],
+ [
+  "47. 镜像抓包",
+  "mirroring",
+  "monitor session",
+  "mirror",
+  "tcpdump -i eth0"
+ ],
+ [
+  "48. CPU利用率",
+  "display cpu-usage",
+  "show processes cpu",
+  "show cpu",
+  "top / htop"
+ ],
+ [
+  "49. 内存利用率",
+  "display memory-usage",
+  "show processes memory",
+  "show memory",
+  "free -h"
+ ],
+ [
+  "50. 日志过滤",
+  "info-center loghost level",
+  "logging trap",
+  "log level",
+  "rsyslog.conf"
+ ],
+ [
+  "51. NAT64",
+  "nat64 prefix",
+  "nat64 prefix",
+  "nat64",
+  "jool"
+ ],
+ [
+  "52. 464XLAT",
+  "-",
+  "-",
+  "-",
+  "clatd"
+ ],
+ [
+  "53. VXLAN VNI",
+  "evpn vni 100",
+  "vni 100",
+  "evpn",
+  "-"
+ ],
+ [
+  "54. SRv6 Policy",
+  "segment-routing ipv6",
+  "-",
+  "-",
+  "-"
+ ],
+ [
+  "55. eBPF检查",
+  "-",
+  "-",
+  "-",
+  "bpftool prog list"
+ ],
+ [
+  "56. BGP邻居汇总",
+  "display bgp peer",
+  "show ip bgp summary",
+  "show bgp summary",
+  "birdc show proto"
+ ],
+ [
+  "57. 路由表查看",
+  "display ip routing-table",
+  "show ip route",
+  "show ip route",
+  "ip route"
+ ],
+ [
+  "58. 接口简要",
+  "display interface brief",
+  "show ip interface brief",
+  "show interface brief",
+  "ip -br addr"
+ ]
+]

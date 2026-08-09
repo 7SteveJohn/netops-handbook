@@ -1,0 +1,213 @@
+/* ============================================================
+   App 骨架：顶栏 / 内容区 / 底部标签栏 / 抽屉
+   全部基于 safe-area-inset 做刘海屏与手势条避让
+   ============================================================ */
+
+.app {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ---------------- 顶部应用栏 ---------------- */
+.appbar {
+  position: relative;
+  z-index: 40;
+  flex: 0 0 auto;
+  padding-top: var(--sa-top);
+  padding-left: var(--sa-left);
+  padding-right: var(--sa-right);
+  background: var(--surface-glass);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  backdrop-filter: saturate(180%) blur(14px);
+  border-bottom: 1px solid var(--border);
+  transition: box-shadow var(--t-base) var(--ease-out);
+}
+.appbar.is-scrolled { box-shadow: var(--sh-sm); }
+
+.appbar__row {
+  height: var(--appbar-h);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+}
+
+.appbar__title { display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+.appbar__name  { font-size: 15.5px; font-weight: 800; letter-spacing: .2px; line-height: 1.15; }
+.appbar__sub   { font-size: 10.5px; color: var(--text-3); line-height: 1.2; }
+.appbar__logo  { width: 30px; height: 30px; flex: 0 0 auto; margin: 0 6px 0 2px; }
+
+/* 顶部进度条 */
+.topbar-progress {
+  height: 2.5px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.topbar-progress__fill {
+  height: 100%;
+  width: 0;
+  border-radius: 0 3px 3px 0;
+  background: linear-gradient(90deg, var(--c-teal-500), var(--c-blue-500), var(--c-purple-500));
+  transition: width var(--t-slow) var(--ease-out);
+}
+
+/* ---------------- 图标按钮 ---------------- */
+.ibtn {
+  position: relative;
+  width: var(--tap-min);
+  height: var(--tap-min);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-md);
+  color: var(--text-2);
+  overflow: hidden;
+  transition: background-color var(--t-fast) var(--ease-out),
+              color var(--t-fast) var(--ease-out),
+              transform var(--t-fast) var(--ease-out);
+}
+.ibtn:active { transform: scale(.88); background: var(--surface-2); }
+.ibtn.is-on  { color: var(--accent); background: var(--accent-soft); }
+.ibtn__badge {
+  position: absolute; top: 7px; right: 7px;
+  min-width: 15px; height: 15px; padding: 0 4px;
+  border-radius: var(--r-full);
+  background: var(--danger); color: #fff;
+  font-size: 9.5px; font-weight: 800; line-height: 15px; text-align: center;
+  border: 1.5px solid var(--surface);
+}
+
+/* ---------------- 搜索栏 ---------------- */
+.searchwrap {
+  overflow: hidden;
+  max-height: 0;
+  transition: max-height var(--t-base) var(--ease-out);
+}
+.searchwrap.is-open { max-height: 60px; }
+.searchbar {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 10px 10px;
+  padding: 0 12px;
+  height: 40px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+}
+.searchbar input { flex: 1; min-width: 0; font-size: 15px; }
+
+/* ---------------- 主滚动区 ---------------- */
+.scroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+  padding-left: var(--sa-left);
+  padding-right: var(--sa-right);
+  /* 底部预留标签栏 + 手势条空间 */
+  padding-bottom: calc(var(--tabbar-h) + var(--sa-bottom) + 22px);
+  will-change: scroll-position;
+}
+.page { padding: 12px 12px 0; }
+
+/* ---------------- 底部标签栏 ---------------- */
+.tabbar {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  z-index: 45;
+  display: flex;
+  align-items: stretch;
+  padding-bottom: var(--sa-bottom);
+  padding-left: var(--sa-left);
+  padding-right: var(--sa-right);
+  background: var(--surface-glass);
+  -webkit-backdrop-filter: saturate(180%) blur(16px);
+  backdrop-filter: saturate(180%) blur(16px);
+  border-top: 1px solid var(--border);
+}
+.tab {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  height: var(--tabbar-h);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: var(--text-3);
+  font-size: 10.5px;
+  font-weight: 600;
+  overflow: hidden;
+  transition: color var(--t-fast) var(--ease-out);
+}
+.tab__icon {
+  transition: transform var(--t-base) var(--ease-spring);
+}
+.tab:active .tab__icon { transform: scale(.82); }
+.tab.is-active { color: var(--accent); }
+.tab.is-active .tab__icon { transform: translateY(-1px) scale(1.08); }
+/* 选中指示条 */
+.tab.is-active::before {
+  content: "";
+  position: absolute; top: 0; left: 50%;
+  width: 26px; height: 3px;
+  transform: translateX(-50%);
+  border-radius: 0 0 3px 3px;
+  background: var(--accent);
+  animation: tab-pop var(--t-base) var(--ease-spring);
+}
+@keyframes tab-pop { from { width: 0; opacity: 0; } to { width: 26px; opacity: 1; } }
+
+/* ---------------- 抽屉导航 ---------------- */
+.scrim {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(2,6,23,.5);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--t-base) var(--ease-out), visibility var(--t-base);
+}
+.scrim.is-open { opacity: 1; visibility: visible; }
+
+.drawer {
+  position: fixed;
+  top: 0; bottom: 0; left: 0;
+  z-index: 70;
+  width: min(84vw, 330px);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-elevated);
+  border-right: 1px solid var(--border);
+  box-shadow: var(--sh-xl);
+  transform: translate3d(-102%, 0, 0);
+  transition: transform var(--t-base) var(--ease-out);
+  padding-top: var(--sa-top);
+  padding-bottom: var(--sa-bottom);
+  padding-left: var(--sa-left);
+  will-change: transform;
+}
+.drawer.is-open { transform: translate3d(0,0,0); }
+/* 手势拖拽期间关闭过渡，保证跟手 */
+.drawer.is-dragging { transition: none; }
+.scrim.is-dragging  { transition: none; }
+
+.drawer__head {
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.drawer__body { flex: 1; overflow-y: auto; padding: 10px 10px 24px; overscroll-behavior: contain; }
+.drawer__foot { padding: 10px 14px; border-top: 1px solid var(--border); }
+
+/* 抽屉左缘手势热区 */
+.edge-catcher {
+  position: fixed;
+  top: var(--appbar-h); bottom: 0; left: 0;
+  width: 18px;
+  z-index: 35;
+}

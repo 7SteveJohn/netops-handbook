@@ -1,0 +1,76 @@
+/* ============================================================
+   动效层：入场 / 反馈 / 骨架屏
+   全部使用 transform + opacity，走 GPU 合成层，避免重排
+   ============================================================ */
+
+/* 列表逐项淡入上浮（由 JS 设置 --i 序号） */
+.anim-in {
+  opacity: 0;
+  animation: anim-in .38s var(--ease-out) forwards;
+  animation-delay: calc(var(--i, 0) * 42ms);
+}
+@keyframes anim-in {
+  from { opacity: 0; transform: translate3d(0, 12px, 0); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* 弹入（用于徽标、勾选） */
+.anim-pop { animation: anim-pop .34s var(--ease-spring); }
+@keyframes anim-pop {
+  0%   { transform: scale(.5); opacity: 0; }
+  60%  { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+/* 抖动（错误反馈） */
+.anim-shake { animation: shake .38s var(--ease-out); }
+@keyframes shake {
+  0%,100% { transform: translateX(0); }
+  22%     { transform: translateX(-6px); }
+  44%     { transform: translateX(5px); }
+  66%     { transform: translateX(-3px); }
+  88%     { transform: translateX(2px); }
+}
+
+/* 心跳脉冲（在线指示灯） */
+.pulse { position: relative; }
+.pulse::after {
+  content: "";
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  background: inherit;
+  animation: pulse 2s var(--ease-out) infinite;
+}
+@keyframes pulse {
+  0%   { transform: scale(1); opacity: .65; }
+  70%  { transform: scale(2.4); opacity: 0; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+
+/* 打勾路径绘制 */
+.check-draw {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  animation: draw .42s var(--ease-out) forwards;
+}
+@keyframes draw { to { stroke-dashoffset: 0; } }
+
+/* 骨架屏 */
+.skel {
+  border-radius: var(--r-sm);
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 37%, var(--surface-2) 63%);
+  background-size: 400% 100%;
+  animation: skel 1.3s ease-in-out infinite;
+}
+@keyframes skel { from { background-position: 100% 50%; } to { background-position: 0 50%; } }
+
+/* 打字光标 */
+.caret::after {
+  content: "▋";
+  color: var(--term-green);
+  animation: blink 1.05s step-end infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+/* 数字翻滚容器 */
+.count { font-variant-numeric: tabular-nums; }
