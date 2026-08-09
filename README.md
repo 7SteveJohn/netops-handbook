@@ -1,143 +1,120 @@
 # NetOps 2.0 — 全栈网络运维技能导航
 
-> 完全离线、单文件自包含的 Android 应用，把从零基础到高级架构的网络运维知识体系装进口袋。
+> 从零基础数通到云原生架构，把整个网络运维知识体系装进口袋。**完全离线，无需任何网络连接。**
 
-[![Platform](https://img.shields.io/badge/platform-Android%2024%2B-green.svg)](https://www.android.com/)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](#许可)
-[![Offline](https://img.shields.io/badge/network-100%25%20offline-orange.svg)](#特性)
-
----
-
-## 简介
-
-NetOps 2.0 是一个面向网络运维工程师的离线知识导航平台。它以 Android App 为载体，内部承载一个零外部依赖的单页应用（SPA），把传统数通、云原生、排障字典、面试题库、命令词典等内容整合在一个可离线运行、移动端深度优化的界面里。
-
-**主打特性：纯离线。** 应用不声明任何 `INTERNET` 权限，所有内容、美术资源（内联 SVG / CSS）均打包进安装包，断网也能用——适合机房、割接现场、试题备考等无网或弱网场景。
+[![Platform](https://img.shields.io/badge/platform-Android%2024%2B-green.svg)](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.0)
+[![Offline](https://img.shields.io/badge/network-100%25%20offline-orange.svg)](#)
+[![Release](https://img.shields.io/badge/release-v2.0.0-blue.svg)](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.0)
 
 ---
 
-## 特性
+## 它是什么
 
-- 📚 **完整知识体系**：从零基础到高级架构，覆盖传统数通、云原生、排障、面试、命令字典。
-- 📴 **100% 离线**：无网络权限、无外部请求，安装即用，断网无忧。
-- 📱 **移动端深度优化**：UI 自适应、`safe-area` 安全区域适配、触控动效、边到边沉浸式界面。
-- ⌨️ **原生桥接**：物理返回键正确回退网页导航栈、安全区域（dp）精确下发、导出 Markdown。
-- 🎨 **零外部依赖**：所有图标 / 插画均为内联 SVG 或 CSS 绘制，无图片文件、无 CDN。
-- 🔍 **命令字典**：华为 / Cisco / 中兴 / Linux 多厂商命令对照，支持高频巡检命令速查。
+NetOps 2.0 是一个面向网络运维工程师的 **Android 离线知识导航 App**。
 
----
+打开即用，不联网、不注册、不看广告。所有内容——58 个知识模块、25 个排障案例、58 条多厂商命令对照、30 道面试真题——全部打包在安装包里，断网也能学。
 
-## 内容体系
+适合这些场景：
 
-| 模块 | 说明 |
-|------|------|
-| **传统数通** | VLAN / Trunk / STP / OSPF / BGP / Eth-Trunk 等基础与进阶 |
-| **云原生网络** | 容器网络、Calico / Cilium、eBPF、Service Mesh、GitOps 渲染下发 |
-| **排障字典** | 典型故障场景（链路、隧道 MSS、生成树、路由）与急救命令 |
-| **面试题库** | 从概念到架构的多层次面试题与解析 |
-| **命令词典** | 多厂商命令对照表，附高频巡检命令（邻居、路由表、接口状态） |
+- 🏗 机房割接现场，没网也能查命令
+- 📝 面试突击复习，通勤路上刷题
+- 🎯 按路线图系统学习，从零基础到架构师
+- 🔧 现场排障速查，秒找对应命令和思路
 
----
+## 一图看懂
 
-## 技术架构
+| | |
+|---|---|
+| **首页 — 学习路径与进度总览** | <img src="screenshots/home.png" width="280" alt="首页截图：离线状态卡片 + 4 项数据统计（58模块/25案例/58命令/30面试）+ 学习进度圆环 + 学习路径列表" /> |
+| **学习路线图 — 0-12 月成长节奏** | <img src="screenshots/roadmap.png" width="280" alt="学习路线图截图：5 个阶段时间轴（打地基→园区网实战→广域与安全→云原生转型→架构与SRE），每阶段含具体知识点和学习目标" /> |
+| **我的 — 进度 / 收藏 / 资源入口** | <img src="screenshots/profile.png" width="280" alt="我的页面截图：总进度圆环 + 四项统计卡片 + 收藏夹 + 资源入口（速查表/术语词典/学习路线图）" /> |
 
-```
-┌─────────────────────────────────────────────┐
-│  Android Shell (Kotlin/Java)                  │
-│  - 边到边沉浸界面 / 安全区 dp 下发             │
-│  - 物理返回键 ↔ 网页导航栈桥接                │
-│  - @JavascriptInterface 原生桥 (NetBridge)     │
-│  - 纯离线（无 INTERNET 权限）                 │
-└───────────────────┬─────────────────────────┘
-                    │  WebView 加载
-┌───────────────────┴─────────────────────────┐
-│  Web SPA (web-src/)                           │
-│  - 单文件自包含 index.html（CSS/JS/SVG 内联）  │
-│  - 自建导航栈（替代 history.pushState）        │
-│  - 数据源：web-src/.cache/*.json              │
-└─────────────────────────────────────────────┘
-```
+## 五大功能
 
-### 构建链路
+### 📚 学习 — 58 个知识模块
 
-```
-web-src/.cache/phases.json  ┐
-web-src/.cache/dic.json     ┼─► tools/gen-data.js ─► js/data/10-core.js
-web-src/js/data/*.js (手写) ┘
-        │
-        ▼
-   tools/build.js  ─►  app/src/main/assets/index.html  (离线单页)
-        │
-        ▼
-   Android Studio 打包  ─►  app-release.apk (发布签名)
-```
+按阶段组织的学习路径，从 OSI 七层模型一路走到云原生 SRE：
 
----
+1. **零基础入门与基础设施**（8 模块）— OSI/TCP 分层、IPv4/掩码计算、网关原理、华为 VRP 视图操作
+2. **园区网核心与高可用**（9 模块）— VLAN / Trunk / SVI、OSPF 多区域、BGP、MSTP / VRRP / iStack 堆叠
+3. **广域网与安全** — NAT / PPPoE / MPLS、防火墙策略、802.1X、无线 AC-AP
+4. **云原生网络转型** — VXLAN / EVPN、K8s CNI、Calico / Cilium / eBPF、可观测性三支柱
+5. **架构与 SRE** — SLI / SLO / 错误预算、混沌工程、GitOps 闭环、跨数据中心高可用
 
-## 目录结构
+每个模块点进去就是完整的内容页，支持收藏和进度标记。
+
+### 🔧 排障 — 25 个真实场景
+
+典型故障的「现象 → 分析 → 命令」三段式卡片：
+
+- 链路不通怎么排查？从物理层到路由逐层定位
+- 隧道 MSS 导致大包丢包？`tcp adjust-mss` 一行搞定
+- STP 风暴 / MAC 地址漂移 / OSPF 邻居起不来……每个都有对应的急救命令
+
+### 📖 字典 — 58 条多厂商命令对照
+
+同一功能，华为 / Cisco / 中兴 / Linux 四家命令并排显示：
 
 ```
-D:\Android\
-├── app/                      # Android 壳工程
-│   ├── src/main/
-│   │   ├── java/.../MainActivity.java   # 壳逻辑 + 原生桥
-│   │   ├── res/                         # 主题 / 图标 / 布局
-│   │   └── assets/index.html            # 构建产物（离线单页）
-│   ├── build.gradle.kts
-│   └── release-key.jks          # 发布签名密钥（不入库）
-├── web-src/                 # 知识库网页源码
-│   ├── index.html
-│   ├── css/  js/  html/     # 内联样式 / 逻辑 / SVG sprite
-│   ├── .cache/              # 数据源（phases.json / dic.json）
-│   └── tools/               # 构建脚本（gen-data / build / smoke / verify-apk / gen-icon）
-├── gradle/  gradlew*        # Gradle wrapper
-├── build.gradle.kts  settings.gradle.kts
-├── keystore.properties.example   # 密钥模板（无真实密码）
-└── README.md
+示例：Trunk 放行 VLAN
+  华为: port trunk allow-pass vlan 10
+  Cisco: switchport trunk allowed vlan 10
+  中兴: port trunk permit vlan 10
+  Linux: -
 ```
 
-> **注意**：`app/release-key.jks`、`keystore.properties`、构建缓存（`app/build`、`build`、`.gradle`）均已被 `.gitignore` 排除，不会进入仓库。
+还收录了高频巡检命令（BGP 邻居汇总、路由表查看、接口简要状态等）。
 
----
+### 📝 面试 — 30 道真题
 
-## 构建与打包
+从概念题到架构设计题，覆盖各层次：
 
-### 前置
+- 「Hybrid 接口和 Access / Trunk 的区别？」
+- 「OSPF 的 LSA 类型有哪些？Type 7 是什么？」
+- 「iptables 规则多了性能会怎样？是 O(n) 还是指数级？」
+- 「公有云里 Calico 为什么不能直接跑 BGP？」
 
-- Android Studio（自带 JDK / keytool / build-tools）
-- Gradle 8.9（wrapper 已内置）
-- Node.js（仅用于重新生成网页内容，可选）
+每道题带解析，帮你在面试前快速过一遍关键知识点。
 
-### 重新生成网页内容（可选）
+### 👤 我的 — 进度追踪与资源
 
-若修改了 `web-src/.cache/*.json` 或 `web-src/js/` 下的源文件：
+- **总进度圆环**：已掌握 / 总项数百分比
+- **分项统计**：知识模块、排障案例、面试真题各自完成度
+- **收藏夹**：把常看的模块或命令一键收藏
+- **资源入口**：速查表（8 张高频对照表）、术语词典（22 条）、学习路线图
 
-```bash
-cd web-src
-node tools/gen-data.js   # 由数据源生成 js/data/10-core.js
-node tools/build.js      # 内联打包为 app/src/main/assets/index.html
-```
+## 使用方式
 
-### 打包 APK
+1. **下载安装** → [Releases 页面](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.0) 下载 `app-release.apk`，允许「未知来源」安装即可
+2. **打开即用** → 底部五个 Tab 切换：**学习 / 排障 / 字典 / 面试 / 我的**
+3. **搜索** → 右上角 🔍 图标全局搜索任意关键词
+4. **深色模式** → 右上角 ☀️ 图标切换明暗主题
+5. **返回导航** → Android 物理返回键逐层回退，到根页可退出
 
-1. 用 Android Studio 打开本项目。
-2. **Build → Generate Signed Bundle / APK → APK**
-3. 选择 `app/release-key.jks`，填入密钥口令（alias `netops`）。
-4. 选择 **release**，勾选 **V1 + V2** 签名 → Finish。
-5. 产物：`app/release/app-release.apk`。
+> **注意**：本应用声明了 `android.permission.VIBRATE`（触控反馈震动），无任何网络相关权限。首次安装时系统可能提示「未知的开发者」，这是正常的安全提示，选择「仍然安装」即可。
 
-> 首次打包前需先生成签名密钥：双击项目根 `gen-release-key.bat`，按提示输入口令即可（自动写 `keystore.properties`）。
+## 内容一览
 
----
+| 类别 | 数量 | 示例 |
+|------|------|------|
+| 知识模块 | 58 | OSI 分层、VLAN/Trunk、OSPF 多区域、BGP 选路、VXLAN/EVPN、eBPF、GitOps… |
+| 排障案例 | 25 | 链路不通、MSS 过小丢包、STP 风暴、MAC 漂移、OSPF 邻居异常… |
+| 命令对照 | 58 | Trunk 放行、端口描述、VLAN 创建、OSPF 邻居、BGP 汇总、接口状态… |
+| 面试真题 | 30 | Hybrid vs Trunk、LSA 类型、iptables 复杂度、Calico 云端限制… |
+| 速查表 | 8 张 | 高频命令对照表（按场景分类） |
+| 术语词典 | 22 条 | 核心网络运维术语的定义与辨析 |
+
+## 技术细节
+
+- **纯离线**：不声明 `INTERNET` 权限，零外部请求，所有内容与美术资源（SVG/CSS）内联打包
+- **移动优化**：安全区域适配（刘海屏/挖孔屏）、边到边沉浸界面、触控动效
+- **单文件 SPA**：全部前端代码打包为一个 `index.html`，通过 Android WebView 加载
+- **开源协议**：MIT License
 
 ## 下载
 
-最新发布版 APK 见 **[Releases](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.0)**。
-
-下载 `app-release.apk`，在 Android 上允许「未知来源」安装即可使用。
-
----
+📥 [**v2.0.0 Release（含 APK）**](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.0)
 
 ## 许可
 
-本项目以 [MIT License](#) 开源。内容版权归原作者所有，仅供学习交流。
+本项目以 MIT License 开源。内容仅供学习交流。
