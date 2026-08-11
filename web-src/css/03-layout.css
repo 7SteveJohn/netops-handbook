@@ -19,13 +19,31 @@
   padding-top: var(--sa-top);
   padding-left: var(--sa-left);
   padding-right: var(--sa-right);
-  background: var(--surface-glass);
-  -webkit-backdrop-filter: saturate(180%) blur(14px);
-  backdrop-filter: saturate(180%) blur(14px);
+  background: var(--surface);
   border-bottom: 1px solid var(--border);
   transition: box-shadow var(--t-base) var(--ease-out);
 }
-.appbar.is-scrolled { box-shadow: var(--sh-sm); }
+/* 顶栏液态玻璃：开启即生效 */
+body.glass-on .appbar {
+  background: linear-gradient(180deg, var(--glass-tint-top) 0%, var(--glass-tint-bot) 100%);
+  -webkit-backdrop-filter: saturate(var(--glass-saturate)) blur(var(--glass-blur));
+  backdrop-filter: saturate(var(--glass-saturate)) blur(var(--glass-blur));
+  border-bottom-color: transparent;
+  box-shadow: var(--glass-shadow);
+}
+/* 顶栏跟随光镜面高光（动态反馈） */
+body.glass-on .appbar::after {
+  content: "";
+  position: absolute; inset: 0;
+  background: var(--glass-specular-dyn);
+  pointer-events: none;
+  border-radius: inherit;
+}
+html.dark body.glass-on .appbar {
+  background: linear-gradient(180deg, var(--glass-tint-top) 0%, var(--glass-tint-bot) 100%);
+}
+/* 滚动后才显发丝边缘线（apple 风格） */
+.appbar.is-scrolled { box-shadow: var(--glass-shadow), 0 1px 0 var(--hairline); }
 
 .appbar__row {
   height: var(--appbar-h);
@@ -36,7 +54,7 @@
 }
 
 .appbar__title { display: flex; flex-direction: column; justify-content: center; min-width: 0; }
-.appbar__name  { font-size: 15.5px; font-weight: 800; letter-spacing: .2px; line-height: 1.15; }
+.appbar__name  { font-size: 15.5px; font-weight: 800; letter-spacing: -.01em; line-height: 1.15; }
 .appbar__sub   { font-size: 10.5px; color: var(--text-3); line-height: 1.2; }
 .appbar__logo  { width: 30px; height: 30px; flex: 0 0 auto; margin: 0 6px 0 2px; }
 
@@ -69,7 +87,7 @@
               color var(--t-fast) var(--ease-out),
               transform var(--t-fast) var(--ease-out);
 }
-.ibtn:active { transform: scale(.88); background: var(--surface-2); }
+.ibtn:active { transform: scale(.86); background: var(--surface-2); filter: brightness(1.05); }
 .ibtn.is-on  { color: var(--accent); background: var(--accent-soft); }
 .ibtn__badge {
   position: absolute; top: 7px; right: 7px;
@@ -96,6 +114,15 @@
   border: 1px solid var(--border);
   border-radius: var(--r-full);
 }
+body.glass-on .searchbar {
+  background: linear-gradient(160deg, var(--glass-tint-top) 0%, var(--glass-tint-bot) 100%);
+  -webkit-backdrop-filter: saturate(var(--glass-saturate)) blur(calc(var(--glass-blur) * .7));
+  backdrop-filter: saturate(var(--glass-saturate)) blur(calc(var(--glass-blur) * .7));
+  box-shadow: var(--glass-shadow);
+}
+html.dark body.glass-on .searchbar {
+  background: linear-gradient(160deg, var(--glass-tint-top) 0%, var(--glass-tint-bot) 100%);
+}
 .searchbar input { flex: 1; min-width: 0; font-size: 15px; }
 
 /* ---------------- 主滚动区 ---------------- */
@@ -110,65 +137,207 @@
   padding-right: var(--sa-right);
   /* 底部预留标签栏 + 手势条空间 */
   padding-bottom: calc(var(--tabbar-h) + var(--sa-bottom) + 22px);
-  will-change: scroll-position;
 }
 .page { padding: 12px 12px 0; }
 
-/* ---------------- 底部标签栏 ---------------- */
+/* ---------------- 底部标签栏（苹果悬浮式浮动栏 / 可切换常规） ---------------- */
 .tabbar {
   position: absolute;
   left: 0; right: 0; bottom: 0;
   z-index: 45;
   display: flex;
   align-items: stretch;
-  padding-bottom: var(--sa-bottom);
+  justify-content: center;
+  background: transparent;
+  border-top: none;
+  box-shadow: none;
+  /* 浮动模式：内容区底部留白对齐 ::before 胶囊（胶囊 bottom = sa-bottom+8px） */
+  padding-bottom: calc(var(--sa-bottom, 0px) + 8px);
+}
+/* 浮动模式：.tabbar 自身即玻璃胶囊容器，5 个 tab 严格约束在胶囊内部（杜绝贴壁/溢出） */
+body:not(.tabbar-regular) .tabbar {
+  left: 24px; right: 24px; bottom: calc(var(--sa-bottom, 0px) + 12px);
+  height: 56px;
+  border-radius: 32px;
+  padding: 0 8px;                  /* 两端各 8pt 内边距 */
+  transition: left var(--t-base) var(--ease-out), right var(--t-base) var(--ease-out);
+}
+/* 浮动栏内胆（真正的玻璃表面）—— 填满 .tabbar 胶囊盒，随其一起收窄 */
+.tabbar::before {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 100%;
+  background: var(--surface);
+  border-radius: inherit;          /* 跟随 .tabbar 胶囊圆角 */
+  border: .5px solid rgba(0,0,0,.05);
+  box-shadow:
+    0 -4px 24px rgba(15,23,42,.1),
+    0 -2px 6px rgba(15,23,42,.04),
+    0 0 0 .5px rgba(255,255,255,.8) inset;
+  z-index: -1;
+  pointer-events: none;
+  transition: transform var(--t-base) var(--ease-apple-spring),
+              opacity var(--t-base), box-shadow var(--t-base);
+}
+/* 常规模式（非悬浮）：贴底满宽传统导航栏 */
+body.tabbar-regular .tabbar::before {
+  left: 0; right: 0; bottom: 0;
+  height: calc(var(--tabbar-h) + var(--sa-bottom));
+  border-radius: 0;
+  border-top: .5px solid var(--border);
+  box-shadow: 0 -1px 0 var(--hairline, rgba(0,0,0,.07));
+}
+/* 常规模式下 tab 恢复原高度 */
+body.tabbar-regular .tab {
+  height: var(--tabbar-h);
+}
+body.tabbar-regular .tabbar {
   padding-left: var(--sa-left);
   padding-right: var(--sa-right);
-  background: var(--surface-glass);
-  -webkit-backdrop-filter: saturate(180%) blur(16px);
-  backdrop-filter: saturate(180%) blur(16px);
-  border-top: 1px solid var(--border);
+  padding-bottom: var(--sa-bottom);
 }
+
+/* 底栏液态玻璃：悬浮圆角胶囊 / 常规贴底栏。
+   2026-08-11 联网校准 iOS 26 thinMaterial（导航/tab bar）：
+   blur 16-20px · saturate 1.4-1.65x · 低不透明度白底 · 顶部 1pt 高光 */
+body.glass-on .tabbar::before {
+  background: rgba(255, 255, 255, 0.22);
+  -webkit-backdrop-filter: saturate(var(--glass-saturate)) blur(var(--glass-blur));
+  backdrop-filter: saturate(var(--glass-saturate)) blur(var(--glass-blur));
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow:
+    0 5px 14px rgba(0, 0, 0, 0.08),
+    0 2px 5px rgba(0, 0, 0, 0.04),
+    inset 0 -2px 3px rgba(255, 255, 255, 0.12),
+    var(--glass-rim), var(--glass-aberration);   /* 透镜边缘折射 + 色散（液态玻璃） */
+}
+/* 底栏跟随光镜面高光（动态反馈）—— 单独伪元素，避免污染 ::before 表面 */
+body.glass-on .tabbar::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--glass-specular-dyn);
+  pointer-events: none;
+  z-index: -1;
+  transition: background var(--t-base) var(--ease-out);
+}
+/* 常规模式下高光铺满底栏 */
+body.glass-on.tabbar-regular .tabbar::after {
+  left: 0; right: 0; bottom: 0;
+  height: calc(var(--tabbar-h) + var(--sa-bottom));
+  border-radius: 0;
+}
+/* 滚动"变实"统一收敛在 06-anim.css 的 body.tabbar-float .tabbar.is-scrolled
+   （几何全锁定、仅表面变实）。此处的旧 left/right 收窄规则（turn 19 时代）
+   已删除——它与 06-anim.css:163 的 left/right transition 叠加会在滚动时
+   造成胶囊左右晃动（用户 2026-08-11 反馈"还会滑动"的持续来源之一）。 */
+/* 常规模式下玻璃：贴底满宽，无圆角 */
+body.glass-on.tabbar-regular .tabbar::before {
+  border-radius: 0;
+  box-shadow:
+    0 -1px 0 rgba(255,255,255,.2),
+    0 -4px 16px rgba(15,23,42,.08);
+}
+html.dark body.glass-on .tabbar::before {
+  background: rgba(30, 30, 35, 0.18);
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow:
+    0 5px 14px rgba(0, 0, 0, 0.20),
+    0 2px 5px rgba(0, 0, 0, 0.12),
+    inset 0 -2px 3px rgba(255, 255, 255, 0.06),
+    var(--glass-rim), var(--glass-aberration);   /* 透镜边缘折射 + 色散（液态玻璃·深色） */
+}
+
 .tab {
   position: relative;
   flex: 1 1 0;
   min-width: 0;
-  height: var(--tabbar-h);
+  height: calc(var(--tabbar-h) + 4px);   /* 与胶囊 56px 等高 */
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  color: var(--text-3);
-  font-size: 10.5px;
-  font-weight: 600;
-  overflow: hidden;
-  transition: color var(--t-fast) var(--ease-out);
+  gap: 4px;                               /* 规范：图标-文字间距 4pt */
+  padding: 8px 0 6px;                     /* 顶部 8pt + 底部 6pt，给图标显式垂直居中空间 */
+  color: #8E8E93;                         /* 规范：未选中 #8E8E93 */
+  font-size: 10px;                        /* 规范：文字 10pt */
+  font-weight: 500;
+  line-height: 1.2;                       /* 锁定行高，避免中文 fallback 让 10pt 撑到 18-20pt 顶爆容器 */
+  overflow: visible;                      /* 改 visible：避免 inline-svg baseline 偏移被裁；选中 pill inset 4px 也安全 */
+  transition: color var(--t-fast) var(--ease-out),
+              transform .1s cubic-bezier(.34,1.56,.64,1);
 }
 .tab__icon {
-  transition: transform var(--t-base) var(--ease-spring);
+  width: 22px; height: 22px;              /* 参考 D:/index.html：图标 22pt 线性 */
+  display: block;                         /* 显式 block：杀掉 inline-svg 的 baseline 偏移；这是图标顶部被切的根因 */
+  flex-shrink: 0;                         /* 防 flex 压缩；五等分时不会被挤到 ~14pt */
+  vertical-align: middle;
+  overflow: visible;
+  stroke-width: 1.7;                      /* 参考：统一线性圆角描边 1.7 */
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform .2s cubic-bezier(.34,1.56,.64,1);
 }
+/* 高 specificity 选择器：压过 .icon{ width:22px; height:22px }（source-order 战争） */
+button.tab > svg.tab__icon {
+  width: 22px; height: 22px;              /* 锁死 22×22，与参考图标一致；
+                                              这里用 button.tab > svg.tab__icon 把 specificity 提到 (0,2,1) 必胜 */
+  stroke-width: 1.7;                      /* 同步锁死描边宽度 */
+}
+.tab:active { transform: scale(.97); }    /* 规范：点击物理反馈 scale .97 */
 .tab:active .tab__icon { transform: scale(.82); }
-.tab.is-active { color: var(--accent); }
-.tab.is-active .tab__icon { transform: translateY(-1px) scale(1.08); }
-/* 选中指示条 */
+.tab.is-active { color: var(--accent-muted); }   /* 选中：文字平滑转品牌降饱和蓝 */
+/* 选中：仅描边变色 + 同色文字（iOS 原生、苹果/微信方案）
+   之前用 15% 浅填充在 24px 小图标上看像实心，撤掉。
+   这里用 fill:none 显式保证：即使 sprite symbol 里 path 默认 fill=black 也清不掉描边空心感 */
+.tab.is-active .tab__icon {
+  fill: none;
+  stroke: var(--accent-muted);
+  /* 参考 D:/index.html：选中图标微抬升 + 轻放大（两形态统一；常规模式被 turn 35
+     的 .tab.is-active .tab__icon 用 var(--accent) 覆盖，胶囊保持 --accent-muted） */
+  transform: translateY(-1px) scale(1.08);
+}
+/* 选中指示：悬浮栏内用小圆点（苹果 Liquid Glass 风格） */
 .tab.is-active::before {
   content: "";
-  position: absolute; top: 0; left: 50%;
-  width: 26px; height: 3px;
+  position: absolute; bottom: 6px; left: 50%;
+  width: 5px; height: 5px;
   transform: translateX(-50%);
-  border-radius: 0 0 3px 3px;
-  background: var(--accent);
-  animation: tab-pop var(--t-base) var(--ease-spring);
+  border-radius: 50%;
+  background: var(--accent-muted);
+  animation: tab-dot-pop var(--t-base) var(--ease-spring);
 }
-@keyframes tab-pop { from { width: 0; opacity: 0; } to { width: 26px; opacity: 1; } }
+@keyframes tab-dot-pop { from { width: 0; opacity: 0; } to { width: 5px; opacity: 1; } }
+
+/* 常规模式：选中指示器改为顶部蓝线（iOS 标准 UITabBar 风格） */
+body.tabbar-regular .tab.is-active::before {
+  bottom: auto; top: 0; left: 0; right: 0;
+  width: auto; height: 3px;
+  transform: none;
+  border-radius: 0 0 2px 2px;
+  background: var(--accent);
+  animation: tab-line-in var(--t-base) var(--ease-out);
+}
+@keyframes tab-line-in { from { opacity: 0; transform: scaleY(0); } to { opacity: 1; transform: scaleY(1); } }
+
+/* 常规模式底栏微调：更紧凑的图标间距，iOS 原生感 */
+body.tabbar-regular .tab {
+  gap: 1px;
+}
+body.tabbar-regular .tab__icon {
+  transition: transform var(--t-base) var(--ease-spring);
+}
+body.tabbar-regular .tab.is-active .tab__icon {
+  transform: none; /* 常规模式不做图标缩放，保持干净 */
+}
 
 /* ---------------- 抽屉导航 ---------------- */
 .scrim {
   position: fixed; inset: 0; z-index: 60;
-  background: rgba(2,6,23,.5);
-  -webkit-backdrop-filter: blur(2px);
-  backdrop-filter: blur(2px);
+  background: rgba(2,6,23,.45);
   opacity: 0;
   visibility: hidden;
   transition: opacity var(--t-base) var(--ease-out), visibility var(--t-base);
@@ -182,7 +351,7 @@
   width: min(84vw, 330px);
   display: flex;
   flex-direction: column;
-  background: var(--bg-elevated);
+  background: var(--surface);
   border-right: 1px solid var(--border);
   box-shadow: var(--sh-xl);
   transform: translate3d(-102%, 0, 0);
@@ -190,7 +359,17 @@
   padding-top: var(--sa-top);
   padding-bottom: var(--sa-bottom);
   padding-left: var(--sa-left);
-  will-change: transform;
+}
+/* 抽屉液态玻璃：开启即生效 */
+body.glass-on .drawer {
+  background: linear-gradient(180deg, var(--glass-tint-top) 0%, var(--glass-tint-bot) 100%);
+  -webkit-backdrop-filter: saturate(var(--glass-saturate)) blur(var(--glass-blur-strong));
+  backdrop-filter: saturate(var(--glass-saturate)) blur(var(--glass-blur-strong));
+  border-right-color: transparent;
+  box-shadow: var(--glass-shadow);
+}
+html.dark body.glass-on .drawer {
+  background: linear-gradient(180deg, var(--glass-tint-top) 0%, var(--glass-tint-bot) 100%);
 }
 .drawer.is-open { transform: translate3d(0,0,0); }
 /* 手势拖拽期间关闭过渡，保证跟手 */
@@ -204,23 +383,39 @@
 .drawer__body { flex: 1; overflow-y: auto; padding: 10px 10px 24px; overscroll-behavior: contain; }
 .drawer__foot { padding: 10px 14px; border-top: 1px solid var(--border); }
 
-/* 抽屉左缘手势热区（原生壳把同宽的一条竖带设为系统手势排除区） */
+/* 抽屉左缘手势热区（原生壳把同宽的一条竖带设为系统手势排除区）
+   2026-08-12:pointer-events:none 禁掉边缘命中——Android 系统返回手势
+   （从屏幕边缘右滑）会优先拦截，用户反馈"边缘右滑易误触退出软件"。
+   改为整个学习页任意位置左滑呼出（见 32-boot.js bindLearnSwipeOpen）。 */
 .edge-catcher {
   position: fixed;
   top: var(--appbar-h); bottom: 0; left: 0;
-  width: 18px;
-  z-index: 35;
+  width: 32px;
+  z-index: 55;
+  pointer-events: none;
+  background: transparent;
 }
 
 /* ---------------- 输入法适配 ----------------
    原生壳把输入法高度写进 --sa-bottom，并在根节点置 data-kb="1"。
    键盘占了半屏时标签栏和悬浮按钮必须退场，否则它们会被抬到键盘正上方
    压住正在输入的内容。 */
-.tabbar { transition: transform var(--t-base) var(--ease-out); }
+.tabbar::before { transition: transform var(--t-base) var(--ease-apple-spring), opacity var(--t-base), box-shadow var(--t-base); }
 
+/* 键盘弹出时：整个底栏退场（含 ::before 胶囊 + .tab 按钮 + ::after 高光） */
 html[data-kb="1"] .tabbar {
-  transform: translate3d(0, 100%, 0);
   pointer-events: none;
+}
+html[data-kb="1"] .tabbar::before,
+html[data-kb="1"] .tabbar::after {
+  transform: translate3d(0, 120%, 0);
+  opacity: 0;
+}
+html[data-kb="1"] .tab {
+  opacity: 0;
+  transform: translateY(16px);
+  pointer-events: none;
+  transition: opacity var(--t-base), transform var(--t-base);
 }
 html[data-kb="1"] .scroll {
   padding-bottom: calc(var(--sa-bottom) + 14px);

@@ -116,14 +116,15 @@
       toastEl = d.createElement('div');
       toastEl.className = 'toast';
       toastEl.setAttribute('role', 'status');
+      toastEl.setAttribute('aria-live', 'polite');
       d.body.appendChild(toastEl);
     }
     toastEl.className = 'toast' + (type ? ' toast--' + type : '');
-    var ico = type === 'ok' ? 'i-check-circle' : type === 'danger' ? 'i-alert' : type === 'warn' ? 'i-alert' : 'i-info';
-    toastEl.innerHTML = icon(ico, 'icon--sm') + '<span>' + esc(msg) + '</span>';
+    var ico = type === 'ok' ? 'i-check' : type === 'danger' ? 'i-x' : type === 'warn' ? 'i-alert' : 'i-info';
+    toastEl.innerHTML = '<span class="toast__ic">' + icon(ico, '') + '</span><span class="toast__txt">' + esc(msg) + '</span>';
     raf(function () { toastEl.classList.add('is-open'); });
     clearTimeout(toastTm);
-    toastTm = setTimeout(function () { toastEl.classList.remove('is-open'); }, ms || 1900);
+    toastTm = setTimeout(function () { toastEl.classList.remove('is-open'); }, ms || 2400);
   }
   UI.toast = toast;
 
@@ -262,7 +263,15 @@
     d.body.appendChild(sheetScrim);
     d.body.appendChild(sheetEl);
     sheetScrim.addEventListener('click', closeSheet);
-    sheetEl.querySelector('[data-close]').addEventListener('click', closeSheet);
+    /* 事件委托：所有 [data-close] 按钮（含 head ✕ 与 foot "完成"）都能关闭；
+       querySelector 只匹配第一个，会漏掉调用方塞进 foot 的关闭按钮（2026-08-12 反馈） */
+    sheetEl.addEventListener('click', function (e) {
+      var t = e.target;
+      while (t && t !== sheetEl) {
+        if (t.nodeType === 1 && t.hasAttribute && t.hasAttribute('data-close')) { closeSheet(); return; }
+        t = t.parentNode;
+      }
+    });
     dragSheet();
   }
   function openSheet(o) {

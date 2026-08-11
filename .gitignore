@@ -19,3 +19,5 @@ keystore.properties
 # 内部/缓存（绝不提交）
 .workbuddy/
 .jdk17_extract/
+/背景图/
+/背景图/

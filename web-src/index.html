@@ -57,6 +57,7 @@
   </main>
 
   <!-- ============ 底部标签栏 ============ -->
+  <!-- SVG 样式由 sprite.svg 内的 presentation attribute 控制（fill/stroke 跨 use 边界不传递，必须 attribute 兜底） -->
   <nav class="tabbar" id="tabbar" role="tablist">
     <button class="tab is-active" type="button" data-tab="learn" role="tab">
       <svg class="icon tab__icon" aria-hidden="true"><use href="#i-layers"/></svg><span>学习</span>
@@ -87,7 +88,7 @@
     <div class="row gap-3">
       <svg class="icon icon--lg" style="color:var(--accent)" aria-hidden="true"><use href="#i-network"/></svg>
       <div class="grow">
-        <div style="font-size:15px;font-weight:800">NetOps 2.0</div>
+        <div style="font-size:15px;font-weight:800">技能目录</div>
         <div class="t-xs t-mute" id="drawerSub">全栈技能导航 · 离线版</div>
       </div>
     </div>

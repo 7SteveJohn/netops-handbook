@@ -2,6 +2,7 @@ package com.netops.handbook;
 
 import android.annotation.SuppressLint;
 import android.content.ContentValues;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.graphics.Rect;
@@ -72,6 +73,17 @@ public class MainActivity extends AppCompatActivity {
 
     private WebView webView;
     private FrameLayout root;
+
+    /** 「再按一次退出」防误触：记录上次根页面按下返回键的时间戳（毫秒）。 */
+    private long lastBackPressMs = 0;
+    /** 两次返回键的最大间隔（毫秒），超出则重置计数。 */
+    private static final int BACK_EXIT_INTERVAL_MS = 2000;
+    /** 相册选图的请求码。 */
+    private static final int REQ_PICK_IMAGE = 9001;
+    /** 文件导入（<input type=file> 选择器）请求码。 */
+    private static final int REQ_CHOOSER = 9002;
+    /** 文件导入回调（onShowFileChooser 暂存，onActivityResult 回传）。 */
+    private android.webkit.ValueCallback<Uri[]> uploadMessage = null;
 
     private boolean pageReady = false;
     private String pendingInsetsJs = null;
@@ -149,9 +161,37 @@ public class MainActivity extends AppCompatActivity {
             s.setSafeBrowsingEnabled(false);   // 无网络，避免多余的初始化开销
         }
 
+        /* 玻璃核心：让 backdrop-filter 模糊/色散在安卓 WebView 可靠渲染。
+           offscreenPreRaster 预栅格化离屏缓冲；LAYER_TYPE_HARDWARE 强制 WebView
+           走硬件合成层，否则中低端机 blur 会失效（纯透明/平涂）。 */
+        s.setOffscreenPreRaster(true);
+        webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+
         if ((getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
             WebView.setWebContentsDebuggingEnabled(true);
         }
+
+        /* 文件导入：必须实现 onShowFileChooser，否则 <input type=file> 无法弹出系统选择器 */
+        webView.setWebChromeClient(new android.webkit.WebChromeClient() {
+            @Override
+            public boolean onShowFileChooser(WebView view,
+                                             android.webkit.ValueCallback<Uri[]> filePathCallback,
+                                             android.webkit.WebChromeClient.FileChooserParams fileChooserParams) {
+                if (uploadMessage != null) {
+                    uploadMessage.onReceiveValue(null);
+                    uploadMessage = null;
+                }
+                uploadMessage = filePathCallback;
+                try {
+                    Intent intent = fileChooserParams.createIntent();
+                    startActivityForResult(intent, REQ_CHOOSER);
+                    return true;
+                } catch (Exception e) {
+                    uploadMessage = null;
+                    return false;
+                }
+            }
+        });
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
@@ -301,12 +341,22 @@ public class MainActivity extends AppCompatActivity {
                 if (webView == null) { setEnabled(false); getOnBackPressedDispatcher().onBackPressed(); return; }
                 final OnBackPressedCallback self = this;
                 webView.evaluateJavascript(JS_BACK, value -> {
-                    if (!"true".equals(value)) {
-                        // 网页已在根页面，交还给系统（退出）
-                        self.setEnabled(false);
-                        getOnBackPressedDispatcher().onBackPressed();
-                        // 万一没退成（例如还有别的拦截者），恢复拦截，避免返回键从此失灵
-                        self.setEnabled(true);
+                    if ("true".equals(value)) {
+                        // 网页已消费（关闭 Drawer / Sheet / 返回上一页），不做任何事
+                    } else {
+                        // 网页在根页面 —— 防误触：首次按提示，2 秒内再按才真退
+                        long now = System.currentTimeMillis();
+                        if (now - lastBackPressMs < BACK_EXIT_INTERVAL_MS) {
+                            // 第二次按下，确认退出
+                            lastBackPressMs = 0;
+                            self.setEnabled(false);
+                            getOnBackPressedDispatcher().onBackPressed();
+                        } else {
+                            // 第一次按下，Toast 提示
+                            lastBackPressMs = now;
+                            Toast.makeText(MainActivity.this,
+                                    "再按一次退出应用", Toast.LENGTH_SHORT).show();
+                        }
                     }
                 });
             }
@@ -372,6 +422,33 @@ public class MainActivity extends AppCompatActivity {
                         Toast.LENGTH_LONG).show();
             });
         }
+
+        /** 打开系统相册选图，结果通过 base64 回传给 JS（用于自定义背景壁纸）。 */
+        @JavascriptInterface
+        public void pickImage() {
+            runOnUiThread(() -> {
+                try {
+                    Intent intent = new Intent(Intent.ACTION_PICK,
+                            android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+                    startActivityForResult(intent, REQ_PICK_IMAGE);
+                } catch (Exception e) {
+                    // 部分设备可能没有相册应用，降级为通用选择器
+                    Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+                    intent.setType("image/*");
+                    startActivityForResult(Intent.createChooser(intent, "选择背景图片"), REQ_PICK_IMAGE);
+                }
+            });
+        }
+    }
+
+    /** 根据文件名后缀推断 MIME（2026-08-12 修复：导出 JSON 被当 markdown 处理）。 */
+    private String mimeFor(String name) {
+        String n = name == null ? "" : name.toLowerCase();
+        if (n.endsWith(".json")) return "application/json";
+        if (n.endsWith(".md") || n.endsWith(".markdown")) return "text/markdown";
+        if (n.endsWith(".txt")) return "text/plain";
+        if (n.endsWith(".html") || n.endsWith(".htm")) return "text/html";
+        return "application/octet-stream";
     }
 
     private String writeDocument(String fileName, String body) throws Exception {
@@ -379,7 +456,7 @@ public class MainActivity extends AppCompatActivity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             ContentValues cv = new ContentValues();
             cv.put(MediaStore.Downloads.DISPLAY_NAME, fileName);
-            cv.put(MediaStore.Downloads.MIME_TYPE, "text/markdown");
+            cv.put(MediaStore.Downloads.MIME_TYPE, mimeFor(fileName));
             cv.put(MediaStore.Downloads.IS_PENDING, 1);
             Uri uri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
             if (uri == null) throw new IllegalStateException("MediaStore 拒绝写入");
@@ -403,6 +480,54 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // ------------------------------------------------------------------ 配置变化
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        /* 文件导入：把系统文件选择器的结果回传给 WebView 的 <input type=file> */
+        if (requestCode == REQ_CHOOSER) {
+            if (uploadMessage == null) return;
+            android.webkit.ValueCallback<Uri[]> cb = uploadMessage;
+            uploadMessage = null;
+            Uri[] results = null;
+            if (resultCode == RESULT_OK && data != null) {
+                if (data.getClipData() != null) {
+                    int n = data.getClipData().getItemCount();
+                    results = new Uri[n];
+                    for (int i = 0; i < n; i++) results[i] = data.getClipData().getItemAt(i).getUri();
+                } else if (data.getData() != null) {
+                    results = new Uri[]{ data.getData() };
+                }
+            }
+            cb.onReceiveValue(results);
+            return;
+        }
+        if (requestCode == REQ_PICK_IMAGE && resultCode == RESULT_OK && data != null) {
+            Uri uri = data.getData();
+            if (uri == null) return;
+            try {
+                java.io.InputStream is = getContentResolver().openInputStream(uri);
+                if (is == null) return;
+                byte[] bytes = new byte[is.available()];
+                int total = 0;
+                int read;
+                while ((read = is.read(bytes, total, bytes.length - total)) > 0) {
+                    total += read;
+                    if (total >= bytes.length) break;
+                }
+                is.close();
+                // 只取前 2MB（背景图不需要超高分辨率）
+                int len = Math.min(total, 2 * 1024 * 1024);
+                String b64 = android.util.Base64.encodeToString(bytes, 0, len,
+                        android.util.Base64.NO_WRAP);
+                String js = "if(window.NetOpsOnWallpaper) NetOpsOnWallpaper('data:image/jpeg;base64," + b64 + "');";
+                if (webView != null) webView.evaluateJavascript(js, null);
+            } catch (Exception e) {
+                Log.w(TAG, "读取选图失败", e);
+                Toast.makeText(this, "读取图片失败", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
 
     @Override
     public void onConfigurationChanged(@NonNull android.content.res.Configuration newConfig) {

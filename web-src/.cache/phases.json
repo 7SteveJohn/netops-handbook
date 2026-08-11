@@ -1,3436 +1,3461 @@
 [
- {
-  "id": "p-1",
-  "title": "阶段一：零基础入门与基础设施",
-  "color": "teal",
-  "desc": "OSI/TCP分层、IPv4/掩码、网关，华为VRP视图操作",
-  "modules": [
-   {
-    "id": "Z1",
-    "t": "Z1. 计算机网络分层模型 (OSI与TCP/IP)",
-    "y": "网络像快递系统。分层为了降低复杂度。\n- OSI七层：物理→链路→网络→传输→会话→表示→应用\n- TCP/IP四层：网络接口→互联网→传输→应用",
-    "c": "<Huawei> display ip interface brief",
-    "o": "Interface         IP Address    Physical Protocol\nGE0/0/0           192.168.1.1   up       up\nGE0/0/1           unassigned    down     down",
-    "j": [
-     "Physical: 物理层(网线状态)",
-     "Protocol: 链路层(协议协商状态)"
-    ],
-    "u": [
-     "日常巡检",
-     "排障第一步确认底层链路"
-    ],
-    "w": [
-     "配了IP不通，先查Physical是否down"
-    ],
-    "v": "ping 127.0.0.1 测本地TCP/IP栈",
-    "l": [
-     "启动路由器",
-     "敲 display ip int brief",
-     "观察默认状态"
-    ],
-    "dg": {
-     "k": "stack",
-     "n": [
+  {
+    "id": "p-1",
+    "title": "阶段一：零基础入门与基础设施",
+    "color": "teal",
+    "desc": "OSI/TCP分层、IPv4/掩码、网关，华为VRP视图操作",
+    "modules": [
       {
-       "t": "应用层",
-       "s": "HTTP/DNS"
-      },
-      {
-       "t": "传输层",
-       "s": "TCP/UDP 端口号"
-      },
-      {
-       "t": "网络层",
-       "s": "IP/ICMP IP地址"
-      },
-      {
-       "t": "链路层",
-       "s": "ARP/MAC MAC地址"
-      },
-      {
-       "t": "物理层",
-       "s": "网线 电信号"
-      }
-     ]
-    }
-   },
-   {
-    "id": "Z2",
-    "t": "Z2. IP地址结构与分类",
-    "y": "32位二进制，分网络号和主机号。\n- A类(1开头): /8掩码\n- B类(128-191): /16掩码\n- C类(192-223): /24掩码\n- 私有IP: 局域网免费用，公网不认。",
-    "c": "[Huawei] interface GE 0/0/0\n[Huawei-GE0/0/0] ip address 192.168.1.254 24",
-    "o": "ip address 192.168.1.254 255.255.255.0",
-    "j": [
-     "24代表子网掩码长度"
-    ],
-    "u": [
-     "新设备开局配管理IP",
-     "终端DHCP分配"
-    ],
-    "w": [
-     "同局域网IP不能冲突",
-     "0和255不能分给电脑"
-    ],
-    "v": "PC配置同网段IP并ping网关",
-    "l": [
-     "连线PC和路由器",
-     "给GE0/0/0配IP",
-     "PC配IP互ping"
-    ],
-    "dg": {
-     "k": "stack",
-     "n": [
-      {
-       "t": "192.168.1.10 24"
-      },
-      {
-       "t": "网络号",
-       "s": "192.168.1 主机号:10"
-      }
-     ]
-    }
-   },
-   {
-    "id": "Z3",
-    "t": "Z3. 子网掩码与网关",
-    "y": "掩码用于计算是否同网段。同网段直连，跨网段找网关。网关是跨省快递中转站。",
-    "c": "[Huawei] ip route-static 0.0.0.0 0.0.0.0 192.168.1.254",
-    "o": "Destination/Mask  Proto  Pre  Cost  NextHop\n0.0.0.0/0         Static 60   0     192.168.1.254",
-    "j": [
-     "0.0.0.0/0: 默认路由(匹配所有)",
-     "NextHop: 下一跳地址"
-    ],
-    "u": [
-     "终端上网必备",
-     "出口路由器指向运营商"
-    ],
-    "w": [
-     "网关IP必须与自己在同网段"
-    ],
-    "v": "Windows敲 route print 看默认路由",
-    "l": [
-     "删掉PC网关ping公网(失败)",
-     "填上网关再ping(成功)"
-    ],
-    "dg": {
-     "k": "multi",
-     "rows": [
-      {
-       "n": [
-        {
-         "t": "PC1 1.10"
-        },
-        {
-         "t": "PC2 2.10"
+        "id": "Z1",
+        "t": "Z1. 计算机网络分层模型 (OSI与TCP/IP)",
+        "y": "网络像快递系统。分层为了降低复杂度。\n- OSI七层：物理→链路→网络→传输→会话→表示→应用\n- TCP/IP四层：网络接口→互联网→传输→应用",
+        "c": "<Huawei> display ip interface brief",
+        "o": "Interface         IP Address    Physical Protocol\nGE0/0/0           192.168.1.1   up       up\nGE0/0/1           unassigned    down     down",
+        "j": [
+          "Physical: 物理层(网线状态)",
+          "Protocol: 链路层(协议协商状态)"
+        ],
+        "u": [
+          "日常巡检",
+          "排障第一步确认底层链路"
+        ],
+        "w": [
+          "配了IP不通，先查Physical是否down"
+        ],
+        "v": "ping 127.0.0.1 测本地TCP/IP栈",
+        "l": [
+          "启动路由器",
+          "敲 display ip int brief",
+          "观察默认状态"
+        ],
+        "dg": {
+          "k": "stack",
+          "n": [
+            {
+              "t": "应用层",
+              "s": "HTTP/DNS"
+            },
+            {
+              "t": "传输层",
+              "s": "TCP/UDP 端口号"
+            },
+            {
+              "t": "网络层",
+              "s": "IP/ICMP IP地址"
+            },
+            {
+              "t": "链路层",
+              "s": "ARP/MAC MAC地址"
+            },
+            {
+              "t": "物理层",
+              "s": "网线 电信号"
+            }
+          ]
         }
-       ],
-       "l": [
-        ""
-       ]
       },
       {
-       "n": [
-        {
-         "t": "发现跨网段"
-        },
-        {
-         "t": "扔给网关 路由器"
-        },
-        {
-         "t": "路由转发"
+        "id": "Z2",
+        "t": "Z2. IP地址结构与分类",
+        "y": "32位二进制，分网络号和主机号。\n- A类(1开头): /8掩码\n- B类(128-191): /16掩码\n- C类(192-223): /24掩码\n- 私有IP: 局域网免费用，公网不认。",
+        "c": "[Huawei] interface GE 0/0/0\n[Huawei-GE0/0/0] ip address 192.168.1.254 24",
+        "o": "ip address 192.168.1.254 255.255.255.0",
+        "j": [
+          "24代表子网掩码长度"
+        ],
+        "u": [
+          "新设备开局配管理IP",
+          "终端DHCP分配"
+        ],
+        "w": [
+          "同局域网IP不能冲突",
+          "0和255不能分给电脑"
+        ],
+        "v": "PC配置同网段IP并ping网关",
+        "l": [
+          "连线PC和路由器",
+          "给GE0/0/0配IP",
+          "PC配IP互ping"
+        ],
+        "dg": {
+          "k": "stack",
+          "n": [
+            {
+              "t": "192.168.1.10 24"
+            },
+            {
+              "t": "网络号",
+              "s": "192.168.1 主机号:10"
+            }
+          ]
         }
-       ],
-       "l": [
-        "",
-        ""
-       ]
-      }
-     ]
-    }
-   },
-   {
-    "id": "Z4",
-    "t": "Z4. 交换机/路由器/防火墙区别",
-    "y": "交换机：二层，靠MAC转发，同网段互联。\n路由器：三层，靠IP选路，跨网段互联。\n防火墙：基于安全规则过滤流量。",
-    "c": "<Huawei> display mac-address\n<Huawei> display ip routing-table",
-    "o": "MAC Address      VLAN  Type    Port\n5489-98A8-1234   1     dynamic GE0/0/1",
-    "j": [
-     "dynamic: 动态学习的MAC"
-    ],
-    "u": [
-     "二层排障查MAC表",
-     "三层排障查路由表"
-    ],
-    "w": [
-     "现代设备界限模糊(如三层交换机)"
-    ],
-    "v": "看MAC表确认终端接入位置",
-    "l": [
-     "组建基础拓扑",
-     "分别在三种设备上查看核心表项"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "内网PC"
       },
       {
-       "t": "MAC"
-      },
-      {
-       "t": "IP"
-      },
-      {
-       "t": "策略"
-      },
-      {
-       "t": "外网"
-      }
-     ],
-     "l": [
-      "",
-      "交换机",
-      "路由器",
-      "防火墙"
-     ]
-    }
-   },
-   {
-    "id": "Z5",
-    "t": "Z5. 物理接入与SSH管理",
-    "y": "Console线：串口直连，初次配置(9600-8-N-1)。\nSSH：TCP 22端口，加密远程管理。\nTelnet：明文传输，不安全。",
-    "c": "[Huawei] stelnet server enable\n[Huawei] user-interface vty 0 4\n[Huawei-ui-vty0-4] authentication-mode aaa\n[Huawei-ui-vty0-4] protocol inbound ssh",
-    "o": "Info: Ssh server has been enabled.",
-    "j": [
-     "vty 0 4: 允许5个终端并发登录",
-     "aaa: 账号密码认证"
-    ],
-    "u": [
-     "设备开箱初装",
-     "日常安全远程运维"
-    ],
-    "w": [
-     "Console波特率不对会乱码",
-     "Telnet严禁公网使用"
-    ],
-    "v": "客户端用ssh user@ip登录测试",
-    "l": [
-     "用Console线连设备配IP",
-     "开启SSH并创建aaa用户",
-     "拔掉Console用网线SSH登录"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "管理员PC"
-      },
-      {
-       "t": "Console线/COM口"
-      },
-      {
-       "t": "设备Console口"
-      }
-     ],
-     "l": [
-      "",
-      ""
-     ]
-    }
-   },
-   {
-    "id": "Z6",
-    "t": "Z6. VRP 分级视图操作",
-    "y": "华为VRP系统权限分级：\n<用户视图>：查看/测试\n[系统视图]：全局配置\n[接口视图]：局部配置",
-    "c": "<Huawei> system-view\n[Huawei] interface GE0/0/0\n[Huawei-GigabitEthernet0/0/0] quit",
-    "o": "Enter system view, return user view with Ctrl+Z.",
-    "j": [
-     "quit: 退回上一级",
-     "return: 直接退回<用户视图>"
-    ],
-    "u": [
-     "日常所有配置操作"
-    ],
-    "w": [
-     "命令敲不进？看看当前在哪个视图"
-    ],
-    "v": "敲 ? 看当前视图支持哪些命令",
-    "l": [
-     "在不同视图下游走并敲?看命令变化"
-    ],
-    "dg": {
-     "k": "multi",
-     "rows": [
-      {
-       "n": [
-        {
-         "t": "<Huawei>"
-        },
-        {
-         "t": "system-view"
-        },
-        {
-         "t": "Huawei"
+        "id": "Z3",
+        "t": "Z3. 子网掩码与网关",
+        "y": "掩码用于计算是否同网段。同网段直连，跨网段找网关。网关是跨省快递中转站。",
+        "c": "[Huawei] ip route-static 0.0.0.0 0.0.0.0 192.168.1.254",
+        "o": "Destination/Mask  Proto  Pre  Cost  NextHop\n0.0.0.0/0         Static 60   0     192.168.1.254",
+        "j": [
+          "0.0.0.0/0: 默认路由(匹配所有)",
+          "NextHop: 下一跳地址"
+        ],
+        "u": [
+          "终端上网必备",
+          "出口路由器指向运营商"
+        ],
+        "w": [
+          "网关IP必须与自己在同网段"
+        ],
+        "v": "Windows敲 route print 看默认路由",
+        "l": [
+          "删掉PC网关ping公网(失败)",
+          "填上网关再ping(成功)"
+        ],
+        "dg": {
+          "k": "multi",
+          "rows": [
+            {
+              "n": [
+                {
+                  "t": "PC1 1.10"
+                },
+                {
+                  "t": "PC2 2.10"
+                }
+              ],
+              "l": [
+                ""
+              ]
+            },
+            {
+              "n": [
+                {
+                  "t": "发现跨网段"
+                },
+                {
+                  "t": "扔给网关 路由器"
+                },
+                {
+                  "t": "路由转发"
+                }
+              ],
+              "l": [
+                "",
+                ""
+              ]
+            }
+          ]
         }
-       ],
-       "l": [
-        "",
-        ""
-       ]
       },
       {
-       "n": [
-        {
-         "t": "Huawei"
-        },
-        {
-         "t": "int GE0/0/0"
-        },
-        {
-         "t": "Huawei-GE0/0/0"
+        "id": "Z4",
+        "t": "Z4. 交换机/路由器/防火墙区别",
+        "y": "交换机：二层，靠MAC转发，同网段互联。\n路由器：三层，靠IP选路，跨网段互联。\n防火墙：基于安全规则过滤流量。",
+        "c": "<Huawei> display mac-address\n<Huawei> display ip routing-table",
+        "o": "MAC Address      VLAN  Type    Port\n5489-98A8-1234   1     dynamic GE0/0/1",
+        "j": [
+          "dynamic: 动态学习的MAC"
+        ],
+        "u": [
+          "二层排障查MAC表",
+          "三层排障查路由表"
+        ],
+        "w": [
+          "现代设备界限模糊(如三层交换机)"
+        ],
+        "v": "看MAC表确认终端接入位置",
+        "l": [
+          "组建基础拓扑",
+          "分别在三种设备上查看核心表项"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "内网PC"
+            },
+            {
+              "t": "MAC"
+            },
+            {
+              "t": "IP"
+            },
+            {
+              "t": "策略"
+            },
+            {
+              "t": "外网"
+            }
+          ],
+          "l": [
+            "",
+            "交换机",
+            "路由器",
+            "防火墙"
+          ]
         }
-       ],
-       "l": [
-        "",
-        ""
-       ]
-      }
-     ]
-    }
-   },
-   {
-    "id": "Z7",
-    "t": "Z7. 配置文件保存与防丢",
-    "y": "RAM(运行配置)：断电丢失。\nFlash/NVRAM(启动配置)：永久保存。必须手工执行save将RAM同步到Flash。",
-    "c": "<Huawei> save",
-    "o": "Are you sure to continue? (y/n): y\nSave the configuration successfully.",
-    "j": [
-     "必须在<用户视图>执行",
-     "y确认"
-    ],
-    "u": [
-     "下班前",
-     "重大变更验证成功后"
-    ],
-    "w": [
-     "没测通的危险配置别急着save，搞砸了直接重启恢复"
-    ],
-    "v": "display saved-configuration 看是否和 current一致",
-    "l": [
-     "改设备名不保存重启(丢失)",
-     "改名后save再重启(保留)"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "修改配置 RAM"
       },
       {
-       "t": "固化 Flash"
-      }
-     ],
-     "l": [
-      "save"
-     ]
-    }
-   },
-   {
-    "id": "Z8",
-    "t": "Z8. 配置启动与系统文件管理",
-    "y": "设备升级或迁移时，需管理 Flash 中的 .cfg 和 .cc 文件。指定下次启动文件是割接的重要一环。",
-    "c": "<Huawei> startup saved-configuration flash:/vrpcfg.cfg",
-    "o": "Next startup saved-configuration file: flash:/vrpcfg.cfg",
-    "j": [
-     "startup: 指定启动文件"
-    ],
-    "u": [
-     "设备升级",
-     "配置回滚"
-    ],
-    "w": [
-     "删除文件前必须备份"
-    ],
-    "v": "display startup 查看下次启动文件",
-    "l": [
-     "使用 copy 备份配置",
-     "修改启动文件并验证"
-    ],
-    "dg": {
-     "k": "stack",
-     "n": [
-      {
-       "t": "Flash"
-      },
-      {
-       "t": "vrpcfg.cfg 配置"
-      },
-      {
-       "t": "AR2200.cc 系统"
-      }
-     ]
-    }
-   }
-  ]
- },
- {
-  "id": "p-2",
-  "title": "阶段二：园区网核心与高可用",
-  "color": "blue",
-  "desc": "VLAN、SVI、OSPF多区域、BGP、MSTP、VRRP、iStack、端口安全",
-  "modules": [
-   {
-    "id": "A1",
-    "t": "A1. VLAN 接入类型 (Access/Trunk/Hybrid)",
-    "y": "逻辑隔离广播域。Tag是数据帧里的4字节标记。\n- Access: 连PC，剥离Tag发，打PVID收。\n- Trunk: 连交换机，带Tag透传多个VLAN。\n- Hybrid: 华为/H3C 等国内厂商常见，可精细控制Tag收发。",
-    "c": "[Huawei-GE0/0/1] port link-type trunk\n[Huawei-GE0/0/1] port trunk allow-pass vlan 10 20",
-    "o": "Port      Link Type    PVID  Trunk VLAN List\nGE0/0/1   trunk        1     1 10 20",
-    "j": [
-     "allow-pass: 必须显式放行VLAN"
-    ],
-    "u": [
-     "部门隔离",
-     "跨楼层同网段互通"
-    ],
-    "w": [
-     "Trunk两端allow-pass不一致导致不通"
-    ],
-    "v": "display port vlan 查端口归属",
-    "l": [
-     "配两台SW的Access和Trunk",
-     "跨SW ping通同VLAN"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "PC"
-      },
-      {
-       "t": "无Tag"
-      },
-      {
-       "t": "SW"
-      },
-      {
-       "t": "SW"
-      }
-     ],
-     "l": [
-      "",
-      "Access",
-      "Trunk 带Tag"
-     ]
-    }
-   },
-   {
-    "id": "A2",
-    "t": "A2. SVI (Vlanif) 与策略路由(PBR)",
-    "y": "二层VLAN隔离后，需通过三层虚接口(Vlanif)实现互通。\n策略路由(PBR)：打破常规路由表，基于源IP强制指定下一跳引流。",
-    "c": "[Huawei] interface Vlanif 10\n[Huawei-Vlanif10] ip address 192.168.10.1 24\n// PBR示例:\n[Huawei] traffic classifier C1\n[Huawei] traffic behavior B1\n[Huawei-behavior-B1] redirect ip-nexthop 10.0.0.2",
-    "o": "Interface     IP Address     Physical Protocol\nVlanif10      192.168.10.1   up       up",
-    "j": [
-     "redirect: 强制重定向下一跳"
-    ],
-    "u": [
-     "核心交换机做全网网关",
-     "双出口源地址分流"
-    ],
-    "w": [
-     "Vlanif双UP前提是该VLAN下有活动物理口"
-    ],
-    "v": "display ip interface brief 查状态",
-    "l": [
-     "起Vlanif10和20配IP",
-     "跨VLAN电脑互ping"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "VLAN10"
-      },
-      {
-       "t": "Vlanif 10网关"
-      },
-      {
-       "t": "三层路由引擎"
-      }
-     ],
-     "l": [
-      "",
-      ""
-     ]
-    }
-   },
-   {
-    "id": "A3",
-    "t": "A3. OSPF 多区域与 LSA 1-5分析",
-    "y": "动态路由。分多区域减小路由表。\nArea0(骨干)、Stub(无外部路由)、NSSA(允许Type7)。\nLSA: T1(路由器)、T2(网络)、T3(汇总)、T4(ASBR位置)、T5(外部)、T7(NSSA 外部 LSA，由 NSSA 内 ASBR 产生，经 ABR 转换为 T5 注入骨干)。",
-    "c": "[Huawei] ospf 1 router-id 1.1.1.1\n[Huawei-ospf-1-area-0.0.0.0] network 10.0.0.0 0.0.0.255",
-    "o": "Area Id    Interface    Neighbor id    State\n0.0.0.0    GE0/0/0      2.2.2.2        Full",
-    "j": [
-     "router-id: 身份证",
-     "0.0.0.255: 反掩码"
-    ],
-    "u": [
-     "中大型园区网路由自动学习"
-    ],
-    "w": [
-     "MTU不一致卡ExStart",
-     "网段宣告错反掩码"
-    ],
-    "v": "display ospf peer 查Full状态",
-    "l": [
-     "两台路由器跑OSPF",
-     "互相宣告直连网段",
-     "查路由表看'O'路由"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "Area 1"
-      },
-      {
-       "t": "ABR"
-      },
-      {
-       "t": "Area 0"
-      },
-      {
-       "t": "ASBR"
-      },
-      {
-       "t": "外网"
-      }
-     ],
-     "l": [
-      "",
-      "",
-      "",
-      ""
-     ]
-    }
-   },
-   {
-    "id": "A4",
-    "t": "A4. BGP 跨域动态路由基本",
-    "y": "互联网骨干路由协议。EBGP(跨AS)，IBGP(同AS)。靠丰富的路径属性(Local_Pref, MED)控制选路。",
-    "c": "[Huawei] bgp 100\n[Huawei-bgp] peer 10.0.0.2 as-number 200\n[Huawei-bgp] network 192.168.1.0 24",
-    "o": "BGP Local AS: 100\nNetwork        NextHop   MED  LocPrf Path\n*> 192.168.1.0 0.0.0.0   0    100    i",
-    "j": [
-     "peer: 建立对等体",
-     "network: 宣告进BGP"
-    ],
-    "u": [
-     "企业多出口双线冗余",
-     "运营商互联"
-    ],
-    "w": [
-     "EBGP默认TTL为1不能多跳",
-     "IBGP需全互联防环"
-    ],
-    "v": "display bgp peer 查Established",
-    "l": [
-     "配置EBGP邻居",
-     "宣告网段并用抓包看Update报文"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "AS 100"
-      },
-      {
-       "t": "AS 200"
-      }
-     ],
-     "l": [
-      "EBGP"
-     ]
-    }
-   },
-   {
-    "id": "A5",
-    "t": "A5. BGP 属性控制与选路原则",
-    "y": "BGP 选路不看 Cost，看属性。核心口诀：Weight(Cisco) > Local_Pref(越大越优) > 本地起源 > AS_Path(越短越优) > Origin > MED(越小越优)。",
-    "c": "[Huawei] route-policy RP permit node 10\n[Huawei-route-policy] apply local-preference 200\n[Huawei-bgp] peer 10.0.0.2 route-policy RP import",
-    "o": "*> 192.168.1.0  10.0.0.2   0     200",
-    "j": [
-     "apply local-preference: 修改本地优先级"
-    ],
-    "u": [
-     "出向流量负载分担",
-     "主备链路切换"
-    ],
-    "w": [
-     "Route-policy 末尾有隐式拒绝，注意放行"
-    ],
-    "v": "display bgp routing-table 查看最优路径 (*>)",
-    "l": [
-     "配两条 EBGP 链路，修改 Local_Pref 引导流量切换"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "R1"
-      },
-      {
-       "t": "R2"
-      }
-     ],
-     "l": [
-      "100M"
-     ]
-    }
-   },
-   {
-    "id": "B1",
-    "t": "B1. MSTP 多实例与边缘端口防环",
-    "y": "生成树防二层环路。MSTP可将多个VLAN映射到不同树实例做负载分担。\n边缘端口(Edge-port)：接PC秒级转发。BPDU Guard防止私接交换机。",
-    "c": "[Huawei] stp region-configuration\n[Huawei-mst-region] instance 1 vlan 10 20\n[Huawei-GE0/0/1] stp edged-port enable\n[Huawei] stp bpdu-protection enable",
-    "o": "Port Role/State\nGE0/0/1 DESI/FORWARDING\nGE0/0/2 ALTE/DISCARDING",
-    "j": [
-     "DISCARDING: 被阻塞端口"
-    ],
-    "u": [
-     "环形拓扑防环",
-     "终端快速接入"
-    ],
-    "w": [
-     "边缘端口收到BPDU会Error-Down保护全网"
-    ],
-    "v": "display stp brief 查阻塞口",
-    "l": [
-     "两交换机连2根线",
-     "看哪个口被阻塞",
-     "配边缘端口测试"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "SW1"
-      },
-      {
-       "t": "SW2"
-      }
-     ],
-     "l": [
-      "两条线"
-     ]
-    }
-   },
-   {
-    "id": "B2",
-    "t": "B2. Eth-Trunk 链路聚合与 LACP",
-    "y": "将多根网线逻辑绑成一根，增带宽、高可靠。LACP模式可动态协商，Hash算法决定流走哪根物理线。",
-    "c": "[Huawei] interface Eth-Trunk 1\n[Huawei-Eth-Trunk1] mode lacp\n[Huawei-GE0/0/1] eth-trunk 1",
-    "o": "Eth-Trunk1's state: UP\nLACP mode: active\nMember ports: 2",
-    "j": [
-     "mode lacp: 开启 LACP 协商（新版本为 mode lacp 配合 lacp mode active/passive；老版本为 mode lacp-static / mode lacp-dynamic）"
-    ],
-    "u": [
-     "核心/汇聚互联",
-     "服务器双网卡绑定"
-    ],
-    "w": [
-     "两端接口速率/双工/VLAN必须一致"
-    ],
-    "v": "display eth-trunk 1 看成员状态",
-    "l": [
-     "绑2根线做Eth-Trunk",
-     "拔掉一根ping不中断"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "SW1"
-      },
-      {
-       "t": "SW2"
-      }
-     ],
-     "l": [
-      "Eth-Trunk 1"
-     ]
-    }
-   },
-   {
-    "id": "B3",
-    "t": "B3. VRRP 冗余与 iStack 堆叠",
-    "y": "VRRP：两台虚构一个IP做网关。老大死老二接管。\niStack：多台物理机绑成一台逻辑机，极简运维防环路。",
-    "c": "[Huawei-Vlanif10] vrrp vrid 1 virtual-ip 192.168.1.254\n[Huawei-Vlanif10] vrrp vrid 1 priority 120",
-    "o": "State    Virtual IP      Priority  Master IP\nMaster   192.168.1.254   120       192.168.1.252",
-    "j": [
-     "virtual-ip: 电脑配置的网关",
-     "priority: 高的当老大"
-    ],
-    "u": [
-     "双核心高可用架构"
-    ],
-    "w": [
-     "脑裂：心跳断导致两边都是Master"
-    ],
-    "v": "display vrrp brief 查主备",
-    "l": [
-     "配VRRP主备",
-     "断掉主设备电源",
-     "PC连网不中断"
-    ],
-    "dg": {
-     "k": "ha",
-     "n": [
-      {
-       "t": "Master 1.252"
-      },
-      {
-       "t": "Backup 1.253"
-      }
-     ],
-     "mid": "VIP: 1.254"
-    }
-   },
-   {
-    "id": "B4",
-    "t": "B4. 端口安全与 DHCP Snooping",
-    "y": "Port-Security限制MAC数防泛洪，违规可shutdown。\nDHCP Snooping通过Trust口防伪造DHCP服务器发错IP。",
-    "c": "[Huawei-GE0/0/1] port-security enable\n[Huawei-GE0/0/1] port-security max-mac-num 2\n[Huawei] dhcp snooping enable\n[Huawei-GE0/0/24] dhcp snooping trust",
-    "o": "Port Security: Enable\nViolation Action: Restrict",
-    "j": [
-     "trust: 信任口接合法服务器"
-    ],
-    "u": [
-     "公共办公区防私接小路由器"
-    ],
-    "w": [
-     "Shutdown动作需手工undo恢复"
-    ],
-    "v": "display dhcp snooping binding 查合法表",
-    "l": [
-     "开启端口安全限1个MAC",
-     "接两台PC看端口是否阻断"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "非法DHCP"
-      },
-      {
-       "t": "X"
-      },
-      {
-       "t": "非信任口"
-      },
-      {
-       "t": "SW"
-      }
-     ],
-     "l": [
-      "",
-      "",
-      ""
-     ]
-    }
-   }
-  ]
- },
- {
-  "id": "p-3",
-  "title": "阶段三：广域网、安全、无线与 NetDevOps 进阶",
-  "color": "purple",
-  "desc": "NAT、IPsec、MPLS、ACL、防火墙、802.1X、WPA2、Python/Ansible/GitOps",
-  "modules": [
-   {
-    "id": "C1",
-    "t": "C1. Easy-IP 与 NAT Server",
-    "y": "Easy-IP：多台内网机共享公网IP上网。\nNAT Server：把公网某端口映射到内网服务器（穿透暴露）。",
-    "c": "[Huawei-GE0/0/0] nat outbound 2000\n[Huawei-GE0/0/0] nat server protocol tcp global 203.0.113.1 80 inside 192.168.1.10 80",
-    "o": "Protocol  Source IP      Dest IP       NAT IP\nTCP       192.168.1.100  8.8.8.8       203.0.113.1",
-    "j": [
-     "outbound: 出口源NAT",
-     "inside: 内网真实地址"
-    ],
-    "u": [
-     "企业全员上网",
-     "发布内网Web网站"
-    ],
-    "w": [
-     "NAT Server公网端口别和设备管理口冲突"
-    ],
-    "v": "display nat session all 查会话表",
-    "l": [
-     "配Easy-IP测试内网PC能否ping通外网"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "内网 192"
-      },
-      {
-       "t": "公网IP"
-      }
-     ],
-     "l": [
-      "NAT"
-     ]
-    }
-   },
-   {
-    "id": "C2",
-    "t": "C2. PPPoE 宽带拨号",
-    "y": "把PPP封装在以太网里，运营商通过账号密码认证分配公网IP。",
-    "c": "[Huawei-Dialer1] ppp chap user test\n[Huawei-Dialer1] ip address ppp-negotiate\n[Huawei-GE0/0/0] pppoe-client dial-bundle-number 1",
-    "o": "Bundle ID  State  Remote MAC\n1          UP     00-11-22-33-44-55",
-    "j": [
-     "ppp-negotiate: 动态获取IP"
-    ],
-    "u": [
-     "小微分支机构低成本宽带接入"
-    ],
-    "w": [
-     "默认路由必须指向Dialer口而不是物理口"
-    ],
-    "v": "display pppoe-client session summary",
-    "l": [
-     "在模拟器搭Client和Server跑通拨号"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "企业Router Client"
-      },
-      {
-       "t": "拨号"
-      },
-      {
-       "t": "运营商BRAS"
-      }
-     ],
-     "l": [
-      "",
-      ""
-     ]
-    }
-   },
-   {
-    "id": "C3",
-    "t": "C3. MPLS L3VPN (P/PE/CE & LDP)",
-    "y": "专线技术。外层标签(LDP)送达PE，内层标签(MP-BGP)识别VPN实例(VRF)，实现不同客户地址重叠也能完全隔离。",
-    "c": "[Huawei] ip vpn-instance VPN_A\n[Huawei-vpn-instance-VPN_A] route-distinguisher 100:1\n[Huawei-GE0/0/1] ip binding vpn-instance VPN_A",
-    "o": "Routing Table: VPN_A\nDestinations : 5 Routes : 5",
-    "j": [
-     "route-distinguisher: 区分重叠路由"
-    ],
-    "u": [
-     "大企业跨国跨城安全组网"
-    ],
-    "w": [
-     "绑定VPN实例后接口原有IP会被清空"
-    ],
-    "v": "display ip routing-table vpn-instance",
-    "l": [
-     "配VRF绑接口并互相ping"
-    ],
-    "dg": {
-     "k": "stack",
-     "n": [
-      {
-       "t": "CE1",
-       "s": "- PE1 - P - PE2 - C…"
-      }
-     ]
-    }
-   },
-   {
-    "id": "E1",
-    "t": "E1. ACL 基本与高级策略",
-    "y": "基本(2000-2999)只看源IP。\n高级(3000-3999)看五元组(源/目IP、端口、协议)。隐式拒绝所有未匹配流量。",
-    "c": "[Huawei] acl number 3000\n[Huawei-acl-adv-3000] rule 5 permit tcp source 192.168.1.0 0.0.0.255 destination 10.0.0.1 0 destination-port eq 80",
-    "o": "Rule 5 permit tcp ... (matches: 123 packets)",
-    "j": [
-     "0.0.0.255: 反掩码(0精确,255忽略)"
-    ],
-    "u": [
-     "封堵病毒端口",
-     "限制财务网段互访"
-    ],
-    "w": [
-     "顺序执行，最精细的规则放前面"
-    ],
-    "v": "display acl 3000 看匹配计数",
-    "l": [
-     "配高级ACL只允许PC访问特定Web"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "Packet"
-      },
-      {
-       "t": "Rule 5?",
-       "s": "-N"
-      },
-      {
-       "t": "Rule 10?",
-       "s": "-Y"
-      },
-      {
-       "t": "Action"
-      }
-     ],
-     "l": [
-      "",
-      "",
-      ""
-     ]
-    }
-   },
-   {
-    "id": "E2",
-    "t": "E2. USG 防火墙 Zone 策略",
-    "y": "防火墙按安全区域划分信任度(Trust/Untrust/DMZ)。必须显式配置策略放行(默认全Deny)。",
-    "c": "[Huawei-security-policy] rule name Trust-Out\n[Huawei-security-policy-rule-1] source-zone trust\n[Huawei-security-policy-rule-1] action permit",
-    "o": "rule name Trust-Out\n action permit",
-    "j": [
-     "source-zone: 流量发起方"
-    ],
-    "u": [
-     "企业出口安全控制"
-    ],
-    "w": [
-     "别忘配回程放行(或靠状态检测自动放行)"
-    ],
-    "v": "display firewall session table",
-    "l": [
-     "配策略允许内网ping外网但拒绝SSH"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "Trust"
-      },
-      {
-       "t": "Untrust"
-      }
-     ],
-     "l": [
-      "Security Policy 检查"
-     ]
-    }
-   },
-   {
-    "id": "K1",
-    "t": "K1. IPsec VPN 站点互联",
-    "y": "在互联网上打加密隧道。IKE协商密钥，ESP负责加密报文。",
-    "c": "[Huawei] ipsec proposal ipsec_pro\n[Huawei] ike peer branch\n[Huawei-ike-peer-branch] pre-shared-key cipher pass123",
-    "o": "IPsec SA:\n State: active\n Encryption: AES-256",
-    "j": [
-     "pre-shared-key: 两端密钥必须一致"
-    ],
-    "u": [
-     "分公司和总部安全内网互通"
-    ],
-    "w": [
-     "两端IKE/ESP算法版本稍有不同就会建不起来"
-    ],
-    "v": "display ike sa 看是否Established",
-    "l": [
-     "两防火墙搭隧道跨公网互ping内网"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "分支内网"
-      },
-      {
-       "t": "总部内网"
-      }
-     ],
-     "l": [
-      "IPsec VPN隧道 跨公网"
-     ]
-    }
-   },
-   {
-    "id": "K2",
-    "t": "K2. 802.1X 准入与 RADIUS",
-    "y": "基于端口的接入控制。电脑一插网线立刻要求输账号密码，去后端的RADIUS服务器校验通过才给放行。",
-    "c": "[Huawei-radius-rad] radius-server authentication 192.168.1.100 1812\n[Huawei-GE0/0/1] dot1x enable",
-    "o": "Interface: GE0/0/1\nStatus: Authenticated",
-    "j": [
-     "1812: RADIUS认证默认端口"
-    ],
-    "u": [
-     "园区网零信任第一步强制实名上网"
-    ],
-    "w": [
-     "PC端需开启802.1X服务(Wired AutoConfig)"
-    ],
-    "v": "display dot1x sessions",
-    "l": [
-     "配802.1X，用Windows测试输入账号密码"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "PC 客户端"
-      },
-      {
-       "t": "SW 认证者"
-      },
-      {
-       "t": "Server"
-      }
-     ],
-     "l": [
-      "EAP",
-      "RADIUS"
-     ]
-    }
-   },
-   {
-    "id": "L1",
-    "t": "L1. CAPWAP 与 AC 发现",
-    "y": "AC(控制器)集中管理所有瘦AP。CAPWAP隧道传控制和数据。\nAP找AC：可通过DHCP Option 43下发AC地址自动上线。",
-    "c": "[Huawei-wlan-view] capwap source interface Vlanif 100\n[Huawei] dhcp server option 43 ip-address 192.168.1.100",
-    "o": "AP ID  State    IP Address\n1      Online   192.168.1.101",
-    "j": [
-     "option 43: 告诉AP去哪找AC"
-    ],
-    "u": [
-     "大中型企业全覆盖Wi-Fi网络"
-    ],
-    "w": [
-     "中间防火墙忘了放通UDP 5246/5247导致AP掉线"
-    ],
-    "v": "display ap all 看是否Online",
-    "l": [
-     "配DHCP Option43，看AP状态从Idle变Online"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "AP"
-      },
-      {
-       "t": "AC"
-      }
-     ],
-     "l": [
-      "CAPWAP UDP 5246/5247"
-     ]
-    }
-   },
-   {
-    "id": "L2",
-    "t": "L2. WPA2 认证与 SSID",
-    "y": "SSID是Wi-Fi名。WPA2-PSK是个人级密码加密，AES最安全。",
-    "c": "[Huawei-wlan-sec-prof] security wpa2 psk pass-phrase cipher pass123 aes\n[Huawei-wlan-vap-prof] ssid-profile test_ssid",
-    "o": "VAP profile: office_vap\nAPs: 2 online",
-    "j": [
-     "psk: 预共享密钥"
-    ],
-    "u": [
-     "办公/访客Wi-Fi分离发放"
-    ],
-    "w": [
-     "5G和2.4G可以绑同名SSID做双频合一"
-    ],
-    "v": "手机搜信号输入密码连入",
-    "l": [
-     "建SSID、密码并下发，用手机实测接入"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "安全模板 密码 + SSID模板 …"
-      },
-      {
-       "t": "绑给AP组"
-      }
-     ],
-     "l": [
-      ""
-     ]
-    }
-   },
-   {
-    "id": "L3",
-    "t": "L3. 802.11r 无缝漫游",
-    "y": "FT(Fast Transition)，让手机从AP-A走到AP-B时预先计算好密钥，切换时间<50ms，语音不掉线。",
-    "c": "[Huawei-wlan-sec-prof] dot11r enable\n[Huawei-wlan-sec-prof] dot11r ft-over-air enable",
-    "o": "MAC: 00-11... Current AP: AP-2 Last roam time: 10:00",
-    "j": [
-     "ft-over-air: 空口传漫游密钥"
-    ],
-    "u": [
-     "医院移动查房、企业VoIP语音"
-    ],
-    "w": [
-     "老旧手机可能不支持11r导致连不上，需单独分SSID"
-    ],
-    "v": "display station roaming 看漫游次数",
-    "l": [
-     "开启11r，边走边长ping看丢包率"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "AP-A"
-      },
-      {
-       "t": "AP-B"
-      }
-     ],
-     "l": [
-      "后台交互密钥"
-     ]
-    }
-   },
-   {
-    "id": "D1",
-    "t": "D1. Python Netmiko 并发配置",
-    "y": "用Python脚本通过SSH连设备发命令。多线程(ThreadPool)能一键同时配100台交换机，效率拉满。",
-    "c": "conn = ConnectHandler(**device)\nconn.send_config_set(['vlan 100', 'quit'])\nconn.save_config()",
-    "o": "192.168.1.1 done: vlan 100...",
-    "j": [
-     "ConnectHandler: 封装的SSH客户端"
-    ],
-    "u": [
-     "全网刷VLAN、改密码、备配置"
-    ],
-    "w": [
-     "线程数别设太大，设备CPU和SSH连接数会爆"
-    ],
-    "v": "去设备上 display vlan 看效果",
-    "l": [
-     "写个10行代码给3台模拟器刷统一ACL"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "Python脚本"
-      },
-      {
-       "t": "SW1, SW2, SW3"
-      }
-     ],
-     "l": [
-      "多线程SSH"
-     ]
-    }
-   },
-   {
-    "id": "D2",
-    "t": "D2. Ansible 批量管理网络",
-    "y": "无代理(Agentless)自动化工具，用YAML写剧本(Playbook)。network_cli模块原生支持华为/H3C。",
-    "c": "tasks:\n  - name: Create VLAN\n    huawei_vrp_command:\n      commands: [system-view, vlan 100]",
-    "o": "TASK [Create VLAN] ***\nok: [192.168.1.1]",
-    "j": [
-     "huawei_vrp_command: 华为专用执行模块"
-    ],
-    "u": [
-     "标准化合规下发、批量巡检采集"
-    ],
-    "w": [
-     "别把明文密码写死，用Ansible Vault加密"
-    ],
-    "v": "ansible-playbook --check 做试运行看差异",
-    "l": [
-     "写剧本批量保存配置并抓取版本号"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "Ansible Playbook.…"
-      },
-      {
-       "t": "ssh"
-      },
-      {
-       "t": "Network Devices"
-      }
-     ],
-     "l": [
-      "",
-      ""
-     ]
-    }
-   },
-   {
-    "id": "D3",
-    "t": "D3. Git 配置版本控制与回滚",
-    "y": "把设备配置当代码管。Git diff能清楚看到谁在几点改了哪行(配置漂移)。出事一键revert回滚。",
-    "c": "git add .\ngit commit -m 'Add OSPF'\ngit diff HEAD~1",
-    "o": "- ip address 10.0.1.1 24\n+ ip address 10.0.1.100 24",
-    "j": [
-     "git diff: 对比文件差异"
-    ],
-    "u": [
-     "NetDevOps基石，审计与快速故障恢复"
-    ],
-    "w": [
-     "敏感的密钥别提进公共Git库"
-    ],
-    "v": "git log 看历史变更记录",
-    "l": [
-     "故意写错配置，用Git回滚恢复历史文本"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "V1.0 稳定版 <- git d…"
-      },
-      {
-       "t": "V2.0 异常版"
-      }
-     ],
-     "l": [
-      ""
-     ]
-    }
-   },
-   {
-    "id": "W1",
-    "t": "W1. NetDevOps 进阶: GitOps 宣告式变更",
-    "y": "将网络配置写成 YAML 存入 Git。走 Pull Request 审核，CI 自动 Dry-Run，合并后自动推送现网。",
-    "c": "git checkout -b feature/vlan200\ngit commit -m 'Add VLAN 200'\ngit push origin feature/vlan200",
-    "o": "PR #12 Created. Running CI checks...",
-    "j": [
-     "将 Git 作为现网唯一真理源 (Single Source of Truth)"
-    ],
-    "u": [
-     "无人值守安全变更",
-     "配置审计与一键回滚"
-    ],
-    "w": [
-     "避免跳过 PR 直接在 CLI 上私自修改配置"
-    ],
-    "v": "查看 CI 审计日志及 git log",
-    "l": [
-     "创建分支修改 Jinja 模板",
-     "发起 PR 触发自动化部署"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "Git Repo"
-      },
-      {
-       "t": "CI Pipeline"
-      },
-      {
-       "t": "Switches"
-      }
-     ],
-     "l": [
-      "PR Review",
-      "Ansible"
-     ]
-    }
-   },
-   {
-    "id": "W2",
-    "t": "W2. NetDevOps 进阶: CI/CD 自动化集成 (Batfish)",
-    "y": "在配置真正推送现网前，通过 Batfish 静态离线建模断言路由和 ACL 通断，避免生产安全事故。",
-    "c": "bf = Session(host='localhost')\nbf.init_snapshot('./configs')\nresult = bf.q.reachability(headers=HeaderConstraints(dstPorts='80')).answer()",
-    "o": "Flows reachable: 100%. All assertions PASSED.",
-    "j": [
-     "在内存中构建设备数据平面"
-    ],
-    "u": [
-     "高危路由/ACL 变更前离线推演"
-    ],
-    "w": [
-     "解析器对非标准 CLI 语法可能退化"
-    ],
-    "v": "查看 CI 测试断言报告",
-    "l": [
-     "编写 Batfish 断言脚本",
-     "将其嵌入 GitHub Actions"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "Git PR"
-      },
-      {
-       "t": "Batfish 引擎"
-      },
-      {
-       "t": "断言检查",
-       "s": "允许80端口?"
-      },
-      {
-       "t": "Approve"
-      }
-     ],
-     "l": [
-      "",
-      "",
-      ""
-     ]
-    }
-   },
-   {
-    "id": "W3",
-    "t": "W3. NetDevOps 进阶: 配置模板化 (Jinja2 & Nautobot)",
-    "y": "将网络配置拆分为 Jinja2 模板与 YAML 数据，实现基础设施即代码 (IaC)。从 IPAM (NetBox) 动态拉取参数。",
-    "c": "template = Template('vlan {{ vlan_id }}\\n name {{ vlan_name }}')\nprint(template.render(vlan_id=10, vlan_name='WEB'))",
-    "o": "vlan 10\n name WEB",
-    "j": [
-     "剥离业务数据与逻辑配置"
-    ],
-    "u": [
-     "千台设备标准化开局",
-     "数据驱动运维"
-    ],
-    "w": [
-     "模板更新需防范全网连锁误配置"
-    ],
-    "v": "对比生成的 CLI 与设备运行配置",
-    "l": [
-     "定义 YAML 变量文件",
-     "编写 Jinja2 渲染脚本"
-    ],
-    "dg": {
-     "k": "stack",
-     "n": [
-      {
-       "t": "Jinja2 模板 + NetBo…"
-      }
-     ]
-    }
-   },
-   {
-    "id": "LAB3",
-    "t": "🎯 阶段三综合实验：广域网与安全自动化",
-    "y": "**实验目标**：打通跨地域分支并完成基础安全准入，最后用 Python 收割全网配置。\n**拓扑**：总部 (Easy-IP+AC) --- IPsec VPN --- 分支 (AP+802.1X)",
-    "c": "python backup_all.py",
-    "o": "Switch-HQ: Config saved to git.\nFW-Branch: Config saved to git.",
-    "j": [
-     "检验全局架构整合能力",
-     "验证脚本并发健壮性"
-    ],
-    "u": [
-     "面试上机考核",
-     "大中型项目结项复盘"
-    ],
-    "w": [
-     "注意 VPN 隧道需放通 CAPWAP 的 UDP 端口"
-    ],
-    "v": "执行 python 脚本，查看 Git 仓库是否有两端设备的 config 提交",
-    "l": [
-     "手工拉通总部与分支的 IPsec VPN",
-     "让 AP 跨广域网注册到总部的 AC",
-     "编写 Netmiko 脚本批量抓取设备版本与路由"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "总部 FW"
-      },
-      {
-       "t": "VPN"
-      },
-      {
-       "t": "分支 FW"
-      }
-     ],
-     "l": [
-      "",
-      ""
-     ]
-    }
-   }
-  ]
- },
- {
-  "id": "p-4",
-  "title": "阶段四：云原生与高级前沿",
-  "color": "rose",
-  "desc": "VXLAN/EVPN、IPv6、K8s CNI/Gateway API、eBPF、混沌工程、SRv6、SRE",
-  "modules": [
-   {
-    "id": "F1",
-    "t": "F1. VXLAN 与 BGP EVPN",
-    "y": "突破4K VLAN限制的大二层技术，UDP封装(Mac-in-UDP)。\nEVPN做控制面，用BGP同步MAC/IP，取代广播泛洪。",
-    "c": "[Huawei] evpn vni 100\n[Huawei-bgp-evpn] peer 2.2.2.2 advertise encap-type vxlan",
-    "o": "Tunnel ID  Source    Dest      State\n1          1.1.1.1   2.2.2.2   UP",
-    "j": [
-     "vni: 全局唯一的24位虚拟网络标识"
-    ],
-    "u": [
-     "数据中心多租户网络、大跨度VM热迁移"
-    ],
-    "w": [
-     "底层Underlay的MTU必须调大到1600以上防分片"
-    ],
-    "v": "display bgp l2vpn evpn 查路由",
-    "l": [
-     "搭两台VTEP跑通VXLAN打通跨IP网段VM"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "VM1"
-      },
-      {
-       "t": "VXLAN隧道"
-      },
-      {
-       "t": "VTEP2"
-      },
-      {
-       "t": "VM2"
-      }
-     ],
-     "l": [
-      "VTEP1",
-      "",
-      ""
-     ]
-    }
-   },
-   {
-    "id": "H1",
-    "t": "H1. IPv6 地址与 NDP 机制",
-    "y": "128位地址。去掉了ARP和广播，全靠NDP(ICMPv6)做邻居发现、SLAAC(无状态地址自动配置)。",
-    "c": "[Huawei-GE0/0/0] ipv6 enable\n[Huawei-GE0/0/0] ipv6 address 2001:db8::1/64",
-    "o": "IPv6 Address   MAC Address       State\n2001:db8::2    00-11-22...       REACH",
-    "j": [
-     "REACH: 邻居可达状态"
-    ],
-    "u": [
-     "物联网、下一代互联网演进"
-    ],
-    "w": [
-     "忘记开全局ipv6 enable导致无法配置"
-    ],
-    "v": "ping6 测试，display ipv6 neighbors",
-    "l": [
-     "两台设备配IPv6直连ping6通"
-    ],
-    "dg": {
-     "k": "stack",
-     "n": [
-      {
-       "t": "2001",
-       "s": "0db8::1/64 公网 fe80:…"
-      }
-     ]
-    }
-   },
-   {
-    "id": "H2",
-    "t": "H2. IPv6 OSPFv3 动态路由",
-    "y": "基于链路而不是子网运行。使用IPv6链路本地地址(fe80)建邻居，必须手工指定IPv4格式的Router-ID。",
-    "c": "[Huawei] ospfv3 1\n[Huawei-ospfv3-1] router-id 1.1.1.1\n[Huawei-GE0/0/0] ospfv3 1 area 0",
-    "o": "OSPFv3 Process 1, Neighbor ID: 2.2.2.2\nState: Full",
-    "j": [
-     "router-id: 不手工配起不来"
-    ],
-    "u": [
-     "纯IPv6网络内的动态路由互通"
-    ],
-    "w": [
-     "同一个口可以起多个多实例进程，别配串了"
-    ],
-    "v": "display ipv6 routing-table 查路由",
-    "l": [
-     "起OSPFv3跑通全网IPv6路由"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "R1 fe80",
-       "s": ":1 <"
-      },
-      {
-       "t": "OSPFv3"
-      },
-      {
-       "t": "R2 fe80",
-       "s": ":2"
-      }
-     ],
-     "l": [
-      "",
-      ""
-     ]
-    }
-   },
-   {
-    "id": "H3",
-    "t": "H3. IPv6 过渡: 6to4与NAT64",
-    "y": "6to4：把v6包塞进v4里穿越旧网。\nNAT64：v6纯客户端访问v4老服务器，通过协议/地址翻译(类似IPv4 NAT)。",
-    "c": "[Huawei-Tunnel0] tunnel-protocol ipv6-ipv4 6to4\n[Huawei] nat64 enable",
-    "o": "Tunnel0 current state: UP\nProtocol: IPv6-IPv4 6to4",
-    "j": [
-     "6to4前缀固定含公网v4地址"
-    ],
-    "u": [
-     "企业逐步演进IPv6过程中的业务平滑过渡"
-    ],
-    "w": [
-     "NAT64需要配合DNS64才能解析域名"
-    ],
-    "v": "telnet 64:ff9b::8.8.8.8 测NAT64转换",
-    "l": [
-     "配置6to4隧道让两端IPv6孤岛互通"
-    ],
-    "dg": {
-     "k": "multi",
-     "rows": [
-      {
-       "n": [
-        {
-         "t": "IPv6孤岛"
-        },
-        {
-         "t": "IPv6孤岛"
+        "id": "Z5",
+        "t": "Z5. 物理接入与SSH管理",
+        "y": "Console线：串口直连，初次配置(9600-8-N-1)。\nSSH：TCP 22端口，加密远程管理。\nTelnet：明文传输，不安全。",
+        "c": "[Huawei] stelnet server enable\n[Huawei] ssh server compatible-ssh1x disable\n[Huawei] ssh server cipher aes256-gcm\n[Huawei] user-interface vty 0 4\n[Huawei-ui-vty0-4] authentication-mode aaa\n[Huawei-ui-vty0-4] protocol inbound ssh",
+        "o": "Info: Ssh server has been enabled.",
+        "j": [
+          "vty 0 4: 允许5个终端并发登录",
+          "aaa: 账号密码认证"
+        ],
+        "u": [
+          "设备开箱初装",
+          "日常安全远程运维"
+        ],
+        "w": [
+          "Console波特率不对会乱码",
+          "Telnet严禁公网使用",
+          "SSHv1 与弱算法(des/3des)存在已知漏洞，生产环境必须 disable + 仅留 aes256-gcm 等强套件"
+        ],
+        "v": "客户端用ssh user@ip登录测试",
+        "l": [
+          "用Console线连设备配IP",
+          "开启SSH并创建aaa用户",
+          "拔掉Console用网线SSH登录"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "管理员PC"
+            },
+            {
+              "t": "Console线/COM口"
+            },
+            {
+              "t": "设备Console口"
+            }
+          ],
+          "l": [
+            "",
+            ""
+          ]
         }
-       ],
-       "l": [
-        "IPv4隧道"
-       ]
       },
       {
-       "n": [
-        {
-         "t": "IPv6终端"
-        },
-        {
-         "t": "IPv4服务器"
+        "id": "Z6",
+        "t": "Z6. VRP 分级视图操作",
+        "y": "华为VRP系统权限分级：\n<用户视图>：查看/测试\n[系统视图]：全局配置\n[接口视图]：局部配置",
+        "c": "<Huawei> system-view\n[Huawei] interface GE0/0/0\n[Huawei-GigabitEthernet0/0/0] quit",
+        "o": "Enter system view, return user view with Ctrl+Z.",
+        "j": [
+          "quit: 退回上一级",
+          "return: 直接退回<用户视图>"
+        ],
+        "u": [
+          "日常所有配置操作"
+        ],
+        "w": [
+          "命令敲不进？看看当前在哪个视图"
+        ],
+        "v": "敲 ? 看当前视图支持哪些命令",
+        "l": [
+          "在不同视图下游走并敲?看命令变化"
+        ],
+        "dg": {
+          "k": "multi",
+          "rows": [
+            {
+              "n": [
+                {
+                  "t": "<Huawei>"
+                },
+                {
+                  "t": "system-view"
+                },
+                {
+                  "t": "Huawei"
+                }
+              ],
+              "l": [
+                "",
+                ""
+              ]
+            },
+            {
+              "n": [
+                {
+                  "t": "Huawei"
+                },
+                {
+                  "t": "int GE0/0/0"
+                },
+                {
+                  "t": "Huawei-GE0/0/0"
+                }
+              ],
+              "l": [
+                "",
+                ""
+              ]
+            }
+          ]
         }
-       ],
-       "l": [
-        "NAT64"
-       ]
-      }
-     ]
-    }
-   },
-   {
-    "id": "I1",
-    "t": "I1. SNMP 原理与配置",
-    "y": "网管拉取设备数据的协议。v1/v2c明文传输(只配团体名)，v3强制加密认证最安全。",
-    "c": "[Huawei] snmp-agent sys-info version v3\n[Huawei] snmp-agent usm-user v3 admin authentication-mode sha cipher pass",
-    "o": "SNMP version running: SNMPv3",
-    "j": [
-     "cipher: 本地存储加密"
-    ],
-    "u": [
-     "Zabbix等主流网管软件对接采集"
-    ],
-    "w": [
-     "v2c团体名设成public极易被黑客拖库"
-    ],
-    "v": "电脑端用snmpwalk测试抓取数据",
-    "l": [
-     "设备开SNMPv2c，用软件走网获取设备型号"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "NMS监控平台"
       },
       {
-       "t": "网络设备Agent"
-      }
-     ],
-     "l": [
-      "UDP 161 GET"
-     ]
-    }
-   },
-   {
-    "id": "I2",
-    "t": "I2. Prometheus + Grafana",
-    "y": "云原生监控套件。SNMP Exporter负责把老掉牙的SNMP OID转换成Prometheus的时序指标，Grafana画大屏。",
-    "c": "scrape_configs:\n  - job_name: 'snmp'\n    targets: ['192.168.1.1']",
-    "o": "snmp_sysName{instance=\"1.1\"} \"Core-SW\"",
-    "j": [
-     "job_name: 拉取任务名"
-    ],
-    "u": [
-     "替代传统老旧NMS，实现现代化可观测大屏"
-    ],
-    "w": [
-     "拉取频率太高(如1秒1次)会把交换机CPU拉满"
-    ],
-    "v": "去:9116端口看指标是否生成",
-    "l": [
-     "起三个Docker容器联动抓出一张流量图"
-    ],
-    "dg": {
-     "k": "stack",
-     "n": [
-      {
-       "t": "Grafana大屏",
-       "s": "<- Prometheus <- SN…"
-      }
-     ]
-    }
-   },
-   {
-    "id": "I3",
-    "t": "I3. Syslog 集中日志",
-    "y": "设备告警别全散在本地，统一用UDP 514推给Syslog服务器(如ELK)，方便审计和关联排障。",
-    "c": "[Huawei] info-center enable\n[Huawei] info-center loghost 192.168.1.100 facility local6",
-    "o": "Loghost: 192.168.1.100\nChannel: loghost, level: debugging",
-    "j": [
-     "loghost: 指向收集器IP"
-    ],
-    "u": [
-     "等保合规日志留存、全网故障统一检索"
-    ],
-    "w": [
-     "Debugging级别日志海量，可能撑爆服务器磁盘"
-    ],
-    "v": "去Linux端 tail -f /var/log 看报文",
-    "l": [
-     "Linux起rsyslog，SW配loghost，拔网线看日志"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "设备群"
-      },
-      {
-       "t": "ELK集群"
-      }
-     ],
-     "l": [
-      "Syslog UDP 514"
-     ]
-    }
-   },
-   {
-    "id": "J1",
-    "t": "J1. K8s Pod CNI 规范",
-    "y": "CNI插件(如Calico)负责给每个Pod分独立IP并插上网线。要求Pod间全互通无NAT。",
-    "c": "kubectl get pods -o wide\nkubectl exec -it <pod> -- ip addr",
-    "o": "NAME     STATUS   IP           NODE\nnginx-1  Running  10.244.1.2   node1",
-    "j": [
-     "-o wide: 显示IP和Node"
-    ],
-    "u": [
-     "云原生业务基础底座网络排障"
-    ],
-    "w": [
-     "CNI没装好，Node都是NotReady状态"
-    ],
-    "v": "在Pod A里直ping Pod B的IP",
-    "l": [
-     "装K8s后装Calico看网卡变化"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "Pod veth"
-      },
-      {
-       "t": "网桥/路由"
-      },
-      {
-       "t": "物理网卡"
-      }
-     ],
-     "l": [
-      "",
-      ""
-     ]
-    }
-   },
-   {
-    "id": "J2",
-    "t": "J2. Calico BGP 与 IPIP",
-    "y": "纯BGP模式(No Encap)：Node当路由器，原生IP转发无损耗性能极高。\nIPIP模式：云上跨子网不通BGP时，套层隧道(内耗MTU)。",
-    "c": "calicoctl patch ippool default-ipv4-ippool -p '{\"spec\":{\"ipipMode\":\"Never\"}}'",
-    "o": "10.244.2.0/24 via 192.168.2.2 dev eth0 proto bird",
-    "j": [
-     "proto bird: 证明路由是Calico的BGP刷入的"
-    ],
-    "u": [
-     "追求极致性能的自建机房集群"
-    ],
-    "w": [
-     "切换模式可能导致瞬间断网，注意MTU"
-    ],
-    "v": "ip route 看有没有 tunl0 接口",
-    "l": [
-     "关闭IPIP模式抓包验证不再有IP-in-IP"
-    ],
-    "dg": {
-     "k": "multi",
-     "rows": [
-      {
-       "n": [
-        {
-         "t": "纯BGP",
-         "s": "NodeA"
-        },
-        {
-         "t": "NodeB"
+        "id": "Z7",
+        "t": "Z7. 配置文件保存与防丢",
+        "y": "RAM(运行配置)：断电丢失。\nFlash/NVRAM(启动配置)：永久保存。必须手工执行save将RAM同步到Flash。",
+        "c": "<Huawei> save",
+        "o": "Are you sure to continue? (y/n): y\nSave the configuration successfully.",
+        "j": [
+          "必须在<用户视图>执行",
+          "y确认"
+        ],
+        "u": [
+          "下班前",
+          "重大变更验证成功后"
+        ],
+        "w": [
+          "没测通的危险配置别急着save，搞砸了直接重启恢复"
+        ],
+        "v": "display saved-configuration 看是否和 current一致",
+        "l": [
+          "改设备名不保存重启(丢失)",
+          "改名后save再重启(保留)"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "修改配置 RAM"
+            },
+            {
+              "t": "固化 Flash"
+            }
+          ],
+          "l": [
+            "save"
+          ]
         }
-       ],
-       "l": [
-        "物理网"
-       ]
       },
       {
-       "n": [
-        {
-         "t": "IPIP",
-         "s": "NodeA tunl0"
-        },
-        {
-         "t": "NodeB"
+        "id": "Z8",
+        "t": "Z8. 配置启动与系统文件管理",
+        "y": "设备升级或迁移时，需管理 Flash 中的 .cfg 和 .cc 文件。指定下次启动文件是割接的重要一环。",
+        "c": "<Huawei> startup saved-configuration flash:/vrpcfg.cfg",
+        "o": "Next startup saved-configuration file: flash:/vrpcfg.cfg",
+        "j": [
+          "startup: 指定启动文件"
+        ],
+        "u": [
+          "设备升级",
+          "配置回滚"
+        ],
+        "w": [
+          "删除文件前必须备份"
+        ],
+        "v": "display startup 查看下次启动文件",
+        "l": [
+          "使用 copy 备份配置",
+          "修改启动文件并验证"
+        ],
+        "dg": {
+          "k": "stack",
+          "n": [
+            {
+              "t": "Flash"
+            },
+            {
+              "t": "vrpcfg.cfg 配置"
+            },
+            {
+              "t": "AR2200.cc 系统"
+            }
+          ]
         }
-       ],
-       "l": [
-        "封装IP"
-       ]
       }
-     ]
-    }
-   },
-   {
-    "id": "J3",
-    "t": "J3. NetworkPolicy 微隔离",
-    "y": "K8s里的高级防火墙。默认放行所有，配置后变成零信任(拒绝未授权东西向流量)。按标签放行。",
-    "c": "spec:\n  podSelector: { matchLabels: { app: backend } }\n  ingress:\n  - from: [{ podSelector: { matchLabels: { app: frontend } } }]",
-    "o": "Name: backend-policy\nPod-Selector: app=backend\nAllow: from app=frontend",
-    "j": [
-     "podSelector: 应用策略的目标"
-    ],
-    "u": [
-     "多租户集群隔离、高安应用零信任"
-    ],
-    "w": [
-     "得看你装的CNI支不支持它(Flannel原生不支持)"
-    ],
-    "v": "起非授权Pod用wget测访问被阻",
-    "l": [
-     "配规则只让A能ping B，C去ping直接超时"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
+    ]
+  },
+  {
+    "id": "p-2",
+    "title": "阶段二：园区网核心与高可用",
+    "color": "blue",
+    "desc": "VLAN、SVI、OSPF多区域、BGP、MSTP、VRRP、iStack、端口安全",
+    "modules": [
       {
-       "t": "Namespace-A Front…"
-      },
-      {
-       "t": "Backend"
-      },
-      {
-       "t": "X"
-      },
-      {
-       "t": "Hacker Pod"
-      }
-     ],
-     "l": [
-      "放行",
-      "",
-      ""
-     ]
-    }
-   },
-   {
-    "id": "N1",
-    "t": "N1. K8s Ingress 与 Nginx Controller",
-    "y": "Ingress是K8s对外的统一域名网关七层反代。Nginx Controller负责把它动态转成nginx.conf。",
-    "c": "rules:\n- host: app.com\n  http:\n    paths: [{path: /, backend: {service: {name: web-svc, port: {number: 80}}}}] ",
-    "o": "NAME      CLASS  HOSTS     ADDRESS  PORTS\nweb-ing   nginx  app.com   1.2.3.4  80",
-    "j": [
-     "host: 绑定的域名"
-    ],
-    "u": [
-     "单个公网IP暴露100个微服务"
-    ],
-    "w": [
-     "没装Controller的话，配了Ingress也白搭不生效"
-    ],
-    "v": "curl -H 'Host: app.com' http://IP",
-    "l": [
-     "配个多域名Ingress转发给不同Service"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "外部用户"
-      },
-      {
-       "t": "Ingress"
-      },
-      {
-       "t": "分流"
-      },
-      {
-       "t": "Pod-A/B"
-      }
-     ],
-     "l": [
-      "app.com",
-      "",
-      ""
-     ]
-    }
-   },
-   {
-    "id": "N2",
-    "t": "N2. Gateway API 流量治理",
-    "y": "下一代Ingress，支持多协议(TCP/UDP)、跨Namespace路由、权重分流(灰度/金丝雀发布)。",
-    "c": "backendRefs:\n- name: api-v1\n  weight: 90\n- name: api-v2\n  weight: 10",
-    "o": "Name: app-route\nWeight: 90/10",
-    "j": [
-     "weight: 轻松实现金丝雀发布流量拆分"
-    ],
-    "u": [
-     "复杂微服务多版本灰度测试"
-    ],
-    "w": [
-     "还在演进期，需装对应CRD"
-    ],
-    "v": "并发压测看V2是否恰好分到10%流量",
-    "l": [
-     "装Gateway API配9:1权重请求观察"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "Gateway"
-      },
-      {
-       "t": "HTTPRoute"
-      },
-      {
-       "t": "90%到v1, 10%到v2"
-      }
-     ],
-     "l": [
-      "",
-      ""
-     ]
-    }
-   },
-   {
-    "id": "N3",
-    "t": "N3. Ingress 故障排查 (502/404)",
-    "y": "502：网关正常但后端Service找不到健康的Pod(Endpoint为空)。\n404：域名配错、路径没匹配上。",
-    "c": "kubectl get endpoints web-svc\nkubectl logs -f <nginx-controller-pod>",
-    "o": "web-svc  <none>  5m\n[Error] GET /wrong HTTP 404",
-    "j": [
-     "<none>: 代表后端全挂了"
-    ],
-    "u": [
-     "日常集群发布出锅兜底排障"
-    ],
-    "w": [
-     "注意PathPrefix末尾带不带/区别很大"
-    ],
-    "v": "查看endpoints确保有IP",
-    "l": [
-     "故意杀掉后端Pod复现502，修好它"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "404"
-      },
-      {
-       "t": "查Ingress规则 502"
-      },
-      {
-       "t": "查Pod就绪状态"
-      }
-     ],
-     "l": [
-      "",
-      ""
-     ]
-    }
-   },
-   {
-    "id": "P1",
-    "t": "P1. CoreDNS K8s DNS架构",
-    "y": "集群内建DNS。每新建个Service都会生成域名：svc.namespace.svc.cluster.local。所有Pod指向上网。",
-    "c": "kubectl get pods -n kube-system -l k8s-app=kube-dns",
-    "o": "NAME           READY   STATUS    AGE\ncoredns-1234   1/1     Running   10d",
-    "j": [
-     "k8s-app: K8s关键组件标签"
-    ],
-    "u": [
-     "微服务间只认域名不认IP解耦"
-    ],
-    "w": [
-     "CoreDNS一挂整个集群东西向全瞎"
-    ],
-    "v": "nslookup kubernetes.default",
-    "l": [
-     "在Pod里看 /etc/resolv.conf"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "Pod"
-      },
-      {
-       "t": "请求db.default"
-      },
-      {
-       "t": "CoreDNS"
-      },
-      {
-       "t": "返回10.x.x.x"
-      }
-     ],
-     "l": [
-      "",
-      "",
-      ""
-     ]
-    }
-   },
-   {
-    "id": "P2",
-    "t": "P2. Pod 服务名称解析机制",
-    "y": "Pod的 resolv.conf 自动带了 search 域后缀。输入 curl db 会自动补齐后缀去查 CoreDNS。",
-    "c": "kubectl exec -it test-pod -- cat /etc/resolv.conf",
-    "o": "search default.svc.cluster.local svc.cluster.local\nnameserver 10.96.0.10",
-    "j": [
-     "search: 自动补齐列表"
-    ],
-    "u": [
-     "写死配置文件里的DB连接串为简写域名"
-    ],
-    "w": [
-     "跨Namespace访问必须写全域名，否则404"
-    ],
-    "v": "ping db 观察解析的IP",
-    "l": [
-     "在一个namespace配Pod通过短名访问另一个"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "curl db"
-      },
-      {
-       "t": "补齐"
-      },
-      {
-       "t": "db.default.svc.cl…"
-      }
-     ],
-     "l": [
-      "",
-      ""
-     ]
-    }
-   },
-   {
-    "id": "P3",
-    "t": "P3. DNS 排障 (CoreDNS)",
-    "y": "解析失败？先看CoreDNS活着没，再开调试日志看它收没收到，最后看Service对应的Endpoint有没建出来。",
-    "c": "kubectl edit configmap coredns -n kube-system\n// 加入 log 插件",
-    "o": "[INFO] 10.1.2.3:4321 - A IN wrong-svc.def... NXDOMAIN",
-    "j": [
-     "NXDOMAIN: 解析不到结果"
-    ],
-    "u": [
-     "微服务说找不到对方时的终极杀器"
-    ],
-    "w": [
-     "排查完记得关log，不然压爆磁盘"
-    ],
-    "v": "直接指定DNS查: nslookup svc 10.96.0.10",
-    "l": [
-     "开CoreDNS log看业务解析耗时"
-    ],
-    "dg": {
-     "k": "stack",
-     "n": [
-      {
-       "t": "Timeout 网断了 NXDOM…"
-      }
-     ]
-    }
-   },
-   {
-    "id": "X1",
-    "t": "X1. 可观测性三支柱: Metrics/Logs/Traces 协同",
-    "y": "Metrics 提示发生了什么(监控告警)，Logs 提供现场上下文(报错细节)，Traces 定位哪一级调用超时。",
-    "c": "curl -H 'X-Request-ID: 12345' http://api.com/checkout",
-    "o": "TraceID: 12345 SpanID: abc12 Duration: 450ms",
-    "j": [
-     "贯穿全链路的 TraceID 是关联网络与应用的纽带"
-    ],
-    "u": [
-     "分布式微服务复杂故障定位"
-    ],
-    "w": [
-     "全量采样 Tracing 存储开销巨大，生产需合理采样"
-    ],
-    "v": "通过 Grafana Tempo 链路跳转 Loki 查看日志",
-    "l": [
-     "在入口网关注入 TraceID",
-     "使用 OpenTelemetry 收集指标"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "Alert Metrics"
-      },
-      {
-       "t": "Find Trace ID"
-      },
-      {
-       "t": "Inspect Span Logs"
-      }
-     ],
-     "l": [
-      "",
-      ""
-     ]
-    }
-   },
-   {
-    "id": "X2",
-    "t": "X2. eBPF 进阶: tc-ebpf 与 XDP 报文处理",
-    "y": "XDP 运行在网卡驱动层(极速丢包/抗DDoS)，tc-ebpf 运行在 Linux TC 协议栈(精细挂载与重定向)。",
-    "c": "ip link set dev eth0 xdp obj xdp_drop.o\nbpftool prog show",
-    "o": "id 42 type xdp name xdp_drop_func tag 1234",
-    "j": [
-     "绕过 Linux TCP/IP 协议栈开销"
-    ],
-    "u": [
-     "TB 级抗 DDoS 攻击",
-     "云原生高性能网关"
-    ],
-    "w": [
-     "XDP 程序运行过早，无法依赖协议栈的高级特性"
-    ],
-    "v": "bpftool prog list 查看挂载状态",
-    "l": [
-     "编写简易 C 语言 XDP 丢包程序",
-     "使用 clang 编译并用 ip link 挂载"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "NIC"
-      },
-      {
-       "t": "XDP 极速丢包"
-      },
-      {
-       "t": "tc-ebpf 路由重定向"
-      },
-      {
-       "t": "Protocol Stack"
-      }
-     ],
-     "l": [
-      "",
-      "",
-      ""
-     ]
-    }
-   },
-   {
-    "id": "X3",
-    "t": "X3. eBPF 可观测性: Cilium Hubble 流量图",
-    "y": "无需对 Pod 注入 Sidecar 代理，纯内核态依靠 eBPF 实时感知 L3/L4/L7(HTTP/gRPC) 流量与丢包原因。",
-    "c": "hubble observe --namespace default --drop-reason POLICY_DENIED",
-    "o": "TIMESTAMP            FROM        TO          REASON\n10:00:01.123         web-pod     db-pod      POLICY_DENIED",
-    "j": [
-     "完全透明感知，零侵入无性能损耗"
-    ],
-    "u": [
-     "K8s 东西向流量可视化",
-     "网络安全策略验证"
-    ],
-    "w": [
-     "Linux 内核版本需 >= 4.19 (推荐 5.4+)"
-    ],
-    "v": "执行 hubble status 查看连接",
-    "l": [
-     "部署 Cilium 并开启 Hubble",
-     "运行 hubble observe 观察丢包"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "Pod A"
-      },
-      {
-       "t": "Pod B"
-      }
-     ],
-     "l": [
-      "eBPF SockOps 重定向"
-     ]
-    }
-   },
-   {
-    "id": "Y1",
-    "t": "Y1. 混沌工程: Chaos Mesh 网络故障注入",
-    "y": "在 Kubernetes 集群中声明式注入丢包、延迟、重复包、网络分区，验证微服务的容错韧性。",
-    "c": "kubectl apply -f network-delay.yaml",
-    "o": "networkchaos.chaos-mesh.org/delay-test created",
-    "j": [
-     "基于 Linux netem 机制在内核层模拟异常"
-    ],
-    "u": [
-     "故障演练",
-     "高可用架构 Resilience 断言"
-    ],
-    "w": [
-     "切忌直接在生产环境全量注入，必须设置限制范围"
-    ],
-    "v": "在目标 Pod 内 ping 对端观察延迟增加",
-    "l": [
-     "编写 NetworkChaos YAML",
-     "执行 kubectl apply 触发演练"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "Chaos Operator"
-      },
-      {
-       "t": "修改 tc/netem"
-      },
-      {
-       "t": "Target Pod"
-      }
-     ],
-     "l": [
-      "",
-      ""
-     ]
-    }
-   },
-   {
-    "id": "Y2",
-    "t": "Y2. 韧性工程: 自动断路器 (Circuit Breaker)",
-    "y": "当网络出现高延迟或丢包时，自动熔断异常节点，避免雪崩效应。结合 Service Mesh 实现降级。",
-    "c": "apiVersion: networking.istio.io/v1alpha3\nkind: DestinationRule\nspec:\n  trafficPolicy:\n    outlierDetection:\n      consecutive5xxErrors: 3",
-    "o": "OutlierDetection: 3 consecutive errors, host ejected for 30s",
-    "j": [
-     "主动剔除不健康节点"
-    ],
-    "u": [
-     "网络闪断与服务降级防护"
-    ],
-    "w": [
-     "熔断阈值设置过敏会导致正常节点被误剔除"
-    ],
-    "v": "并发压测触发熔断查看错误返回",
-    "l": [
-     "配置 Istio DestinationRule",
-     "模拟网络丢包观察 Pod 被踢出"
-    ],
-    "dg": {
-     "k": "flow",
-     "n": [
-      {
-       "t": "Client"
-      },
-      {
-       "t": "熔断器触发"
-      },
-      {
-       "t": "X"
-      },
-      {
-       "t": "Overloaded Server"
-      }
-     ],
-     "l": [
-      "异常率>50%",
-      "",
-      ""
-     ]
-    }
-   },
-   {
-    "id": "Z2_1",
-    "t": "Z2.1. SRE 核心实践: SLI / SLO / SLA 指标体系",
-    "y": "SLI (服务质量指标)：如 P99 延迟 < 50ms。\nSLO (服务质量目标)：如 99.9% 概率满足 SLI。\nSLA (服务级别协议)：违约赔偿合同。",
-    "c": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
-    "o": "0.042 (42ms < 50ms SLO)",
-    "j": [
-     "量化网络与系统的稳定性指标"
-    ],
-    "u": [
-     "SRE 架构演进与稳定性保障"
-    ],
-    "w": [
-     "不要把 100% 可用性设为 SLO，这极具破坏性且昂贵"
-    ],
-    "v": "查看 Grafana SLO 仪表盘",
-    "l": [
-     "定义网络延迟 SLI",
-     "在 Prometheus 编写 SLO 报警规则"
-    ],
-    "dg": {
-     "k": "stack",
-     "n": [
-      {
-       "t": "SLI 实际测量值 <= SLO …"
-      }
-     ]
-    }
-   },
-   {
-    "id": "Z2_2",
-    "t": "Z2.2. SRE 核心实践: Error Budget 错误预算",
-    "y": "错误预算 = 100% - SLO。例如 99.9% SLO 意味着每月只有 43 分钟可用预算。预算耗尽则冻结变更。",
-    "c": "1 - (sum(rate(http_requests_total{status=~'5..'}[30d])) / sum(rate(http_requests_total[30d])))",
-    "o": "Error Budget Remaining: 22%",
-    "j": [
-     "平衡创新发布速度与系统稳定性的利器"
-    ],
-    "u": [
-     "研发与运维团队发布冲突仲裁"
-    ],
-    "w": [
-     "没有惩罚和冻结约束机制的 Error Budget 只是摆设"
-    ],
-    "v": "通过监控面板查看剩余 Budget 比例",
-    "l": [
-     "计算 99.9% SLO 对应的故障时间",
-     "设置预算预警钩子自动锁 CI/CD"
-    ],
-    "dg": {
-     "k": "multi",
-     "rows": [
-      {
-       "n": [
-        {
-         "t": "错误预算充足"
-        },
-        {
-         "t": "允许发布新功能"
+        "id": "A1",
+        "t": "A1. VLAN 接入类型 (Access/Trunk/Hybrid)",
+        "y": "逻辑隔离广播域。Tag是数据帧里的4字节标记。\n- Access: 连PC，剥离Tag发，打PVID收。\n- Trunk: 连交换机，带Tag透传多个VLAN。\n- Hybrid: 华为/H3C 等国内厂商常见，可精细控制Tag收发。",
+        "c": "[Huawei-GE0/0/1] port link-type trunk\n[Huawei-GE0/0/1] port trunk allow-pass vlan 10 20",
+        "o": "Port      Link Type    PVID  Trunk VLAN List\nGE0/0/1   trunk        1     1 10 20",
+        "j": [
+          "allow-pass: 必须显式放行VLAN"
+        ],
+        "u": [
+          "部门隔离",
+          "跨楼层同网段互通"
+        ],
+        "w": [
+          "Trunk两端allow-pass不一致导致不通",
+          "默认 VLAN 1 在所有 Trunk 自动放行，是 VLAN 跳跃攻击入口；无关端口建议 `undo port trunk allow-pass vlan 1` 移除"
+        ],
+        "v": "display port vlan 查端口归属",
+        "l": [
+          "配两台SW的Access和Trunk",
+          "跨SW ping通同VLAN"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "PC"
+            },
+            {
+              "t": "无Tag"
+            },
+            {
+              "t": "SW"
+            },
+            {
+              "t": "SW"
+            }
+          ],
+          "l": [
+            "",
+            "Access",
+            "Trunk 带Tag"
+          ]
         }
-       ],
-       "l": [
-        ""
-       ]
       },
       {
-       "n": [
-        {
-         "t": "错误预算消耗殆尽"
-        },
-        {
-         "t": "冻结发布，全员修复稳定性"
+        "id": "A2",
+        "t": "A2. SVI (Vlanif) 与策略路由(PBR)",
+        "y": "二层VLAN隔离后，需通过三层虚接口(Vlanif)实现互通。\n策略路由(PBR)：打破常规路由表，基于源IP强制指定下一跳引流。",
+        "c": "[Huawei] interface Vlanif 10\n[Huawei-Vlanif10] ip address 192.168.10.1 24\n[Huawei] traffic classifier C1\n[Huawei-classifier-C1] if-match acl 3000\n[Huawei] traffic behavior B1\n[Huawei-behavior-B1] redirect ip-nexthop 10.0.0.2",
+        "o": "Interface     IP Address     Physical Protocol\nVlanif10      192.168.10.1   up       up",
+        "j": [
+          "redirect: 强制重定向下一跳",
+          "classifier 用 if-match acl 3000 匹配流量 → behavior 执行 redirect，缺匹配条件则策略不生效"
+        ],
+        "u": [
+          "核心交换机做全网网关",
+          "双出口源地址分流"
+        ],
+        "w": [
+          "Vlanif双UP前提是该VLAN下有活动物理口"
+        ],
+        "v": "display ip interface brief 查状态",
+        "l": [
+          "起Vlanif10和20配IP",
+          "跨VLAN电脑互ping"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "VLAN10"
+            },
+            {
+              "t": "Vlanif 10网关"
+            },
+            {
+              "t": "三层路由引擎"
+            }
+          ],
+          "l": [
+            "",
+            ""
+          ]
         }
-       ],
-       "l": [
-        ""
-       ]
-      }
-     ]
-    }
-   },
-   {
-    "id": "LAB4",
-    "t": "🎯 阶段四综合实验：云数据中心与可观测性",
-    "y": "**实验目标**：完成物理网络到云原生架构的穿透。\n**拓扑**：Spine-Leaf EVPN --- K8s Nodes --- Cilium CNI",
-    "c": "hubble observe --from-pod web --to-pod db",
-    "o": "web -> db TCP 80 (latency: 1ms)",
-    "j": [
-     "Hubble 必须依赖 eBPF 内核底座",
-     "VTEP 需要自动发现避免手工配置隧道"
-    ],
-    "u": [
-     "私有云数据中心建设",
-     "容器底层网络排障训练"
-    ],
-    "w": [
-     "VXLAN 的 UDP 4789 端口不要被主机防火墙拦截"
-    ],
-    "v": "通过 Grafana 看板看到 K8s 内部的服务调用延迟",
-    "l": [
-     "搭建 Spine-Leaf BGP EVPN",
-     "部署 K8s 和 Cilium",
-     "开启 Hubble 观测跨节点 Pod 流量"
-    ],
-    "dg": {
-     "k": "ha",
-     "n": [
-      {
-       "t": "Spine"
       },
       {
-       "t": "K8s Nodes Cilium+…"
+        "id": "A3",
+        "t": "A3. OSPF 多区域与 LSA 1-5分析",
+        "y": "动态路由。分多区域减小路由表。\nArea0(骨干)、Stub(无外部路由)、NSSA(允许Type7)。\nLSA: T1(路由器)、T2(网络)、T3(汇总)、T4(ASBR位置)、T5(外部)、T7(NSSA 外部 LSA，由 NSSA 内 ASBR 产生，经 ABR 转换为 T5 注入骨干)。\n网络类型：Broadcast(以太网，需选 DR/BDR)；P2P(串口/子接口，不选 DR，收敛快)；NBMA(Frame-Relay 等，需手工指邻居)；P2MP(模拟 NBMA 为多点，不选 DR)。",
+        "c": "[Huawei] ospf 1 router-id 1.1.1.1\n[Huawei-ospf-1-area-0.0.0.0] network 10.0.0.0 0.0.0.255",
+        "o": "Area Id    Interface    Neighbor id    State\n0.0.0.0    GE0/0/0      2.2.2.2        Full",
+        "j": [
+          "router-id: 身份证",
+          "0.0.0.255: 反掩码"
+        ],
+        "u": [
+          "中大型园区网路由自动学习"
+        ],
+        "w": [
+          "MTU不一致卡ExStart",
+          "网段宣告错反掩码",
+          "NBMA 必须手工 neighbor 指邻居，P2P 无 DR 选举",
+          "参考标准：RFC 2328(OSPFv2)"
+        ],
+        "v": "display ospf peer 查Full状态",
+        "l": [
+          "两台路由器跑OSPF",
+          "互相宣告直连网段",
+          "查路由表看'O'路由"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "Area 1"
+            },
+            {
+              "t": "ABR"
+            },
+            {
+              "t": "Area 0"
+            },
+            {
+              "t": "ASBR"
+            },
+            {
+              "t": "外网"
+            }
+          ],
+          "l": [
+            "",
+            "",
+            "",
+            ""
+          ]
+        }
+      },
+      {
+        "id": "A4",
+        "t": "A4. BGP 跨域动态路由基本",
+        "y": "互联网骨干路由协议。EBGP(跨AS)，IBGP(同AS)。靠丰富的路径属性(Local_Pref, MED)控制选路。\nIBGP 全网状防环但不可扩展：路由反射器(RR) 允许客户机反射路由，规模大时配 RR 或联盟(Confederation，把大 AS 拆成子 AS 配成联盟)缓解。",
+        "c": "[Huawei] bgp 100\n[Huawei-bgp] peer 10.0.0.2 as-number 200\n[Huawei-bgp] network 192.168.1.0 24\n[Huawei-bgp] reflector cluster-id 1.1.1.1\n[Huawei-bgp] peer 10.0.0.2 reflect-client",
+        "o": "BGP Local AS: 100\nNetwork        NextHop   MED  LocPrf Path\n*> 192.168.1.0 0.0.0.0   0    100    i",
+        "j": [
+          "peer: 建立对等体",
+          "network: 宣告进BGP",
+          "reflect-client: 将对端设为 RR 客户，RR 反射其路由"
+        ],
+        "u": [
+          "企业多出口双线冗余",
+          "运营商互联"
+        ],
+        "w": [
+          "EBGP默认TTL为1不能多跳",
+          "IBGP需全互联防环",
+          "参考标准：RFC 4271(BGP-4)"
+        ],
+        "v": "display bgp peer 查Established",
+        "l": [
+          "配置EBGP邻居",
+          "宣告网段并用抓包看Update报文"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "AS 100"
+            },
+            {
+              "t": "AS 200"
+            }
+          ],
+          "l": [
+            "EBGP"
+          ]
+        }
+      },
+      {
+        "id": "A5",
+        "t": "A5. BGP 属性控制与选路原则",
+        "y": "BGP 选路不看 Cost，看属性。核心口诀：Weight(Cisco) > Local_Pref(越大越优) > 本地起源 > AS_Path(越短越优) > Origin > MED(越小越优)。",
+        "c": "[Huawei] route-policy RP permit node 10\n[Huawei-route-policy] apply local-preference 200\n[Huawei-bgp] peer 10.0.0.2 route-policy RP import",
+        "o": "*> 192.168.1.0  10.0.0.2   0     200",
+        "j": [
+          "apply local-preference: 修改本地优先级"
+        ],
+        "u": [
+          "出向流量负载分担",
+          "主备链路切换"
+        ],
+        "w": [
+          "Route-policy 末尾有隐式拒绝，注意放行"
+        ],
+        "v": "display bgp routing-table 查看最优路径 (*>)",
+        "l": [
+          "配两条 EBGP 链路，修改 Local_Pref 引导流量切换"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "R1"
+            },
+            {
+              "t": "R2"
+            }
+          ],
+          "l": [
+            "100M"
+          ]
+        }
+      },
+      {
+        "id": "B1",
+        "t": "B1. MSTP 多实例与边缘端口防环",
+        "y": "生成树防二层环路。MSTP可将多个VLAN映射到不同树实例做负载分担。\n边缘端口(Edge-port)：接PC秒级转发。BPDU Guard防止私接交换机。",
+        "c": "[Huawei] stp region-configuration\n[Huawei-mst-region] instance 1 vlan 10 20\n[Huawei-GE0/0/1] stp edged-port enable\n[Huawei] stp bpdu-protection enable",
+        "o": "Port Role/State\nGE0/0/1 DESI/FORWARDING\nGE0/0/2 ALTE/DISCARDING",
+        "j": [
+          "DISCARDING: 被阻塞端口"
+        ],
+        "u": [
+          "环形拓扑防环",
+          "终端快速接入"
+        ],
+        "w": [
+          "边缘端口收到BPDU会Error-Down保护全网",
+          "MSTP 域与非 MSTP 交换机（RSTP/STP）对接时，全部实例退化为单棵 RSTP 树，负载分担失效"
+        ],
+        "v": "display stp brief 查阻塞口",
+        "l": [
+          "两交换机连2根线",
+          "看哪个口被阻塞",
+          "配边缘端口测试"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "SW1"
+            },
+            {
+              "t": "SW2"
+            }
+          ],
+          "l": [
+            "两条线"
+          ]
+        }
+      },
+      {
+        "id": "B2",
+        "t": "B2. Eth-Trunk 链路聚合与 LACP",
+        "y": "将多根网线逻辑绑成一根，增带宽、高可靠。LACP模式可动态协商，Hash算法决定流走哪根物理线。",
+        "c": "[Huawei] interface Eth-Trunk 1\n[Huawei-Eth-Trunk1] mode lacp\n[Huawei-GE0/0/1] eth-trunk 1",
+        "o": "Eth-Trunk1's state: UP\nLACP mode: active\nMember ports: 2",
+        "j": [
+          "mode lacp: 华为 VRP 用 mode lacp + lacp mode active/passive 指定主动/被动",
+          "H3C 用 mode lacp-static / mode lacp-dynamic，两厂商命令不同，勿混用"
+        ],
+        "u": [
+          "核心/汇聚互联",
+          "服务器双网卡绑定"
+        ],
+        "w": [
+          "两端接口速率/双工/VLAN必须一致"
+        ],
+        "v": "display eth-trunk 1 看成员状态",
+        "l": [
+          "绑2根线做Eth-Trunk",
+          "拔掉一根ping不中断"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "SW1"
+            },
+            {
+              "t": "SW2"
+            }
+          ],
+          "l": [
+            "Eth-Trunk 1"
+          ]
+        }
+      },
+      {
+        "id": "B3",
+        "t": "B3. VRRP 冗余与 iStack 堆叠",
+        "y": "VRRP：两台虚构一个IP做网关。老大死老二接管。\niStack：多台物理机绑成一台逻辑机，极简运维防环路。",
+        "c": "[Huawei-Vlanif10] vrrp vrid 1 virtual-ip 192.168.1.254\n[Huawei-Vlanif10] vrrp vrid 1 priority 120\n[Huawei-Vlanif10] vrrp vrid 1 track interface GigabitEthernet0/0/2 reduced 40",
+        "o": "State    Virtual IP      Priority  Master IP\nMaster   192.168.1.254   120       192.168.1.252",
+        "j": [
+          "virtual-ip: 电脑配置的网关",
+          "priority: 高的当老大",
+          "track interface: 监控上行链路，断开自动降优先级触发切换(生产主备切换必备)"
+        ],
+        "u": [
+          "双核心高可用架构"
+        ],
+        "w": [
+          "脑裂：心跳断导致两边都是Master",
+          "只配 priority 不配 track，上行断连时备机不会接管",
+          "参考标准：RFC 3768(VRRP)"
+        ],
+        "v": "display vrrp brief 查主备",
+        "l": [
+          "配VRRP主备",
+          "断掉主设备电源",
+          "PC连网不中断"
+        ],
+        "dg": {
+          "k": "ha",
+          "n": [
+            {
+              "t": "Master 1.252"
+            },
+            {
+              "t": "Backup 1.253"
+            }
+          ],
+          "mid": "VIP: 1.254"
+        }
+      },
+      {
+        "id": "B4",
+        "t": "B4. 端口安全与 DHCP Snooping",
+        "y": "Port-Security限制MAC数防泛洪，违规可shutdown。\nDHCP Snooping通过Trust口防伪造DHCP服务器发错IP。",
+        "c": "[Huawei-GE0/0/1] port-security enable\n[Huawei-GE0/0/1] port-security max-mac-num 2\n[Huawei] dhcp snooping enable\n[Huawei-GE0/0/24] dhcp snooping trust",
+        "o": "Port Security: Enable\nViolation Action: Restrict",
+        "j": [
+          "trust: 信任口接合法服务器"
+        ],
+        "u": [
+          "公共办公区防私接小路由器"
+        ],
+        "w": [
+          "Shutdown动作需手工undo恢复"
+        ],
+        "v": "display dhcp snooping binding 查合法表",
+        "l": [
+          "开启端口安全限1个MAC",
+          "接两台PC看端口是否阻断"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "非法DHCP"
+            },
+            {
+              "t": "X"
+            },
+            {
+              "t": "非信任口"
+            },
+            {
+              "t": "SW"
+            }
+          ],
+          "l": [
+            "",
+            "",
+            ""
+          ]
+        }
       }
-     ],
-     "mid": ""
-    }
-   }
-  ]
- },
- {
-  "id": "p-5",
-  "title": "阶段五：排障矩阵、多厂商字典与面试攻防",
-  "color": "amber",
-  "desc": "25个独立排障卡片、55行多厂商平替、30个STAR面试卡",
-  "modules": [
-   {
-    "id": "G1",
-    "t": "🛠️ 故障 G1: Trunk 接口未放行 VLAN 导致跨楼层不通",
-    "y": "**现象描述**：同一 VLAN 下，不同楼层的终端无法互通，但同楼层正常。\n**根因分析**：汇聚/核心交换机间 Trunk 端口未放行该 VLAN。",
-    "c": "[Huawei-GigabitEthernet0/0/24] port trunk allow-pass vlan 100",
-    "o": "Port      Link Type    PVID  Trunk VLAN List\nGE0/0/24  trunk        1     1 100",
-    "j": [
-     "检查是否有 VLAN 被过滤"
-    ],
-    "u": [
-     "园区网终端跨楼层互通"
-    ],
-    "w": [
-     "别用 port trunk allow-pass vlan all 带来安全隐患"
-    ],
-    "v": "从源端 PC ping 对端网关，观察连通性恢复。",
-    "l": [
-     "在源端交换机查看 VLAN 成员",
-     "在互联 Trunk 口查看允许的 VLAN"
     ]
-   },
-   {
-    "id": "G2",
-    "t": "🛠️ 故障 G2: MTU 不一致导致 OSPF 卡在 ExStart",
-    "y": "**现象描述**：OSPF 邻居状态停滞在 ExStart，无法达到 Full。\n**根因分析**：链路两端接口 MTU 不一致，导致 DBD 报文被丢弃。",
-    "c": "[Huawei-GigabitEthernet0/0/0] mtu 1500\n[Huawei-GigabitEthernet0/0/0] restart",
-    "o": "OSPF Process 1 with Router ID 1.1.1.1\nState: Full",
-    "j": [
-     "MTU 必须完全一致才能交换 DBD"
-    ],
-    "u": [
-     "不同厂商设备对接",
-     "云网络隧道封装场景"
-    ],
-    "w": [
-     "有时候隧道封装会隐式改变 MTU，需排查底层"
-    ],
-    "v": "display ospf peer 查看状态变为 Full",
-    "l": [
-     "查看接口 MTU",
-     "抓包确认 DBD 报文是否被分片"
+  },
+  {
+    "id": "p-3",
+    "title": "阶段三：广域网、安全、无线与 NetDevOps 进阶",
+    "color": "purple",
+    "desc": "NAT、IPsec、MPLS、ACL、防火墙、802.1X、WPA2、Python/Ansible/GitOps",
+    "modules": [
+      {
+        "id": "C1",
+        "t": "C1. Easy-IP 与 NAT Server",
+        "y": "Easy-IP：多台内网机共享公网IP上网。\nNAT Server：把公网某端口映射到内网服务器（穿透暴露）。",
+        "c": "[Huawei-GE0/0/0] nat outbound 2000\n[Huawei-GE0/0/0] nat server protocol tcp global 203.0.113.1 80 inside 192.168.1.10 80",
+        "o": "Protocol  Source IP      Dest IP       NAT IP\nTCP       192.168.1.100  8.8.8.8       203.0.113.1",
+        "j": [
+          "outbound: 出口源NAT",
+          "inside: 内网真实地址"
+        ],
+        "u": [
+          "企业全员上网",
+          "发布内网Web网站"
+        ],
+        "w": [
+          "NAT Server公网端口别和设备管理口冲突"
+        ],
+        "v": "display nat session all 查会话表",
+        "l": [
+          "配Easy-IP测试内网PC能否ping通外网"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "内网 192"
+            },
+            {
+              "t": "公网IP"
+            }
+          ],
+          "l": [
+            "NAT"
+          ]
+        }
+      },
+      {
+        "id": "C2",
+        "t": "C2. PPPoE 宽带拨号",
+        "y": "把PPP封装在以太网里，运营商通过账号密码认证分配公网IP。",
+        "c": "[Huawei-Dialer1] ppp chap user test\n[Huawei-Dialer1] ip address ppp-negotiate\n[Huawei-GE0/0/0] pppoe-client dial-bundle-number 1",
+        "o": "Bundle ID  State  Remote MAC\n1          UP     00-11-22-33-44-55",
+        "j": [
+          "ppp-negotiate: 动态获取IP"
+        ],
+        "u": [
+          "小微分支机构低成本宽带接入"
+        ],
+        "w": [
+          "默认路由必须指向Dialer口而不是物理口"
+        ],
+        "v": "display pppoe-client session summary",
+        "l": [
+          "在模拟器搭Client和Server跑通拨号"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "企业Router Client"
+            },
+            {
+              "t": "拨号"
+            },
+            {
+              "t": "运营商BRAS"
+            }
+          ],
+          "l": [
+            "",
+            ""
+          ]
+        }
+      },
+      {
+        "id": "C3",
+        "t": "C3. MPLS L3VPN (P/PE/CE & LDP)",
+        "y": "专线技术。外层标签(LDP)送达PE，内层标签(MP-BGP)识别VPN实例(VRF)，实现不同客户地址重叠也能完全隔离。",
+        "c": "[Huawei] ip vpn-instance VPN_A\n[Huawei-vpn-instance-VPN_A] route-distinguisher 100:1\n[Huawei-vpn-instance-VPN_A] vpn-target 100:1 export-extcommunity\n[Huawei-vpn-instance-VPN_A] vpn-target 100:1 import-extcommunity\n[Huawei-GE0/0/1] ip binding vpn-instance VPN_A",
+        "o": "Routing Table: VPN_A\nDestinations : 5 Routes : 5",
+        "j": [
+          "route-distinguisher: 区分重叠路由",
+          "vpn-target: VPN路由导入/导出标识，两端PE需匹配才能交换路由(export/import 成对)"
+        ],
+        "u": [
+          "大企业跨国跨城安全组网"
+        ],
+        "w": [
+          "绑定VPN实例后接口原有IP会被清空",
+          "忘配 vpn-target 会导致对端学不到路由，是 L3VPN 最常见的故障点"
+        ],
+        "v": "display ip routing-table vpn-instance",
+        "l": [
+          "配VRF绑接口并互相ping"
+        ],
+        "dg": {
+          "k": "stack",
+          "n": [
+            {
+              "t": "CE1",
+              "s": "- PE1 - P - PE2 - C…"
+            }
+          ]
+        }
+      },
+      {
+        "id": "E1",
+        "t": "E1. ACL 基本与高级策略",
+        "y": "基本(2000-2999)只看源IP。\n高级(3000-3999)看五元组(源/目IP、端口、协议)。隐式拒绝所有未匹配流量。",
+        "c": "[Huawei] acl number 3000\n[Huawei-acl-adv-3000] rule 5 permit tcp source 192.168.1.0 0.0.0.255 destination 10.0.0.1 0 destination-port eq 80",
+        "o": "Rule 5 permit tcp ... (matches: 123 packets)",
+        "j": [
+          "0.0.0.255: 反掩码(0精确,255忽略)"
+        ],
+        "u": [
+          "封堵病毒端口",
+          "限制财务网段互访"
+        ],
+        "w": [
+          "顺序执行，最精细的规则放前面"
+        ],
+        "v": "display acl 3000 看匹配计数",
+        "l": [
+          "配高级ACL只允许PC访问特定Web"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "Packet"
+            },
+            {
+              "t": "Rule 5?",
+              "s": "-N"
+            },
+            {
+              "t": "Rule 10?",
+              "s": "-Y"
+            },
+            {
+              "t": "Action"
+            }
+          ],
+          "l": [
+            "",
+            "",
+            ""
+          ]
+        }
+      },
+      {
+        "id": "E2",
+        "t": "E2. USG 防火墙 Zone 策略",
+        "y": "防火墙按安全区域划分信任度(Trust/Untrust/DMZ)。必须显式配置策略放行(默认全Deny)。",
+        "c": "[Huawei-security-policy] rule name Trust-Out\n[Huawei-security-policy-rule-1] source-zone trust\n[Huawei-security-policy-rule-1] action permit",
+        "o": "rule name Trust-Out\n action permit",
+        "j": [
+          "source-zone: 流量发起方"
+        ],
+        "u": [
+          "企业出口安全控制"
+        ],
+        "w": [
+          "别忘配回程放行(或靠状态检测自动放行)"
+        ],
+        "v": "display firewall session table",
+        "l": [
+          "配策略允许内网ping外网但拒绝SSH"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "Trust"
+            },
+            {
+              "t": "Untrust"
+            }
+          ],
+          "l": [
+            "Security Policy 检查"
+          ]
+        }
+      },
+      {
+        "id": "K1",
+        "t": "K1. IPsec VPN 站点互联",
+        "y": "在互联网上打加密隧道。IKE协商密钥，ESP负责加密报文。",
+        "c": "[Huawei] ipsec proposal ipsec_pro\n[Huawei] ike peer branch\n[Huawei-ike-peer-branch] pre-shared-key cipher pass123",
+        "o": "IPsec SA:\n State: active\n Encryption: AES-256",
+        "j": [
+          "pre-shared-key: 两端密钥必须一致"
+        ],
+        "u": [
+          "分公司和总部安全内网互通"
+        ],
+        "w": [
+          "两端IKE/ESP算法版本稍有不同就会建不起来"
+        ],
+        "v": "display ike sa 看是否Established",
+        "l": [
+          "两防火墙搭隧道跨公网互ping内网"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "分支内网"
+            },
+            {
+              "t": "总部内网"
+            }
+          ],
+          "l": [
+            "IPsec VPN隧道 跨公网"
+          ]
+        }
+      },
+      {
+        "id": "K2",
+        "t": "K2. 802.1X 准入与 RADIUS",
+        "y": "基于端口的接入控制。电脑一插网线立刻要求输账号密码，去后端的RADIUS服务器校验通过才给放行。",
+        "c": "[Huawei-radius-rad] radius-server authentication 192.168.1.100 1812\n[Huawei-GE0/0/1] dot1x enable",
+        "o": "Interface: GE0/0/1\nStatus: Authenticated",
+        "j": [
+          "1812: RADIUS认证默认端口"
+        ],
+        "u": [
+          "园区网零信任第一步强制实名上网"
+        ],
+        "w": [
+          "PC端需开启802.1X服务(Wired AutoConfig)"
+        ],
+        "v": "display dot1x sessions",
+        "l": [
+          "配802.1X，用Windows测试输入账号密码"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "PC 客户端"
+            },
+            {
+              "t": "SW 认证者"
+            },
+            {
+              "t": "Server"
+            }
+          ],
+          "l": [
+            "EAP",
+            "RADIUS"
+          ]
+        }
+      },
+      {
+        "id": "L1",
+        "t": "L1. CAPWAP 与 AC 发现",
+        "y": "AC(控制器)集中管理所有瘦AP。CAPWAP隧道传控制和数据。\nAP找AC：可通过DHCP Option 43下发AC地址自动上线。",
+        "c": "[Huawei-wlan-view] capwap source interface Vlanif 100\n[Huawei] dhcp server option 43 ip-address 192.168.1.100",
+        "o": "AP ID  State    IP Address\n1      Online   192.168.1.101",
+        "j": [
+          "option 43: 告诉AP去哪找AC"
+        ],
+        "u": [
+          "大中型企业全覆盖Wi-Fi网络"
+        ],
+        "w": [
+          "中间防火墙忘了放通UDP 5246/5247导致AP掉线"
+        ],
+        "v": "display ap all 看是否Online",
+        "l": [
+          "配DHCP Option43，看AP状态从Idle变Online"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "AP"
+            },
+            {
+              "t": "AC"
+            }
+          ],
+          "l": [
+            "CAPWAP UDP 5246/5247"
+          ]
+        }
+      },
+      {
+        "id": "L2",
+        "t": "L2. WPA2 认证与 SSID",
+        "y": "SSID是Wi-Fi名。WPA2-PSK是个人级密码加密，AES最安全。",
+        "c": "[Huawei-wlan-sec-prof] security wpa2 psk pass-phrase cipher pass123 aes\n[Huawei-wlan-vap-prof] ssid-profile test_ssid",
+        "o": "VAP profile: office_vap\nAPs: 2 online",
+        "j": [
+          "psk: 预共享密钥"
+        ],
+        "u": [
+          "办公/访客Wi-Fi分离发放"
+        ],
+        "w": [
+          "5G和2.4G可以绑同名SSID做双频合一"
+        ],
+        "v": "手机搜信号输入密码连入",
+        "l": [
+          "建SSID、密码并下发，用手机实测接入"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "安全模板 密码 + SSID模板 …"
+            },
+            {
+              "t": "绑给AP组"
+            }
+          ],
+          "l": [
+            ""
+          ]
+        }
+      },
+      {
+        "id": "L3",
+        "t": "L3. 802.11r 无缝漫游",
+        "y": "FT(Fast Transition)，让手机从AP-A走到AP-B时预先计算好密钥，切换时间<50ms，语音不掉线。",
+        "c": "[Huawei-wlan-sec-prof] dot11r enable\n[Huawei-wlan-sec-prof] dot11r ft-over-air enable",
+        "o": "MAC: 00-11... Current AP: AP-2 Last roam time: 10:00",
+        "j": [
+          "ft-over-air: 空口传漫游密钥"
+        ],
+        "u": [
+          "医院移动查房、企业VoIP语音"
+        ],
+        "w": [
+          "老旧手机可能不支持11r导致连不上，需单独分SSID"
+        ],
+        "v": "display station roaming 看漫游次数",
+        "l": [
+          "开启11r，边走边长ping看丢包率"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "AP-A"
+            },
+            {
+              "t": "AP-B"
+            }
+          ],
+          "l": [
+            "后台交互密钥"
+          ]
+        }
+      },
+      {
+        "id": "D1",
+        "t": "D1. Python Netmiko 并发配置",
+        "y": "用Python脚本通过SSH连设备发命令。多线程(ThreadPool)能一键同时配100台交换机，效率拉满。",
+        "c": "conn = ConnectHandler(**device)\nconn.send_config_set(['vlan 100', 'quit'])\nconn.save_config()",
+        "o": "192.168.1.1 done: vlan 100...",
+        "j": [
+          "ConnectHandler: 封装的SSH客户端"
+        ],
+        "u": [
+          "全网刷VLAN、改密码、备配置"
+        ],
+        "w": [
+          "线程数别设太大，设备CPU和SSH连接数会爆"
+        ],
+        "v": "去设备上 display vlan 看效果",
+        "l": [
+          "写个10行代码给3台模拟器刷统一ACL"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "Python脚本"
+            },
+            {
+              "t": "SW1, SW2, SW3"
+            }
+          ],
+          "l": [
+            "多线程SSH"
+          ]
+        }
+      },
+      {
+        "id": "D2",
+        "t": "D2. Ansible 批量管理网络",
+        "y": "无代理(Agentless)自动化工具，用YAML写剧本(Playbook)。network_cli模块原生支持华为/H3C。",
+        "c": "tasks:\n  - name: Create VLAN\n    huawei_vrp_command:\n      commands: [system-view, vlan 100]",
+        "o": "TASK [Create VLAN] ***\nok: [192.168.1.1]",
+        "j": [
+          "huawei_vrp_command: 华为专用执行模块"
+        ],
+        "u": [
+          "标准化合规下发、批量巡检采集"
+        ],
+        "w": [
+          "别把明文密码写死，用Ansible Vault加密"
+        ],
+        "v": "ansible-playbook --check 做试运行看差异",
+        "l": [
+          "写剧本批量保存配置并抓取版本号"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "Ansible Playbook.…"
+            },
+            {
+              "t": "ssh"
+            },
+            {
+              "t": "Network Devices"
+            }
+          ],
+          "l": [
+            "",
+            ""
+          ]
+        }
+      },
+      {
+        "id": "D3",
+        "t": "D3. Git 配置版本控制与回滚",
+        "y": "把设备配置当代码管。Git diff能清楚看到谁在几点改了哪行(配置漂移)。出事一键revert回滚。",
+        "c": "git add .\ngit commit -m 'Add OSPF'\ngit diff HEAD~1",
+        "o": "- ip address 10.0.1.1 24\n+ ip address 10.0.1.100 24",
+        "j": [
+          "git diff: 对比文件差异"
+        ],
+        "u": [
+          "NetDevOps基石，审计与快速故障恢复"
+        ],
+        "w": [
+          "敏感的密钥别提进公共Git库"
+        ],
+        "v": "git log 看历史变更记录",
+        "l": [
+          "故意写错配置，用Git回滚恢复历史文本"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "V1.0 稳定版 <- git d…"
+            },
+            {
+              "t": "V2.0 异常版"
+            }
+          ],
+          "l": [
+            ""
+          ]
+        }
+      },
+      {
+        "id": "W1",
+        "t": "W1. NetDevOps 进阶: GitOps 宣告式变更",
+        "y": "将网络配置写成 YAML 存入 Git。走 Pull Request 审核，CI 自动 Dry-Run，合并后自动推送现网。\n自动化框架选型：Nornir(Python 原生，并发多线程/协程，适合复杂逻辑)；Netmiko(单设备驱动库，Nornir 底层传输)；Ansible(YAML 声明式，生态大但复杂逻辑受限)。大规模并行刷配置优先 Nornir。",
+        "c": "git checkout -b feature/vlan200\ngit commit -m 'Add VLAN 200'\ngit push origin feature/vlan200",
+        "o": "PR #12 Created. Running CI checks...",
+        "j": [
+          "将 Git 作为现网唯一真理源 (Single Source of Truth)"
+        ],
+        "u": [
+          "无人值守安全变更",
+          "配置审计与一键回滚"
+        ],
+        "w": [
+          "避免跳过 PR 直接在 CLI 上私自修改配置"
+        ],
+        "v": "查看 CI 审计日志及 git log",
+        "l": [
+          "创建分支修改 Jinja 模板",
+          "发起 PR 触发自动化部署"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "Git Repo"
+            },
+            {
+              "t": "CI Pipeline"
+            },
+            {
+              "t": "Switches"
+            }
+          ],
+          "l": [
+            "PR Review",
+            "Ansible"
+          ]
+        }
+      },
+      {
+        "id": "W2",
+        "t": "W2. NetDevOps 进阶: CI/CD 自动化集成 (Batfish)",
+        "y": "在配置真正推送现网前，通过 Batfish 静态离线建模断言路由和 ACL 通断，避免生产安全事故。",
+        "c": "bf = Session(host='localhost')\nbf.init_snapshot('./configs')\nresult = bf.q.reachability(headers=HeaderConstraints(dstPorts='80')).answer()",
+        "o": "Flows reachable: 100%. All assertions PASSED.",
+        "j": [
+          "在内存中构建设备数据平面"
+        ],
+        "u": [
+          "高危路由/ACL 变更前离线推演"
+        ],
+        "w": [
+          "解析器对非标准 CLI 语法可能退化"
+        ],
+        "v": "查看 CI 测试断言报告",
+        "l": [
+          "编写 Batfish 断言脚本",
+          "将其嵌入 GitHub Actions"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "Git PR"
+            },
+            {
+              "t": "Batfish 引擎"
+            },
+            {
+              "t": "断言检查",
+              "s": "允许80端口?"
+            },
+            {
+              "t": "Approve"
+            }
+          ],
+          "l": [
+            "",
+            "",
+            ""
+          ]
+        }
+      },
+      {
+        "id": "W3",
+        "t": "W3. NetDevOps 进阶: 配置模板化 (Jinja2 & Nautobot)",
+        "y": "将网络配置拆分为 Jinja2 模板与 YAML 数据，实现基础设施即代码 (IaC)。从 IPAM (NetBox) 动态拉取参数。",
+        "c": "template = Template('vlan {{ vlan_id }}\\n name {{ vlan_name }}')\nprint(template.render(vlan_id=10, vlan_name='WEB'))",
+        "o": "vlan 10\n name WEB",
+        "j": [
+          "剥离业务数据与逻辑配置"
+        ],
+        "u": [
+          "千台设备标准化开局",
+          "数据驱动运维"
+        ],
+        "w": [
+          "模板更新需防范全网连锁误配置"
+        ],
+        "v": "对比生成的 CLI 与设备运行配置",
+        "l": [
+          "定义 YAML 变量文件",
+          "编写 Jinja2 渲染脚本"
+        ],
+        "dg": {
+          "k": "stack",
+          "n": [
+            {
+              "t": "Jinja2 模板 + NetBo…"
+            }
+          ]
+        }
+      },
+      {
+        "id": "LAB3",
+        "t": "🎯 阶段三综合实验：广域网与安全自动化",
+        "y": "**实验目标**：打通跨地域分支并完成基础安全准入，最后用 Python 收割全网配置。\n**拓扑**：总部 (Easy-IP+AC) --- IPsec VPN --- 分支 (AP+802.1X)",
+        "c": "python backup_all.py",
+        "o": "Switch-HQ: Config saved to git.\nFW-Branch: Config saved to git.",
+        "j": [
+          "检验全局架构整合能力",
+          "验证脚本并发健壮性"
+        ],
+        "u": [
+          "面试上机考核",
+          "大中型项目结项复盘"
+        ],
+        "w": [
+          "注意 VPN 隧道需放通 CAPWAP 的 UDP 端口"
+        ],
+        "v": "执行 python 脚本，查看 Git 仓库是否有两端设备的 config 提交",
+        "l": [
+          "手工拉通总部与分支的 IPsec VPN",
+          "让 AP 跨广域网注册到总部的 AC",
+          "编写 Netmiko 脚本批量抓取设备版本与路由"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "总部 FW"
+            },
+            {
+              "t": "VPN"
+            },
+            {
+              "t": "分支 FW"
+            }
+          ],
+          "l": [
+            "",
+            ""
+          ]
+        }
+      }
     ]
-   },
-   {
-    "id": "G3",
-    "t": "🛠️ 故障 G3: 接入层环路引发 MAC 漂移与风暴",
-    "y": "**现象描述**：交换机 CPU 飙升，网络瘫痪，大量 MAC 漂移告警。\n**根因分析**：接入层存在物理环路（如私接Hub且未开STP）。",
-    "c": "[Huawei] interface GigabitEthernet 0/0/1\n[Huawei-GigabitEthernet0/0/1] shutdown // 临时断口（急救：物理 down 端口等价拔线，立刻破除环路；stp disable 仅关闭 STP 计算、并不切断链路，环路场景反而可能放大故障）",
-    "o": "MAC 5489.. in GE0/1 and GE0/2 flapping",
-    "j": [
-     "flapping: 在俩口之间反复横跳(环路实锤)"
-    ],
-    "u": [
-     "大面积断网急救"
-    ],
-    "w": [
-     "必须先拔线/断口保核心，再去查凶手"
-    ],
-    "v": "看告警不再增量，CPU 利用率下降",
-    "l": [
-     "查 MAC 地址表是否频繁变化",
-     "看 STP 状态"
+  },
+  {
+    "id": "p-4",
+    "title": "阶段四：云原生与高级前沿",
+    "color": "rose",
+    "desc": "VXLAN/EVPN、IPv6、K8s CNI/Gateway API、eBPF、混沌工程、SRv6、SRE",
+    "modules": [
+      {
+        "id": "F1",
+        "t": "F1. VXLAN 与 BGP EVPN",
+        "y": "突破4K VLAN限制的大二层技术，UDP封装(Mac-in-UDP)。\nEVPN做控制面，用BGP同步MAC/IP，取代广播泛洪。",
+        "c": "[Huawei] evpn vni 100\n[Huawei] bgp 100\n[Huawei-bgp] l2vpn-family evpn\n[Huawei-bgp-af-evpn] peer 2.2.2.2 enable\n[Huawei-bgp-af-evpn] peer 2.2.2.2 advertise encap-type vxlan",
+        "o": "Tunnel ID  Source    Dest      State\n1          1.1.1.1   2.2.2.2   UP",
+        "j": [
+          "vni: 全局唯一的24位虚拟网络标识",
+          "advertise encap-type vxlan 必须在 l2vpn-family evpn 视图下配置，且先 peer enable 再下发",
+          "参考标准：RFC 7432 (BGP MPLS-based Ethernet VPN)"
+        ],
+        "u": [
+          "数据中心多租户网络、大跨度VM热迁移"
+        ],
+        "w": [
+          "底层Underlay的MTU必须调大到1600以上防分片"
+        ],
+        "v": "display bgp l2vpn evpn 查路由",
+        "l": [
+          "搭两台VTEP跑通VXLAN打通跨IP网段VM"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "VM1"
+            },
+            {
+              "t": "VXLAN隧道"
+            },
+            {
+              "t": "VTEP2"
+            },
+            {
+              "t": "VM2"
+            }
+          ],
+          "l": [
+            "VTEP1",
+            "",
+            ""
+          ]
+        }
+      },
+      {
+        "id": "H1",
+        "t": "H1. IPv6 地址与 NDP 机制",
+        "y": "128位地址。去掉了ARP和广播，全靠NDP(ICMPv6)做邻居发现、SLAAC(无状态地址自动配置)。\nSLAAC 流程：主机发 RS → 路由器回 RA(含前缀/前缀长度/默认网关=自身链路本地地址)；RA 中 M=1 表示用 DHCPv6 要地址、O=1 表示用 DHCPv6 要其他配置(如 DNS)。攻击防护：RA 可伪造劫持网关，需 RA Guard 或禁用不必要的 RA。",
+        "c": "[Huawei-GE0/0/0] ipv6 enable\n[Huawei-GE0/0/0] ipv6 address 2001:db8::1/64",
+        "o": "IPv6 Address   MAC Address       State\n2001:db8::2    00-11-22...       REACH",
+        "j": [
+          "REACH: 邻居可达状态"
+        ],
+        "u": [
+          "物联网、下一代互联网演进"
+        ],
+        "w": [
+          "忘记开全局ipv6 enable导致无法配置",
+          "参考标准：RFC 4861(NDP/RA) · RFC 4291(IPv6 地址架构)"
+        ],
+        "v": "ping6 测试，display ipv6 neighbors",
+        "l": [
+          "两台设备配IPv6直连ping6通"
+        ],
+        "dg": {
+          "k": "stack",
+          "n": [
+            {
+              "t": "2001",
+              "s": "0db8::1/64 公网 fe80:…"
+            }
+          ]
+        }
+      },
+      {
+        "id": "H2",
+        "t": "H2. IPv6 OSPFv3 动态路由",
+        "y": "基于链路而不是子网运行。使用IPv6链路本地地址(fe80)建邻居，必须手工指定IPv4格式的Router-ID。\nOSPFv2(v4)与OSPFv3(v6)是**两个独立进程**，需分别配置，路由表各自维护，不可混用。",
+        "c": "[Huawei] ospfv3 1\n[Huawei-ospfv3-1] router-id 1.1.1.1\n[Huawei-GE0/0/0] ospfv3 1 area 0",
+        "o": "OSPFv3 Process 1, Neighbor ID: 2.2.2.2\nState: Full",
+        "j": [
+          "router-id: 不手工配起不来",
+          "OSPFv2 可自动选举 Router-ID；OSPFv3 必须手工指定 IPv4 格式 Router-ID，否则进程无法启动"
+        ],
+        "u": [
+          "纯IPv6网络内的动态路由互通"
+        ],
+        "w": [
+          "同一个口可以起多个多实例进程，别配串了"
+        ],
+        "v": "display ipv6 routing-table 查路由",
+        "l": [
+          "起OSPFv3跑通全网IPv6路由"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "R1 fe80",
+              "s": ":1 <"
+            },
+            {
+              "t": "OSPFv3"
+            },
+            {
+              "t": "R2 fe80",
+              "s": ":2"
+            }
+          ],
+          "l": [
+            "",
+            ""
+          ]
+        }
+      },
+      {
+        "id": "H3",
+        "t": "H3. IPv6 过渡: 6to4与NAT64",
+        "y": "6to4：把v6包塞进v4里穿越旧网。\nNAT64：v6纯客户端访问v4老服务器，通过协议/地址翻译(类似IPv4 NAT)。\n选型：6to4 用于 IPv6 孤岛间互联(需公网 IPv4 且协议号 41 可达)；NAT64 用于 IPv6-only 客户端访问 IPv4 服务(需配合 DNS64 合成 AAAA 记录)。",
+        "c": "[Huawei-Tunnel0] tunnel-protocol ipv6-ipv4 6to4\n[Huawei] nat64 enable",
+        "o": "Tunnel0 current state: UP\nProtocol: IPv6-IPv4 6to4",
+        "j": [
+          "6to4前缀固定含公网v4地址"
+        ],
+        "u": [
+          "企业逐步演进IPv6过程中的业务平滑过渡"
+        ],
+        "w": [
+          "NAT64需要配合DNS64才能解析域名"
+        ],
+        "v": "telnet 64:ff9b::8.8.8.8 测NAT64转换",
+        "l": [
+          "配置6to4隧道让两端IPv6孤岛互通"
+        ],
+        "dg": {
+          "k": "multi",
+          "rows": [
+            {
+              "n": [
+                {
+                  "t": "IPv6孤岛"
+                },
+                {
+                  "t": "IPv6孤岛"
+                }
+              ],
+              "l": [
+                "IPv4隧道"
+              ]
+            },
+            {
+              "n": [
+                {
+                  "t": "IPv6终端"
+                },
+                {
+                  "t": "IPv4服务器"
+                }
+              ],
+              "l": [
+                "NAT64"
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": "I1",
+        "t": "I1. SNMP 原理与配置",
+        "y": "网管拉取设备数据的协议。v1/v2c明文传输(只配团体名)，v3强制加密认证最安全。\n认证(authentication)与加密(privacy)分离：authentication-mode 只验身份，privacy-mode 才加密报文。",
+        "c": "[Huawei] snmp-agent sys-info version v3\n[Huawei] snmp-agent usm-user v3 admin authentication-mode sha cipher <pwd>\n[Huawei] snmp-agent usm-user v3 admin privacy-mode aes128 cipher <pwd>",
+        "o": "SNMP version running: SNMPv3",
+        "j": [
+          "cipher: 本地存储加密",
+          "认证与加密是两个独立配置项，只配认证不配 privacy-mode 时报文仍明文"
+        ],
+        "u": [
+          "Zabbix等主流网管软件对接采集"
+        ],
+        "w": [
+          "v2c团体名设成public极易被黑客拖库"
+        ],
+        "v": "电脑端用snmpwalk测试抓取数据",
+        "l": [
+          "设备开SNMPv2c，用软件走网获取设备型号"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "NMS监控平台"
+            },
+            {
+              "t": "网络设备Agent"
+            }
+          ],
+          "l": [
+            "UDP 161 GET"
+          ]
+        }
+      },
+      {
+        "id": "I2",
+        "t": "I2. Prometheus + Grafana",
+        "y": "云原生监控套件。SNMP Exporter负责把老掉牙的SNMP OID转换成Prometheus的时序指标，Grafana画大屏。",
+        "c": "scrape_configs:\n  - job_name: 'snmp'\n    targets: ['192.168.1.1']",
+        "o": "snmp_sysName{instance=\"1.1\"} \"Core-SW\"",
+        "j": [
+          "job_name: 拉取任务名"
+        ],
+        "u": [
+          "替代传统老旧NMS，实现现代化可观测大屏"
+        ],
+        "w": [
+          "拉取频率太高(如1秒1次)会把交换机CPU拉满"
+        ],
+        "v": "去:9116端口看指标是否生成",
+        "l": [
+          "起三个Docker容器联动抓出一张流量图"
+        ],
+        "dg": {
+          "k": "stack",
+          "n": [
+            {
+              "t": "Grafana大屏",
+              "s": "<- Prometheus <- SN…"
+            }
+          ]
+        }
+      },
+      {
+        "id": "I3",
+        "t": "I3. Syslog 集中日志",
+        "y": "设备告警别全散在本地，统一用UDP 514推给Syslog服务器(如ELK)，方便审计和关联排障。",
+        "c": "[Huawei] info-center enable\n[Huawei] info-center loghost 192.168.1.100 facility local6",
+        "o": "Loghost: 192.168.1.100\nChannel: loghost, level: debugging",
+        "j": [
+          "loghost: 指向收集器IP"
+        ],
+        "u": [
+          "等保合规日志留存、全网故障统一检索"
+        ],
+        "w": [
+          "Debugging级别日志海量，可能撑爆服务器磁盘"
+        ],
+        "v": "去Linux端 tail -f /var/log 看报文",
+        "l": [
+          "Linux起rsyslog，SW配loghost，拔网线看日志"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "设备群"
+            },
+            {
+              "t": "ELK集群"
+            }
+          ],
+          "l": [
+            "Syslog UDP 514"
+          ]
+        }
+      },
+      {
+        "id": "J1",
+        "t": "J1. K8s Pod CNI 规范",
+        "y": "CNI插件(如Calico)负责给每个Pod分独立IP并插上网线。要求Pod间全互通无NAT。\nService 类型：ClusterIP(集群内虚拟IP，默认)；NodePort(节点端口暴露，每 Node 监听高端口)；LoadBalancer(云 LB 分发到 NodePort)；ExternalName(CNAME 到外部域名，无 ClusterIP)。",
+        "c": "kubectl get pods -o wide\nkubectl exec -it <pod> -- ip addr",
+        "o": "NAME     STATUS   IP           NODE\nnginx-1  Running  10.244.1.2   node1",
+        "j": [
+          "-o wide: 显示IP和Node",
+          "hostNetwork:true 副作用：绕过 CNI(直接复用宿主机网络栈)、NetworkPolicy 失效、端口易冲突"
+        ],
+        "u": [
+          "云原生业务基础底座网络排障"
+        ],
+        "w": [
+          "CNI没装好，Node都是NotReady状态"
+        ],
+        "v": "在Pod A里直ping Pod B的IP",
+        "l": [
+          "装K8s后装Calico看网卡变化"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "Pod veth"
+            },
+            {
+              "t": "网桥/路由"
+            },
+            {
+              "t": "物理网卡"
+            }
+          ],
+          "l": [
+            "",
+            ""
+          ]
+        }
+      },
+      {
+        "id": "J2",
+        "t": "J2. Calico BGP 与 IPIP",
+        "y": "纯BGP模式(No Encap)：Node当路由器，原生IP转发无损耗性能极高。\nIPIP模式：公有云 Underlay 禁止 BGP 路由交换时（如 AWS/GCP 不允许跑 BGP），启用 IPIP 作为 Overlay 隧道(内耗MTU)。",
+        "c": "calicoctl patch ippool default-ipv4-ippool -p '{\"spec\":{\"ipipMode\":\"Never\"}}'",
+        "o": "10.244.2.0/24 via 192.168.2.2 dev eth0 proto bird",
+        "j": [
+          "proto bird: 证明路由是Calico的BGP刷入的"
+        ],
+        "u": [
+          "追求极致性能的自建机房集群"
+        ],
+        "w": [
+          "切换模式可能导致瞬间断网，注意MTU"
+        ],
+        "v": "ip route 看有没有 tunl0 接口",
+        "l": [
+          "关闭IPIP模式抓包验证不再有IP-in-IP"
+        ],
+        "dg": {
+          "k": "multi",
+          "rows": [
+            {
+              "n": [
+                {
+                  "t": "纯BGP",
+                  "s": "NodeA"
+                },
+                {
+                  "t": "NodeB"
+                }
+              ],
+              "l": [
+                "物理网"
+              ]
+            },
+            {
+              "n": [
+                {
+                  "t": "IPIP",
+                  "s": "NodeA tunl0"
+                },
+                {
+                  "t": "NodeB"
+                }
+              ],
+              "l": [
+                "封装IP"
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": "J3",
+        "t": "J3. NetworkPolicy 微隔离",
+        "y": "K8s里的高级防火墙。默认放行所有，配置后变成零信任(拒绝未授权东西向流量)。按标签放行。",
+        "c": "spec:\n  podSelector: { matchLabels: { app: backend } }\n  ingress:\n  - from: [{ podSelector: { matchLabels: { app: frontend } } }]",
+        "o": "Name: backend-policy\nPod-Selector: app=backend\nAllow: from app=frontend",
+        "j": [
+          "podSelector: 应用策略的目标"
+        ],
+        "u": [
+          "多租户集群隔离、高安应用零信任"
+        ],
+        "w": [
+          "得看你装的CNI支不支持它(Flannel原生不支持)"
+        ],
+        "v": "起非授权Pod用wget测访问被阻",
+        "l": [
+          "配规则只让A能ping B，C去ping直接超时"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "Namespace-A Front…"
+            },
+            {
+              "t": "Backend"
+            },
+            {
+              "t": "X"
+            },
+            {
+              "t": "Hacker Pod"
+            }
+          ],
+          "l": [
+            "放行",
+            "",
+            ""
+          ]
+        }
+      },
+      {
+        "id": "N1",
+        "t": "N1. K8s Ingress 与 Nginx Controller",
+        "y": "Ingress是K8s对外的统一域名网关七层反代。Nginx Controller负责把它动态转成nginx.conf。\nGateway API 是 Ingress 的演进方向：跨 namespace 路由、按协议细分(GatewayClass/Gateway/HTTPRoute)、更细粒度流量控制；但 Ingress Controller 生态成熟仍广泛使用，两者会长期共存。",
+        "c": "rules:\n- host: app.com\n  http:\n    paths: [{path: /, backend: {service: {name: web-svc, port: {number: 80}}}}] ",
+        "o": "NAME      CLASS  HOSTS     ADDRESS  PORTS\nweb-ing   nginx  app.com   1.2.3.4  80",
+        "j": [
+          "host: 绑定的域名"
+        ],
+        "u": [
+          "单个公网IP暴露100个微服务"
+        ],
+        "w": [
+          "没装Controller的话，配了Ingress也白搭不生效"
+        ],
+        "v": "curl -H 'Host: app.com' http://IP",
+        "l": [
+          "配个多域名Ingress转发给不同Service"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "外部用户"
+            },
+            {
+              "t": "Ingress"
+            },
+            {
+              "t": "分流"
+            },
+            {
+              "t": "Pod-A/B"
+            }
+          ],
+          "l": [
+            "app.com",
+            "",
+            ""
+          ]
+        }
+      },
+      {
+        "id": "N2",
+        "t": "N2. Gateway API 流量治理",
+        "y": "下一代Ingress，支持多协议(TCP/UDP)、跨Namespace路由、权重分流(灰度/金丝雀发布)。",
+        "c": "backendRefs:\n- name: api-v1\n  weight: 90\n- name: api-v2\n  weight: 10",
+        "o": "Name: app-route\nWeight: 90/10",
+        "j": [
+          "weight: 轻松实现金丝雀发布流量拆分"
+        ],
+        "u": [
+          "复杂微服务多版本灰度测试"
+        ],
+        "w": [
+          "还在演进期，需装对应CRD"
+        ],
+        "v": "并发压测看V2是否恰好分到10%流量",
+        "l": [
+          "装Gateway API配9:1权重请求观察"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "Gateway"
+            },
+            {
+              "t": "HTTPRoute"
+            },
+            {
+              "t": "90%到v1, 10%到v2"
+            }
+          ],
+          "l": [
+            "",
+            ""
+          ]
+        }
+      },
+      {
+        "id": "N3",
+        "t": "N3. Ingress 排障 (502/404)",
+        "y": "502：网关正常但后端Service找不到健康的Pod(Endpoint为空)。\n404：域名配错、路径没匹配上。",
+        "c": "kubectl get endpoints web-svc\nkubectl logs -f <nginx-controller-pod>",
+        "o": "web-svc  <none>  5m\n[Error] GET /wrong HTTP 404",
+        "j": [
+          "<none>: 代表后端全挂了"
+        ],
+        "u": [
+          "日常集群发布出锅兜底排障"
+        ],
+        "w": [
+          "注意PathPrefix末尾带不带/区别很大"
+        ],
+        "v": "查看endpoints确保有IP",
+        "l": [
+          "故意杀掉后端Pod复现502，修好它"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "404"
+            },
+            {
+              "t": "查Ingress规则 502"
+            },
+            {
+              "t": "查Pod就绪状态"
+            }
+          ],
+          "l": [
+            "",
+            ""
+          ]
+        }
+      },
+      {
+        "id": "P1",
+        "t": "P1. CoreDNS K8s DNS架构",
+        "y": "集群内建DNS。每新建个Service都会生成域名：svc.namespace.svc.cluster.local。所有Pod指向上网。",
+        "c": "kubectl get pods -n kube-system -l k8s-app=kube-dns",
+        "o": "NAME           READY   STATUS    AGE\ncoredns-1234   1/1     Running   10d",
+        "j": [
+          "k8s-app: K8s关键组件标签"
+        ],
+        "u": [
+          "微服务间只认域名不认IP解耦"
+        ],
+        "w": [
+          "CoreDNS一挂整个集群东西向全瞎"
+        ],
+        "v": "nslookup kubernetes.default",
+        "l": [
+          "在Pod里看 /etc/resolv.conf"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "Pod"
+            },
+            {
+              "t": "请求db.default"
+            },
+            {
+              "t": "CoreDNS"
+            },
+            {
+              "t": "返回10.x.x.x"
+            }
+          ],
+          "l": [
+            "",
+            "",
+            ""
+          ]
+        }
+      },
+      {
+        "id": "P2",
+        "t": "P2. Pod 服务名称解析机制",
+        "y": "Pod的 resolv.conf 自动带了 search 域后缀。输入 curl db 会自动补齐后缀去查 CoreDNS。",
+        "c": "kubectl exec -it test-pod -- cat /etc/resolv.conf",
+        "o": "search default.svc.cluster.local svc.cluster.local\nnameserver 10.96.0.10",
+        "j": [
+          "search: 自动补齐列表"
+        ],
+        "u": [
+          "写死配置文件里的DB连接串为简写域名"
+        ],
+        "w": [
+          "跨Namespace访问必须写全域名，否则404"
+        ],
+        "v": "ping db 观察解析的IP",
+        "l": [
+          "在一个namespace配Pod通过短名访问另一个"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "curl db"
+            },
+            {
+              "t": "补齐"
+            },
+            {
+              "t": "db.default.svc.cl…"
+            }
+          ],
+          "l": [
+            "",
+            ""
+          ]
+        }
+      },
+      {
+        "id": "P3",
+        "t": "P3. DNS 排障 (CoreDNS)",
+        "y": "解析失败？先看CoreDNS活着没，再开调试日志看它收没收到，最后看Service对应的Endpoint有没建出来。",
+        "c": "kubectl edit configmap coredns -n kube-system",
+        "o": "[INFO] 10.1.2.3:4321 - A IN wrong-svc.def... NXDOMAIN",
+        "j": [
+          "NXDOMAIN: 解析不到结果",
+          "在 Corefile 中加 log 插件可观察 DNS 查询日志"
+        ],
+        "u": [
+          "微服务说找不到对方时的终极杀器"
+        ],
+        "w": [
+          "排查完记得关log，不然压爆磁盘"
+        ],
+        "v": "直接指定DNS查: nslookup svc 10.96.0.10",
+        "l": [
+          "开CoreDNS log看业务解析耗时"
+        ],
+        "dg": {
+          "k": "stack",
+          "n": [
+            {
+              "t": "Timeout 网断了 NXDOM…"
+            }
+          ]
+        }
+      },
+      {
+        "id": "X1",
+        "t": "X1. 可观测性三支柱: Metrics/Logs/Traces 协同",
+        "y": "Metrics 提示发生了什么(监控告警)，Logs 提供现场上下文(报错细节)，Traces 定位哪一级调用超时。",
+        "c": "curl -H 'traceparent: 00-<trace-id>-<span-id>-01' http://api.com/checkout",
+        "o": "TraceID: 12345 SpanID: abc12 Duration: 450ms",
+        "j": [
+          "traceparent: W3C Trace Context 标准头，00=版本, trace-id 全局唯一, span-id 本段",
+          "贯穿全链路的 TraceID 是关联网络与应用的纽带"
+        ],
+        "u": [
+          "分布式微服务复杂故障定位"
+        ],
+        "w": [
+          "全量采样 Tracing 存储开销巨大，生产需合理采样"
+        ],
+        "v": "通过 Grafana Tempo 链路跳转 Loki 查看日志",
+        "l": [
+          "在入口网关注入 TraceID",
+          "使用 OpenTelemetry 收集指标"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "Alert Metrics"
+            },
+            {
+              "t": "Find Trace ID"
+            },
+            {
+              "t": "Inspect Span Logs"
+            }
+          ],
+          "l": [
+            "",
+            ""
+          ]
+        }
+      },
+      {
+        "id": "X2",
+        "t": "X2. eBPF 进阶: tc-ebpf 与 XDP 报文处理",
+        "y": "XDP 运行在网卡驱动层(极速丢包/抗DDoS)，tc-ebpf 运行在 Linux TC 协议栈(精细挂载与重定向)。\nCO-RE(Compile Once, Run Everywhere)：eBPF 程序一次编译到处运行，依赖内核 BTF(BTF 提供内核结构体布局信息)，加载时用 libbpf 做字段偏移重定位，替代旧的一机一编译。BTF 是 CO-RE 的基石。",
+        "c": "ip link set dev eth0 xdp obj xdp_drop.o\nbpftool prog show",
+        "o": "id 42 type xdp name xdp_drop_func tag 1234",
+        "j": [
+          "绕过 Linux TCP/IP 协议栈开销",
+          "参考标准：内核文档 Documentation/bpf/"
+        ],
+        "u": [
+          "TB 级抗 DDoS 攻击",
+          "云原生高性能网关"
+        ],
+        "w": [
+          "XDP 程序运行过早，无法依赖协议栈的高级特性"
+        ],
+        "v": "bpftool prog list 查看挂载状态",
+        "l": [
+          "编写简易 C 语言 XDP 丢包程序",
+          "使用 clang 编译并用 ip link 挂载"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "NIC"
+            },
+            {
+              "t": "XDP 极速丢包"
+            },
+            {
+              "t": "tc-ebpf 路由重定向"
+            },
+            {
+              "t": "Protocol Stack"
+            }
+          ],
+          "l": [
+            "",
+            "",
+            ""
+          ]
+        }
+      },
+      {
+        "id": "X3",
+        "t": "X3. eBPF 可观测性: Cilium Hubble 流量图",
+        "y": "无需对 Pod 注入 Sidecar 代理，纯内核态依靠 eBPF 实时感知 L3/L4/L7(HTTP/gRPC) 流量与丢包原因。",
+        "c": "hubble observe --namespace default --drop-reason POLICY_DENIED",
+        "o": "TIMESTAMP            FROM        TO          REASON\n10:00:01.123         web-pod     db-pod      POLICY_DENIED",
+        "j": [
+          "完全透明感知，零侵入无性能损耗"
+        ],
+        "u": [
+          "K8s 东西向流量可视化",
+          "网络安全策略验证"
+        ],
+        "w": [
+          "Linux 内核版本需 >= 4.19 (推荐 5.4+)"
+        ],
+        "v": "执行 hubble status 查看连接",
+        "l": [
+          "部署 Cilium 并开启 Hubble",
+          "运行 hubble observe 观察丢包"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "Pod A"
+            },
+            {
+              "t": "Pod B"
+            }
+          ],
+          "l": [
+            "eBPF SockOps 重定向"
+          ]
+        }
+      },
+      {
+        "id": "Y1",
+        "t": "Y1. 混沌工程: Chaos Mesh 网络故障注入",
+        "y": "在 Kubernetes 集群中声明式注入丢包、延迟、重复包、网络分区，验证微服务的容错韧性。",
+        "c": "kubectl apply -f network-delay.yaml",
+        "o": "networkchaos.chaos-mesh.org/delay-test created",
+        "j": [
+          "基于 Linux netem 机制在内核层模拟异常"
+        ],
+        "u": [
+          "故障演练",
+          "高可用架构 Resilience 断言"
+        ],
+        "w": [
+          "切忌直接在生产环境全量注入，必须设置限制范围"
+        ],
+        "v": "在目标 Pod 内 ping 对端观察延迟增加",
+        "l": [
+          "编写 NetworkChaos YAML",
+          "执行 kubectl apply 触发演练"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "Chaos Operator"
+            },
+            {
+              "t": "修改 tc/netem"
+            },
+            {
+              "t": "Target Pod"
+            }
+          ],
+          "l": [
+            "",
+            ""
+          ]
+        }
+      },
+      {
+        "id": "Y2",
+        "t": "Y2. 韧性工程: 自动断路器 (Circuit Breaker)",
+        "y": "当网络出现高延迟或丢包时，自动熔断异常节点，避免雪崩效应。结合 Service Mesh 实现降级。",
+        "c": "apiVersion: networking.istio.io/v1alpha3\nkind: DestinationRule\nspec:\n  trafficPolicy:\n    outlierDetection:\n      consecutive5xxErrors: 3",
+        "o": "OutlierDetection: 3 consecutive errors, host ejected for 30s",
+        "j": [
+          "主动剔除不健康节点"
+        ],
+        "u": [
+          "网络闪断与服务降级防护"
+        ],
+        "w": [
+          "熔断阈值设置过敏会导致正常节点被误剔除"
+        ],
+        "v": "并发压测触发熔断查看错误返回",
+        "l": [
+          "配置 Istio DestinationRule",
+          "模拟网络丢包观察 Pod 被踢出"
+        ],
+        "dg": {
+          "k": "flow",
+          "n": [
+            {
+              "t": "Client"
+            },
+            {
+              "t": "熔断器触发"
+            },
+            {
+              "t": "X"
+            },
+            {
+              "t": "Overloaded Server"
+            }
+          ],
+          "l": [
+            "异常率>50%",
+            "",
+            ""
+          ]
+        }
+      },
+      {
+        "id": "Z2_1",
+        "t": "Z2.1. SRE 核心实践: SLI / SLO / SLA 指标体系",
+        "y": "SLI (服务质量指标)：如 P99 延迟 < 50ms。\nSLO (服务质量目标)：如 99.9% 概率满足 SLI。\nSLA (服务级别协议)：违约赔偿合同。",
+        "c": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+        "o": "0.042 (42ms < 50ms SLO)",
+        "j": [
+          "量化网络与系统的稳定性指标"
+        ],
+        "u": [
+          "SRE 架构演进与稳定性保障"
+        ],
+        "w": [
+          "不要把 100% 可用性设为 SLO，这极具破坏性且昂贵"
+        ],
+        "v": "查看 Grafana SLO 仪表盘",
+        "l": [
+          "定义网络延迟 SLI",
+          "在 Prometheus 编写 SLO 报警规则"
+        ],
+        "dg": {
+          "k": "stack",
+          "n": [
+            {
+              "t": "SLI 实际测量值 <= SLO …"
+            }
+          ]
+        }
+      },
+      {
+        "id": "Z2_2",
+        "t": "Z2.2. SRE 核心实践: Error Budget 错误预算",
+        "y": "错误预算 = 100% - SLO。例如 99.9% SLO 意味着每月只有 43 分钟可用预算。预算耗尽则冻结变更。",
+        "c": "1 - (sum(rate(http_requests_total{status=~'5..'}[30d])) / sum(rate(http_requests_total[30d])))",
+        "o": "Error Budget Remaining: 22%",
+        "j": [
+          "平衡创新发布速度与系统稳定性的利器"
+        ],
+        "u": [
+          "研发与运维团队发布冲突仲裁"
+        ],
+        "w": [
+          "没有惩罚和冻结约束机制的 Error Budget 只是摆设"
+        ],
+        "v": "通过监控面板查看剩余 Budget 比例",
+        "l": [
+          "计算 99.9% SLO 对应的故障时间",
+          "设置预算预警钩子自动锁 CI/CD"
+        ],
+        "dg": {
+          "k": "multi",
+          "rows": [
+            {
+              "n": [
+                {
+                  "t": "错误预算充足"
+                },
+                {
+                  "t": "允许发布新功能"
+                }
+              ],
+              "l": [
+                ""
+              ]
+            },
+            {
+              "n": [
+                {
+                  "t": "错误预算消耗殆尽"
+                },
+                {
+                  "t": "冻结发布，全员修复稳定性"
+                }
+              ],
+              "l": [
+                ""
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": "LAB4",
+        "t": "🎯 阶段四综合实验：云数据中心与可观测性",
+        "y": "**实验目标**：完成物理网络到云原生架构的穿透。\n**拓扑**：Spine-Leaf EVPN --- K8s Nodes --- Cilium CNI",
+        "c": "hubble observe --from-pod web --to-pod db",
+        "o": "web -> db TCP 80 (latency: 1ms)",
+        "j": [
+          "Hubble 必须依赖 eBPF 内核底座",
+          "VTEP 需要自动发现避免手工配置隧道"
+        ],
+        "u": [
+          "私有云数据中心建设",
+          "容器底层网络排障训练"
+        ],
+        "w": [
+          "VXLAN 的 UDP 4789 端口不要被主机防火墙拦截"
+        ],
+        "v": "通过 Grafana 看板看到 K8s 内部的服务调用延迟",
+        "l": [
+          "搭建 Spine-Leaf BGP EVPN",
+          "部署 K8s 和 Cilium",
+          "开启 Hubble 观测跨节点 Pod 流量"
+        ],
+        "dg": {
+          "k": "ha",
+          "n": [
+            {
+              "t": "Spine"
+            },
+            {
+              "t": "K8s Nodes Cilium+…"
+            }
+          ],
+          "mid": ""
+        }
+      }
     ]
-   },
-   {
-    "id": "G4",
-    "t": "🛠️ 故障 G4: IBGP 邻居传递路由下一跳不可达",
-    "y": "**现象描述**：IBGP 学习到路由，但下一跳地址不可达，路由不加表。\n**根因分析**：EBGP 邻居传递路由时未修改下一跳，IBGP 邻居无法递归查询。",
-    "c": "[Huawei-bgp] peer 10.0.0.2 next-hop-local",
-    "o": "*> 192.168.1.0  10.0.0.2   0     100    i",
-    "j": [
-     "强制把传给 IBGP 的路由下一跳改成自己"
-    ],
-    "u": [
-     "多出口边缘路由器分发路由给内网核心"
-    ],
-    "w": [
-     "忘记敲这句是 BGP 新手第一大坑"
-    ],
-    "v": "display bgp routing-table 看 *> 标志出现",
-    "l": [
-     "查看 BGP 路由表关注 NextHop",
-     "检查 IGP 路由表"
+  },
+  {
+    "id": "p-5",
+    "title": "阶段五：排障矩阵、多厂商字典与面试攻防",
+    "color": "amber",
+    "desc": "25个独立排障卡片、55行多厂商平替、30个STAR面试卡",
+    "modules": [
+      {
+        "id": "G1",
+        "t": "🛠️ 故障 G1: Trunk 接口未放行 VLAN 导致跨楼层不通",
+        "y": "**现象描述**：同一 VLAN 下，不同楼层的终端无法互通，但同楼层正常。\n**根因分析**：汇聚/核心交换机间 Trunk 端口未放行该 VLAN。",
+        "c": "[Huawei-GigabitEthernet0/0/24] port trunk allow-pass vlan 100",
+        "o": "Port      Link Type    PVID  Trunk VLAN List\nGE0/0/24  trunk        1     1 100",
+        "j": [
+          "检查是否有 VLAN 被过滤"
+        ],
+        "u": [
+          "园区网终端跨楼层互通"
+        ],
+        "w": [
+          "别用 port trunk allow-pass vlan all 带来安全隐患"
+        ],
+        "v": "从源端 PC ping 对端网关，观察连通性恢复。",
+        "l": [
+          "在源端交换机查看 VLAN 成员",
+          "在互联 Trunk 口查看允许的 VLAN"
+        ]
+      },
+      {
+        "id": "G2",
+        "t": "🛠️ 故障 G2: MTU 不一致导致 OSPF 卡在 ExStart",
+        "y": "**现象描述**：OSPF 邻居状态停滞在 ExStart，无法达到 Full。\n**根因分析**：链路两端接口 MTU 不一致，导致 DBD 报文被丢弃。",
+        "c": "[Huawei-GigabitEthernet0/0/0] mtu 1500\n[Huawei-GigabitEthernet0/0/0] restart",
+        "o": "OSPF Process 1 with Router ID 1.1.1.1\nState: Full",
+        "j": [
+          "MTU 必须完全一致才能交换 DBD"
+        ],
+        "u": [
+          "不同厂商设备对接",
+          "云网络隧道封装场景"
+        ],
+        "w": [
+          "有时候隧道封装会隐式改变 MTU，需排查底层"
+        ],
+        "v": "display ospf peer 查看状态变为 Full",
+        "l": [
+          "查看接口 MTU",
+          "抓包确认 DBD 报文是否被分片"
+        ]
+      },
+      {
+        "id": "G3",
+        "t": "🛠️ 故障 G3: 接入层环路引发 MAC 漂移与风暴",
+        "y": "**现象描述**：交换机 CPU 飙升，网络瘫痪，大量 MAC 漂移告警。\n**根因分析**：接入层存在物理环路（如私接Hub且未开STP）。",
+        "c": "[Huawei] interface GigabitEthernet 0/0/1\n[Huawei-GigabitEthernet0/0/1] shutdown",
+        "o": "MAC 5489.. in GE0/1 and GE0/2 flapping",
+        "j": [
+          "flapping: 在俩口之间反复横跳(环路实锤)"
+        ],
+        "u": [
+          "大面积断网急救"
+        ],
+        "w": [
+          "必须先拔线/断口保核心，再去查凶手",
+          "shutdown 是急救断口(物理 down 等价拔线,立刻破环)；stp disable 只关 STP 计算不断链路,环路场景反而放大故障"
+        ],
+        "v": "看告警不再增量，CPU 利用率下降",
+        "l": [
+          "查 MAC 地址表是否频繁变化",
+          "看 STP 状态"
+        ]
+      },
+      {
+        "id": "G4",
+        "t": "🛠️ 故障 G4: IBGP 邻居传递路由下一跳不可达",
+        "y": "**现象描述**：IBGP 学习到路由，但下一跳地址不可达，路由不加表。\n**根因分析**：EBGP 邻居传递路由时未修改下一跳，IBGP 邻居无法递归查询。",
+        "c": "[Huawei-bgp] peer 10.0.0.2 next-hop-local",
+        "o": "*> 192.168.1.0  10.0.0.2   0     100    i",
+        "j": [
+          "强制把传给 IBGP 的路由下一跳改成自己"
+        ],
+        "u": [
+          "多出口边缘路由器分发路由给内网核心"
+        ],
+        "w": [
+          "忘记敲这句是 BGP 新手第一大坑"
+        ],
+        "v": "display bgp routing-table 看 *> 标志出现",
+        "l": [
+          "查看 BGP 路由表关注 NextHop",
+          "检查 IGP 路由表"
+        ]
+      },
+      {
+        "id": "G5",
+        "t": "🛠️ 故障 G5: 出口 NAT 导致 FTP 被动模式失败",
+        "y": "**现象描述**：FTP 能登录，但无法列出目录或上传文件。\n**根因分析**：被动模式使用 1024 以上随机端口，NAT 未开启 ALG 探测。",
+        "c": "[Huawei] nat alg ftp enable",
+        "o": "Info: FTP ALG is enabled.",
+        "j": [
+          "ALG: 应用层网关，能修改 Payload 里的 IP/端口"
+        ],
+        "u": [
+          "发布内网老旧服务"
+        ],
+        "w": [
+          "NAT Server 端口映射不够，必须靠 ALG 动态开洞"
+        ],
+        "v": "FTP 客户端正常列出目录",
+        "l": [
+          "抓包看数据端口是否被转换",
+          "开启 ALG 后再测"
+        ]
+      },
+      {
+        "id": "G6",
+        "t": "🛠️ 故障 G6: 交换机 CPU 利用率爆高 (ARP攻击)",
+        "y": "**现象描述**：CPU 持续高位(>90%)，网络时延增加。\n**根因分析**：大量 ARP 扫描/泛洪请求导致 CPU 中断过多。",
+        "c": "[Huawei] arp anti-attack rate-limit enable\n[Huawei] arp anti-attack rate-limit 100",
+        "o": "ARP rate-limit enabled. Limit 100 pps.",
+        "j": [
+          "限制 CPU 处理 ARP 的速率"
+        ],
+        "u": [
+          "网吧/校园网防攻击",
+          "中毒主机隔离"
+        ],
+        "w": [
+          "限速太严会误杀正常新上线的终端"
+        ],
+        "v": "display cpu-usage 确认下降，ARP 表稳定",
+        "l": [
+          "用镜像抓包分析 ARP 流量源",
+          "开启限速配置"
+        ]
+      },
+      {
+        "id": "G7",
+        "t": "🛠️ 故障 G7: 无线 AP 频繁掉线 (Option43 错误)",
+        "y": "**现象描述**：AP 上线后反复掉线，无法稳定工作。\n**根因分析**：DHCP Option 43 未下发或配错 AC IP，AP 找不到“组织”。",
+        "c": "[Huawei-ip-pool-1] option 43 sub-option 2 ip-address 192.168.10.10",
+        "o": "AP ID 1  State: Online",
+        "j": [
+          "Option 43 专门用于通告 AC 控制器地址"
+        ],
+        "u": [
+          "大型园区跨网段部署 AP"
+        ],
+        "w": [
+          "不同厂商的 Option43 HEX 编码可能不同，需查手册"
+        ],
+        "v": "display ap all 看 AP 状态变 Online",
+        "l": [
+          "查看 DHCP 服务器分配状态",
+          "测试 AC 的可达性"
+        ]
+      },
+      {
+        "id": "G8",
+        "t": "🛠️ 故障 G8: K8s Pod 跨节点不通 (Calico BGP 断开)",
+        "y": "**现象描述**：同集群不同 Node 的 Pod 无法 ping 通。\n**根因分析**：Calico 节点间的 BGP 邻居断开（可能是防火墙拦截了 179 端口）。",
+        "c": "[root@master ~]# calicoctl node status\n[root@master ~]# calicoctl patch ippool default-ipv4-ippool -p '{\"spec\":{\"ipipMode\":\"Always\"}}'",
+        "o": "IPv4 BGP status: Peer 192.168.1.2 down",
+        "j": [
+          "跨子网强行跑纯 BGP 会失败，需回退到 IPIP 或 VXLAN 隧道（公有云如 AWS/Azure 常不支持 BGP，VXLAN 模式更稳妥）"
+        ],
+        "u": [
+          "公有云自建 K8s 集群"
+        ],
+        "w": [
+          "切换 IPIP 模式瞬间会引起网络闪断"
+        ],
+        "v": "跨节点 Pod 互 ping 成功",
+        "l": [
+          "检查 Calico Node 状态",
+          "检查 179 端口",
+          "切换模式测试"
+        ]
+      },
+      {
+        "id": "G9",
+        "t": "🛠️ 故障 G9: VRRP 双主脑裂 (抢占延时不当)",
+        "y": "**现象描述**：VRRP 两台都是 Master，导致 MAC 表翻摆，网关冲突。\n**根因分析**：心跳链路故障，或主设备刚重启完接口一 UP 就立刻抢占，而底层路由还没收敛。",
+        "c": "[Huawei-Vlanif10] vrrp vrid 1 preempt-mode timer delay 30",
+        "o": "VRID 1  State: Backup",
+        "j": [
+          "delay 30: 等 30 秒网络彻底稳了再抢回老大"
+        ],
+        "u": [
+          "核心双机热备架构调优"
+        ],
+        "w": [
+          "永远不要用 0 秒(立即抢占)"
+        ],
+        "v": "display vrrp 显示只有一台 Master",
+        "l": [
+          "检查心跳口状态",
+          "调整抢占延时验证主备关系"
+        ]
+      },
+      {
+        "id": "G10",
+        "t": "🛠️ 故障 G10: 防火墙策略误阻断业务 (Zone 划错)",
+        "y": "**现象描述**：写了放行策略，但流量依然被阻断。\n**根因分析**：流量出入的物理接口，没有正确划入策略指定的 Trust/Untrust 区域。",
+        "c": "[Huawei] firewall zone trust\n[Huawei-zone-trust] add interface GigabitEthernet0/0/1",
+        "o": "Interface GE0/0/1 added to zone trust.",
+        "j": [
+          "接口默认不在任何区域，必须手工划入"
+        ],
+        "u": [
+          "防火墙开局初装",
+          "新增出口链路"
+        ],
+        "w": [
+          "查策略前先查 display zone"
+        ],
+        "v": "流量通过，display security-policy 命中计数增加",
+        "l": [
+          "查看接口所属 Zone",
+          "检查策略源/目的区域"
+        ]
+      },
+      {
+        "id": "G11",
+        "t": "🛠️ 故障 G11: OSPF 路由不优选 (Bandwidth 偏差)",
+        "y": "**现象描述**：10G 核心链路闲置，OSPF 偏偏选了 1G 的备用链路。\n**根因分析**：OSPF Cost 靠接口参考带宽计算，由于参考带宽默认是 100M，导致 1G 和 10G 算出来 Cost 都是 1，无法区分。",
+        "c": "[Huawei-ospf-1] bandwidth-reference 100000",
+        "o": "Reference bandwidth changed to 100000 Mbits",
+        "j": [
+          "全局调高参考带宽基准，让高带宽链路 Cost 变小"
+        ],
+        "u": [
+          "骨干网链路扩容后调优"
+        ],
+        "w": [
+          "全网 OSPF 设备的参考带宽必须改成一样，否则环路"
+        ],
+        "v": "display ospf routing 查看选路变化",
+        "l": [
+          "查看接口实际带宽",
+          "修改 reference"
+        ]
+      },
+      {
+        "id": "G12",
+        "t": "🛠️ 故障 G12: 端口安全导致合法终端被阻断",
+        "y": "**现象描述**：员工换了个扩展坞/USB网卡，突然无法上网，端口 Error-Down。\n**根因分析**：Port-Security 限制了最多 1 个 MAC，换网卡后触发违规阻断。",
+        "c": "[Huawei-GigabitEthernet0/0/1] undo shutdown\n[Huawei-GigabitEthernet0/0/1] port-security max-mac-num 2",
+        "o": "Port Security: Enable  Max MAC: 2",
+        "j": [
+          "必须手工 undo shutdown 才能救活端口"
+        ],
+        "u": [
+          "严格的涉密办公区接入管理"
+        ],
+        "w": [
+          "用 Protect 模式代替 Shutdown 可以避免人工去捞端口"
+        ],
+        "v": "终端恢复在线",
+        "l": [
+          "查看端口安全配置",
+          "解禁并放大限制数目"
+        ]
+      },
+      {
+        "id": "G13",
+        "t": "🛠️ 故障 G13: SD-WAN 丢包震荡与 MTU 异常",
+        "y": "**现象描述**：隧道间歇丢包，大文件传不过去，小包 ping 则通。\n**根因分析**：Underlay 加了 IPSec 等多层头部，导致超大包被丢弃。\nSD-WAN 架构：Edge(CPE 接入) / Controller(集中控制面) / Orchestrator(业务编排)。TCP 优化：FEC(前向纠错，冗余包抗丢包) 与 ACK 压缩(本地代理回 ACK 提速)。",
+        "c": "[Huawei-Tunnel0] mtu 1400\n[Huawei-Tunnel0] tcp adjust-mss 1360",
+        "o": "Interface Tunnel0 MTU is 1400",
+        "j": [
+          "tcp adjust-mss 强制告诉对端别发超过 1360 字节的 TCP 包（部分老版本简写为 tcp mss，新版本为 adjust-mss）"
+        ],
+        "u": [
+          "分支互联",
+          "云专线对接"
+        ],
+        "w": [
+          "只改 MTU 不改 MSS，TCP 照样会卡死"
+        ],
+        "v": "ping -f -l 1300 验证不分片通过",
+        "l": [
+          "测试 Path MTU",
+          "调整 MTU 和 MSS"
+        ]
+      },
+      {
+        "id": "G14",
+        "t": "🛠️ 故障 G14: K8s NetworkPolicy 阻断跨 NS 通信",
+        "y": "**现象描述**：Frontend(NS-A) 连不上 Backend(NS-B)。\n**根因分析**：NetworkPolicy 默认只匹配同 namespace，漏写了 namespaceSelector。",
+        "c": "ingress:\n- from:\n  - namespaceSelector:\n      matchLabels: { ns: ns-a }",
+        "o": "Policy updated, traffic allowed.",
+        "j": [
+          "必须显式放行指定 namespace 的流量"
+        ],
+        "u": [
+          "多租户 K8s 零信任微隔离"
+        ],
+        "w": [
+          "Flannel CNI 原生不支持 NetworkPolicy，写了也没用"
+        ],
+        "v": "跨 NS 通信恢复",
+        "l": [
+          "kubectl get networkpolicy -A",
+          "修改 yaml 并 apply"
+        ]
+      },
+      {
+        "id": "G15",
+        "t": "🛠️ 故障 G15: Wi-Fi 6 漫游粘滞 (死抱远端AP)",
+        "y": "**现象描述**：人走到会议室了，手机还连着工位的 AP，信号一格卡顿。\n**根因分析**：终端不主动切，AC 也没有开启强制剔除（智能漫游阈值太低）。",
+        "c": "[Huawei-wlan-rrm-default] smart-roam enable\n[Huawei-wlan-rrm-default] smart-roam roam-threshold snr 20",
+        "o": "Smart-roam enabled, SNR threshold 20dB",
+        "j": [
+          "低于 20dB 信号，AC 强行把终端踢掉逼它重连近的 AP"
+        ],
+        "u": [
+          "密集办公区无线网调优"
+        ],
+        "w": [
+          "踢得太频繁会导致语音通话断续，阈值要慢慢调"
+        ],
+        "v": "拿着手机走动，查 display station roaming",
+        "l": [
+          "检查 AP 漫游配置",
+          "开启智能漫游与 802.11k/v"
+        ]
+      },
+      {
+        "id": "G16",
+        "t": "🛠️ 故障 G16: VXLAN 隧道震荡与 Underlay 抖动",
+        "y": "**现象描述**：Overlay VM 疯狂断网，VXLAN 隧道频繁 UP/DOWN。\n**根因分析**：底层物理网的 OSPF 路由在抖，导致 VTEP 的源 Loopback 忽隐忽现。",
+        "c": "[Huawei] ospf 1\n[Huawei-ospf-1] bfd all-interfaces enable",
+        "o": "BFD session created, OSPF stable.",
+        "j": [
+          "必须先稳住底盘 (Underlay)，再去查上层 (Overlay)"
+        ],
+        "u": [
+          "云数据中心大规模虚拟化网络"
+        ],
+        "w": [
+          "查故障永远遵循自下而上：先看物理口，再看 OSPF，最后看 BGP EVPN"
+        ],
+        "v": "display vxlan tunnel 状态稳定",
+        "l": [
+          "检查 Underlay IGP 邻居",
+          "排查物理链路抖动"
+        ]
+      },
+      {
+        "id": "G17",
+        "t": "🛠️ 故障 G17: 防火墙策略永远不命中 (被遮蔽)",
+        "y": "**现象描述**：写了针对特定 IP 的阻断，但这台机子还是能上网。\n**根因分析**：前面有一条 Rule 是 `permit any`，直接放行了，轮不到这条细粒度规则。",
+        "c": "[Huawei-security-policy] rule move 20 before 10",
+        "o": "Rule 20 is moved before rule 10.",
+        "j": [
+          "防火墙匹配是自上而下，命中即刻停止！"
+        ],
+        "u": [
+          "防火墙策略长期堆积后的重构"
+        ],
+        "w": [
+          "定期清理没人用的历史策略（僵尸规则）"
+        ],
+        "v": "目标策略命中计数开始增加",
+        "l": [
+          "display security-policy rule all",
+          "检查重叠与包含关系"
+        ]
+      },
+      {
+        "id": "G18",
+        "t": "🛠️ 故障 G18: BGP 路由震荡 (Route Flapping) 与 Dampening",
+        "y": "**现象描述**：BGP 路由反复 UP/DOWN，导致全网 CPU 升高与路由收敛震荡。\n**根因分析**：不稳定物理链路引发 BGP 频繁 Withdrawal，触发 Dampening 惩罚机制。",
+        "c": "[Huawei-bgp] dampening 15 750 2000 10000",
+        "o": "BGP route dampening enabled. Route suppressed.",
+        "j": [
+          "对频繁抖动的路由强制惩罚抑制"
+        ],
+        "u": [
+          "运营商与企业多出口 BGP 防震荡"
+        ],
+        "w": [
+          "抑制惩罚时间过长可能导致链路恢复后业务仍不可达"
+        ],
+        "v": "display bgp routing-table dampened",
+        "l": [
+          "排查抖动物理接口",
+          "配置 BGP dampening 阀值"
+        ]
+      },
+      {
+        "id": "G19",
+        "t": "🛠️ 故障 G19: ECMP 哈希不均导致单物理链路拥塞",
+        "y": "**现象描述**：多条等价链路中，某一根网线流量爆满(100%)，其余网线闲置。\n**根因分析**：ECMP 默认哈希因子(如仅源IP)导致集中大流量(Elephant Flow)命中同条链路。",
+        "c": "[Huawei] ip load-balance hash-mode src-dst-ip src-dst-port",
+        "o": "Load balance hash mode set to L4 5-tuple.",
+        "j": [
+          "改为基于五元组做 Hash 拆分大流量"
+        ],
+        "u": [
+          "数据中心 Spine-Leaf 高并发转发"
+        ],
+        "w": [
+          "逐包(Per-Packet)哈希会导致报文乱序，必须使用逐流(Per-Flow)"
+        ],
+        "v": "display interface brief 观察各成员口流量均分",
+        "l": [
+          "查看各接口 Outbound 速率",
+          "修改 Hash 算法为 5-tuple"
+        ]
+      },
+      {
+        "id": "G20",
+        "t": "🛠️ 故障 G20: K8s Service 会话亲和性配置错误",
+        "y": "**现象描述**：客户端请求访问 K8s Web 服务时，登录状态不断丢失、反复重新登录。\n**根因分析**：Service 轮询分发到不同 Pod，未开启 ClientIP 会话亲和性 (SessionAffinity)。",
+        "c": "spec:\n  sessionAffinity: ClientIP\n  sessionAffinityConfig:\n    clientIP:\n      timeoutSeconds: 10800",
+        "o": "sessionAffinity set to ClientIP (10800s)",
+        "j": [
+          "让同一客户端 IP 在 3 小时内固定访问同一 Pod"
+        ],
+        "u": [
+          "有状态 Web 应用微服务暴露"
+        ],
+        "w": [
+          "SNAT 网关访问会导致所有外部流量命中同一个后端 Pod"
+        ],
+        "v": "使用 curl 连续请求观察回应的 Pod IP 保持一致",
+        "l": [
+          "编辑 Service YAML 增加 sessionAffinity",
+          "kubectl apply -f svc.yaml"
+        ]
+      },
+      {
+        "id": "G21",
+        "t": "🛠️ 故障 G21: Cilium 策略误伤导致 DNS 解析超时",
+        "y": "**现象描述**：应用 Pod 提示 `Could not resolve host`，内部通信全部断开。\n**根因分析**：CiliumNetworkPolicy 开启了严格白名单，但漏写了对 kube-dns (53端口) 的放行规则。",
+        "c": "egress:\n- toEndpoints:\n  - matchLabels:\n      k8s-app: kube-dns\n  toPorts:\n  - ports:\n    - port: '53'\n      protocol: UDP",
+        "o": "Policy updated. DNS egress allowed.",
+        "j": [
+          "零信任策略下必须显式放行 53 端口 UDP 流量"
+        ],
+        "u": [
+          "Cilium CNI 零信任微隔离部署"
+        ],
+        "w": [
+          "不要忽略 UDP 53 端口，否则整个 Pod 变‘瞎子’"
+        ],
+        "v": "kubectl exec -it pod -- nslookup kubernetes.default",
+        "l": [
+          "hubble observe 过滤 DROP 流量",
+          "补充 DNS 放行规则"
+        ]
+      },
+      {
+        "id": "G22",
+        "t": "🛠️ 故障 G22: SRv6 隧道头端封装源地址缺失",
+        "y": "**现象描述**：SRv6 Policy 无法建立，报文无法完成 End.X/End.DT4 动作。\n**根因分析**：头端设备没有配置 `encapsulation source-address`，导致外层 IPv6 头无合法源地址。",
+        "c": "[Huawei-segment-routing-ipv6] encapsulation source-address 2001:db8:1::1",
+        "o": "SRv6 Encapsulation Source-Address: 2001:db8:1::1",
+        "j": [
+          "必须指定源 IPv6 用于封装外层 IPv6 报头",
+          "参考标准：RFC 8986 (SRv6 Network Programming)"
+        ],
+        "u": [
+          "5G 承载网 SRv6 Policy 部署"
+        ],
+        "w": [
+          "源 IPv6 必须在 Underlay 中全局可达"
+        ],
+        "v": "display segment-routing ipv6 te-policy 状态变 UP",
+        "l": [
+          "查看 SRv6 全局配置",
+          "补全 encap 源地址"
+        ]
+      },
+      {
+        "id": "G23",
+        "t": "🛠️ 故障 G23: eBPF 程序加载失败 (BTF 版本不匹配)",
+        "y": "**现象描述**：Cilium 或 Hubble 启动失败，报 `failed to load bpf program: vmlinux BTF mismatch`。\n**根因分析**：Linux 内核版本太低，或者缺少内核 BTF (BPF Type Format) 类型信息。",
+        "c": "[root@node ~]# uname -r\n[root@node ~]# ls /sys/kernel/btf/vmlinux",
+        "o": "/sys/kernel/btf/vmlinux",
+        "j": [
+          "eBPF CO-RE (一次编译随处运行) 强依赖 BTF 支撑"
+        ],
+        "u": [
+          "云原生 eBPF 内核网络演进"
+        ],
+        "w": [
+          "内核版本低于 5.4 需手动编译 BTF 或升级内核"
+        ],
+        "v": "重新启动 cilium-agent 无 error 告警",
+        "l": [
+          "检查 /sys/kernel/btf/vmlinux",
+          "升级 Linux 内核至 5.15 LTS"
+        ]
+      },
+      {
+        "id": "G24",
+        "t": "🛠️ 故障 G24: Prometheus SNMP Exporter 采集超时",
+        "y": "**现象描述**：Grafana 看板大面积断层(No Data)，监控指标中断。\n**根因分析**：交换机 OID 树太庞大，SNMP Exporter 默认 5s 超时，网络设备 CPU 被拉满。",
+        "c": "scrape_configs:\n  - job_name: 'snmp'\n    scrape_timeout: 15s\n    scrape_interval: 30s",
+        "o": "Prometheus config reloaded. Timeout 15s applied.",
+        "j": [
+          "调大超时时间并降低采集频率"
+        ],
+        "u": [
+          "大型网络设备监控排障"
+        ],
+        "w": [
+          "不要盲目调高频率(如1秒1次)，会拖垮交换机 CPU"
+        ],
+        "v": "Prometheus Targets 页面变 UP",
+        "l": [
+          "修改 prometheus.yml 中的 scrape_timeout",
+          "热加载配置"
+        ]
+      },
+      {
+        "id": "G25",
+        "t": "🛠️ 故障 G25: 混沌实验后未恢复导致的残余丢包",
+        "y": "**现象描述**：演进结束后很久，某台 Node 上的 Pod 丢包率依然高达 20%。\n**根因分析**：Chaos Mesh 异常退出或取消实验时，网络 tc/netem 规则在 Linux 接口残留。",
+        "c": "[root@node ~]# tc qdisc show dev eth0\n[root@node ~]# tc qdisc del dev eth0 root",
+        "o": "qdisc netem 10: root refcnt 2 limit 1000 loss 20%",
+        "j": [
+          "手动清理 Linux 协议栈残留的 netem 规则"
+        ],
+        "u": [
+          "混沌工程演练后应急止血"
+        ],
+        "w": [
+          "清理 tc 规则前确认没有其他合法流量控制在用"
+        ],
+        "v": "tc qdisc show 确认 netem 规则已清空",
+        "l": [
+          "登录问题 Node 节点",
+          "执行 tc qdisc del 彻底清理"
+        ]
+      },
+      {
+        "id": "DIC",
+        "t": "📖 55 行多厂商命令平替字典 (极速查表)",
+        "y": "__DICT_TABLE__",
+        "c": "背熟这个表，进任何异构机房都不虚。",
+        "o": "涵盖了 95% 日常运维的 Show 和 Config 动作。",
+        "j": [
+          "H3C 和华为同宗同源，高度一致",
+          "锐捷/中兴 绝大部分照搬 Cisco"
+        ],
+        "u": [
+          "接手万国牌网络",
+          "快速定位命令差异"
+        ],
+        "w": [
+          "Linux 环境下善用 iproute2 (如 ip a) 替代废弃的 ifconfig"
+        ],
+        "v": "脑内盲写对应厂商命令",
+        "l": [
+          "在模拟器里分别敲华为和 Cisco 的命令对比差异"
+        ]
+      },
+      {
+        "id": "IVQ1",
+        "t": "💼 面试 Q1: 大专/非科班出身优势？",
+        "y": "**考察点**：抗压能力、跨界学习力、逻辑思维。\n**STAR 解析**：不要纠结学历劣势，重点讲“我是怎么快速补齐短板的”。",
+        "c": "“非科班不等于能力不足。我的优势在于跨领域视角和更强的学习驱动力。比如我原来做开发，转网工后能更快理解自动化脚本和 API 交互，Python 写得比一些老网工还溜。而且我动手能力很强，Lab 里踩过的坑都是真金白银的经验。”",
+        "o": "面试官反馈：态度诚恳，具备程序员思维，是个可塑之才。",
+        "j": [
+          "强调自驱力",
+          "结合自动化脚本展示优势"
+        ],
+        "u": [
+          "破冰提问",
+          "压力测试"
+        ],
+        "w": [
+          "切忌自卑",
+          "切忌长篇大论偏离技术"
+        ],
+        "v": "对镜口述达到肌肉记忆",
+        "l": [
+          "写出你自己的转行/学习故事",
+          "提炼出 3 个核心优势词"
+        ]
+      },
+      {
+        "id": "IVQ2",
+        "t": "💼 面试 Q2: K8s Pod 跨节点无法通信？",
+        "y": "**考察点**：云原生网络底座排障逻辑，是否懂 CNI。",
+        "c": "“我会分三步走：首先确认 CNI 状态，在 Node 上 kubectl get pods 看 Pod 是否正常；然后 calicoctl node status 检查 BGP 邻居。如果 BGP 断开，就去排查 Underlay 物理网。如果网络通但拒绝访问，我会查 NetworkPolicy 规则。”",
+        "o": "逻辑清晰，不盲目重启组件。",
+        "j": [
+          "体现分层分段思路"
+        ],
+        "u": [
+          "容器网络排障必问题"
+        ],
+        "w": [
+          "不要只说查日志，要说查哪个日志"
+        ],
+        "v": "闭眼推演 Calico 数据流向",
+        "l": []
+      },
+      {
+        "id": "IVQ3",
+        "t": "💼 面试 Q3: 你的最大缺点是什么？",
+        "y": "**考察点**：自我认知，以及解决自身问题的方法。",
+        "c": "“我有时候太追求完美，做一个方案喜欢反复推敲导致效率不够高。但现在我会给自己设时间盒，先快速出原型再迭代。遇到难题先给 80% 靠谱的方案，而不是等 100% 才动手。”",
+        "o": "巧妙将缺点转化为追求质量，并给出了实操解法。",
+        "j": [
+          "真实且有改进动作"
+        ],
+        "u": [
+          "HR面",
+          "性格测试"
+        ],
+        "w": [
+          "别说‘我太拼命工作’这种虚假的缺点"
+        ],
+        "v": "",
+        "l": []
+      },
+      {
+        "id": "IVQ4",
+        "t": "💼 面试 Q4: OSPF 和 BGP 区别及场景？",
+        "y": "**考察点**：对动态路由协议核心机制的理解。",
+        "c": "“OSPF 是内部网关协议，算链路状态，收敛极快，适合园区内部。BGP 是外部网关协议，算路径矢量，靠几十种属性灵活选路，扛得住百万级路由，所以互联网骨干和跨数据中心都用 BGP。”",
+        "o": "一句话切中要害：OSPF 算路，BGP 选路。",
+        "j": [
+          "强调‘属性控制’是 BGP 的灵魂"
+        ],
+        "u": [
+          "高级网工必问"
+        ],
+        "w": [
+          "别背书式地背各种 LSA"
+        ],
+        "v": "",
+        "l": []
+      },
+      {
+        "id": "IVQ5",
+        "t": "💼 面试 Q5: 客户反映网络卡怎么排查？",
+        "y": "**考察点**：处理模糊故障的体系化思维。",
+        "c": "“先要定界：是有线卡还是无线卡？所有网站卡还是个别卡？然后 1. Ping 网关看内网；2. Ping 8.8.8.8 看外网丢包；3. 用 MTR 看哪一跳卡住了；4. 查核心设备 CPU 和流量监控；5. 看是不是被 QoS 限速了。”",
+        "o": "有章法，懂定界。",
+        "j": [
+          "定界是排障第一步"
+        ],
+        "u": [
+          "桌面运维/Helpdesk 进阶题"
+        ],
+        "w": [
+          "一上来就抓包是大忌，太重了"
+        ],
+        "v": "",
+        "l": []
+      },
+      {
+        "id": "IVQ6",
+        "t": "💼 面试 Q6: 印象最深的故障经历 (STAR)？",
+        "y": "**考察点**：真实项目经验，解决复杂问题的能力。",
+        "c": "“S(情境): 核心交换机 Trunk 震荡导致全公司断网。T(任务): 紧急止血并抓根因。A(行动): 我先 shutdown 问题链路恢复冗余路径，查日志发现光功率衰减导致 STP 疯狂重算，替换光模块。R(结果): 10分钟恢复，我还补充了光功率监控脚本。”",
+        "o": "有止血、有根因、有复盘预防。",
+        "j": [
+          "强调止血第一"
+        ],
+        "u": [
+          "综合能力考核"
+        ],
+        "w": [
+          "避免编造自己无法自圆其说的神级故障"
+        ],
+        "v": "",
+        "l": []
+      },
+      {
+        "id": "IVQ7",
+        "t": "💼 面试 Q7: 怎么看待网络自动化 (Python)？",
+        "y": "**考察点**：是否有 NetDevOps 意识。",
+        "c": "“纯手工敲 CLI 已经跟不上云时代了。我常用 Python + Netmiko 批量下发 VLAN，或者用 Ansible 巡检配置合规性。这不仅是提效，更是通过代码把网络基线固定下来，避免人为低级失误。”",
+        "o": "展示了进阶思维。",
+        "j": [
+          "提效与防错并重"
+        ],
+        "u": [
+          "加分项考核"
+        ],
+        "w": [
+          "自动化不是万能的，底层原理仍是核心"
+        ],
+        "v": "",
+        "l": []
+      },
+      {
+        "id": "IVQ8",
+        "t": "💼 面试 Q8: 未来三年职业规划？",
+        "y": "**考察点**：稳定性与上进心。",
+        "c": "“第一年吃透现网架构并推进 Ansible 自动化；第二年深入云原生网络如 Cilium 和 SRv6；第三年希望能主导设计高可用架构，带团队解决复杂问题。往 NetDevOps 和 SRE 方向走。”",
+        "o": "踏实且目标明确。",
+        "j": [
+          "分阶段，有递进"
+        ],
+        "u": [
+          "团队契合度评估"
+        ],
+        "w": [
+          "切忌假大空"
+        ],
+        "v": "",
+        "l": []
+      },
+      {
+        "id": "IVQ9",
+        "t": "💼 面试 Q9: 与同事有技术分歧怎么处理？",
+        "y": "**考察点**：团队协作与沟通能力。",
+        "c": "“先对事不对人，把各自观点摆出来用数据说话——比如用抓包或测试对比。如果还争不下，提议搭个小范围 PoC (概念验证) 测试跑一下，让结果说话。实在不行交由主管仲裁，目标是解决问题。”",
+        "o": "成熟的职场沟通方式。",
+        "j": [
+          "数据导向，PoC验证"
+        ],
+        "u": [
+          "情商与协作面"
+        ],
+        "w": [
+          "别说‘谁对听谁的’这种废话"
+        ],
+        "v": "",
+        "l": []
+      },
+      {
+        "id": "IVQ10",
+        "t": "💼 面试 Q10: 期望薪资是多少？为什么？",
+        "y": "**考察点**：自我估值与底气。",
+        "c": "“期望 25K 左右。因为我能独立负责核心网演进、主导自动化项目、并且懂 K8s 网络，市面上兼具数通和云原生能力的人正是这个价位。当然我也看重平台的技术氛围。”",
+        "o": "有理有据，不卑不亢。",
+        "j": [
+          "锚定自己的核心价值"
+        ],
+        "u": [
+          "HR / 终面"
+        ],
+        "w": [
+          "不要畏缩，也不要漫天要价"
+        ],
+        "v": "",
+        "l": []
+      },
+      {
+        "id": "IVQ11",
+        "t": "💼 面试 Q11: GitOps 在网工领域怎么落地？",
+        "y": "**考察点**：对前沿运维理念的实践认知。",
+        "c": "“把设备配置(如 ACL, VLAN) 用 YAML 写进 Git 仓库。走 PR 审核，CI 用 Ansible --check 做 Dry-run 预检；合并后 CD 流水线自动推送至设备。一切变更皆可追溯、可回滚。”",
+        "o": "非常标准的 IaC/GitOps 流程。",
+        "j": [
+          "配置即代码 (IaC)"
+        ],
+        "u": [
+          "大厂 / DevOps 岗"
+        ],
+        "w": [
+          "别和软件代码的 CI/CD 完全混为一谈"
+        ],
+        "v": "",
+        "l": []
+      },
+      {
+        "id": "IVQ12",
+        "t": "💼 面试 Q12: 可观测性与传统 SNMP 监控区别？",
+        "y": "**考察点**：运维理念是否升级。",
+        "c": "“传统 SNMP 是‘已知的未知’，设了阈值才知道报警。可观测性是‘未知的未知’，通过采集日志、链路 eBPF 数据，在没设告警的情况下也能主动发现问题（如某个 Pod 延迟突增），方便事后根因下钻。”",
+        "o": "降维打击，视角宏大。",
+        "j": [
+          "传统 SNMP vs 可观测性"
+        ],
+        "u": [
+          "架构师面"
+        ],
+        "w": [
+          "不要贬低 SNMP，它们是互补的"
+        ],
+        "v": "",
+        "l": []
+      },
+      {
+        "id": "IVQ13",
+        "t": "💼 面试 Q13: Cilium 为什么能替代 kube-proxy？",
+        "y": "**考察点**：对 K8s 底层网络的深度。",
+        "c": "“kube-proxy 依赖 iptables/IPVS，Service 多了遍历链条很长、性能下降。Cilium 直接用 eBPF 在内核态把包重定向，甚至绕过 TCP/IP 协议栈，延迟极低，还能做 L7 过滤。”",
+        "o": "精准点出 eBPF 内核态加速的核心。",
+        "j": [
+          "eBPF vs iptables"
+        ],
+        "u": [
+          "云原生岗核心题"
+        ],
+        "w": [
+          ""
+        ],
+        "v": "",
+        "l": []
+      },
+      {
+        "id": "IVQ14",
+        "t": "💼 面试 Q14: 引入 Service Mesh 网工要注意啥？",
+        "y": "**考察点**：跨边界排障能力。",
+        "c": "“关注 Envoy Sidecar 引入的延迟；注意 MTLS 双向认证导致的证书过期中断；另外 Mesh 的 VirtualService 可能会覆盖原有的 Ingress 规则，排障必须会查 Envoy 访问日志。”",
+        "o": "有实战经验才说得出这些坑。",
+        "j": [
+          "Sidecar 开销与路由接管"
+        ],
+        "u": [
+          "高阶运维题"
+        ],
+        "w": [
+          ""
+        ],
+        "v": "",
+        "l": []
+      },
+      {
+        "id": "IVQ15",
+        "t": "💼 面试 Q15: NetDevOps 现网“静默丢包”怎么破？",
+        "y": "**考察点**：自动化落地的安全兜底意识。",
+        "c": "“代码没错不代表环境没错。我会：1. 做金丝雀发布，先下发 10% 设备；2. 部署时配合 Ping/MTR 端到端连通性监控；3. 设置错误率阈值，一旦触发积分自动 Revert 回滚。”",
+        "o": "极其稳健的生产环境操作风格。",
+        "j": [
+          "灰度发布与监控断言"
+        ],
+        "u": [
+          "自动化终极拷问"
+        ],
+        "w": [
+          "绝对不能迷信代码，现网永远有意外"
+        ],
+        "v": "",
+        "l": []
+      },
+      {
+        "id": "IVQ16",
+        "t": "💼 面试 Q16: 构建 GitOps 自动化交付闭环",
+        "y": "**考察点**：端到端 NetDevOps 架构落地能力。",
+        "c": "“使用 NetBox 作真理源，代码库存 Jinja2 模板。PR 触发 GitHub Actions/GitLab CI，拉取 Batfish 离线校验断言通断；合并后通过 Nornir 并发推送现网，配合 Prometheus 监控灰度，异常即触发 Git Revert 自动回滚。”",
+        "o": "极其完整的工程落地实践逻辑。",
+        "j": [
+          "Single Source of Truth",
+          "Batfish 离线验证"
+        ],
+        "u": [
+          "NetDevOps 架构师"
+        ],
+        "w": [
+          "切忌把配置密码明文硬编码在 Git 仓库中"
+        ],
+        "v": "",
+        "l": []
+      },
+      {
+        "id": "IVQ17",
+        "t": "💼 面试 Q17: 可观测性三支柱在网络排障中联动？",
+        "y": "**考察点**：故障定位的效率与方法论。",
+        "c": "“Metrics 负责‘告警’（如 Prometheus 监控到网关 P99 延迟突增）；通过 TraceID 定位到特定的微服务调用 Span；最后提取该的时间戳检索日志 (Loki/ELK)，直接抓出具体的底层 Socket 超时报错。”",
+        "o": "逻辑严密，融会贯通。",
+        "j": [
+          "告警(Metrics)->定位(Traces)->根因(Logs)"
+        ],
+        "u": [
+          "云原生网络/SRE 岗"
+        ],
+        "w": [
+          ""
+        ],
+        "v": "",
+        "l": []
+      },
+      {
+        "id": "IVQ18",
+        "t": "💼 面试 Q18: eBPF 原理及其相比 iptables 的优势？",
+        "y": "**考察点**：对 Linux 内核级包处理的认知。",
+        "c": "“eBPF 允许在内核安全运行沙箱程序。iptables 是顺序遍历链表，规则一多延迟随规则数线性增加（O(n)），性能显著下降；而 eBPF 直接在网卡驱动 (XDP) 或 TC 层用 Map 查表重定向，时间复杂度 O(1)，性能提升数量级。”",
+        "o": "准确点出 O(1) 查表与内核沙箱的本质。",
+        "j": [
+          "O(1) 复杂度",
+          "XDP 网卡驱动层丢包"
+        ],
+        "u": [
+          "高阶 CNI / 云网络岗"
+        ],
+        "w": [
+          ""
+        ],
+        "v": "",
+        "l": []
+      },
+      {
+        "id": "IVQ19",
+        "t": "💼 面试 Q19: Sidecar 模式 vs Ambient Mesh (无Sidecar)？",
+        "y": "**考察点**：Service Mesh 最新演进方向。",
+        "c": "“Sidecar 模式需要在每个 Pod 注入 Envoy 容器，内存开销大、延迟增加明显；Ambient Mesh (如 Istio Ambient) 将 L4 代理下沉到节点级 ztunnel (用 eBPF 加速)，L7 集中在 zproxy，架构更轻、损耗更低。”",
+        "o": "了解最前沿 Mesh 架构架构演进。",
+        "j": [
+          "ztunnel 节点级代理",
+          "资源开销对比"
+        ],
+        "u": [
+          "微服务网格专家"
+        ],
+        "w": [
+          ""
+        ],
+        "v": "",
+        "l": []
+      },
+      {
+        "id": "IVQ20",
+        "t": "💼 面试 Q20: 如何用 Error Budget 约束网络变更？",
+        "y": "**考察点**：SRE 稳定性治理理念。",
+        "c": "“若 SLO 为 99.9%，每月允许故障预算为 43 分钟。若本月网络震荡已消耗 30 分钟，预算充足，正常允许研发和网工发布变更；一旦预算耗尽，CI/CD 自动锁定，全员禁止变更，强制去修稳定性漏洞。”",
+        "o": "懂机制，懂治理。",
+        "j": [
+          "错误预算与发布锁定联动"
+        ],
+        "u": [
+          "SRE 负责人 / 运维主管"
+        ],
+        "w": [
+          ""
+        ],
+        "v": "",
+        "l": []
+      },
+      {
+        "id": "IVQ21",
+        "t": "💼 面试 Q21: 什么是“静默丢包”？如何诊断？",
+        "y": "**考察点**：复杂隐蔽故障的定位排查。",
+        "c": "“静默丢包指设备没报 Down，但报文在芯片队列或 Linux 内核被悄悄 drop。我会：1. 查硬件 ASIC 丢包计数 (`display qos queue-drop`)；2. 在 Linux 节点用 eBPF pwru (`packet-where-are-you`) 追查内核丢包函数。”",
+        "o": "展现了利用 eBPF 深入内核底层的能力。",
+        "j": [
+          "pwru 追查内核丢包",
+          "ASIC Drop 计数"
+        ],
+        "u": [
+          "数据中心高级网工"
+        ],
+        "w": [
+          ""
+        ],
+        "v": "",
+        "l": []
+      },
+      {
+        "id": "IVQ22",
+        "t": "💼 面试 Q22: 对 SRv6 核心设计理念的理解？",
+        "y": "**考察点**：下一代 IPv6 骨干网协议栈理解。",
+        "c": "“SRv6 将‘网络即服务’直接编码到 128 位 IPv6 地址中。把 Segment 塞进 IPv6 SRH 扩展头，利用现有的纯 IPv6 Underlay 转发，完全摒弃了复杂的大套协议 (如 RSVP-TE、LDP)，天生支持应用级编程与切片。”",
+        "o": "言简意赅，抓住 SRv6 灵魂。",
+        "j": [
+          "IPv6 地址即指令",
+          "简化协议栈"
+        ],
+        "u": [
+          "运营商 / 骨干网网工"
+        ],
+        "w": [
+          ""
+        ],
+        "v": "",
+        "l": []
+      },
+      {
+        "id": "IVQ23",
+        "t": "💼 面试 Q23: 生产环境开展混沌工程的红线？",
+        "y": "**考察点**：生产环境高可用风险把控。",
+        "c": "“三条红线：1. 严禁未经演练直接在生产开启；2. 必须具备自动化爆炸半径控制与熔断线 (如错误率>5% 瞬间终止实验)；3. 演练必须伴随完整的可观测性看板，确保随时能一键完全清理残留 tc 规则。”",
+        "o": "极其稳健的生产敬畏之心。",
+        "j": [
+          "爆炸半径控制",
+          "自动熔断与恢复机制"
+        ],
+        "u": [
+          "混沌工程 / 架构师"
+        ],
+        "w": [
+          ""
+        ],
+        "v": "",
+        "l": []
+      },
+      {
+        "id": "IVQ24",
+        "t": "💼 面试 Q24: BGP EVPN 控制面 Type-2/3/5 路由区别？",
+        "y": "**考察点**：VXLAN 叠加网控制面深度。",
+        "c": "“Type-2 是 MAC/IP 路由，用于分发主机 MAC 地址与 ARP 抑制；Type-3 是 inclusive 组播路由，用于自动发现 VTEP 并建立 BUM 泛洪隧道；Type-5 是 IP 前缀路由，用于跨 overlay 的三层子网路由互通。”",
+        "o": "熟练掌握 BGP EVPN 核心逻辑。",
+        "j": [
+          "Type-2 MAC/IP",
+          "Type-3 BUM隧道",
+          "Type-5 IP前缀"
+        ],
+        "u": [
+          "SDN / 数据中心专家"
+        ],
+        "w": [
+          ""
+        ],
+        "v": "",
+        "l": []
+      },
+      {
+        "id": "IVQ25",
+        "t": "💼 面试 Q25: 如何设计 99.999% 可用性跨数据中心网络？",
+        "y": "**考察点**：顶级高可用架构设计能力。",
+        "c": "“多维度消除单点：1. 物理层双路双缆独立管道；2. 架构层 Spine-Leaf 无阻塞 CLOS + ECMP 多路径；3. 边缘层 BFD 毫秒联动 BGP 快速收敛；4. 控制面部署异地多活 NCE 集群；5. 自动化变更引入 GitOps+Batfish 预检。”",
+        "o": "具备系统级架构师视野。",
+        "j": [
+          "多维消除单点",
+          "BFD 毫秒收敛",
+          "GitOps 预检"
+        ],
+        "u": [
+          "首席网络架构师"
+        ],
+        "w": [
+          ""
+        ],
+        "v": "",
+        "l": []
+      },
+      {
+        "id": "IVQ26",
+        "t": "💼 面试 Q26: Cilium 如何用 eBPF 实现免 NAT 重定向？",
+        "y": "**考察点**：内核级网络优化原理。",
+        "c": "“传统 kube-proxy 依赖 IPVS/iptables 在 DNAT 和 SNAT 来回折腾，浪费 CPU。Cilium 在 cgroup sock_ops 挂载 eBPF 程序，检测到同节点 Pod 通信时，直接把 Socket 的 TX Queue 映射到 RX Queue，绕过整个 TCP/IP 协议栈！”",
+        "o": "讲清了 SockOps 重定向的底层原理。",
+        "j": [
+          "SockOps 映射",
+          "绕过 TCP/IP 协议栈"
+        ],
+        "u": [
+          "云原生网络专家"
+        ],
+        "w": [
+          ""
+        ],
+        "v": "",
+        "l": []
+      },
+      {
+        "id": "IVQ27",
+        "t": "💼 面试 Q27: 什么是配置漂移？如何治理？",
+        "y": "**考察点**：网络合规与基线治理。",
+        "c": "“配置漂移指设备现网配置与 Git 仓库基线不一致。治理策略：1. 权限收回，关闭个人 SSH 写入权限，只留 Ansible 账号；2. 部署 Nornir 每日定时抓取 current-config 与 Git 比对生成 Diff 报告；3. 发现漂移强制触发自动化覆盖恢复。”",
+        "o": "闭环管理，落地性强。",
+        "j": [
+          "每日自动化 Diff",
+          "权限收紧与基线覆盖"
+        ],
+        "u": [
+          "NetDevOps 运维经理"
+        ],
+        "w": [
+          ""
+        ],
+        "v": "",
+        "l": []
+      },
+      {
+        "id": "IVQ28",
+        "t": "💼 面试 Q28: DNS 延迟突增对微服务的放大效应？",
+        "y": "**考察点**：微服务架构下的网络连锁反应。",
+        "c": "“微服务调用链很长，如果一个请求触发 10 次跨服务调用，每次 CoreDNS 解析增加 10ms，总延迟就增加 100ms。更惨的是如果超时触发重试，并发流量会瞬间冲垮 CoreDNS，引发雪崩。解法是 Pod 开启 NodeLocal DNSCache 节点级缓存。”",
+        "o": "有深度的微服务架构视角。",
+        "j": [
+          "调用链延迟叠加",
+          "NodeLocal DNSCache"
+        ],
+        "u": [
+          "SRE 架构师"
+        ],
+        "w": [
+          ""
+        ],
+        "v": "",
+        "l": []
+      },
+      {
+        "id": "IVQ29",
+        "t": "💼 面试 Q29: 异构网络环境(华为/Cisco/Linux)统一监控？",
+        "y": "**考察点**：混合云/万国牌机房运维监控落地。",
+        "c": "“采用 Prometheus + SNMP Exporter 架构。利用 YAML 针对各厂商 OID 树做标准化映射，把华为 display 和 Cisco show 的差异抽象为统一的 `network_interface_throughput_bytes` 格式时序指标，在 Grafana 统一看板呈现。”",
+        "o": "抽象能力极强。",
+        "j": [
+          "SNMP Exporter 抽象 OID",
+          "Prometheus 标准指标"
+        ],
+        "u": [
+          "高级监控运维岗"
+        ],
+        "w": [
+          ""
+        ],
+        "v": "",
+        "l": []
+      },
+      {
+        "id": "IVQ30",
+        "t": "💼 面试 Q30: 如何主持一次重大生产事故复盘？",
+        "y": "**考察点**：领导力、复盘文化与责任担当。",
+        "c": "“原则是‘对事不对人’。复盘四步走：1. 还原时间线 (5W1H 精确到秒)；2. 根因分析 (用 5-Whys 法推导，比如为什么没发现光功率衰减？)；3. 评估止血效率；4. 制定改进 To-Do 责任到人 (如增加光功率告警脚本，一周内上线)。”",
+        "o": "非常专业的复盘管理流程。",
+        "j": [
+          "5-Whys 根因分析",
+          "改进 To-Do 责任落人"
+        ],
+        "u": [
+          "运维总监 / 团队 Leader"
+        ],
+        "w": [
+          ""
+        ],
+        "v": "",
+        "l": []
+      }
     ]
-   },
-   {
-    "id": "G5",
-    "t": "🛠️ 故障 G5: 出口 NAT 导致 FTP 被动模式失败",
-    "y": "**现象描述**：FTP 能登录，但无法列出目录或上传文件。\n**根因分析**：被动模式使用 1024 以上随机端口，NAT 未开启 ALG 探测。",
-    "c": "[Huawei] nat alg ftp enable",
-    "o": "Info: FTP ALG is enabled.",
-    "j": [
-     "ALG: 应用层网关，能修改 Payload 里的 IP/端口"
-    ],
-    "u": [
-     "发布内网老旧服务"
-    ],
-    "w": [
-     "NAT Server 端口映射不够，必须靠 ALG 动态开洞"
-    ],
-    "v": "FTP 客户端正常列出目录",
-    "l": [
-     "抓包看数据端口是否被转换",
-     "开启 ALG 后再测"
-    ]
-   },
-   {
-    "id": "G6",
-    "t": "🛠️ 故障 G6: 交换机 CPU 利用率爆高 (ARP攻击)",
-    "y": "**现象描述**：CPU 持续高位(>90%)，网络时延增加。\n**根因分析**：大量 ARP 扫描/泛洪请求导致 CPU 中断过多。",
-    "c": "[Huawei] arp anti-attack rate-limit enable\n[Huawei] arp anti-attack rate-limit 100",
-    "o": "ARP rate-limit enabled. Limit 100 pps.",
-    "j": [
-     "限制 CPU 处理 ARP 的速率"
-    ],
-    "u": [
-     "网吧/校园网防攻击",
-     "中毒主机隔离"
-    ],
-    "w": [
-     "限速太严会误杀正常新上线的终端"
-    ],
-    "v": "display cpu-usage 确认下降，ARP 表稳定",
-    "l": [
-     "用镜像抓包分析 ARP 流量源",
-     "开启限速配置"
-    ]
-   },
-   {
-    "id": "G7",
-    "t": "🛠️ 故障 G7: 无线 AP 频繁掉线 (Option43 错误)",
-    "y": "**现象描述**：AP 上线后反复掉线，无法稳定工作。\n**根因分析**：DHCP Option 43 未下发或配错 AC IP，AP 找不到“组织”。",
-    "c": "[Huawei-ip-pool-1] option 43 sub-option 2 ip-address 192.168.10.10",
-    "o": "AP ID 1  State: Online",
-    "j": [
-     "Option 43 专门用于通告 AC 控制器地址"
-    ],
-    "u": [
-     "大型园区跨网段部署 AP"
-    ],
-    "w": [
-     "不同厂商的 Option43 HEX 编码可能不同，需查手册"
-    ],
-    "v": "display ap all 看 AP 状态变 Online",
-    "l": [
-     "查看 DHCP 服务器分配状态",
-     "测试 AC 的可达性"
-    ]
-   },
-   {
-    "id": "G8",
-    "t": "🛠️ 故障 G8: K8s Pod 跨节点不通 (Calico BGP 断开)",
-    "y": "**现象描述**：同集群不同 Node 的 Pod 无法 ping 通。\n**根因分析**：Calico 节点间的 BGP 邻居断开（可能是防火墙拦截了 179 端口）。",
-    "c": "[root@master ~]# calicoctl node status\n[root@master ~]# calicoctl patch ippool default-ipv4-ippool -p '{\"spec\":{\"ipipMode\":\"Always\"}}'",
-    "o": "IPv4 BGP status: Peer 192.168.1.2 down",
-    "j": [
-     "跨子网强行跑纯 BGP 会失败，需回退到 IPIP 或 VXLAN 隧道（公有云如 AWS/Azure 常不支持 BGP，VXLAN 模式更稳妥）"
-    ],
-    "u": [
-     "公有云自建 K8s 集群"
-    ],
-    "w": [
-     "切换 IPIP 模式瞬间会引起网络闪断"
-    ],
-    "v": "跨节点 Pod 互 ping 成功",
-    "l": [
-     "检查 Calico Node 状态",
-     "检查 179 端口",
-     "切换模式测试"
-    ]
-   },
-   {
-    "id": "G9",
-    "t": "🛠️ 故障 G9: VRRP 双主脑裂 (抢占延时不当)",
-    "y": "**现象描述**：VRRP 两台都是 Master，导致 MAC 表翻摆，网关冲突。\n**根因分析**：心跳链路故障，或主设备刚重启完接口一 UP 就立刻抢占，而底层路由还没收敛。",
-    "c": "[Huawei-Vlanif10] vrrp vrid 1 preempt-mode timer delay 30",
-    "o": "VRID 1  State: Backup",
-    "j": [
-     "delay 30: 等 30 秒网络彻底稳了再抢回老大"
-    ],
-    "u": [
-     "核心双机热备架构调优"
-    ],
-    "w": [
-     "永远不要用 0 秒(立即抢占)"
-    ],
-    "v": "display vrrp 显示只有一台 Master",
-    "l": [
-     "检查心跳口状态",
-     "调整抢占延时验证主备关系"
-    ]
-   },
-   {
-    "id": "G10",
-    "t": "🛠️ 故障 G10: 防火墙策略误阻断业务 (Zone 划错)",
-    "y": "**现象描述**：写了放行策略，但流量依然被阻断。\n**根因分析**：流量出入的物理接口，没有正确划入策略指定的 Trust/Untrust 区域。",
-    "c": "[Huawei] firewall zone trust\n[Huawei-zone-trust] add interface GigabitEthernet0/0/1",
-    "o": "Interface GE0/0/1 added to zone trust.",
-    "j": [
-     "接口默认不在任何区域，必须手工划入"
-    ],
-    "u": [
-     "防火墙开局初装",
-     "新增出口链路"
-    ],
-    "w": [
-     "查策略前先查 display zone"
-    ],
-    "v": "流量通过，display security-policy 命中计数增加",
-    "l": [
-     "查看接口所属 Zone",
-     "检查策略源/目的区域"
-    ]
-   },
-   {
-    "id": "G11",
-    "t": "🛠️ 故障 G11: OSPF 路由不优选 (Bandwidth 偏差)",
-    "y": "**现象描述**：10G 核心链路闲置，OSPF 偏偏选了 1G 的备用链路。\n**根因分析**：OSPF Cost 靠接口参考带宽计算，由于参考带宽默认是 100M，导致 1G 和 10G 算出来 Cost 都是 1，无法区分。",
-    "c": "[Huawei-ospf-1] bandwidth-reference 100000",
-    "o": "Reference bandwidth changed to 100000 Mbits",
-    "j": [
-     "全局调高参考带宽基准，让高带宽链路 Cost 变小"
-    ],
-    "u": [
-     "骨干网链路扩容后调优"
-    ],
-    "w": [
-     "全网 OSPF 设备的参考带宽必须改成一样，否则环路"
-    ],
-    "v": "display ospf routing 查看选路变化",
-    "l": [
-     "查看接口实际带宽",
-     "修改 reference"
-    ]
-   },
-   {
-    "id": "G12",
-    "t": "🛠️ 故障 G12: 端口安全导致合法终端被阻断",
-    "y": "**现象描述**：员工换了个扩展坞/USB网卡，突然无法上网，端口 Error-Down。\n**根因分析**：Port-Security 限制了最多 1 个 MAC，换网卡后触发违规阻断。",
-    "c": "[Huawei-GigabitEthernet0/0/1] undo shutdown\n[Huawei-GigabitEthernet0/0/1] port-security max-mac-num 2",
-    "o": "Port Security: Enable  Max MAC: 2",
-    "j": [
-     "必须手工 undo shutdown 才能救活端口"
-    ],
-    "u": [
-     "严格的涉密办公区接入管理"
-    ],
-    "w": [
-     "用 Protect 模式代替 Shutdown 可以避免人工去捞端口"
-    ],
-    "v": "终端恢复在线",
-    "l": [
-     "查看端口安全配置",
-     "解禁并放大限制数目"
-    ]
-   },
-   {
-    "id": "G13",
-    "t": "🛠️ 故障 G13: SD-WAN 丢包震荡与 MTU 异常",
-    "y": "**现象描述**：隧道间歇丢包，大文件传不过去，小包 ping 则通。\n**根因分析**：Underlay 加了 IPSec 等多层头部，导致超大包被丢弃。",
-    "c": "[Huawei-Tunnel0] mtu 1400\n[Huawei-Tunnel0] tcp adjust-mss 1360",
-    "o": "Interface Tunnel0 MTU is 1400",
-    "j": [
-     "tcp adjust-mss 强制告诉对端别发超过 1360 字节的 TCP 包（部分老版本简写为 tcp mss，新版本为 adjust-mss）"
-    ],
-    "u": [
-     "分支互联",
-     "云专线对接"
-    ],
-    "w": [
-     "只改 MTU 不改 MSS，TCP 照样会卡死"
-    ],
-    "v": "ping -f -l 1300 验证不分片通过",
-    "l": [
-     "测试 Path MTU",
-     "调整 MTU 和 MSS"
-    ]
-   },
-   {
-    "id": "G14",
-    "t": "🛠️ 故障 G14: K8s NetworkPolicy 阻断跨 NS 通信",
-    "y": "**现象描述**：Frontend(NS-A) 连不上 Backend(NS-B)。\n**根因分析**：NetworkPolicy 默认只匹配同 namespace，漏写了 namespaceSelector。",
-    "c": "ingress:\n- from:\n  - namespaceSelector:\n      matchLabels: { ns: ns-a }",
-    "o": "Policy updated, traffic allowed.",
-    "j": [
-     "必须显式放行指定 namespace 的流量"
-    ],
-    "u": [
-     "多租户 K8s 零信任微隔离"
-    ],
-    "w": [
-     "Flannel CNI 原生不支持 NetworkPolicy，写了也没用"
-    ],
-    "v": "跨 NS 通信恢复",
-    "l": [
-     "kubectl get networkpolicy -A",
-     "修改 yaml 并 apply"
-    ]
-   },
-   {
-    "id": "G15",
-    "t": "🛠️ 故障 G15: Wi-Fi 6 漫游粘滞 (死抱远端AP)",
-    "y": "**现象描述**：人走到会议室了，手机还连着工位的 AP，信号一格卡顿。\n**根因分析**：终端不主动切，AC 也没有开启强制剔除（智能漫游阈值太低）。",
-    "c": "[Huawei-wlan-rrm-default] smart-roam enable\n[Huawei-wlan-rrm-default] smart-roam roam-threshold snr 20",
-    "o": "Smart-roam enabled, SNR threshold 20dB",
-    "j": [
-     "低于 20dB 信号，AC 强行把终端踢掉逼它重连近的 AP"
-    ],
-    "u": [
-     "密集办公区无线网调优"
-    ],
-    "w": [
-     "踢得太频繁会导致语音通话断续，阈值要慢慢调"
-    ],
-    "v": "拿着手机走动，查 display station roaming",
-    "l": [
-     "检查 AP 漫游配置",
-     "开启智能漫游与 802.11k/v"
-    ]
-   },
-   {
-    "id": "G16",
-    "t": "🛠️ 故障 G16: VXLAN 隧道震荡与 Underlay 抖动",
-    "y": "**现象描述**：Overlay VM 疯狂断网，VXLAN 隧道频繁 UP/DOWN。\n**根因分析**：底层物理网的 OSPF 路由在抖，导致 VTEP 的源 Loopback 忽隐忽现。",
-    "c": "[Huawei] ospf 1\n[Huawei-ospf-1] bfd all-interfaces enable",
-    "o": "BFD session created, OSPF stable.",
-    "j": [
-     "必须先稳住底盘 (Underlay)，再去查上层 (Overlay)"
-    ],
-    "u": [
-     "云数据中心大规模虚拟化网络"
-    ],
-    "w": [
-     "查故障永远遵循自下而上：先看物理口，再看 OSPF，最后看 BGP EVPN"
-    ],
-    "v": "display vxlan tunnel 状态稳定",
-    "l": [
-     "检查 Underlay IGP 邻居",
-     "排查物理链路抖动"
-    ]
-   },
-   {
-    "id": "G17",
-    "t": "🛠️ 故障 G17: 防火墙策略永远不命中 (被遮蔽)",
-    "y": "**现象描述**：写了针对特定 IP 的阻断，但这台机子还是能上网。\n**根因分析**：前面有一条 Rule 是 `permit any`，直接放行了，轮不到这条细粒度规则。",
-    "c": "[Huawei-security-policy] rule move 20 before 10",
-    "o": "Rule 20 is moved before rule 10.",
-    "j": [
-     "防火墙匹配是自上而下，命中即刻停止！"
-    ],
-    "u": [
-     "防火墙策略长期堆积后的重构"
-    ],
-    "w": [
-     "定期清理没人用的历史策略（僵尸规则）"
-    ],
-    "v": "目标策略命中计数开始增加",
-    "l": [
-     "display security-policy rule all",
-     "检查重叠与包含关系"
-    ]
-   },
-   {
-    "id": "G18",
-    "t": "🛠️ 故障 G18: BGP 路由震荡 (Route Flapping) 与 Dampening",
-    "y": "**现象描述**：BGP 路由反复 UP/DOWN，导致全网 CPU 升高与路由收敛震荡。\n**根因分析**：不稳定物理链路引发 BGP 频繁 Withdrawal，触发 Dampening 惩罚机制。",
-    "c": "[Huawei-bgp] dampening 15 750 2000 10000",
-    "o": "BGP route dampening enabled. Route suppressed.",
-    "j": [
-     "对频繁抖动的路由强制惩罚抑制"
-    ],
-    "u": [
-     "运营商与企业多出口 BGP 防震荡"
-    ],
-    "w": [
-     "抑制惩罚时间过长可能导致链路恢复后业务仍不可达"
-    ],
-    "v": "display bgp routing-table dampened",
-    "l": [
-     "排查抖动物理接口",
-     "配置 BGP dampening 阀值"
-    ]
-   },
-   {
-    "id": "G19",
-    "t": "🛠️ 故障 G19: ECMP 哈希不均导致单物理链路拥塞",
-    "y": "**现象描述**：多条等价链路中，某一根网线流量爆满(100%)，其余网线闲置。\n**根因分析**：ECMP 默认哈希因子(如仅源IP)导致集中大流量(Elephant Flow)命中同条链路。",
-    "c": "[Huawei] ip load-balance hash-mode src-dst-ip src-dst-port",
-    "o": "Load balance hash mode set to L4 5-tuple.",
-    "j": [
-     "改为基于五元组做 Hash 拆分大流量"
-    ],
-    "u": [
-     "数据中心 Spine-Leaf 高并发转发"
-    ],
-    "w": [
-     "逐包(Per-Packet)哈希会导致报文乱序，必须使用逐流(Per-Flow)"
-    ],
-    "v": "display interface brief 观察各成员口流量均分",
-    "l": [
-     "查看各接口 Outbound 速率",
-     "修改 Hash 算法为 5-tuple"
-    ]
-   },
-   {
-    "id": "G20",
-    "t": "🛠️ 故障 G20: K8s Service 会话亲和性配置错误",
-    "y": "**现象描述**：客户端请求访问 K8s Web 服务时，登录状态不断丢失、反复重新登录。\n**根因分析**：Service 轮询分发到不同 Pod，未开启 ClientIP 会话亲和性 (SessionAffinity)。",
-    "c": "spec:\n  sessionAffinity: ClientIP\n  sessionAffinityConfig:\n    clientIP:\n      timeoutSeconds: 10800",
-    "o": "sessionAffinity set to ClientIP (10800s)",
-    "j": [
-     "让同一客户端 IP 在 3 小时内固定访问同一 Pod"
-    ],
-    "u": [
-     "有状态 Web 应用微服务暴露"
-    ],
-    "w": [
-     "SNAT 网关访问会导致所有外部流量命中同一个后端 Pod"
-    ],
-    "v": "使用 curl 连续请求观察回应的 Pod IP 保持一致",
-    "l": [
-     "编辑 Service YAML 增加 sessionAffinity",
-     "kubectl apply -f svc.yaml"
-    ]
-   },
-   {
-    "id": "G21",
-    "t": "🛠️ 故障 G21: Cilium 策略误伤导致 DNS 解析超时",
-    "y": "**现象描述**：应用 Pod 提示 `Could not resolve host`，内部通信全部断开。\n**根因分析**：CiliumNetworkPolicy 开启了严格白名单，但漏写了对 kube-dns (53端口) 的放行规则。",
-    "c": "egress:\n- toEndpoints:\n  - matchLabels:\n      k8s-app: kube-dns\n  toPorts:\n  - ports:\n    - port: '53'\n      protocol: UDP",
-    "o": "Policy updated. DNS egress allowed.",
-    "j": [
-     "零信任策略下必须显式放行 53 端口 UDP 流量"
-    ],
-    "u": [
-     "Cilium CNI 零信任微隔离部署"
-    ],
-    "w": [
-     "不要忽略 UDP 53 端口，否则整个 Pod 变‘瞎子’"
-    ],
-    "v": "kubectl exec -it pod -- nslookup kubernetes.default",
-    "l": [
-     "hubble observe 过滤 DROP 流量",
-     "补充 DNS 放行规则"
-    ]
-   },
-   {
-    "id": "G22",
-    "t": "🛠️ 故障 G22: SRv6 隧道头端封装源地址缺失",
-    "y": "**现象描述**：SRv6 Policy 无法建立，报文无法完成 End.X/End.DT4 动作。\n**根因分析**：头端设备没有配置 `encapsulation source-address`，导致外层 IPv6 头无合法源地址。",
-    "c": "[Huawei-segment-routing-ipv6] encapsulation source-address 2001:db8:1::1",
-    "o": "SRv6 Encapsulation Source-Address: 2001:db8:1::1",
-    "j": [
-     "必须指定源 IPv6 用于封装外层 IPv6 报头"
-    ],
-    "u": [
-     "5G 承载网 SRv6 Policy 部署"
-    ],
-    "w": [
-     "源 IPv6 必须在 Underlay 中全局可达"
-    ],
-    "v": "display segment-routing ipv6 te-policy 状态变 UP",
-    "l": [
-     "查看 SRv6 全局配置",
-     "补全 encap 源地址"
-    ]
-   },
-   {
-    "id": "G23",
-    "t": "🛠️ 故障 G23: eBPF 程序加载失败 (BTF 版本不匹配)",
-    "y": "**现象描述**：Cilium 或 Hubble 启动失败，报 `failed to load bpf program: vmlinux BTF mismatch`。\n**根因分析**：Linux 内核版本太低，或者缺少内核 BTF (BPF Type Format) 类型信息。",
-    "c": "[root@node ~]# uname -r\n[root@node ~]# ls /sys/kernel/btf/vmlinux",
-    "o": "/sys/kernel/btf/vmlinux",
-    "j": [
-     "eBPF CO-RE (一次编译随处运行) 强依赖 BTF 支撑"
-    ],
-    "u": [
-     "云原生 eBPF 内核网络演进"
-    ],
-    "w": [
-     "内核版本低于 5.4 需手动编译 BTF 或升级内核"
-    ],
-    "v": "重新启动 cilium-agent 无 error 告警",
-    "l": [
-     "检查 /sys/kernel/btf/vmlinux",
-     "升级 Linux 内核至 5.15 LTS"
-    ]
-   },
-   {
-    "id": "G24",
-    "t": "🛠️ 故障 G24: Prometheus SNMP Exporter 采集超时",
-    "y": "**现象描述**：Grafana 看板大面积断层(No Data)，监控指标中断。\n**根因分析**：交换机 OID 树太庞大，SNMP Exporter 默认 5s 超时，网络设备 CPU 被拉满。",
-    "c": "scrape_configs:\n  - job_name: 'snmp'\n    scrape_timeout: 15s\n    scrape_interval: 30s",
-    "o": "Prometheus config reloaded. Timeout 15s applied.",
-    "j": [
-     "调大超时时间并降低采集频率"
-    ],
-    "u": [
-     "大型网络设备监控排障"
-    ],
-    "w": [
-     "不要盲目调高频率(如1秒1次)，会拖垮交换机 CPU"
-    ],
-    "v": "Prometheus Targets 页面变 UP",
-    "l": [
-     "修改 prometheus.yml 中的 scrape_timeout",
-     "热加载配置"
-    ]
-   },
-   {
-    "id": "G25",
-    "t": "🛠️ 故障 G25: 混沌实验后未恢复导致的残余丢包",
-    "y": "**现象描述**：演进结束后很久，某台 Node 上的 Pod 丢包率依然高达 20%。\n**根因分析**：Chaos Mesh 异常退出或取消实验时，网络 tc/netem 规则在 Linux 接口残留。",
-    "c": "[root@node ~]# tc qdisc show dev eth0\n[root@node ~]# tc qdisc del dev eth0 root",
-    "o": "qdisc netem 10: root refcnt 2 limit 1000 loss 20%",
-    "j": [
-     "手动清理 Linux 协议栈残留的 netem 规则"
-    ],
-    "u": [
-     "混沌工程演练后应急止血"
-    ],
-    "w": [
-     "清理 tc 规则前确认没有其他合法流量控制在用"
-    ],
-    "v": "tc qdisc show 确认 netem 规则已清空",
-    "l": [
-     "登录问题 Node 节点",
-     "执行 tc qdisc del 彻底清理"
-    ]
-   },
-   {
-    "id": "DIC",
-    "t": "📖 55 行多厂商命令平替字典 (极速查表)",
-    "y": "__DICT_TABLE__",
-    "c": "背熟这个表，进任何异构机房都不虚。",
-    "o": "涵盖了 95% 日常运维的 Show 和 Config 动作。",
-    "j": [
-     "H3C 和华为同宗同源，高度一致",
-     "锐捷/中兴 绝大部分照搬 Cisco"
-    ],
-    "u": [
-     "接手万国牌网络",
-     "快速定位命令差异"
-    ],
-    "w": [
-     "Linux 环境下善用 iproute2 (如 ip a) 替代废弃的 ifconfig"
-    ],
-    "v": "脑内盲写对应厂商命令",
-    "l": [
-     "在模拟器里分别敲华为和 Cisco 的命令对比差异"
-    ]
-   },
-   {
-    "id": "IVQ1",
-    "t": "💼 面试 Q1: 大专/非科班出身优势？",
-    "y": "**考察点**：抗压能力、跨界学习力、逻辑思维。\n**STAR 解析**：不要纠结学历劣势，重点讲“我是怎么快速补齐短板的”。",
-    "c": "“非科班不等于能力不足。我的优势在于跨领域视角和更强的学习驱动力。比如我原来做开发，转网工后能更快理解自动化脚本和 API 交互，Python 写得比一些老网工还溜。而且我动手能力很强，Lab 里踩过的坑都是真金白银的经验。”",
-    "o": "面试官反馈：态度诚恳，具备程序员思维，是个可塑之才。",
-    "j": [
-     "强调自驱力",
-     "结合自动化脚本展示优势"
-    ],
-    "u": [
-     "破冰提问",
-     "压力测试"
-    ],
-    "w": [
-     "切忌自卑",
-     "切忌长篇大论偏离技术"
-    ],
-    "v": "对镜口述达到肌肉记忆",
-    "l": [
-     "写出你自己的转行/学习故事",
-     "提炼出 3 个核心优势词"
-    ]
-   },
-   {
-    "id": "IVQ2",
-    "t": "💼 面试 Q2: K8s Pod 跨节点无法通信？",
-    "y": "**考察点**：云原生网络底座排障逻辑，是否懂 CNI。",
-    "c": "“我会分三步走：首先确认 CNI 状态，在 Node 上 kubectl get pods 看 Pod 是否正常；然后 calicoctl node status 检查 BGP 邻居。如果 BGP 断开，就去排查 Underlay 物理网。如果网络通但拒绝访问，我会查 NetworkPolicy 规则。”",
-    "o": "逻辑清晰，不盲目重启组件。",
-    "j": [
-     "体现分层分段思路"
-    ],
-    "u": [
-     "容器网络排障必问题"
-    ],
-    "w": [
-     "不要只说查日志，要说查哪个日志"
-    ],
-    "v": "闭眼推演 Calico 数据流向",
-    "l": []
-   },
-   {
-    "id": "IVQ3",
-    "t": "💼 面试 Q3: 你的最大缺点是什么？",
-    "y": "**考察点**：自我认知，以及解决自身问题的方法。",
-    "c": "“我有时候太追求完美，做一个方案喜欢反复推敲导致效率不够高。但现在我会给自己设时间盒，先快速出原型再迭代。遇到难题先给 80% 靠谱的方案，而不是等 100% 才动手。”",
-    "o": "巧妙将缺点转化为追求质量，并给出了实操解法。",
-    "j": [
-     "真实且有改进动作"
-    ],
-    "u": [
-     "HR面",
-     "性格测试"
-    ],
-    "w": [
-     "别说‘我太拼命工作’这种虚假的缺点"
-    ],
-    "v": "",
-    "l": []
-   },
-   {
-    "id": "IVQ4",
-    "t": "💼 面试 Q4: OSPF 和 BGP 区别及场景？",
-    "y": "**考察点**：对动态路由协议核心机制的理解。",
-    "c": "“OSPF 是内部网关协议，算链路状态，收敛极快，适合园区内部。BGP 是外部网关协议，算路径矢量，靠几十种属性灵活选路，扛得住百万级路由，所以互联网骨干和跨数据中心都用 BGP。”",
-    "o": "一句话切中要害：OSPF 算路，BGP 选路。",
-    "j": [
-     "强调‘属性控制’是 BGP 的灵魂"
-    ],
-    "u": [
-     "高级网工必问"
-    ],
-    "w": [
-     "别背书式地背各种 LSA"
-    ],
-    "v": "",
-    "l": []
-   },
-   {
-    "id": "IVQ5",
-    "t": "💼 面试 Q5: 客户反映网络卡怎么排查？",
-    "y": "**考察点**：处理模糊故障的体系化思维。",
-    "c": "“先要定界：是有线卡还是无线卡？所有网站卡还是个别卡？然后 1. Ping 网关看内网；2. Ping 8.8.8.8 看外网丢包；3. 用 MTR 看哪一跳卡住了；4. 查核心设备 CPU 和流量监控；5. 看是不是被 QoS 限速了。”",
-    "o": "有章法，懂定界。",
-    "j": [
-     "定界是排障第一步"
-    ],
-    "u": [
-     "桌面运维/Helpdesk 进阶题"
-    ],
-    "w": [
-     "一上来就抓包是大忌，太重了"
-    ],
-    "v": "",
-    "l": []
-   },
-   {
-    "id": "IVQ6",
-    "t": "💼 面试 Q6: 印象最深的故障经历 (STAR)？",
-    "y": "**考察点**：真实项目经验，解决复杂问题的能力。",
-    "c": "“S(情境): 核心交换机 Trunk 震荡导致全公司断网。T(任务): 紧急止血并抓根因。A(行动): 我先 shutdown 问题链路恢复冗余路径，查日志发现光功率衰减导致 STP 疯狂重算，替换光模块。R(结果): 10分钟恢复，我还补充了光功率监控脚本。”",
-    "o": "有止血、有根因、有复盘预防。",
-    "j": [
-     "强调止血第一"
-    ],
-    "u": [
-     "综合能力考核"
-    ],
-    "w": [
-     "避免编造自己无法自圆其说的神级故障"
-    ],
-    "v": "",
-    "l": []
-   },
-   {
-    "id": "IVQ7",
-    "t": "💼 面试 Q7: 怎么看待网络自动化 (Python)？",
-    "y": "**考察点**：是否有 NetDevOps 意识。",
-    "c": "“纯手工敲 CLI 已经跟不上云时代了。我常用 Python + Netmiko 批量下发 VLAN，或者用 Ansible 巡检配置合规性。这不仅是提效，更是通过代码把网络基线固定下来，避免人为低级失误。”",
-    "o": "展示了进阶思维。",
-    "j": [
-     "提效与防错并重"
-    ],
-    "u": [
-     "加分项考核"
-    ],
-    "w": [
-     "自动化不是万能的，底层原理仍是核心"
-    ],
-    "v": "",
-    "l": []
-   },
-   {
-    "id": "IVQ8",
-    "t": "💼 面试 Q8: 未来三年职业规划？",
-    "y": "**考察点**：稳定性与上进心。",
-    "c": "“第一年吃透现网架构并推进 Ansible 自动化；第二年深入云原生网络如 Cilium 和 SRv6；第三年希望能主导设计高可用架构，带团队解决复杂问题。往 NetDevOps 和 SRE 方向走。”",
-    "o": "踏实且目标明确。",
-    "j": [
-     "分阶段，有递进"
-    ],
-    "u": [
-     "团队契合度评估"
-    ],
-    "w": [
-     "切忌假大空"
-    ],
-    "v": "",
-    "l": []
-   },
-   {
-    "id": "IVQ9",
-    "t": "💼 面试 Q9: 与同事有技术分歧怎么处理？",
-    "y": "**考察点**：团队协作与沟通能力。",
-    "c": "“先对事不对人，把各自观点摆出来用数据说话——比如用抓包或测试对比。如果还争不下，提议搭个小范围 PoC (概念验证) 测试跑一下，让结果说话。实在不行交由主管仲裁，目标是解决问题。”",
-    "o": "成熟的职场沟通方式。",
-    "j": [
-     "数据导向，PoC验证"
-    ],
-    "u": [
-     "情商与协作面"
-    ],
-    "w": [
-     "别说‘谁对听谁的’这种废话"
-    ],
-    "v": "",
-    "l": []
-   },
-   {
-    "id": "IVQ10",
-    "t": "💼 面试 Q10: 期望薪资是多少？为什么？",
-    "y": "**考察点**：自我估值与底气。",
-    "c": "“期望 25K 左右。因为我能独立负责核心网演进、主导自动化项目、并且懂 K8s 网络，市面上兼具数通和云原生能力的人正是这个价位。当然我也看重平台的技术氛围。”",
-    "o": "有理有据，不卑不亢。",
-    "j": [
-     "锚定自己的核心价值"
-    ],
-    "u": [
-     "HR / 终面"
-    ],
-    "w": [
-     "不要畏缩，也不要漫天要价"
-    ],
-    "v": "",
-    "l": []
-   },
-   {
-    "id": "IVQ11",
-    "t": "💼 面试 Q11: GitOps 在网工领域怎么落地？",
-    "y": "**考察点**：对前沿运维理念的实践认知。",
-    "c": "“把设备配置(如 ACL, VLAN) 用 YAML 写进 Git 仓库。走 PR 审核，CI 用 Ansible --check 做 Dry-run 预检；合并后 CD 流水线自动推送至设备。一切变更皆可追溯、可回滚。”",
-    "o": "非常标准的 IaC/GitOps 流程。",
-    "j": [
-     "配置即代码 (IaC)"
-    ],
-    "u": [
-     "大厂 / DevOps 岗"
-    ],
-    "w": [
-     "别和软件代码的 CI/CD 完全混为一谈"
-    ],
-    "v": "",
-    "l": []
-   },
-   {
-    "id": "IVQ12",
-    "t": "💼 面试 Q12: 可观测性与传统 SNMP 监控区别？",
-    "y": "**考察点**：运维理念是否升级。",
-    "c": "“传统 SNMP 是‘已知的未知’，设了阈值才知道报警。可观测性是‘未知的未知’，通过采集日志、链路 eBPF 数据，在没设告警的情况下也能主动发现问题（如某个 Pod 延迟突增），方便事后根因下钻。”",
-    "o": "降维打击，视角宏大。",
-    "j": [
-     "传统 SNMP vs 可观测性"
-    ],
-    "u": [
-     "架构师面"
-    ],
-    "w": [
-     "不要贬低 SNMP，它们是互补的"
-    ],
-    "v": "",
-    "l": []
-   },
-   {
-    "id": "IVQ13",
-    "t": "💼 面试 Q13: Cilium 为什么能替代 kube-proxy？",
-    "y": "**考察点**：对 K8s 底层网络的深度。",
-    "c": "“kube-proxy 依赖 iptables/IPVS，Service 多了遍历链条很长、性能下降。Cilium 直接用 eBPF 在内核态把包重定向，甚至绕过 TCP/IP 协议栈，延迟极低，还能做 L7 过滤。”",
-    "o": "精准点出 eBPF 内核态加速的核心。",
-    "j": [
-     "eBPF vs iptables"
-    ],
-    "u": [
-     "云原生岗核心题"
-    ],
-    "w": [
-     ""
-    ],
-    "v": "",
-    "l": []
-   },
-   {
-    "id": "IVQ14",
-    "t": "💼 面试 Q14: 引入 Service Mesh 网工要注意啥？",
-    "y": "**考察点**：跨边界排障能力。",
-    "c": "“关注 Envoy Sidecar 引入的延迟；注意 MTLS 双向认证导致的证书过期中断；另外 Mesh 的 VirtualService 可能会覆盖原有的 Ingress 规则，排障必须会查 Envoy 访问日志。”",
-    "o": "有实战经验才说得出这些坑。",
-    "j": [
-     "Sidecar 开销与路由接管"
-    ],
-    "u": [
-     "高阶运维题"
-    ],
-    "w": [
-     ""
-    ],
-    "v": "",
-    "l": []
-   },
-   {
-    "id": "IVQ15",
-    "t": "💼 面试 Q15: NetDevOps 现网“静默丢包”怎么破？",
-    "y": "**考察点**：自动化落地的安全兜底意识。",
-    "c": "“代码没错不代表环境没错。我会：1. 做金丝雀发布，先下发 10% 设备；2. 部署时配合 Ping/MTR 端到端连通性监控；3. 设置错误率阈值，一旦触发积分自动 Revert 回滚。”",
-    "o": "极其稳健的生产环境操作风格。",
-    "j": [
-     "灰度发布与监控断言"
-    ],
-    "u": [
-     "自动化终极拷问"
-    ],
-    "w": [
-     "绝对不能迷信代码，现网永远有意外"
-    ],
-    "v": "",
-    "l": []
-   },
-   {
-    "id": "IVQ16",
-    "t": "💼 面试 Q16: 构建 GitOps 自动化交付闭环",
-    "y": "**考察点**：端到端 NetDevOps 架构落地能力。",
-    "c": "“使用 NetBox 作真理源，代码库存 Jinja2 模板。PR 触发 GitHub Actions/GitLab CI，拉取 Batfish 离线校验断言通断；合并后通过 Nornir 并发推送现网，配合 Prometheus 监控灰度，异常即触发 Git Revert 自动回滚。”",
-    "o": "极其完整的工程落地实践逻辑。",
-    "j": [
-     "Single Source of Truth",
-     "Batfish 离线验证"
-    ],
-    "u": [
-     "NetDevOps 架构师"
-    ],
-    "w": [
-     "切忌把配置密码明文硬编码在 Git 仓库中"
-    ],
-    "v": "",
-    "l": []
-   },
-   {
-    "id": "IVQ17",
-    "t": "💼 面试 Q17: 可观测性三支柱在网络排障中联动？",
-    "y": "**考察点**：故障定位的效率与方法论。",
-    "c": "“Metrics 负责‘告警’（如 Prometheus 监控到网关 P99 延迟突增）；通过 TraceID 定位到特定的微服务调用 Span；最后提取该的时间戳检索日志 (Loki/ELK)，直接抓出具体的底层 Socket 超时报错。”",
-    "o": "逻辑严密，融会贯通。",
-    "j": [
-     "告警(Metrics)->定位(Traces)->根因(Logs)"
-    ],
-    "u": [
-     "云原生网络/SRE 岗"
-    ],
-    "w": [
-     ""
-    ],
-    "v": "",
-    "l": []
-   },
-   {
-    "id": "IVQ18",
-    "t": "💼 面试 Q18: eBPF 原理及其相比 iptables 的优势？",
-    "y": "**考察点**：对 Linux 内核级包处理的认知。",
-    "c": "“eBPF 允许在内核安全运行沙箱程序。iptables 是顺序遍历链表，规则一多延迟随规则数线性增加（O(n)），性能显著下降；而 eBPF 直接在网卡驱动 (XDP) 或 TC 层用 Map 查表重定向，时间复杂度 O(1)，性能提升数量级。”",
-    "o": "准确点出 O(1) 查表与内核沙箱的本质。",
-    "j": [
-     "O(1) 复杂度",
-     "XDP 网卡驱动层丢包"
-    ],
-    "u": [
-     "高阶 CNI / 云网络岗"
-    ],
-    "w": [
-     ""
-    ],
-    "v": "",
-    "l": []
-   },
-   {
-    "id": "IVQ19",
-    "t": "💼 面试 Q19: Sidecar 模式 vs Ambient Mesh (无Sidecar)？",
-    "y": "**考察点**：Service Mesh 最新演进方向。",
-    "c": "“Sidecar 模式需要在每个 Pod 注入 Envoy 容器，内存开销大、延迟增加明显；Ambient Mesh (如 Istio Ambient) 将 L4 代理下沉到节点级 ztunnel (用 eBPF 加速)，L7 集中在 zproxy，架构更轻、损耗更低。”",
-    "o": "了解最前沿 Mesh 架构架构演进。",
-    "j": [
-     "ztunnel 节点级代理",
-     "资源开销对比"
-    ],
-    "u": [
-     "微服务网格专家"
-    ],
-    "w": [
-     ""
-    ],
-    "v": "",
-    "l": []
-   },
-   {
-    "id": "IVQ20",
-    "t": "💼 面试 Q20: 如何用 Error Budget 约束网络变更？",
-    "y": "**考察点**：SRE 稳定性治理理念。",
-    "c": "“若 SLO 为 99.9%，每月允许故障预算为 43 分钟。若本月网络震荡已消耗 30 分钟，预算充足，正常允许研发和网工发布变更；一旦预算耗尽，CI/CD 自动锁定，全员禁止变更，强制去修稳定性漏洞。”",
-    "o": "懂机制，懂治理。",
-    "j": [
-     "错误预算与发布锁定联动"
-    ],
-    "u": [
-     "SRE 负责人 / 运维主管"
-    ],
-    "w": [
-     ""
-    ],
-    "v": "",
-    "l": []
-   },
-   {
-    "id": "IVQ21",
-    "t": "💼 面试 Q21: 什么是“静默丢包”？如何诊断？",
-    "y": "**考察点**：复杂隐蔽故障的定位排查。",
-    "c": "“静默丢包指设备没报 Down，但报文在芯片队列或 Linux 内核被悄悄 drop。我会：1. 查硬件 ASIC 丢包计数 (`display qos queue-drop`)；2. 在 Linux 节点用 eBPF pwru (`packet-where-are-you`) 追查内核丢包函数。”",
-    "o": "展现了利用 eBPF 深入内核底层的能力。",
-    "j": [
-     "pwru 追查内核丢包",
-     "ASIC Drop 计数"
-    ],
-    "u": [
-     "数据中心高级网工"
-    ],
-    "w": [
-     ""
-    ],
-    "v": "",
-    "l": []
-   },
-   {
-    "id": "IVQ22",
-    "t": "💼 面试 Q22: 对 SRv6 核心设计理念的理解？",
-    "y": "**考察点**：下一代 IPv6 骨干网协议栈理解。",
-    "c": "“SRv6 将‘网络即服务’直接编码到 128 位 IPv6 地址中。把 Segment 塞进 IPv6 SRH 扩展头，利用现有的纯 IPv6 Underlay 转发，完全摒弃了复杂的大套协议 (如 RSVP-TE、LDP)，天生支持应用级编程与切片。”",
-    "o": "言简意赅，抓住 SRv6 灵魂。",
-    "j": [
-     "IPv6 地址即指令",
-     "简化协议栈"
-    ],
-    "u": [
-     "运营商 / 骨干网网工"
-    ],
-    "w": [
-     ""
-    ],
-    "v": "",
-    "l": []
-   },
-   {
-    "id": "IVQ23",
-    "t": "💼 面试 Q23: 生产环境开展混沌工程的红线？",
-    "y": "**考察点**：生产环境高可用风险把控。",
-    "c": "“三条红线：1. 严禁未经演练直接在生产开启；2. 必须具备自动化爆炸半径控制与熔断线 (如错误率>5% 瞬间终止实验)；3. 演练必须伴随完整的可观测性看板，确保随时能一键完全清理残留 tc 规则。”",
-    "o": "极其稳健的生产敬畏之心。",
-    "j": [
-     "爆炸半径控制",
-     "自动熔断与恢复机制"
-    ],
-    "u": [
-     "混沌工程 / 架构师"
-    ],
-    "w": [
-     ""
-    ],
-    "v": "",
-    "l": []
-   },
-   {
-    "id": "IVQ24",
-    "t": "💼 面试 Q24: BGP EVPN 控制面 Type-2/3/5 路由区别？",
-    "y": "**考察点**：VXLAN 叠加网控制面深度。",
-    "c": "“Type-2 是 MAC/IP 路由，用于分发主机 MAC 地址与 ARP 抑制；Type-3 是 inclusive 组播路由，用于自动发现 VTEP 并建立 BUM 泛洪隧道；Type-5 是 IP 前缀路由，用于跨 overlay 的三层子网路由互通。”",
-    "o": "熟练掌握 BGP EVPN 核心逻辑。",
-    "j": [
-     "Type-2 MAC/IP",
-     "Type-3 BUM隧道",
-     "Type-5 IP前缀"
-    ],
-    "u": [
-     "SDN / 数据中心专家"
-    ],
-    "w": [
-     ""
-    ],
-    "v": "",
-    "l": []
-   },
-   {
-    "id": "IVQ25",
-    "t": "💼 面试 Q25: 如何设计 99.999% 可用性跨数据中心网络？",
-    "y": "**考察点**：顶级高可用架构设计能力。",
-    "c": "“多维度消除单点：1. 物理层双路双缆独立管道；2. 架构层 Spine-Leaf 无阻塞 CLOS + ECMP 多路径；3. 边缘层 BFD 毫秒联动 BGP 快速收敛；4. 控制面部署异地多活 NCE 集群；5. 自动化变更引入 GitOps+Batfish 预检。”",
-    "o": "具备系统级架构师视野。",
-    "j": [
-     "多维消除单点",
-     "BFD 毫秒收敛",
-     "GitOps 预检"
-    ],
-    "u": [
-     "首席网络架构师"
-    ],
-    "w": [
-     ""
-    ],
-    "v": "",
-    "l": []
-   },
-   {
-    "id": "IVQ26",
-    "t": "💼 面试 Q26: Cilium 如何用 eBPF 实现免 NAT 重定向？",
-    "y": "**考察点**：内核级网络优化原理。",
-    "c": "“传统 kube-proxy 依赖 IPVS/iptables 在 DNAT 和 SNAT 来回折腾，浪费 CPU。Cilium 在 cgroup sock_ops 挂载 eBPF 程序，检测到同节点 Pod 通信时，直接把 Socket 的 TX Queue 映射到 RX Queue，绕过整个 TCP/IP 协议栈！”",
-    "o": "讲清了 SockOps 重定向的底层原理。",
-    "j": [
-     "SockOps 映射",
-     "绕过 TCP/IP 协议栈"
-    ],
-    "u": [
-     "云原生网络专家"
-    ],
-    "w": [
-     ""
-    ],
-    "v": "",
-    "l": []
-   },
-   {
-    "id": "IVQ27",
-    "t": "💼 面试 Q27: 什么是配置漂移？如何治理？",
-    "y": "**考察点**：网络合规与基线治理。",
-    "c": "“配置漂移指设备现网配置与 Git 仓库基线不一致。治理策略：1. 权限收回，关闭个人 SSH 写入权限，只留 Ansible 账号；2. 部署 Nornir 每日定时抓取 current-config 与 Git 比对生成 Diff 报告；3. 发现漂移强制触发自动化覆盖恢复。”",
-    "o": "闭环管理，落地性强。",
-    "j": [
-     "每日自动化 Diff",
-     "权限收紧与基线覆盖"
-    ],
-    "u": [
-     "NetDevOps 运维经理"
-    ],
-    "w": [
-     ""
-    ],
-    "v": "",
-    "l": []
-   },
-   {
-    "id": "IVQ28",
-    "t": "💼 面试 Q28: DNS 延迟突增对微服务的放大效应？",
-    "y": "**考察点**：微服务架构下的网络连锁反应。",
-    "c": "“微服务调用链很长，如果一个请求触发 10 次跨服务调用，每次 CoreDNS 解析增加 10ms，总延迟就增加 100ms。更惨的是如果超时触发重试，并发流量会瞬间冲垮 CoreDNS，引发雪崩。解法是 Pod 开启 NodeLocal DNSCache 节点级缓存。”",
-    "o": "有深度的微服务架构视角。",
-    "j": [
-     "调用链延迟叠加",
-     "NodeLocal DNSCache"
-    ],
-    "u": [
-     "SRE 架构师"
-    ],
-    "w": [
-     ""
-    ],
-    "v": "",
-    "l": []
-   },
-   {
-    "id": "IVQ29",
-    "t": "💼 面试 Q29: 异构网络环境(华为/Cisco/Linux)统一监控？",
-    "y": "**考察点**：混合云/万国牌机房运维监控落地。",
-    "c": "“采用 Prometheus + SNMP Exporter 架构。利用 YAML 针对各厂商 OID 树做标准化映射，把华为 display 和 Cisco show 的差异抽象为统一的 `network_interface_throughput_bytes` 格式时序指标，在 Grafana 统一看板呈现。”",
-    "o": "抽象能力极强。",
-    "j": [
-     "SNMP Exporter 抽象 OID",
-     "Prometheus 标准指标"
-    ],
-    "u": [
-     "高级监控运维岗"
-    ],
-    "w": [
-     ""
-    ],
-    "v": "",
-    "l": []
-   },
-   {
-    "id": "IVQ30",
-    "t": "💼 面试 Q30: 如何主持一次重大生产事故复盘？",
-    "y": "**考察点**：领导力、复盘文化与责任担当。",
-    "c": "“原则是‘对事不对人’。复盘四步走：1. 还原时间线 (5W1H 精确到秒)；2. 根因分析 (用 5-Whys 法推导，比如为什么没发现光功率衰减？)；3. 评估止血效率；4. 制定改进 To-Do 责任到人 (如增加光功率告警脚本，一周内上线)。”",
-    "o": "非常专业的复盘管理流程。",
-    "j": [
-     "5-Whys 根因分析",
-     "改进 To-Do 责任落人"
-    ],
-    "u": [
-     "运维总监 / 团队 Leader"
-    ],
-    "w": [
-     ""
-    ],
-    "v": "",
-    "l": []
-   }
-  ]
- }
+  }
 ]

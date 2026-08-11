@@ -16,7 +16,7 @@ const CSS_FILES = [
 ];
 const JS_FILES = [
   'js/data/10-core.js', 'js/data/20-extend.js', 'js/data/21-quiz.js',
-  'js/10-topo.js', 'js/20-ui.js', 'js/30-core.js', 'js/31-views.js', 'js/32-boot.js'
+  'js/10-topo.js', 'js/20-ui.js', 'js/30-core.js', 'js/31-views.js', 'js/32-boot.js', 'js/33-apple.js'
 ];
 
 const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
@@ -147,8 +147,11 @@ function build() {
     if (/["'](https?:)?\/\//i.test(m)) problems.push('外部资源引用: ' + m);
   });
   if (/@import\s/i.test(html)) problems.push('CSS @import 未内联');
-  /* 仅匹配小写 css url()，避免误伤 JS 的 URL.createObjectURL() */
-  const urlRefs = html.match(/[^A-Za-z]url\(\s*['"]?(?!data:|#)[^)'"]+['"]?\s*\)/g) || [];
+  /* 仅检查 <style> 块内的 url()（全部 CSS 都内联在 style 标签中），
+     避免误伤 JS 字符串拼接 —— 如壁纸功能运行时拼 'url(' + saved + ')'，
+     以及 URL.createObjectURL() 等大写调用 */
+  const styleBlocks = html.match(/<style[^>]*>[\s\S]*?<\/style>/gi) || [];
+  const urlRefs = (styleBlocks.join('') || '').match(/url\(\s*['"]?(?!data:|#)[^)'"]+['"]?\s*\)/gi) || [];
   urlRefs.forEach(m => problems.push('外部 url() 引用: ' + m));
   const httpText = html.match(/https?:\/\/[^\s"'<>)]+/gi) || [];
   const allowed = /w3\.org|schemas\.android\.com/i;
