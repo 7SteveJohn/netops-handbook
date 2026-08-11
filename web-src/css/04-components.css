@@ -19,7 +19,9 @@
 .icon--fill { fill: currentColor; stroke: none; }
 
 /* ---------------- 卡片 ---------------- */
+/* 默认纯色背景（无壁纸时最快） */
 .card {
+  position: relative;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
@@ -27,8 +29,11 @@
   overflow: hidden;
   transition: box-shadow var(--t-base) var(--ease-out),
               border-color var(--t-base) var(--ease-out),
-              transform var(--t-fast) var(--ease-out);
+              transform var(--t-fast) var(--ease-spring);
 }
+/* 液态玻璃：轻磨砂渐变 + 180% 饱和 + 镜面高光 + 边缘光 + 色散 */
+/* 顶部镜面高光（光线打在玻璃上沿） */
+/* 边缘光：上亮下暗的渐变描边，模拟玻璃折射边缘 */
 .card + .card { margin-top: 10px; }
 .card.is-open { box-shadow: var(--sh-md); border-color: var(--border-strong); }
 .card.is-done { border-left: 3px solid var(--ok); }
@@ -46,7 +51,7 @@
   overflow: hidden;
   min-height: var(--tap-min);
 }
-.card__head:active { background: var(--surface-2); }
+.card__head:active { transform: scale(.994); filter: brightness(1.02); background: var(--surface-2); }
 
 .card__chip {
   flex: 0 0 auto;
@@ -69,6 +74,7 @@
   font-size: 14.5px;
   font-weight: 650;
   line-height: 1.42;
+  letter-spacing: -.01em;
   color: var(--text);
   word-break: break-word;
 }
@@ -103,8 +109,9 @@
 }
 .sec:first-child { margin-top: 0; }
 .sec__line { flex: 1; height: 1px; background: var(--border); }
+/* 分区标题玻璃微质感 */
 
-/* ---------------- 信息块 ---------------- */
+/* ---------------- 信息块（支持玻璃） ---------------- */
 .note {
   border-radius: var(--r-md);
   padding: 10px 11px;
@@ -114,6 +121,7 @@
   white-space: pre-wrap;
   word-break: break-word;
 }
+/* 提示块玻璃（轻量） */
 .note--info   { background: var(--accent-soft); border-color: var(--accent-border); color: var(--text); }
 .note--ok     { background: var(--ok-soft);     border-color: rgba(16,185,129,.32); }
 .note--warn   { background: var(--warn-soft);   border-color: rgba(245,158,11,.34); }
@@ -237,7 +245,7 @@
 .lvl i { width: 5px; height: 5px; border-radius: 50%; background: var(--surface-3); }
 .lvl i.on { background: var(--ph, var(--accent)); }
 
-/* ---------------- 按钮 ---------------- */
+/* ---------------- 按钮（纯色，无玻璃） ---------------- */
 .btn {
   position: relative;
   display: inline-flex;
@@ -252,17 +260,20 @@
   overflow: hidden;
   transition: transform var(--t-fast) var(--ease-out),
               background-color var(--t-fast) var(--ease-out),
-              opacity var(--t-fast);
+              opacity var(--t-fast),
+              filter var(--t-fast) var(--ease-out),
+              box-shadow var(--t-fast) var(--ease-out);
 }
-.btn:active { transform: scale(.965); }
+.btn:active { transform: scale(.97); filter: brightness(1.06); }
 .btn--primary { background: var(--accent); color: #fff; box-shadow: var(--sh-sm); }
+/* 主按钮液态玻璃：动态高光 + 边缘折射，点击体积膨胀（控制中心风格） */
 .btn--soft    { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
 .btn--ghost   { background: transparent; color: var(--text-2); }
 .btn--ok      { background: var(--ok); color: #fff; }
 .btn--danger  { background: var(--danger); color: #fff; }
 .btn--block   { width: 100%; }
 .btn--sm      { min-height: 32px; padding: 0 10px; font-size: 12.5px; }
-.btn[disabled] { opacity: .45; pointer-events: none; }
+btn[disabled] { opacity: .45; pointer-events: none; }
 
 /* 点击涟漪（由 JS 注入 span.ripple） */
 .ripple {
@@ -276,7 +287,7 @@
 }
 @keyframes ripple { to { transform: scale(2.6); opacity: 0; } }
 
-/* ---------------- 横向筹码滚动条 ---------------- */
+/* ---------------- 横向筹码滚动条（支持玻璃） ---------------- */
 .chips {
   display: flex;
   gap: 7px;
@@ -286,6 +297,7 @@
   -webkit-overflow-scrolling: touch;
   scroll-snap-type: x proximity;
 }
+/* 筹码容器玻璃 */
 .chip {
   flex: 0 0 auto;
   scroll-snap-align: start;
@@ -295,15 +307,16 @@
   align-items: center;
   gap: 5px;
   border-radius: var(--r-full);
-  background: var(--surface);
+  background: var(--surface-2);
   border: 1px solid var(--border);
   color: var(--text-2);
   font-size: 12.5px;
   font-weight: 650;
   white-space: nowrap;
-  transition: all var(--t-fast) var(--ease-out);
+  transition: all var(--t-fast) var(--ease-out),
+              filter var(--t-fast) var(--ease-out);
 }
-.chip:active { transform: scale(.94); }
+.chip:active { transform: scale(.95); filter: brightness(1.06); }
 .chip.is-active {
   background: var(--accent);
   border-color: var(--accent);
@@ -311,13 +324,14 @@
   box-shadow: var(--sh-sm);
 }
 
-/* ---------------- 表格 ---------------- */
+/* ---------------- 表格（支持玻璃） ---------------- */
 .tablewrap {
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   overflow: hidden;
   background: var(--surface);
 }
+/* 表格玻璃：让命令字典等页面的表格也有质感 */
 .tablescroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 table.tbl { width: 100%; border-collapse: collapse; font-size: 11.8px; }
 table.tbl th {
@@ -355,22 +369,42 @@ table.tbl td:first-child {
 table.tbl tr:last-child td { border-bottom: 0; }
 table.tbl tr:active td { background: var(--surface-2); }
 
-/* ---------------- 底部弹窗 (Bottom Sheet) ---------------- */
+/* ---------------- 底部弹窗 (Bottom Sheet) ----------------
+   2026-08-11：z-index 80 → 92——悬浮胶囊 tabbar 是 z 90，
+   低于 90 时 sheet 会被胶囊盖住（用户"二级菜单打不开"的根因之一） */
 .sheet {
   position: fixed;
   left: 0; right: 0; bottom: 0;
-  z-index: 80;
+  z-index: 92;
   display: flex;
   flex-direction: column;
   max-height: 88vh;
   max-height: 88dvh;
-  background: var(--bg-elevated);
+  background: var(--surface);
   border-radius: var(--r-xl) var(--r-xl) 0 0;
+  border-top: 1px solid var(--border);
   box-shadow: var(--sh-xl);
   transform: translate3d(0, 102%, 0);
   transition: transform var(--t-base) var(--ease-out);
   padding-bottom: var(--sa-bottom);
-  will-change: transform;
+}
+/* 弹窗玻璃（更强折射 + 边缘光描边） */
+body.glass-on .sheet {
+  background: linear-gradient(180deg, var(--glass-tint-top) 0%, var(--glass-tint-bot) 100%);
+  -webkit-backdrop-filter: saturate(var(--glass-saturate)) blur(var(--glass-blur-strong));
+  backdrop-filter: saturate(var(--glass-saturate)) blur(var(--glass-blur-strong));
+  border-top: 1px solid transparent;
+  box-shadow: var(--glass-shadow), var(--glass-rim), var(--glass-aberration);
+}
+html.dark body.glass-on .sheet {
+  background: linear-gradient(180deg, var(--glass-tint-top) 0%, var(--glass-tint-bot) 100%);
+}
+/* 弹窗顶部边缘光 */
+body.glass-on .sheet::after {
+  content: "";
+  position: absolute; left: 0; right: 0; top: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.9) 50%, transparent);
+  pointer-events: none;
 }
 .sheet.is-open { transform: translate3d(0,0,0); }
 .sheet.is-dragging { transition: none; }
@@ -398,32 +432,108 @@ table.tbl tr:active td { background: var(--surface-2); }
 .sheet__body { flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; padding: 14px; }
 .sheet__foot { flex: 0 0 auto; padding: 10px 14px; border-top: 1px solid var(--border); }
 
-/* ---------------- Toast ---------------- */
+/* ---------------- Toast（Apple 设计语言 + Liquid Glass）----------------
+   2026-08-11 终版（用户反馈"那道绿杠难看"）：
+   - 去掉左侧语义色细条
+   - 图标改为彩色描边（无填充圆底），类型色仅表达在图标的 stroke 上
+   - 浅色液态玻璃胶囊 + 顶部 1pt 高光 + 柔扩散阴影 */
 .toast {
   position: fixed;
   left: 50%; z-index: 95;
-  bottom: calc(var(--tabbar-h) + var(--sa-bottom) + 18px);
-  display: flex; align-items: center; gap: 8px;
+  /* 离屏底 96px 起（自适应底栏高度，避免压住悬浮胶囊） */
+  bottom: max(96px, calc(var(--tabbar-h, 56px) + var(--sa-bottom, 0px) + 28px)) !important;
+  display: flex; align-items: center; gap: 9px;
   max-width: calc(100vw - 40px);
-  padding: 10px 15px;
-  border-radius: var(--r-full);
-  background: var(--c-slate-900);
-  color: #fff;
-  font-size: 13px;
+  padding: 11px 18px;
+  border-radius: 22px;                   /* iOS 近胶囊圆角 */
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 13.5px;
   font-weight: 600;
-  box-shadow: var(--sh-lg);
-  transform: translate(-50%, 22px);
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  /* 内顶部 1pt 高光 + 柔扩散阴影 + 接触阴影 */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .55),
+    0 1px 1px rgba(15, 23, 42, .04),
+    0 6px 22px rgba(15, 23, 42, .14),
+    0 2px 6px rgba(15, 23, 42, .08);
+  transform: translate(-50%, 24px);
   opacity: 0;
   visibility: hidden;
-  transition: opacity var(--t-base) var(--ease-out),
-              transform var(--t-base) var(--ease-spring),
-              visibility var(--t-base);
+  transition: opacity var(--t-toast) var(--ease-out),
+              transform var(--t-toast) var(--ease-spring),
+              visibility var(--t-toast);
 }
-html.dark .toast { background: var(--c-slate-700); }
+
+/* 图标：彩色描边（无填充圆底），类型色 = stroke/currentColor */
+.toast__ic {
+  display: inline-flex;
+  align-items: center; justify-content: center;
+  width: 22px; height: 22px;
+  color: var(--accent);                   /* 默认 info = 蓝 */
+  flex: 0 0 auto;
+}
+.toast__ic svg { width: 15px; height: 15px; stroke-width: 2.6; stroke: currentColor; fill: none; }
+.toast--ok     .toast__ic { color: var(--c-emerald-600); }
+.toast--warn   .toast__ic { color: var(--c-amber-600); }
+.toast--danger .toast__ic { color: var(--c-rose-600); }
+
+.toast__txt { letter-spacing: -0.005em; }
+
+/* 玻璃开启：液态玻璃三件套 + 顶部高光 */
+body.glass-on .toast {
+  background: linear-gradient(160deg, var(--glass-tint-top) 0%, var(--glass-tint-bot) 100%);
+  -webkit-backdrop-filter: saturate(var(--glass-saturate)) blur(var(--glass-blur));
+  backdrop-filter: saturate(var(--glass-saturate)) blur(var(--glass-blur));
+  border-color: transparent;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .75),
+    0 1px 0 rgba(255, 255, 255, .35) inset,
+    0 8px 28px rgba(15, 23, 42, .16),
+    0 2px 8px rgba(15, 23, 42, .08);
+  color: #1d1d1f;
+  text-shadow: 0 0.5px 1px rgba(255, 255, 255, .35);
+}
+/* 暗色玻璃：柔投影更强、文字反转 */
+html.dark body.glass-on .toast {
+  color: #f5f5f7;
+  text-shadow: 0 0.5px 1px rgba(0, 0, 0, .55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .20),
+    0 10px 32px rgba(0, 0, 0, .5),
+    0 3px 10px rgba(0, 0, 0, .3);
+}
+html.dark body.glass-on .toast__ic { color: #8ce6b4; }
+html.dark body.glass-on .toast--ok .toast__ic { color: #6ee7b7; }
+html.dark body.glass-on .toast--warn .toast__ic { color: #fcd34d; }
+html.dark body.glass-on .toast--danger .toast__ic { color: #fda4af; }
+/* 暗色非玻璃：兜底文字色 */
+html.dark .toast:not(.glass-on) { color: var(--text); }
+
+/* frosted 降级：暖白磨砂 */
+body.glass-frosted .toast {
+  background: linear-gradient(165deg,
+    rgba(255,255,255,.88) 0%, rgba(248,248,250,.84) 50%, rgba(245,245,247,.86) 100%) !important;
+  -webkit-backdrop-filter: blur(var(--glass-blur)) !important;
+  backdrop-filter: blur(var(--glass-blur)) !important;
+  border: 1px solid rgba(0,0,0,.06) !important;
+  box-shadow:
+    inset 0 .5px 0 rgba(255,255,255,.7),
+    inset 0 -.5px 0 rgba(0,0,0,.04),
+    0 1px 3px rgba(0,0,0,.05) !important;
+}
+/* 高斯降级：近乎不透明 */
+body.glass-gaussian .toast {
+  background: rgba(255,255,255,.94) !important;
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * .6)) !important;
+  backdrop-filter: blur(calc(var(--glass-blur) * .6)) !important;
+  border: 1px solid rgba(0,0,0,.08) !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,.1) !important;
+}
+
 .toast.is-open { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
-.toast--ok     { background: var(--c-emerald-600); }
-.toast--warn   { background: var(--c-amber-600); }
-.toast--danger { background: var(--c-rose-600); }
 
 /* ---------------- 进度环（纯 CSS conic-gradient） ---------------- */
 .ring {
@@ -475,7 +585,7 @@ mark.hl {
 }
 html.dark mark.hl { background: var(--c-amber-500); color: #000; }
 
-/* ---------------- 抽屉树 ---------------- */
+/* ---------------- 抽屉树（纯色） ---------------- */
 .tree__group { margin-bottom: 6px; }
 .tree__head {
   display: flex; align-items: center; gap: 9px;
@@ -484,7 +594,9 @@ html.dark mark.hl { background: var(--c-amber-500); color: #000; }
   border-radius: var(--r-md);
   text-align: left;
   min-height: var(--tap-min);
-  transition: background-color var(--t-fast);
+  transition: background-color var(--t-fast),
+              transform var(--t-fast) var(--ease-apple-spring),
+              filter var(--t-fast) var(--ease-out);
 }
 .tree__head:active { background: var(--surface-2); }
 .tree__dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ph); flex: 0 0 auto; }
@@ -510,3 +622,340 @@ html.dark mark.hl { background: var(--c-amber-500); color: #000; }
 }
 .tree__item:active { background: var(--surface-2); }
 .tree__item.is-done { color: var(--ok); }
+
+/* ============================================================
+   液态玻璃控制面板（精简版：3 个控件）
+   body.glass-on 时生效（无需壁纸）
+   ============================================================ */
+
+/* 玻璃滑块样式 */
+.glass-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-3);
+  outline: none;
+  cursor: pointer;
+}
+.glass-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 2px 8px rgba(59,130,246,.35), 0 1px 3px rgba(0,0,0,.1);
+  border: 2px solid #fff;
+  cursor: grab;
+  transition: transform var(--t-fast) ease;
+}
+.glass-slider::-webkit-slider-thumb:active {
+  transform: scale(1.15);
+  cursor: grabbing;
+}
+
+/* 玻璃模式独立开关行（仿 iOS Settings，三个互斥单选） */
+.glass-mode-row {
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--t-fast) var(--ease-out);
+}
+.glass-mode-row:active { background: rgba(120,130,150,.08); }
+.glass-mode-row.is-sep {
+  border-top: .5px solid var(--hairline, rgba(0,0,0,.08));
+}
+html.dark .glass-mode-row.is-sep {
+  border-top-color: rgba(255,255,255,.1);
+}
+.glass-slider::-moz-range-thumb {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 2px 8px rgba(59,130,246,.35);
+  border: 2px solid #fff;
+  cursor: grab;
+}
+
+/* ============================================================
+   毛玻璃模式（frosted）—— iOS 7-14 风格半透明磨砂
+   设计语言：哑光磨砂质感，像浴室磨砂玻璃 / macOS Vibrancy
+   与液态玻璃（liquid）的区别：
+   - 无镜面高光（::before 去掉）
+   - 无边缘折射光（::after 去掉）
+   - 无色散内阴影
+   - 无饱和度增强（纯 blur，省 GPU）
+   - 暖白色调渐变底（非冷蓝），更柔和亲近
+   - 不透明度更高（可读性优先 ~0.80）
+   - 细边框 + 极淡内阴影表达「玻璃厚度」
+   ============================================================ */
+
+/* 毛玻璃模式：去掉所有液态特效伪元素 */
+body.glass-frosted .card::before,
+body.glass-frosted .card::after,
+body.glass-frosted .sheet::after,
+body.glass-frosted .appbar::after,
+body.glass-frosted .tabbar::after {
+  display: none !important;
+}
+/* 毛玻璃核心：纯模糊 + 暖白半透明渐变底 + 细边框 */
+body.glass-frosted .card,
+body.glass-frosted .sheet,
+body.glass-frosted .toast,
+body.glass-frosted .searchbar,
+body.glass-frosted .appbar,
+body.glass-frosted .tabbar::before,
+body.glass-frosted .drawer,
+body.glass-frosted .tablewrap,
+body.glass-frosted .list__item,
+body.glass-frosted .dict__row,
+body.glass-frosted .qz__item,
+body.glass-frosted .phase,
+body.glass-frosted .stat,
+body.glass-frosted .list,
+body.glass-frosted .chips {
+  -webkit-backdrop-filter: blur(var(--glass-blur)) !important;
+  backdrop-filter: blur(var(--glass-blur)) !important;
+  /* 暖白渐变 —— 比 liquid 的冷调更柔和、更「苹果磨砂」 */
+  background: linear-gradient(
+    165deg,
+    rgba(255,255,255,.82) 0%,
+    rgba(248,248,250,.78) 50%,
+    rgba(245,245,247,.80) 100%
+  ) !important;
+  /* 单像素细线边框（非发光）+ 极淡内阴影模拟玻璃厚度 */
+  border: 1px solid rgba(0,0,0,.06) !important;
+  box-shadow:
+    inset 0 0.5px 0 rgba(255,255,255,.7),
+    inset 0 -0.5px 0 rgba(0,0,0,.04),
+    0 1px 3px rgba(0,0,0,.05) !important;
+}
+/* 毛玻璃暗色主题：深灰暖调（非纯黑冷调） */
+html.dark body.glass-frosted .card,
+html.dark body.glass-frosted .sheet,
+html.dark body.glass-frosted .toast,
+html.dark body.glass-frosted .searchbar,
+html.dark body.glass-frosted .appbar,
+html.dark body.glass-frosted .tabbar::before,
+html.dark body.glass-frosted .drawer,
+html.dark body.glass-frosted .tablewrap,
+html.dark body.glass-frosted .list__item,
+html.dark body.glass-frosted .dict__row,
+html.dark body.glass-frosted .qz__item,
+html.dark body.glass-frosted .phase,
+html.dark body.glass-frosted .stat,
+html.dark body.glass-frosted .list,
+html.dark body.glass-frosted .chips {
+  background: linear-gradient(
+    165deg,
+    rgba(44,44,46,.85) 0%,
+    rgba(36,36,38,.82) 50%,
+    rgba(32,32,34,.84) 100%
+  ) !important;
+  border-color: rgba(255,255,255,.08) !important;
+  box-shadow:
+    inset 0 0.5px 0 rgba(255,255,255,.12),
+    inset 0 -0.5px 0 rgba(0,0,0,.15),
+    0 1px 3px rgba(0,0,0,.2) !important;
+}
+
+/* ============================================================
+   高斯模糊模式（gaussian）—— iOS Reduce Transparency 风格
+   设计语言：近乎不透明磨砂板，无障碍优先，最大可读性
+   ============================================================ */
+
+/* 高斯模式：去掉所有特效伪元素（含 appbar/tabbar 动态高光） */
+body.glass-gaussian .card::before,
+body.glass-gaussian .card::after,
+body.glass-gaussian .sheet::before,
+body.glass-gaussian .sheet::after,
+body.glass-gaussian .appbar::after,
+body.glass-gaussian .tabbar::after {
+  display: none !important;
+}
+/* 高斯核心：轻模糊 + 近乎不透明均匀底 + 明确边界 */
+body.glass-gaussian .card,
+body.glass-gaussian .sheet,
+body.glass-gaussian .toast,
+body.glass-gaussian .searchbar,
+body.glass-gaussian .appbar,
+body.glass-gaussian .tabbar::before,
+body.glass-gaussian .drawer,
+body.glass-gaussian .tablewrap,
+body.glass-gaussian .list__item,
+body.glass-gaussian .dict__row,
+body.glass-gaussian .qz__item,
+body.glass-gaussian .phase,
+body.glass-gaussian .stat,
+body.glass-gaussian .list,
+body.glass-gaussian .chips,
+body.glass-gaussian .note--info,
+body.glass-gaussian .note--plain {
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * .6)) !important;
+  backdrop-filter: blur(calc(var(--glass-blur) * .6)) !important;
+  /* 近乎不透明均匀底色 —— 微妙的一体感，但主体是实色 */
+  background: rgba(252,252,252,.90) !important;
+  /* 清晰的细边框（扁平化层级分隔） */
+  border: 1px solid rgba(0,0,0,.09) !important;
+  /* 扁平投影 —— 无内发光，无折射 */
+  box-shadow: 0 1px 4px rgba(0,0,0,.07) !important;
+}
+/* 高斯暗色主题：深灰近不透明 */
+html.dark body.glass-gaussian .card,
+html.dark body.glass-gaussian .sheet,
+html.dark body.glass-gaussian .toast,
+html.dark body.glass-gaussian .searchbar,
+html.dark body.glass-gaussian .appbar,
+html.dark body.glass-gaussian .tabbar::before,
+html.dark body.glass-gaussian .drawer,
+html.dark body.glass-gaussian .tablewrap,
+html.dark body.glass-gaussian .list__item,
+html.dark body.glass-gaussian .dict__row,
+html.dark body.glass-gaussian .qz__item,
+html.dark body.glass-gaussian .phase,
+html.dark body.glass-gaussian .stat,
+html.dark body.glass-gaussian .list,
+html.dark body.glass-gaussian .chips,
+html.dark body.glass-gaussian .note--info,
+html.dark body.glass-gaussian .note--plain {
+  background: rgba(36,36,38,.90) !important;
+  border-color: rgba(255,255,255,.10) !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,.18) !important;
+}
+
+/* ============================================================
+   全局玻璃补全（用户 2026-08-11 全局 Liquid Glass 提示词）
+   ------------------------------------------------------------
+   补全清单中未覆盖的组件，并统一纳入 frosted（毛玻璃）/
+   gaussian（高斯）降级体系：
+   - .btn--soft   软按钮：完整玻璃三件套（渐变 + blur + 动态高光 + 边缘光）
+   - .btn--ok / .btn--danger：保留品牌色语义，仅加动态高光 + 胶囊圆角
+   - .term / .cli 代码块与 CLI 模拟器：深色玻璃底（保持代码阅读感）
+   - .fab         悬浮按钮：半透明玻璃圆钮 + 动态高光
+   ============================================================ */
+
+/* ---------- 1. 液态玻璃（liquid）：补全 ---------- */
+
+/* 实色按钮（ok/danger）：保持品牌色，仅加动态高光 + 胶囊圆角（同 btn--primary 模式） */
+
+/* 悬浮按钮：半透明玻璃圆钮 + 动态高光（保持 absolute 定位，仅改玻璃表面） */
+
+/* 代码块 / CLI：深色玻璃（保持深色代码阅读感，浅色页面下透出暗色磨砂） */
+body.glass-on .term__bar {
+  background: rgba(6, 11, 22, .55);
+}
+
+/* ---------- 2. 毛玻璃（frosted）降级补全：新组件加入磨砂，去掉高光/边缘伪元素 ---------- */
+body.glass-frosted .btn--soft::before,
+body.glass-frosted .btn--soft::after,
+body.glass-frosted .btn--ok::before,
+body.glass-frosted .btn--danger::before,
+body.glass-frosted .fab::before,
+body.glass-gaussian .btn--soft::before,
+body.glass-gaussian .btn--soft::after,
+body.glass-gaussian .btn--ok::before,
+body.glass-gaussian .btn--danger::before,
+body.glass-gaussian .fab::before {
+  display: none !important;
+}
+body.glass-frosted .btn--soft,
+body.glass-frosted .fab {
+  background: linear-gradient(165deg, rgba(255,255,255,.82) 0%, rgba(248,248,250,.78) 50%, rgba(245,245,247,.80) 100%) !important;
+  -webkit-backdrop-filter: blur(var(--glass-blur)) !important;
+  backdrop-filter: blur(var(--glass-blur)) !important;
+  border: 1px solid rgba(0, 0, 0, .06) !important;
+  box-shadow:
+    inset 0 .5px 0 rgba(255, 255, 255, .7),
+    inset 0 -.5px 0 rgba(0, 0, 0, .04),
+    0 1px 3px rgba(0, 0, 0, .05) !important;
+}
+html.dark body.glass-frosted .btn--soft,
+html.dark body.glass-frosted .fab {
+  background: linear-gradient(165deg, rgba(44,44,46,.85) 0%, rgba(36,36,38,.82) 50%, rgba(32,32,34,.84) 100%) !important;
+  border-color: rgba(255, 255, 255, .08) !important;
+}
+/* 代码块/CLI 在毛玻璃下保持深色磨砂（不套暖白渐变） */
+body.glass-frosted .term,
+body.glass-frosted .cli {
+  background: linear-gradient(165deg, rgba(17,24,39,.85) 0%, rgba(11,17,32,.88) 100%) !important;
+  -webkit-backdrop-filter: blur(var(--glass-blur)) !important;
+  backdrop-filter: blur(var(--glass-blur)) !important;
+  border-color: rgba(30, 41, 59, .90) !important;
+}
+
+/* ---------- 3. 高斯模糊（gaussian）降级补全：新组件加入近实底 ---------- */
+body.glass-gaussian .btn--soft,
+body.glass-gaussian .fab {
+  background: rgba(255, 255, 255, .92) !important;
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * .6)) !important;
+  backdrop-filter: blur(calc(var(--glass-blur) * .6)) !important;
+  border: 1px solid rgba(0, 0, 0, .08) !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .10) !important;
+}
+html.dark body.glass-gaussian .btn--soft,
+html.dark body.glass-gaussian .fab {
+  background: rgba(36, 36, 38, .92) !important;
+  border-color: rgba(255, 255, 255, .10) !important;
+}
+body.glass-gaussian .term,
+body.glass-gaussian .cli {
+  background: rgba(11, 17, 32, .92) !important;
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * .6)) !important;
+  backdrop-filter: blur(calc(var(--glass-blur) * .6)) !important;
+  border-color: rgba(30, 41, 59, .95) !important;
+}
+
+/* ---------------- 内置壁纸选择区（7 类 x 2 张文字 chips） ---------------- */
+.wp-cat {
+  display: flex; align-items: center; gap: 6px;
+  margin: 14px 0 7px;
+  font-size: 11.5px; font-weight: 800;
+  letter-spacing: .6px;
+  color: var(--text-3);
+  text-transform: uppercase;
+}
+.wp-cat:first-child { margin-top: 0; }
+.wp-cat::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+.wp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.wp-chips .chip { height: 32px; padding: 0 14px; font-size: 12.5px; }
+
+/* ---------------- 学习页左滑引导提示(优化7) ---------------- */
+.swipe-tip {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--tabbar-h, 56px) + var(--sa-bottom, 0px) + 96px);
+  transform: translateX(-50%);
+  z-index: 96;
+  padding: 9px 16px;
+  border-radius: 18px;
+  background: rgba(15, 23, 42, .82);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: .01em;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity .4s var(--ease-out), transform .4s var(--ease-out);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .25);
+  white-space: nowrap;
+}
+.swipe-tip.is-hide { opacity: 0; transform: translateX(-50%) translateY(8px); }
+
+/* ---------------- CLI 快速命令分组(优化4) ---------------- */
+.cli-qg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.cli-qg .chip { height: 26px; padding: 0 10px; font-size: 11.5px; }
+.cli-qb {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cli-qb .chip { height: 28px; padding: 0 11px; font-size: 11.5px; }

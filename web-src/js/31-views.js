@@ -10,6 +10,25 @@
 
   var V = {};
 
+  /* 壁纸/玻璃设置弹窗的静态外壳：由 boot() 挂到 <body> 下（不在 view 内），
+     避免 .view.is-active 的 view-spring-in 入场动画（transform: scale/translateY）
+     破坏 fixed 定位子元素——用户 2026-08-12「点我的快速下滑 sheet 错位」根因。 */
+  w.SHEET_MARKUP =
+      '<div id="wpSheet" class="sheet"><div class="sheet__grab"></div>' +
+        '<div class="sheet__head"><span class="sheet__title">背景壁纸</span></div>' +
+        '<div class="sheet__body">' +
+          '<div id="wpGrid"></div>' +
+          '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--hairline);text-align:center;padding-bottom:16px">' +
+            '<div style="font-size:13px;font-weight:700;color:var(--text)">或者从相册选取</div>' +
+            '<div class="t-xs t-mute" style="margin-top:4px">支持从相册选取任意照片</div></div>' +
+          '<button type="button" id="wpCustomBtn" class="btn btn--primary btn--block" style="height:46px;font-size:14px">' +
+            '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="vertical-align:-3px;margin-right:4px"><rect x="3" y="4" width="18" height="16" rx="2.5" stroke="#fff" stroke-width="1.8" fill="none"/><circle cx="8.5" cy="9.5" r="2" fill="#fff" opacity=".7"/></svg> 从相册选择图片</button>' +
+          '<button type="button" id="wpClearBtn" class="btn btn--soft btn--block" style="margin-top:8px;height:38px">清除壁纸</button>' +
+        '</div></div>' +
+      '<div id="glassSheet" class="sheet"><div class="sheet__grab"></div>' +
+        '<div class="sheet__head"><span class="sheet__title">个性化</span></div>' +
+        '<div class="sheet__body" id="glassBody"></div></div>';
+
   /* 页面外壳 */
   function page(inner) { return '<div class="page">' + inner + '</div>'; }
 
@@ -93,9 +112,25 @@
   function stat(n, l) {
     return '<div class="hero__stat"><div class="hero__num">' + n + '</div><div class="hero__lbl">' + esc(l) + '</div></div>';
   }
+  /* 图标渐变色映射（统一设计语言） */
+  var icoMap = {
+    'i-star':     { bg:'linear-gradient(135deg,#fef3c7 0%,#fde68a 100%)',   color:'#b45309' },
+    'i-bookmark': { bg:'linear-gradient(135deg,#e0e7ff 0%,#c7d2fe 100%)',   color:'#4338ca' },
+    'i-book':     { bg:'linear-gradient(135deg,#dbeafe 0%,#bfdbfe 100%)',   color:'#1d4ed8' },
+    'i-help':     { bg:'linear-gradient(135deg,#f3e8ff 0%,#e9d5ff 100%)',   color:'#7c3aed' },
+    'i-flag':     { bg:'linear-gradient(135deg,#fce7f3 0%,#fbcfe8 100%)',   color:'#be185d' },
+    'i-award':    { bg:'linear-gradient(135deg,#d1fae5 0%,#a7f3d0 100%)',   color:'#059669' },
+    'i-terminal': { bg:'linear-gradient(135deg,#f1f5f9 0%,#e2e8f0 100%)',   color:'#475569' },
+    'i-layers':   { bg:'linear-gradient(135deg,#cffafe 0%,#a5f3fc 100%)',   color:'#0891b2' },
+    'i-wrench':   { bg:'linear-gradient(135deg,#ffedd5 0%,#fed7aa 100%)',   color:'#c2410c' },
+    'i-briefcase':{ bg:'linear-gradient(135deg,#ede9fe 0%,#ddd6fe 100%)',   color:'#6d28d9' },
+    'i-compass':  { bg:'linear-gradient(135deg,#ccfbf1 0%,#a7f3d0 100%)',   color:'#047857' },
+  };
   function li(ico, t, dsc, go, arg) {
+    var c = icoMap[ico] || {};
+    var icoStyle = c.bg ? 'style="background:'+c.bg+';color:'+c.color+'"' : '';
     return '<button class="list__item" type="button" data-go="' + go + '"' + (arg ? ' data-arg="' + esc(arg) + '"' : '') + '>' +
-      '<span class="list__ico">' + icon(ico, 'icon--sm') + '</span>' +
+      '<span class="list__ico" ' + icoStyle + '>' + icon(ico, 'icon--sm') + '</span>' +
       '<span class="grow" style="min-width:0"><span class="list__t">' + esc(t) + '</span>' +
       '<span class="list__d ellipsis">' + esc(dsc) + '</span></span>' +
       '<svg class="icon icon--sm t-mute" aria-hidden="true"><use href="#i-chev-right"/></svg></button>';
@@ -168,7 +203,7 @@
     });
     var h = '';
     h += '<div class="dict__hint">' + icon('i-info', 'icon--sm') +
-      '<span>四家平台命令横向对照 · 点击任意一行可复制该命令。共 ' + CORE.dict.rows.length + ' 条。</span></div>';
+      '<span>四家平台命令横向对照 · 共 ' + CORE.dict.rows.length + ' 条。命令在不同版本/平台可能有差异，请以官方文档为准。</span></div>';
     h += '<div class="chips" data-chipgroup="dictCat" style="margin-top:10px">' +
       chip('全部', cat === '全部', CORE.dict.rows.length) +
       A.DICT_CATS.map(function (c) {
@@ -256,16 +291,39 @@
 
     h += sec('i-settings', '设置');
     h += '<div class="list">' +
-      '<div class="list__item" data-noripple><span class="list__ico">' + icon('i-moon', 'icon--sm') + '</span>' +
+      '<div class="list__item" data-noripple><span class="list__ico" style="background:linear-gradient(135deg,#f5f3ff 0%,#ede9fe 100%);color:var(--c-purple-600)">' + icon('i-moon', 'icon--sm') + '</span>' +
         '<span class="grow"><span class="list__t">外观主题</span><span class="list__d" id="themeLbl"></span></span>' +
         '<span class="row gap-1" id="themeSeg"></span></div>' +
-      '<div class="list__item" data-toggle-motion><span class="list__ico">' + icon('i-activity', 'icon--sm') + '</span>' +
+      '<div class="list__item" data-noripple><span class="list__ico" style="background:linear-gradient(135deg,#e8f0fe 0%,#f0e6ff 100%);color:var(--accent)">' +
+        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="margin-top:-1px"><rect x="3" y="4" width="18" height="16" rx="2.5" stroke="currentColor" stroke-width="1.8" fill="none"/><circle cx="8.5" cy="9.5" r="2" fill="currentColor" opacity=".7"/><path d="M4 17l4.5-4.5L12 14l4-5 4 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></span>' +
+        '<span class="grow"><span class="list__t">背景壁纸</span><span class="list__d" id="wallpaperLbl">默认</span></span>' +
+        '<svg class="icon icon--sm t-mute" aria-hidden="true"><use href="#i-chev-right"/></svg></div>' +
+      /* 全局质感（双模式：液态玻璃 A / 标准毛玻璃 B） */
+      '<div class="list__item" data-noripple><span class="list__ico" style="background:linear-gradient(135deg,#e6f6ee 0%,#e8f0fe 100%);color:var(--ok)">' + icon('i-layers', 'icon--sm') + '</span>' +
+        '<span class="grow"><span class="list__t">全局质感</span><span class="list__d" id="glassLbl">默认</span></span>' +
+        '<svg class="icon icon--sm t-mute" aria-hidden="true"><use href="#i-chev-right"/></svg></div>' +
+      '<div class="list__item" data-toggle-motion><span class="list__ico" style="background:linear-gradient(135deg,#fce7f3 0%,#fdf2f8 100%);color:var(--c-rose-500)">' + icon('i-activity', 'icon--sm') + '</span>' +
         '<span class="grow"><span class="list__t">动画效果</span><span class="list__d">关闭可提升低端机流畅度</span></span>' +
         '<span class="switch' + (U.motion.get() === 'on' ? ' is-on' : '') + '" id="swMotion"></span></div>' +
-      '<button class="list__item" type="button" data-export="all"><span class="list__ico">' + icon('i-download', 'icon--sm') + '</span>' +
+      '<div class="list__item" data-noripple id="speedRow"><span class="list__ico" style="background:linear-gradient(135deg,#e0f2fe 0%,#bae6fd 100%);color:var(--c-blue-600)">' + icon('i-activity', 'icon--sm') + '</span>' +
+        '<span class="grow"><span class="list__t">动画速度</span><span class="list__d">过渡与动画时长倍率</span></span>' +
+        '<span class="t-sm" id="speedLbl" style="font-weight:700;color:var(--accent)">1x</span>' +
+        '<svg class="icon icon--sm t-mute" aria-hidden="true"><use href="#i-chev-right"/></svg></div>' +
+      '<div class="list__item" data-noripple id="tabbarModeRow"><span class="list__ico" style="background:linear-gradient(135deg,#fef3e0 0%,#fff8e1 100%);color:var(--warn)">' + icon('i-activity', 'icon--sm') + '</span>' +
+        '<span class="grow"><span class="list__t">底栏状态</span><span class="list__d" id="tabbarModeLbl">悬浮胶囊</span></span>' +
+        '<span class="switch' + (A.getTabbarMode() === 'float' ? ' is-on' : '') + '" id="swTabbar"></span></div>' +
+      '<button class="list__item" type="button" data-export="all"><span class="list__ico" style="background:linear-gradient(135deg,#e8f0fe 0%,#dbeafe 100%);color:var(--c-blue-600)">' + icon('i-download', 'icon--sm') + '</span>' +
         '<span class="grow"><span class="list__t">导出全部笔记</span><span class="list__d">生成 Markdown 文件</span></span>' +
         '<svg class="icon icon--sm t-mute" aria-hidden="true"><use href="#i-chev-right"/></svg></button>' +
-      '<button class="list__item" type="button" data-reset><span class="list__ico" style="color:var(--danger)">' + icon('i-trash', 'icon--sm') + '</span>' +
+      /* 数据备份导出/导入(优化5) */
+      '<button class="list__item" type="button" data-exportdata><span class="list__ico" style="background:linear-gradient(135deg,#e0f2fe 0%,#c7d2fe 100%);color:var(--c-indigo-600, #4f46e5)">' + icon('i-download', 'icon--sm') + '</span>' +
+        '<span class="grow"><span class="list__t">导出数据备份</span><span class="list__d">进度/收藏/测验成绩 → JSON</span></span>' +
+        '<svg class="icon icon--sm t-mute" aria-hidden="true"><use href="#i-chev-right"/></svg></button>' +
+      '<button class="list__item" type="button" data-importdata><span class="list__ico" style="background:linear-gradient(135deg,#dcfce7 0%,#a7f3d0 100%);color:var(--c-emerald-600, #059669)">' + icon('i-upload', 'icon--sm') + '</span>' +
+        '<span class="grow"><span class="list__t">导入数据恢复</span><span class="list__d">从 JSON 备份恢复进度</span></span>' +
+        '<svg class="icon icon--sm t-mute" aria-hidden="true"><use href="#i-chev-right"/></svg></button>' +
+      '<input type="file" id="impFile" accept="application/json,.json" style="display:none">' +
+      '<button class="list__item" type="button" data-reset><span class="list__ico" style="background:linear-gradient(135deg,#fef2f2 0%,#fee2e2 100%);color:var(--danger)">' + icon('i-trash', 'icon--sm') + '</span>' +
         '<span class="grow"><span class="list__t" style="color:var(--danger)">清空学习记录</span><span class="list__d">进度、收藏、测验成绩</span></span>' +
         '<svg class="icon icon--sm t-mute" aria-hidden="true"><use href="#i-chev-right"/></svg></button>' +
     '</div>';

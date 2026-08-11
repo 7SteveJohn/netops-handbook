@@ -1,6 +1,7 @@
 /* ============================================================
    NetOps 2.0 · 设计令牌 (Design Tokens)
    零外部依赖 · 全部基于原生 CSS 自定义属性
+   设计语言：Apple Liquid Glass（液态玻璃）+ Apple HIG 克制美学
    ============================================================ */
 
 :root {
@@ -24,31 +25,34 @@
   --c-slate-600:#475569; --c-slate-700:#334155; --c-slate-800:#1e293b;
   --c-slate-900:#0f172a; --c-slate-950:#020617;
 
-  /* ---- 语义化：亮色主题 ---- */
-  --bg:            var(--c-slate-50);
-  --bg-elevated:   #ffffff;
-  --surface:       #ffffff;
-  --surface-2:     var(--c-slate-100);
-  --surface-3:     var(--c-slate-200);
-  --surface-glass: rgba(255,255,255,.82);
-  --border:        var(--c-slate-200);
+  /* ---- Apple HIG 语义色：冷灰白地 #f5f5f7 + 纯白内容面 ---- */
+  --bg:            #f5f5f7;          /* 苹果冷调地色（非暖奶油） */
+  --bg-elevated:   #ffffff;          /* 浮起面板 */
+  --surface:       #ffffff;          /* 内容表面：纯白 */
+  --surface-2:     #fbfbfd;          /* 次级表面（极淡冷白） */
+  --surface-3:     #f0f0f3;          /* 第三级表面 */
+  --hairline:      rgba(0,0,0,.07);  /* 发丝分隔线（apple 风格） */
+  --surface-glass: rgba(255,255,255,.55);
+  --border:        #e3e3e8;          /* 比 hairline 略重的结构边框 */
   --border-strong: var(--c-slate-300);
-  --text:          var(--c-slate-900);
-  --text-2:        var(--c-slate-600);
-  --text-3:        var(--c-slate-400);
+  --text:          #1d1d1f;          /* 苹果近黑文本 */
+  --text-2:        #515154;          /* 次级文本（暖灰） */
+  --text-3:        #86868b;          /* 三级/占位（苹果经典灰） */
   --text-inv:      #ffffff;
 
   --accent:        var(--c-blue-600);
-  --accent-soft:   var(--c-blue-50);
-  --accent-border: var(--c-blue-100);
-  --accent-text:   var(--c-blue-700);
+  --accent-soft:   #e8f0fe;
+  --accent-muted:  #4877d8;          /* 选中态品牌蓝（仅描边方案：图标 stroke + 文字色 + 5px 小圆点） */
+  /* --accent-tint 已移除：15% 浅蓝在 24px 描边图标上看着接近实心，不如纯描边方案干净 */
+  --accent-border: #c8dcfb;
+  --accent-text:   #1a56db;
 
-  --ok:            var(--c-emerald-600);
-  --ok-soft:       var(--c-emerald-50);
-  --warn:          var(--c-amber-600);
-  --warn-soft:     var(--c-amber-50);
-  --danger:        var(--c-rose-600);
-  --danger-soft:   var(--c-rose-50);
+  --ok:            #1aa260;          /* 收敛的状态色（非刺眼绿） */
+  --ok-soft:       #e6f6ee;
+  --warn:          #b7791f;
+  --warn-soft:     #fdf3e0;
+  --danger:        #d64545;
+  --danger-soft:   #fcebeb;
 
   /* 终端配色（明暗主题下保持深色，符合工程师直觉） */
   --term-bg:       #0b1120;
@@ -61,19 +65,19 @@
   --term-rose:     #fb7185;
   --term-dim:      #64748b;
 
-  /* ---- 阴影 ---- */
-  --sh-xs: 0 1px 2px rgba(15,23,42,.05);
-  --sh-sm: 0 1px 3px rgba(15,23,42,.08), 0 1px 2px rgba(15,23,42,.04);
-  --sh-md: 0 4px 12px rgba(15,23,42,.08), 0 2px 4px rgba(15,23,42,.04);
-  --sh-lg: 0 12px 32px rgba(15,23,42,.12), 0 4px 8px rgba(15,23,42,.06);
-  --sh-xl: 0 24px 56px rgba(15,23,42,.18);
+  /* ---- 阴影（柔和、低对比，苹果风） ---- */
+  --sh-xs: 0 1px 2px rgba(0,0,0,.04);
+  --sh-sm: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+  --sh-md: 0 4px 14px rgba(0,0,0,.07), 0 1px 3px rgba(0,0,0,.04);
+  --sh-lg: 0 12px 36px rgba(0,0,0,.10), 0 4px 10px rgba(0,0,0,.05);
+  --sh-xl: 0 24px 60px rgba(0,0,0,.14);
 
-  /* ---- 圆角 ---- */
-  --r-xs: 6px;  --r-sm: 8px;  --r-md: 12px;
-  --r-lg: 16px; --r-xl: 22px; --r-full: 999px;
+  /* ---- 圆角（液态玻璃偏好大圆角 + 胶囊） ---- */
+  --r-xs: 8px;  --r-sm: 10px; --r-md: 14px;
+  --r-lg: 20px; --r-xl: 28px; --r-full: 999px;
 
   /* ---- 字体 ---- */
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
                "Noto Sans SC", "PingFang SC", "Microsoft YaHei",
                "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Fira Code",
@@ -87,56 +91,180 @@
 
   /* ---- 结构尺寸 ---- */
   --appbar-h:  54px;
-  --tabbar-h:  58px;
+  --tabbar-h:  52px;
   --tap-min:   44px;   /* 最小可点击尺寸，符合无障碍规范 */
 
-  /* ---- 动效 ---- */
+  /* ---- 动效（弹性 = 液态感） ---- */
   --ease-out:   cubic-bezier(.22,.61,.36,1);
   --ease-in-out:cubic-bezier(.65,.05,.36,1);
-  --ease-spring:cubic-bezier(.34,1.56,.64,1);
-  --t-fast: .16s;
-  --t-base: .26s;
-  --t-slow: .42s;
+  --ease-spring:cubic-bezier(.34,1.56,.64,1);   /* 苹果弹性曲线（过冲回弹） */
+  --ease-apple-spring: cubic-bezier(.34, 1.56, .64, 1);  /* 苹果弹性：按钮/卡片反馈 */
+  --ease-apple-decel:  cubic-bezier(.25, .46, .45, .94);  /* 苹果减速：页面切换/入场 */
+  --ease-apple-smooth: cubic-bezier(.4, 0, .2, 1);        /* 苹果平滑：状态变化 */
+  --t-fast: .18s;
+  --t-base: .30s;
+  --t-slow: .46s;
+  /* ---- 动画速度（9 档可调：0.5x~3x，JS 覆写这些变量，见 32-boot.js applySpeed）
+     硬编码时长收口为 tokens，保证"动画速度"设置对全站过渡/动画生效 ---- */
+  --t-morph: 360ms;   /* 底栏 morph（常规/悬浮切换、滚动变实） */
+  --t-pill:  .42s;     /* 选中 pill 弹出 / 卡片展开 / view-in */
+  --t-view:  .50s;     /* 视图切换弹簧入场 */
+  --t-enter: .72s;     /* 底栏弹簧入场 */
+  --t-toast: .70s;     /* toast 弹簧入场 */
+
+  /* ============================================================
+     液态玻璃系统（Liquid Glass）— 2026-08-11 联网校准 iOS 26 参数
+     官方材料分级：thin 16pt/1.4x（导航与 tab bar）、
+                  regular 24pt/1.6x（弹窗/sheet）、
+                  thick 40pt/1.8x（警告/关键模态）。
+     液态玻璃本质：低不透明度白色 + 强模糊折射 + 高饱和 + 顶部 1pt 高光；
+     阴影为极简扩散型（0 4px 20px .06），拒绝硬阴影。
+     ============================================================ */
+  --glass-blur:          20px;     /* 默认（thin 与 regular 折中） */
+  --glass-blur-strong:   40px;     /* 抽屉/弹窗更强折射（thickMaterial） */
+  --glass-saturate:      165%;     /* 高饱和防褪色（thin 1.4x / regular 1.6x 之间） */
+  /* 液态玻璃通透感核心：极低不透明度（背景强烈透出，区别于毛玻璃的不透明磨砂） */
+  --glass-tint-top:      rgba(255,255,255,.20);
+  --glass-tint-bot:      rgba(250,250,252,.14);
+  /* 镜面高光：光线打在玻璃上沿（液态玻璃标志）。
+     --glass-specular     静态表面（卡片/列表等，高光固定于上沿）
+     --glass-specular-dyn 跟随光：导航栏/弹窗/按钮等，由 JS 写入 --mx/--my 随手指移动 */
+  --mx: 50%;            /* 高光水平位置（随手指移动） */
+  --my: -8%;            /* 高光垂直位置 */
+  --glass-specular:      radial-gradient(125% 82% at 50% -14%,
+                              rgba(255,255,255,.95) 0%,
+                              rgba(255,255,255,.40) 26%,
+                              transparent 60%);
+  --glass-specular-dyn:  radial-gradient(135% 95% at var(--mx) var(--my),
+                              rgba(255,255,255,.88) 0%,
+                              rgba(255,255,255,.32) 30%,
+                              transparent 64%);
+  /* 边缘光：上亮下暗，模拟光线沿玻璃边缘折射 */
+  --glass-edge-light:    linear-gradient(180deg,
+                              rgba(255,255,255,.95) 0%,
+                              rgba(255,255,255,0) 32%,
+                              rgba(255,255,255,0) 68%,
+                              rgba(255,255,255,.18) 100%);
+  /* 色散（chromatic aberration）：极淡冷暖偏色 */
+  --glass-aberration:    inset 1px 0 0 rgba(120,170,255,.06),
+                         inset -1px 0 0 rgba(255,150,120,.05);
+  /* 透镜边缘折射：细亮线 + 上缘强高光（1pt specular）+ 下缘极淡暗边 */
+  --glass-rim:           inset 0 0 0 .5px rgba(255,255,255,.55),
+                         inset 0 1px 1px rgba(255,255,255,.8),
+                         inset 0 -1px 1px rgba(0,0,0,.05);
+  /* 极简扩散投影 + 内高光（iOS 26 拒绝硬阴影） */
+  --glass-shadow:        0 8px 28px rgba(15,23,42,.10),
+                         0 2px 8px rgba(15,23,42,.05),
+                         inset 0 1px 0 rgba(255,255,255,.75),
+                         inset 0 0 0 .5px rgba(255,255,255,.45);
+
+  /* ---- 自定义背景 ---- */
+  --wallpaper: none;
+  --ambient:   none;    /* 玻璃开启时的环境光（见 body.glass-on） */
 }
 
+/* 环境光：玻璃开启时给页面铺彩色光斑，让液态玻璃有"内容可透"产生通透感
+   （这是液态玻璃与毛玻璃"看起来没区别"的关键：背景必须有色彩/层次，
+   玻璃 blur 才能折射出"通"的观感。毛玻璃模式我们会再覆盖为弱环境光以拉开差异） */
+body.glass-on {
+  --ambient:
+    radial-gradient(90% 60% at 0% 0%,    rgba(99,102,241,.20), transparent 55%),
+    radial-gradient(80% 60% at 100% 100%, rgba(236,72,153,.18), transparent 55%),
+    radial-gradient(75% 55% at 100% 0%,   rgba(14,165,233,.18), transparent 54%),
+    radial-gradient(75% 55% at 0% 100%,   rgba(16,185,129,.16), transparent 54%);
+}
+/* 深色模式环境光：比浅色更收敛，但必须有足够层次，
+   否则纯黑底上 blur 无可折射内容，玻璃会"败露"成一块平涂灰板 */
+html.dark body.glass-on {
+  --ambient:
+    radial-gradient(95% 65% at 0% 0%,     rgba(99,102,241,.26), transparent 56%),
+    radial-gradient(85% 65% at 100% 100%, rgba(236,72,153,.22), transparent 56%),
+    radial-gradient(78% 58% at 100% 0%,   rgba(14,165,233,.22), transparent 54%),
+    radial-gradient(78% 58% at 0% 100%,   rgba(16,185,129,.20), transparent 54%);
+}
+/* 毛玻璃模式：弱化环境光（磨砂不透明，背景纯净，与液态玻璃的"彩色透出"形成对比） */
+body.glass-on.glass-frosted {
+  --ambient:
+    radial-gradient(80% 50% at 50% 0%,    rgba(148,163,184,.10), transparent 65%),
+    radial-gradient(70% 50% at 50% 100%,  rgba(148,163,184,.08), transparent 65%);
+}
+html.dark body.glass-on.glass-frosted {
+  --ambient:
+    radial-gradient(80% 50% at 50% 0%,    rgba(148,163,184,.12), transparent 65%),
+    radial-gradient(70% 50% at 50% 100%,  rgba(148,163,184,.10), transparent 65%);
+}
+/* 高斯模式：彻底弱化环境光（近不透明，背景纯色） */
+body.glass-on.glass-gaussian { --ambient: none; }
+html.dark body.glass-on.glass-gaussian { --ambient: none; }
+
 /* ============================================================
-   暗色主题
+   暗色主题（深色玻璃更透、边缘光更收敛）
    ============================================================ */
 html.dark {
-  --bg:            var(--c-slate-950);
-  --bg-elevated:   var(--c-slate-900);
-  --surface:       var(--c-slate-900);
-  --surface-2:     var(--c-slate-800);
-  --surface-3:     var(--c-slate-700);
-  --surface-glass: rgba(15,23,42,.86);
-  --border:        #26334a;
-  --border-strong: var(--c-slate-700);
-  --text:          var(--c-slate-100);
-  --text-2:        var(--c-slate-400);
-  --text-3:        var(--c-slate-500);
-  --text-inv:      var(--c-slate-900);
+  --bg:            #000000;          /* 苹果深色地色 */
+  --bg-elevated:   #1c1c1e;
+  --surface:       #1c1c1e;
+  --surface-2:     #2c2c2e;
+  --surface-3:     #3a3a3c;
+  --hairline:      rgba(255,255,255,.10);
+  --surface-glass: rgba(28,28,30,.55);
+  --border:        #38383a;
+  --border-strong: #48484a;
+  --text:          #f5f5f7;
+  --text-2:        #c7c7cc;
+  --text-3:        #8e8e93;          /* 苹果经典深灰 */
+  --text-inv:      #1d1d1f;
 
-  --accent:        var(--c-blue-500);
-  --accent-soft:   rgba(37,99,235,.14);
-  --accent-border: rgba(59,130,246,.30);
-  --accent-text:   var(--c-blue-300);
+  --accent:        #0a84ff;          /* 苹果深色模式蓝 */
+  --accent-soft:   rgba(10,132,255,.16);
+  --accent-muted:  #6aa8e8;          /* 深色模式选中降饱和蓝 */
+  /* --accent-tint 已移除：深色同样仅描边方案 */
+  --accent-border: rgba(10,132,255,.38);
+  --accent-text:   #5ac8ff;
 
-  --ok:            var(--c-emerald-500);
-  --ok-soft:       rgba(16,185,129,.13);
-  --warn:          var(--c-amber-500);
-  --warn-soft:     rgba(245,158,11,.13);
-  --danger:        var(--c-rose-500);
-  --danger-soft:   rgba(244,63,94,.13);
+  --ok:            #30d158;
+  --ok-soft:       rgba(48,209,88,.16);
+  --warn:          #ffd60a;
+  --warn-soft:     rgba(255,214,10,.16);
+  --danger:        #ff453a;
+  --danger-soft:   rgba(255,69,58,.16);
 
   --term-bg:       #05090f;
   --term-bg-2:     #020509;
   --term-border:   #1c2942;
 
-  --sh-xs: 0 1px 2px rgba(0,0,0,.4);
-  --sh-sm: 0 1px 3px rgba(0,0,0,.5);
-  --sh-md: 0 4px 14px rgba(0,0,0,.55);
-  --sh-lg: 0 14px 36px rgba(0,0,0,.6);
-  --sh-xl: 0 24px 60px rgba(0,0,0,.7);
+  --sh-xs: 0 1px 2px rgba(0,0,0,.5);
+  --sh-sm: 0 1px 3px rgba(0,0,0,.6);
+  --sh-md: 0 4px 14px rgba(0,0,0,.6);
+  --sh-lg: 0 14px 38px rgba(0,0,0,.7);
+  --sh-xl: 0 24px 64px rgba(0,0,0,.8);
+
+  /* 深色玻璃参数：液态玻璃强调"通透"，tint 大幅降低让背景强烈透出
+     （frosted 模式会再用暖白/灰度覆盖，与 liquid 形成对比） */
+  --glass-tint-top:      rgba(58,58,64,.30);
+  --glass-tint-bot:      rgba(32,32,36,.22);
+  --glass-specular:      radial-gradient(120% 78% at 50% -14%,
+                              rgba(255,255,255,.32) 0%,
+                              rgba(255,255,255,.11) 28%,
+                              transparent 60%);
+  --glass-specular-dyn:  radial-gradient(135% 95% at var(--mx) var(--my),
+                              rgba(255,255,255,.28) 0%,
+                              rgba(255,255,255,.10) 30%,
+                              transparent 64%);
+  --glass-edge-light:    linear-gradient(180deg,
+                              rgba(255,255,255,.32) 0%,
+                              rgba(255,255,255,0) 32%,
+                              rgba(255,255,255,0) 68%,
+                              rgba(255,255,255,.10) 100%);
+  --glass-aberration:    inset 1px 0 0 rgba(120,170,255,.05),
+                         inset -1px 0 0 rgba(255,150,120,.04);
+  --glass-shadow:        0 10px 32px rgba(0,0,0,.38),
+                         0 3px 10px rgba(0,0,0,.22),
+                         inset 0 1px 0 rgba(255,255,255,.24),
+                         inset 0 0 0 .5px rgba(255,255,255,.18);
+  --glass-rim:           inset 0 0 0 .5px rgba(255,255,255,.24),
+                         inset 0 1px 1px rgba(255,255,255,.28),
+                         inset 0 -1px 1px rgba(0,0,0,.10);
 }
 
 /* ============================================================
@@ -144,14 +272,14 @@ html.dark {
    ============================================================ */
 [data-accent="teal"]    { --ph: var(--c-teal-600);    --ph-soft: var(--c-teal-50);    --ph-line: var(--c-teal-500); }
 [data-accent="blue"]    { --ph: var(--c-blue-600);    --ph-soft: var(--c-blue-50);    --ph-line: var(--c-blue-500); }
-[data-accent="purple"]  { --ph: var(--c-purple-600);  --ph-soft: var(--c-purple-50);  --ph-line: var(--c-purple-500); }
+[data-accent="purple"]  { --ph: var(--c-purple-600);  --ph-soft: var(--c-purple-100);  --ph-line: var(--c-purple-500); }
 [data-accent="rose"]    { --ph: var(--c-rose-600);    --ph-soft: var(--c-rose-50);    --ph-line: var(--c-rose-500); }
 [data-accent="amber"]   { --ph: var(--c-amber-600);   --ph-soft: var(--c-amber-50);   --ph-line: var(--c-amber-500); }
 [data-accent="emerald"] { --ph: var(--c-emerald-600); --ph-soft: var(--c-emerald-50); --ph-line: var(--c-emerald-500); }
 
-html.dark [data-accent="teal"]    { --ph: var(--c-teal-300);    --ph-soft: rgba(20,184,166,.13); }
-html.dark [data-accent="blue"]    { --ph: var(--c-blue-300);    --ph-soft: rgba(59,130,246,.13); }
-html.dark [data-accent="purple"]  { --ph: var(--c-purple-300);  --ph-soft: rgba(139,92,246,.13); }
-html.dark [data-accent="rose"]    { --ph: var(--c-rose-300);    --ph-soft: rgba(244,63,94,.13); }
-html.dark [data-accent="amber"]   { --ph: var(--c-amber-300);   --ph-soft: rgba(245,158,11,.13); }
-html.dark [data-accent="emerald"] { --ph: var(--c-emerald-300); --ph-soft: rgba(16,185,129,.13); }
+html.dark [data-accent="teal"]    { --ph: var(--c-teal-300);    --ph-soft: rgba(20,184,166,.16); }
+html.dark [data-accent="blue"]    { --ph: var(--c-blue-300);    --ph-soft: rgba(10,132,255,.16); }
+html.dark [data-accent="purple"]  { --ph: var(--c-purple-300);  --ph-soft: rgba(139,92,246,.16); }
+html.dark [data-accent="rose"]    { --ph: var(--c-rose-300);    --ph-soft: rgba(255,69,58,.16); }
+html.dark [data-accent="amber"]   { --ph: var(--c-amber-300);   --ph-soft: rgba(255,214,10,.16); }
+html.dark [data-accent="emerald"] { --ph: var(--c-emerald-300); --ph-soft: rgba(48,209,88,.16); }
