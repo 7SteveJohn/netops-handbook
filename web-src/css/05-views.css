@@ -273,7 +273,7 @@ html.dark .topo { opacity: .96; }
 }
 /* 列表项玻璃：设置页/字典页的核心元素 */
 .list__item:last-child { border-bottom: 0; }
-.list__item:active { transform: scale(.993); filter: brightness(1.03); background: var(--surface-2); }
+.list__item:active { transform: scale(.993); filter: none; background: rgba(120,130,150,.08); }
 .list__ico {
   width: 32px; height: 32px;
   flex: 0 0 auto;

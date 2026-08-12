@@ -51,7 +51,7 @@
   overflow: hidden;
   min-height: var(--tap-min);
 }
-.card__head:active { transform: scale(.994); filter: brightness(1.02); background: var(--surface-2); }
+.card__head:active { transform: scale(.994); filter: none; background: rgba(120,130,150,.08); }
 
 .card__chip {
   flex: 0 0 auto;
@@ -95,6 +95,19 @@
 }
 .card.is-open .card__body { grid-template-rows: 1fr; }
 .card__body > div { overflow: hidden; min-height: 0; }
+/* 2026-08-12 17:43（按用户修复方案）：card__inner 初始 opacity 0 + 过渡，
+   懒加载内容注入后由 CSS 平滑显示，避免 Q1 展开瞬间"蒙版闪一下" */
+.card > .card__body > div > .card__inner {
+  display: block;
+  padding-top: 0;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity .28s ease, transform .34s ease;
+}
+.card.is-open > .card__body > div > .card__inner {
+  opacity: 1;
+  transform: translateY(0);
+}
 .card__inner { padding: 0 12px 13px; border-top: 1px solid var(--border); padding-top: 12px; }
 
 /* ---------------- 小节标题 ---------------- */
@@ -698,14 +711,38 @@ body.glass-frosted .appbar::after,
 body.glass-frosted .tabbar::after {
   display: none !important;
 }
-/* 毛玻璃核心：纯模糊 + 暖白半透明渐变底 + 细边框 */
-body.glass-frosted .card,
-body.glass-frosted .sheet,
-body.glass-frosted .toast,
-body.glass-frosted .searchbar,
+/* 毛玻璃核心：纯模糊 + 暖白半透明渐变底 + 细边框
+   2026-08-12 16:40 最终方案（查资料确认 WebView 限制）：
+   - **固定元素**(appbar/tabbar/drawer/searchbar)：保留 backdrop-filter blur —— 真实模糊,px 滑块直接影响
+   - **滚动区域**(card/stat/list__item/phase 等)：**放弃 backdrop-filter** —— WebView 滚动时每帧重采样背景
+     必闪("白雾闪烁")。改用 high-alpha 实色蒙版(rgba .80) + 内阴影,视觉近似"磨砂实色",稳定不闪。
+   px 滑块对滚动区域的影响：由 JS 把蒙版 alpha 与 --glass-blur 联动（见 applyGlass --glass-mask-a）。 */
 body.glass-frosted .appbar,
 body.glass-frosted .tabbar::before,
 body.glass-frosted .drawer,
+body.glass-frosted .searchbar {
+  -webkit-backdrop-filter: blur(var(--glass-blur)) !important;
+  backdrop-filter: blur(var(--glass-blur)) !important;
+  /* 固定元素也用磨砂实色（保持视觉一致） */
+  background: linear-gradient(
+    165deg,
+    rgba(255,255,255,.82) 0%,
+    rgba(248,248,250,.78) 50%,
+    rgba(245,245,247,.80) 100%
+  ) !important;
+  border: 1px solid rgba(0,0,0,.06) !important;
+  box-shadow:
+    inset 0 0.5px 0 rgba(255,255,255,.7),
+    inset 0 -0.5px 0 rgba(0,0,0,.04),
+    0 1px 3px rgba(0,0,0,.05) !important;
+}
+
+/* frosted 模式滚动区域：蒙版 + backdrop-filter blur(2026-08-12 17:43 按用户方案恢复)。
+   背景用 --glass-mask-a 实色蒙版(跟 px 滑块)，同时保留 backdrop-filter blur(var(--glass-blur))
+   实现真模糊感 —— 不再 on/off 切换(白雾闪烁已由删除 is-scrolling 解决)。 */
+body.glass-frosted .card,
+body.glass-frosted .sheet,
+body.glass-frosted .toast,
 body.glass-frosted .tablewrap,
 body.glass-frosted .list__item,
 body.glass-frosted .dict__row,
@@ -713,39 +750,50 @@ body.glass-frosted .qz__item,
 body.glass-frosted .phase,
 body.glass-frosted .stat,
 body.glass-frosted .list,
-body.glass-frosted .chips {
+body.glass-frosted .chips,
+body.glass-frosted .ring,
+body.glass-frosted .meta {
   -webkit-backdrop-filter: blur(var(--glass-blur)) !important;
   backdrop-filter: blur(var(--glass-blur)) !important;
-  /* 暖白渐变 —— 比 liquid 的冷调更柔和、更「苹果磨砂」 */
+  will-change: filter;
+  /* 蒙版 alpha 由 JS 设置（--glass-mask-a,跟随 px 滑块,高 px 更实） */
   background: linear-gradient(
     165deg,
-    rgba(255,255,255,.82) 0%,
-    rgba(248,248,250,.78) 50%,
-    rgba(245,245,247,.80) 100%
+    rgba(255,255,255,var(--glass-mask-a, .80)) 0%,
+    rgba(248,248,250,calc(var(--glass-mask-a, .80) - .04)) 50%,
+    rgba(245,245,247,var(--glass-mask-a, .80)) 100%
   ) !important;
-  /* 单像素细线边框（非发光）+ 极淡内阴影模拟玻璃厚度 */
   border: 1px solid rgba(0,0,0,.06) !important;
   box-shadow:
     inset 0 0.5px 0 rgba(255,255,255,.7),
     inset 0 -0.5px 0 rgba(0,0,0,.04),
     0 1px 3px rgba(0,0,0,.05) !important;
 }
-/* 毛玻璃暗色主题：深灰暖调（非纯黑冷调） */
-html.dark body.glass-frosted .card,
-html.dark body.glass-frosted .sheet,
-html.dark body.glass-frosted .toast,
-html.dark body.glass-frosted .searchbar,
+/* frosted 模式子段：backdrop-filter blur + 统一半透明底色(语义色在 06-anim.css 统一规则) */
+body.glass-frosted .note,
+body.glass-frosted .note--info,
+body.glass-frosted .note--plain,
+body.glass-frosted .note--warn,
+body.glass-frosted .note--danger,
+body.glass-frosted .note--ok,
+body.glass-frosted .sec,
+body.glass-frosted .answer,
+body.glass-frosted .qz__fb {
+  -webkit-backdrop-filter: blur(var(--glass-blur)) !important;
+  backdrop-filter: blur(var(--glass-blur)) !important;
+  will-change: filter;
+  border-radius: var(--r-md) !important;
+  box-shadow: none !important;
+}
+
+/* frosted 模式子段：backdrop-filter blur + 统一半透明底色(语义色在 06-anim.css 统一规则) —— 已合并到上方规则 */
+/* 毛玻璃暗色主题：深灰暖调（非纯黑冷调）—— 固定元素保留 backdrop-filter */
 html.dark body.glass-frosted .appbar,
 html.dark body.glass-frosted .tabbar::before,
 html.dark body.glass-frosted .drawer,
-html.dark body.glass-frosted .tablewrap,
-html.dark body.glass-frosted .list__item,
-html.dark body.glass-frosted .dict__row,
-html.dark body.glass-frosted .qz__item,
-html.dark body.glass-frosted .phase,
-html.dark body.glass-frosted .stat,
-html.dark body.glass-frosted .list,
-html.dark body.glass-frosted .chips {
+html.dark body.glass-frosted .searchbar {
+  -webkit-backdrop-filter: blur(var(--glass-blur)) !important;
+  backdrop-filter: blur(var(--glass-blur)) !important;
   background: linear-gradient(
     165deg,
     rgba(44,44,46,.85) 0%,
@@ -757,6 +805,53 @@ html.dark body.glass-frosted .chips {
     inset 0 0.5px 0 rgba(255,255,255,.12),
     inset 0 -0.5px 0 rgba(0,0,0,.15),
     0 1px 3px rgba(0,0,0,.2) !important;
+}
+
+/* 毛玻璃暗色：滚动区域蒙版 + backdrop-filter blur(2026-08-12 17:43 恢复 blur) */
+html.dark body.glass-frosted .card,
+html.dark body.glass-frosted .sheet,
+html.dark body.glass-frosted .toast,
+html.dark body.glass-frosted .tablewrap,
+html.dark body.glass-frosted .list__item,
+html.dark body.glass-frosted .dict__row,
+html.dark body.glass-frosted .qz__item,
+html.dark body.glass-frosted .phase,
+html.dark body.glass-frosted .stat,
+html.dark body.glass-frosted .list,
+html.dark body.glass-frosted .chips,
+html.dark body.glass-frosted .ring,
+html.dark body.glass-frosted .meta {
+  -webkit-backdrop-filter: blur(var(--glass-blur)) !important;
+  backdrop-filter: blur(var(--glass-blur)) !important;
+  will-change: filter;
+  background: linear-gradient(
+    165deg,
+    rgba(44,44,46,var(--glass-mask-a, .85)) 0%,
+    rgba(36,36,38,calc(var(--glass-mask-a, .85) - .03)) 50%,
+    rgba(32,32,34,var(--glass-mask-a, .85)) 100%
+  ) !important;
+  border-color: rgba(255,255,255,.08) !important;
+  box-shadow:
+    inset 0 0.5px 0 rgba(255,255,255,.12),
+    inset 0 -0.5px 0 rgba(0,0,0,.15),
+    0 1px 3px rgba(0,0,0,.2) !important;
+}
+
+/* 毛玻璃暗色：子段 backdrop-filter blur + 统一半透明底色 */
+html.dark body.glass-frosted .note,
+html.dark body.glass-frosted .note--info,
+html.dark body.glass-frosted .note--plain,
+html.dark body.glass-frosted .note--warn,
+html.dark body.glass-frosted .note--danger,
+html.dark body.glass-frosted .note--ok,
+html.dark body.glass-frosted .sec,
+html.dark body.glass-frosted .answer,
+html.dark body.glass-frosted .qz__fb {
+  -webkit-backdrop-filter: blur(var(--glass-blur)) !important;
+  backdrop-filter: blur(var(--glass-blur)) !important;
+  will-change: filter;
+  border-radius: var(--r-md) !important;
+  box-shadow: none !important;
 }
 
 /* ============================================================
@@ -773,14 +868,23 @@ body.glass-gaussian .appbar::after,
 body.glass-gaussian .tabbar::after {
   display: none !important;
 }
-/* 高斯核心：轻模糊 + 近乎不透明均匀底 + 明确边界 */
-body.glass-gaussian .card,
-body.glass-gaussian .sheet,
-body.glass-gaussian .toast,
-body.glass-gaussian .searchbar,
+/* 高斯核心：轻模糊 + 近乎不透明均匀底 + 明确边界
+   2026-08-12 17:43（按用户方案）：滚动区域恢复 backdrop-filter blur,配合蒙版 */
 body.glass-gaussian .appbar,
 body.glass-gaussian .tabbar::before,
 body.glass-gaussian .drawer,
+body.glass-gaussian .searchbar {
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * .6)) !important;
+  backdrop-filter: blur(calc(var(--glass-blur) * .6)) !important;
+  background: rgba(252,252,252,.90) !important;
+  border: 1px solid rgba(0,0,0,.09) !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,.07) !important;
+}
+
+/* gaussian 滚动区域：蒙版 + backdrop-filter blur */
+body.glass-gaussian .card,
+body.glass-gaussian .sheet,
+body.glass-gaussian .toast,
 body.glass-gaussian .tablewrap,
 body.glass-gaussian .list__item,
 body.glass-gaussian .dict__row,
@@ -789,25 +893,48 @@ body.glass-gaussian .phase,
 body.glass-gaussian .stat,
 body.glass-gaussian .list,
 body.glass-gaussian .chips,
-body.glass-gaussian .note--info,
-body.glass-gaussian .note--plain {
+body.glass-gaussian .ring,
+body.glass-gaussian .meta {
   -webkit-backdrop-filter: blur(calc(var(--glass-blur) * .6)) !important;
   backdrop-filter: blur(calc(var(--glass-blur) * .6)) !important;
-  /* 近乎不透明均匀底色 —— 微妙的一体感，但主体是实色 */
-  background: rgba(252,252,252,.90) !important;
-  /* 清晰的细边框（扁平化层级分隔） */
+  will-change: filter;
+  background: rgba(252,252,252,var(--glass-mask-a, .90)) !important;
   border: 1px solid rgba(0,0,0,.09) !important;
-  /* 扁平投影 —— 无内发光，无折射 */
   box-shadow: 0 1px 4px rgba(0,0,0,.07) !important;
 }
+
+/* gaussian 子段：backdrop-filter blur + 统一半透明底色 */
+body.glass-gaussian .note,
+body.glass-gaussian .note--info,
+body.glass-gaussian .note--plain,
+body.glass-gaussian .note--warn,
+body.glass-gaussian .note--danger,
+body.glass-gaussian .note--ok,
+body.glass-gaussian .sec,
+body.glass-gaussian .answer,
+body.glass-gaussian .qz__fb {
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * .6)) !important;
+  backdrop-filter: blur(calc(var(--glass-blur) * .6)) !important;
+  will-change: filter;
+  border-radius: var(--r-md) !important;
+  box-shadow: none !important;
+}
 /* 高斯暗色主题：深灰近不透明 */
-html.dark body.glass-gaussian .card,
-html.dark body.glass-gaussian .sheet,
-html.dark body.glass-gaussian .toast,
-html.dark body.glass-gaussian .searchbar,
 html.dark body.glass-gaussian .appbar,
 html.dark body.glass-gaussian .tabbar::before,
 html.dark body.glass-gaussian .drawer,
+html.dark body.glass-gaussian .searchbar {
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * .6)) !important;
+  backdrop-filter: blur(calc(var(--glass-blur) * .6)) !important;
+  background: rgba(28,28,30,.92) !important;
+  border: 1px solid rgba(255,255,255,.10) !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,.25) !important;
+}
+
+/* 高斯暗色：滚动区域蒙版 + backdrop-filter blur */
+html.dark body.glass-gaussian .card,
+html.dark body.glass-gaussian .sheet,
+html.dark body.glass-gaussian .toast,
 html.dark body.glass-gaussian .tablewrap,
 html.dark body.glass-gaussian .list__item,
 html.dark body.glass-gaussian .dict__row,
@@ -816,11 +943,23 @@ html.dark body.glass-gaussian .phase,
 html.dark body.glass-gaussian .stat,
 html.dark body.glass-gaussian .list,
 html.dark body.glass-gaussian .chips,
+html.dark body.glass-gaussian .ring,
+html.dark body.glass-gaussian .meta,
+html.dark body.glass-gaussian .note,
 html.dark body.glass-gaussian .note--info,
-html.dark body.glass-gaussian .note--plain {
-  background: rgba(36,36,38,.90) !important;
-  border-color: rgba(255,255,255,.10) !important;
-  box-shadow: 0 1px 4px rgba(0,0,0,.18) !important;
+html.dark body.glass-gaussian .note--plain,
+html.dark body.glass-gaussian .note--warn,
+html.dark body.glass-gaussian .note--danger,
+html.dark body.glass-gaussian .note--ok,
+html.dark body.glass-gaussian .sec,
+html.dark body.glass-gaussian .answer,
+html.dark body.glass-gaussian .qz__fb {
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * .6)) !important;
+  backdrop-filter: blur(calc(var(--glass-blur) * .6)) !important;
+  will-change: filter;
+  background: rgba(28,28,30,var(--glass-mask-a, .92)) !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
 }
 
 /* ============================================================

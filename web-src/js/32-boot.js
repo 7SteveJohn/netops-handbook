@@ -151,13 +151,50 @@
   A.back = back;
   /* 暴露给 31-views.js 的 V.me() 调用（跨 IIFE 作用域） */
   A.getTabbarMode = getTabbarMode;
-  /* Android 物理返回键桥接：返回 true 表示网页已处理，false 表示可退出应用 */
-  w.NetOpsBack = function () { try { return back(); } catch (e) { return false; } };
+  /* ============================================================
+     2026-08-12 19:30（按用户修复方案）：统一"返回 + 退出确认"逻辑
+     问题根源：原生返回键(w.NetOpsBack)与网页手势的退出逻辑不统一——
+     之前 w.NetOpsBack 只调 back()，首页时返回 false，Android 原生收到 false
+     直接 finish() 退出，绕过网页的 Toast + 2 秒二次确认。
+     修复：handleBackOrExit() 统一处理 —— 首次返回 true 拦截原生退出并弹
+     Toast，2 秒内再次才返回 false 允许原生关闭。
+     ============================================================ */
+  var lastExitTap = 0;
+  /* 切后台/重新获得焦点时重置退出时间戳（Home→重进不会误判二次点击） */
+  d.addEventListener('visibilitychange', function () {
+    if (d.visibilityState === 'visible') lastExitTap = 0;
+  });
+  w.addEventListener('focus', function () { lastExitTap = 0; });
+
+  function handleBackOrExit() {
+    /* 尝试响应内部返回（关闭弹窗、抽屉、展开卡片或返回上一级页面） */
+    var handled = back();
+    if (handled) return true; /* 已在应用内完成返回，不退出 */
+    /* 处于首页且无二级菜单可退时，执行 2 秒二次确认逻辑 */
+    var now = Date.now();
+    if (now - lastExitTap < 2000) {
+      lastExitTap = 0;
+      if (w.NetBridge && w.NetBridge.exitApp) {
+        try { w.NetBridge.exitApp(); } catch (e) {}
+      }
+      return false; /* 2 秒内再次触发，允许原生壳关闭应用 */
+    } else {
+      lastExitTap = now;
+      U.toast('再按一次退出应用', null);
+      return true; /* 首次触发：拦截返回事件，显示 Toast，阻止原生壳直接退出 */
+    }
+  }
+  /* Android 物理返回键桥接：返回 true 表示网页已处理（拦截），false 才允许原生退出 */
+  w.NetOpsBack = function () {
+    try { return handleBackOrExit(); } catch (e) { return false; }
+  };
   /* 浏览器/桌面：手势或 Alt+← 返回时也走同一套栈 */
   w.addEventListener('popstate', function () { back(); });
   d.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' || (e.altKey && e.key === 'ArrowLeft')) { if (back()) e.preventDefault(); }
   });
+  /* 暴露给手势：网页内部左滑/返回键统一走 handleBackOrExit */
+  A.handleBackOrExit = handleBackOrExit;
 
   /* ---------------- 进度条 ---------------- */
   function updateProgress() {
@@ -651,12 +688,32 @@
   function applyGlass(g) {
     var root = document.documentElement;
     var em = effectiveGlassMode(g);
-    root.style.setProperty('--glass-blur', g.blur + 'px');
-    root.style.setProperty('--glass-blur-strong', Math.round(g.blur * 1.4) + 'px');
-    /* 液态玻璃通透度：由 g.tint(20-90%) 计算浮层渐变 alpha */
-    var a = Math.max(.10, Math.min(.95, (g.tint || 55) / 100));
+    /* 2026-08-12 17:43（按用户修复方案）：blur 独立于 mode ——
+       liquid 模式下 blur 为 0（通透设计），frosted/gaussian 用用户设定值 g.blur，
+       切换模式时正确恢复，不再出现"切换后模糊失效"。 */
+    var blurPx = (em === 'liquid') ? 0 : (g.blur || 14);
+    root.style.setProperty('--glass-blur', blurPx + 'px');
+    root.style.setProperty('--glass-blur-strong', Math.round(blurPx * 1.4) + 'px');
+    /* 三模式统一 alpha 公式：
+       - liquid：tint 10% → α≈0.04 (极透), 95% → α≈0.92 (近实色) —— 滑块响应范围大
+       - frosted：在 liquid 基础上 +0.20 (略实,「苹果磨砂」感)
+       - gaussian：在 liquid 基础上 +0.45 (近不透明,「iOS Reduce Transparency」)
+       三模式统一用 var(--glass-tint-top/bot),但 alpha 范围不同——保持视觉差异同时响应滑块 */
+    var t = Math.max(10, Math.min(95, g.tint || 55));
+    var baseA = 0.04 + Math.pow((t - 10) / 85, 1.2) * 0.90;  /* 非线性：低端稀薄、高端厚实 */
+    var a;
+    if (em === 'frosted') a = Math.min(0.85, baseA + 0.20);
+    else if (em === 'gaussian') a = Math.min(0.94, baseA + 0.45);
+    else a = baseA;
+    var b = Math.max(0.03, a - 0.13);
     root.style.setProperty('--glass-tint-top', 'rgba(255,255,255,' + a.toFixed(3) + ')');
-    root.style.setProperty('--glass-tint-bot', 'rgba(250,250,252,' + Math.max(.05, a - .13).toFixed(3) + ')');
+    root.style.setProperty('--glass-tint-bot', 'rgba(250,250,252,' + b.toFixed(3) + ')');
+    /* 暗色模式专用：纯 alpha 变量（暗色 CSS 用 rgba(44,44,46,var(--glass-tint-top-a)) 形式） */
+    root.style.setProperty('--glass-tint-top-a', a.toFixed(3));
+    root.style.setProperty('--glass-tint-bot-a', b.toFixed(3));
+    /* 滚动区域"实色蒙版"alpha（frosted/gaussian 主卡/子段用，跟随 px 滑块，范围 .72-.92） */
+    var maskA = Math.min(0.92, Math.max(0.72, 0.60 + (g.blur - 8) / 12 * 0.30));
+    root.style.setProperty('--glass-mask-a', maskA.toFixed(3));
     d.body.classList.toggle('glass-on', g.on);
     d.body.classList.toggle('glass-liquid', g.on && em === 'liquid');
     d.body.classList.toggle('glass-gaussian', g.on && em === 'gaussian');
@@ -753,19 +810,27 @@
       });
     });
 
-    /* 绑定事件：滑块 */
+    /* 绑定事件：滑块（requestAnimationFrame 节流，避免拖动时连续 input 事件
+       频繁重绘导致 WebView 闪屏） */
     body.querySelectorAll('.glass-slider').forEach(function (input) {
       var key = input.getAttribute('data-glass');
-      function apply() {
+      var raf = 0, lastText = '';
+      function applyFlush() {
+        raf = 0;
         var val = parseInt(input.value, 10);
         g[key] = val;
-        $('#glassVal_' + key).textContent = val + (key === 'tint' ? '%' : 'px');
+        var txt = val + (key === 'tint' ? '%' : 'px');
+        if (txt !== lastText) { $('#glassVal_' + key).textContent = txt; lastText = txt; }
         saveGlass(g); applyGlass(g);
-        updateGlassLabel(g);
       }
-      /* input + change 双绑定：旧 WebView 拖动 range 可能只触发 change */
+      function apply() {
+        if (raf) return;
+        raf = requestAnimationFrame(applyFlush);
+      }
+      /* 结束时强制 flush 一次,避免最后一帧没更新 */
+      function applyNow() { if (raf) { cancelAnimationFrame(raf); raf = 0; } applyFlush(); }
       input.addEventListener('input', apply);
-      input.addEventListener('change', apply);
+      input.addEventListener('change', applyNow);
     });
   }
 
@@ -1367,6 +1432,8 @@
     appbar.classList.toggle('is-scrolled', t > 4);
     fab.classList.toggle('is-show', t > 620);
     lastTop = t;
+    /* 2026-08-12 17:43：移除 is-scrolling 动态添加 —— 滚动时强行切 backdrop-filter
+       反而造成"白雾闪烁"。滚动区域保留 backdrop-filter 稳定渲染。 */
   }
 
   /* ---------------- 学习页任意位置"左滑"（从左往右滑）呼出目录 ----------------
@@ -1378,15 +1445,23 @@
      3. 只用 touch 事件（Android WebView 兼容）+ touchmove passive:false
      4. 只在判定成功（dx > TH）时 preventDefault，垂直滚动放行
      5. 触发时 console.log + toast 调试反馈 */
+  /* 2026-08-12 18:57 用户反馈：左滑手势在二级菜单/其他模块被屏蔽。
+     期望：进入二级菜单或非学习页时，左滑 = 返回上一级（back），
+     而不是只有学习页根界面才响应。
+     逻辑：
+     - 任何页面监听手势
+     - 左滑(dx>TH)：目录开着→关目录；学习页根界面→呼出目录；其他(二级菜单/其他模块)→ back()
+     - 右滑(dx<-TH)：目录开着→关目录（原行为保留） */
   function bindLearnSwipeOpen(openFn) {
+    /* 2026-08-12 19:20：防重复绑定（WebView restoreState 后 boot 可能重复执行） */
+    if (w.__swipeBound) return;
+    w.__swipeBound = true;
     var TH = 55;
     var sx = 0, sy = 0, active = false, fired = false;
     function start(e) {
-      if (cur.r !== 'learn') return;                 /* 只学习页 */
       var t = e.touches ? e.touches[0] : e;
       sx = t.clientX; sy = t.clientY;
       active = true; fired = false;
-      if (w.console) console.log('[swipe] start', e.type, cur.r, 'opened=' + (drawerCtl && drawerCtl.isOpen && drawerCtl.isOpen()));
     }
     function move(e) {
       if (!active || fired) return;
@@ -1396,21 +1471,39 @@
       /* 垂直滚动为主：放行滚动、放弃手势（防滚动误触） */
       if (Math.abs(dy) * 1.2 > Math.abs(dx)) { active = false; return; }
       var opened = drawerCtl && drawerCtl.isOpen && drawerCtl.isOpen();
-      /* 对称手势：未开 → 左滑(dx > TH)开；已开 → 右滑(dx < -TH)关 */
-      if (dx > TH && !opened) {
+      if (dx > TH) { /* 左滑（从左往右滑） */
         fired = true; active = false;
         if (e.cancelable) e.preventDefault();
-        if (w.console) console.log('[swipe] FIRE 左滑开', dx);
-        U.toast('呼出目录', 'ok');
-        openFn();
+        if (opened) {
+          if (w.console) console.log('[swipe] 左滑关目录', dx);
+          openFn();
+        } else if (closeOpenCard()) {
+          /* 页面有展开的卡片(二级菜单) → 收起卡片 */
+          if (w.console) console.log('[swipe] 左滑收起卡片', dx);
+        } else if (cur.r === 'learn' && !stack.length) {
+          if (w.console) console.log('[swipe] 左滑呼出目录', dx);
+          U.toast('呼出目录', 'ok');
+          openFn();
+        } else {
+          /* 二级导航 / 其他模块 → 统一走 handleBackOrExit()
+             （返回上一级；根界面 → Toast + 2 秒二次确认,与原生返回键一致） */
+          if (w.console) console.log('[swipe] 左滑 handleBackOrExit', dx, cur.r, stack.length);
+          handleBackOrExit();
+        }
       } else if (dx < -TH && opened) {
         fired = true; active = false;
         if (e.cancelable) e.preventDefault();
-        if (w.console) console.log('[swipe] FIRE 右滑关', dx);
+        if (w.console) console.log('[swipe] 右滑关目录', dx);
         openFn();
       }
     }
     function end() { active = false; fired = false; }
+    /* 当前页面是否有展开的折叠卡片（二级菜单为 DOM 展开，非 stack 导航） */
+    function closeOpenCard() {
+      var oc = d.querySelector('.card.is-open');
+      if (oc) { oc.classList.remove('is-open'); return true; }
+      return false;
+    }
     w.addEventListener('touchstart', start, { passive: true });
     w.addEventListener('touchmove', move, { passive: false });
     w.addEventListener('touchend', end, { passive: true });
@@ -1419,6 +1512,11 @@
 
   /* ---------------- 启动 ---------------- */
   function boot() {
+    /* 2026-08-12 19:20：防重复执行 —— Android WebView 在 Activity 重建/restoreState
+       后 DOM 已加载，else 分支会再执行一次 boot()，导致手势/tab/scroll 事件重复绑定，
+       第二次进应用手势和 toast 失效。加一次性标志。 */
+    if (w.__netopsBooted) return;
+    w.__netopsBooted = true;
     view = $('#view'); scroll = $('#scroll'); appbar = $('#appbar');
     barName = $('#barName'); barSub = $('#barSub'); barFill = $('#barFill');
     navUse = $('#navUse'); themeUse = $('#themeUse');
