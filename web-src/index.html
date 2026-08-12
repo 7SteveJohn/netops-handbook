@@ -10,6 +10,33 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="referrer" content="no-referrer">
 <title>NetOps 2.0 · 全栈网络运维技能导航</title>
+<script>
+(function() {
+  /* 2026-08-12 18:18（按用户整合方案）：Android WebView 降级检测 v2 ——
+     只加 .android-webview 类 + 保留 glass-on（on 强制 true），
+     靠 CSS 覆盖 backdrop-filter 为纯色，复用玻璃样式但不触发 WebView 模糊渲染。 */
+  var ua = navigator.userAgent || '';
+  var isAndroid = /Android/.test(ua);
+  var isWebView = isAndroid && /wv/.test(ua);
+  var isChrome = /Chrome\/(\d+)/.test(ua);
+  var chromeVersion = parseInt(RegExp.$1) || 0;
+  if (isWebView || (isAndroid && chromeVersion < 90)) {
+    document.documentElement.classList.add('android-webview');
+    // 只禁用 backdrop-filter，但保留 glass-on 类，以便复用样式
+    try {
+      var g = localStorage.getItem('netops_glass');
+      if (g) {
+        var obj = JSON.parse(g);
+        // 强制将 on 设为 true，但靠 CSS 覆盖 backdrop-filter
+        if (obj.on === false) obj.on = true;
+        localStorage.setItem('netops_glass', JSON.stringify(obj));
+      } else {
+        localStorage.setItem('netops_glass', JSON.stringify({ on: true, mode: 'liquid', blur: 14, tint: 55 }));
+      }
+    } catch(e) {}
+  }
+})();
+</script>
 <style>/*__CSS__*/</style>
 </head>
 <body>

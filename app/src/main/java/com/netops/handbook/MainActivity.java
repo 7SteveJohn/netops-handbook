@@ -439,6 +439,15 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
         }
+
+        /** 2026-08-12 19:16：网页侧"双按退出确认"确认后调用 —— 真正退出应用。
+            与物理返回键的防误触(Java 侧)不同，这是给左滑手势退出用的专门桥。 */
+        @JavascriptInterface
+        public void exitApp() {
+            runOnUiThread(() -> {
+                try { finish(); } catch (Exception e) { /* ignore */ }
+            });
+        }
     }
 
     /** 根据文件名后缀推断 MIME（2026-08-12 修复：导出 JSON 被当 markdown 处理）。 */

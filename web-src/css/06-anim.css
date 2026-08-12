@@ -1977,6 +1977,13 @@ body.has-wallpaper .card__head {
     inset 0 -.5px 0 rgba(0,0,0,.03),
     0 2px 10px rgba(15,23,42,.06) !important;
 }
+
+/* 2026-08-12 用户反馈：二级子段（.note / .answer / .qz__fb / .sec 标题行）在 has-wallpaper 下与主卡片同色，
+   视觉上像"抠图没扣全"。改为全透明——融入主卡片背景，只靠 .answer 的 3px 强调条
+   和文字本身区分层次。深色同理。
+   重要：本规则必须位于暗色共享规则（行 2025 左右）**之后**，
+   否则 CSS 源顺序会让暗色 .sec 的半透明白底覆盖回去。 */
+
 html.dark body.has-wallpaper .card,
 html.dark body.has-wallpaper .sec,
 html.dark body.has-wallpaper .list,
@@ -2052,4 +2059,300 @@ html.dark body.has-wallpaper .stat {
   background: transparent !important;
   border-color: transparent !important;
   box-shadow: none !important;
+}
+
+/* 2026-08-12 17:43（按用户修复方案）：删除 has-wallpaper 子段 transparent 覆盖 ——
+   子段统一半透明底色在下方规则定义，不再强制透明（避免 Q1 蒙版 flash）。 */
+
+/* 2026-08-12 17:43（按用户修复方案）：
+   子段统一半透明底色 —— 各类型带语义色(蓝/黄/红/绿/灰)，浅深色自动适配。
+   不再使用 transparent（避免 Q1 展开瞬间蒙版 flash / 时有时无）。
+   .sec 标题行保持透明（无背景,只靠图标+文字区分）。 */
+.note,
+.note--info,
+.note--warn,
+.note--danger,
+.note--ok,
+.note--plain,
+.answer,
+.qz__fb {
+  border-radius: var(--r-md) !important;
+  box-shadow: none !important;
+  transition: background-color var(--t-fast) var(--ease-out) !important;
+  border: 1px solid transparent !important;
+}
+/* 各类型统一半透明底色（浅/深色自动适配，稳定不闪） */
+.note--info,
+.answer {
+  background: rgba(59, 130, 246, 0.10) !important;
+  border: 1px solid rgba(59, 130, 246, 0.20) !important;
+}
+.note--warn {
+  background: rgba(245, 158, 11, 0.10) !important;
+  border: 1px solid rgba(245, 158, 11, 0.20) !important;
+}
+.note--danger {
+  background: rgba(244, 63, 94, 0.10) !important;
+  border: 1px solid rgba(244, 63, 94, 0.20) !important;
+}
+.note--plain {
+  background: rgba(120, 130, 150, 0.06) !important;
+  border: 1px solid rgba(120, 130, 150, 0.16) !important;
+}
+.note--ok {
+  background: rgba(16, 185, 129, 0.10) !important;
+  border: 1px solid rgba(16, 185, 129, 0.20) !important;
+}
+/* .answer 保留 3px 强调条（已在基类 .answer 上 border-left:3px solid var(--ph)） */
+.answer { border-left-width: 3px !important; }
+/* .bullets 在 has-wallpaper 下保留彩色圆点，非壁纸下也保留（语义不变） */
+
+/* 2026-08-12 用户反馈(更深层):「调通透度只能看见底栏在变」——
+   --glass-tint-top/bot 只在 appbar/tabbar/searchbar/drawer 等布局元素用了，
+   .card / 子段 / .list 等内容组件都没引用，所以通透度滑块等于失效。
+
+   修复:在液态玻璃模式(has-wallpaper 下)给所有内容组件也用 --glass-tint-top/bot，
+   让"通透度"滑块真正统一响应——主卡、子段、列表项全跟着变。
+   源顺序：本规则必须在"全模式 transparent"块之后(否则会被 transparent 覆盖回去)。
+   浅色 / 暗色各一套。
+   重要：2026-08-12 14:21 进一步限定为 :not(.glass-frosted):not(.glass-gaussian) ——
+   frosted/gaussian 模式用户希望"实色卡片 + 背景模糊跟随 px 滑块"，不要白色透明子段。
+   这两个模式走 04-components.css 的 fixed high-alpha + backdrop-filter 路径。
+   同时移除 backdrop-filter（主卡/子段在滚动时频繁重绘会闪屏，alpha 蒙版已经够用，
+   真实模糊只保留给固定元素 appbar/tabbar/drawer）。
+   2026-08-12 16:19 用户反馈："面试页二级菜单色块"——liquid 模式子段仍被本规则覆盖成
+   半透明白底(看起来像"白色色块")。修复：**子段(.note / .answer / .sec / .qz__fb)从
+   liquid 规则选择器中移除**，回到"全模式 transparent"覆盖，子段完全透明(看到壁纸)。
+   frosted/gaussian 模式的子段在下一段规则中保留 backdrop-filter blur(朦胧感，跟 px 滑块)。 */
+
+body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .card,
+body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .list,
+body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .list__item,
+body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .phase,
+body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .stat,
+body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .tablewrap,
+body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .dict__row,
+body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .dict__kv,
+body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .chips,
+body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .btn--soft,
+body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .card__head {
+  background: linear-gradient(160deg,
+    var(--glass-tint-top, rgba(255,255,255,.55)) 0%,
+    var(--glass-tint-bot, rgba(250,250,252,.42)) 100%) !important;
+  border-color: rgba(255,255,255,.35) !important;
+  box-shadow: inset 0 -.5px 0 rgba(0,0,0,.03), 0 2px 10px rgba(15,23,42,.06) !important;
+  /* 平滑过渡：滑块拖动时背景变化不突跳，避免 WebView 重绘闪屏 */
+  transition: background .18s ease, border-color .18s ease;
+}
+html.dark body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .card,
+html.dark body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .list,
+html.dark body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .list__item,
+html.dark body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .phase,
+html.dark body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .stat,
+html.dark body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .tablewrap,
+html.dark body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .dict__row,
+html.dark body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .dict__kv,
+html.dark body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .chips,
+html.dark body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .btn--soft,
+html.dark body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .card__head {
+  background: linear-gradient(160deg, rgba(44,44,46,var(--glass-tint-top-a, .52)) 0%, rgba(32,32,36,var(--glass-tint-bot-a, .40)) 100%) !important;
+  border-color: rgba(255,255,255,.14) !important;
+  box-shadow: inset 0 -.5px 0 rgba(255,255,255,.04), 0 2px 10px rgba(0,0,0,.18) !important;
+  transition: background .18s ease, border-color .18s ease;
+}
+
+/* 2026-08-12 17:43（按用户修复方案）：
+   frosted/gaussian 模式子段 —— 保留 backdrop-filter blur(滚动区域稳定渲染,不再 on/off 切换),
+   背景使用统一半透明底色(上方 .note--* 规则),由 04-components.css 的 frosted/gaussian 蒙版规则控制。 */
+
+/* 2026-08-12 17:43（按用户修复方案）：is-scrolling 滚动时禁用 backdrop-filter 的规则
+   已删除 —— 滚动时强行 on/off 滤镜反而造成"白雾闪烁"。滚动区域保留 backdrop-filter
+   稳定渲染；按压态闪烁由 :active 的 filter: brightness 移除解决（04/05-components.css）。 */
+
+/* ============================================================
+   2026-08-12 18:09（按用户补丁包）：Android WebView 强制降级
+   - WebView/低版本 Chrome 对 backdrop-filter 渲染不稳定(滚动白雾闪/色块)
+   - .android-webview 下所有玻璃元素禁用 backdrop-filter，用高 alpha 实色(0.85)
+   - 深色同理；.ring 进度环用 conic-gradient 兜底；sheet/drawer 用近实色
+   - is-scrolling 防御：若存在 is-scrolling 类,强制保持 blur(滚动不 on/off)
+   - 按压态移除 filter: brightness(避免 GPU 图层重绘闪)
+   ============================================================ */
+.android-webview body.glass-on .appbar,
+.android-webview body.glass-on .tabbar::before,
+.android-webview body.glass-on .drawer,
+.android-webview body.glass-on .searchbar,
+.android-webview body.glass-on .card,
+.android-webview body.glass-on .sheet,
+.android-webview body.glass-on .toast,
+.android-webview body.glass-on .list__item,
+.android-webview body.glass-on .list,
+.android-webview body.glass-on .phase,
+.android-webview body.glass-on .stat,
+.android-webview body.glass-on .dict__row,
+.android-webview body.glass-on .qz__item,
+.android-webview body.glass-on .ring,
+.android-webview body.glass-on .meta,
+.android-webview body.glass-on .note,
+.android-webview body.glass-on .note--info,
+.android-webview body.glass-on .note--warn,
+.android-webview body.glass-on .note--danger,
+.android-webview body.glass-on .note--ok,
+.android-webview body.glass-on .note--plain,
+.android-webview body.glass-on .answer,
+.android-webview body.glass-on .qz__fb {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  background: rgba(255, 255, 255, 0.85) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06) !important;
+}
+.android-webview.dark body.glass-on .appbar,
+.android-webview.dark body.glass-on .tabbar::before,
+.android-webview.dark body.glass-on .drawer,
+.android-webview.dark body.glass-on .searchbar,
+.android-webview.dark body.glass-on .card,
+.android-webview.dark body.glass-on .sheet,
+.android-webview.dark body.glass-on .toast,
+.android-webview.dark body.glass-on .list__item,
+.android-webview.dark body.glass-on .phase,
+.android-webview.dark body.glass-on .stat,
+.android-webview.dark body.glass-on .dict__row,
+.android-webview.dark body.glass-on .qz__item,
+.android-webview.dark body.glass-on .note,
+.android-webview.dark body.glass-on .note--info,
+.android-webview.dark body.glass-on .note--warn,
+.android-webview.dark body.glass-on .note--danger,
+.android-webview.dark body.glass-on .note--ok,
+.android-webview.dark body.glass-on .note--plain,
+.android-webview.dark body.glass-on .answer,
+.android-webview.dark body.glass-on .qz__fb {
+  background: rgba(44, 44, 46, 0.85) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+.android-webview .ring {
+  background: conic-gradient(var(--accent) calc(var(--p,0) * 1%), #e2e8f0 0%) !important;
+}
+.android-webview.dark .ring {
+  background: conic-gradient(var(--accent) calc(var(--p,0) * 1%), #2d3748 0%) !important;
+}
+body.is-scrolling.glass-frosted .card,
+body.is-scrolling.glass-frosted .sheet,
+body.is-scrolling.glass-frosted .toast,
+body.is-scrolling.glass-frosted .tablewrap,
+body.is-scrolling.glass-frosted .list__item,
+body.is-scrolling.glass-gaussian .card,
+body.is-scrolling.glass-gaussian .list__item {
+  -webkit-backdrop-filter: blur(var(--glass-blur)) !important;
+  backdrop-filter: blur(var(--glass-blur)) !important;
+  will-change: auto;
+}
+.list__item:active,
+.card__head:active {
+  transform: scale(.994) !important;
+  filter: none !important;
+  background: rgba(120, 130, 150, 0.08) !important;
+}
+.card[data-kind="iv"] .card__body .card__inner .answer,
+.card[data-kind="iv"] .card__body .card__inner .note {
+  position: relative;
+  z-index: 1;
+}
+.card[data-kind="iv"] .card__body .card__inner .answer::before,
+.card[data-kind="iv"] .card__body .card__inner .note::before {
+  display: none !important;
+}
+.android-webview .sheet,
+.android-webview .drawer {
+  background: rgba(255, 255, 255, 0.92) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+.android-webview.dark .sheet,
+.android-webview.dark .drawer {
+  background: rgba(28, 28, 30, 0.92) !important;
+}
+
+/* ============================================================
+   2026-08-12 18:18（按用户整合方案）：WebView 滚动时蒙版消失修复（GPU 合成层提升）
+   - 强制提升所有含蒙版/背景的容器为独立合成层（translateZ(0) + will-change）
+   - 蒙版元素加平滑过渡，消除硬切感
+   - Android WebView 下保留 glass-on，但用纯色替代 backdrop-filter
+   ============================================================ */
+
+/* 1. 强制提升所有含蒙版/背景的容器为独立合成层
+   注意：不包含 .sheet / .drawer / .appbar / .tabbar —— 这些元素已有自己的
+   transform: translate3d(...) 实现 slide 动画，再叠 translateZ(0) 会覆盖 slide
+   动画，导致 sheet/drawer 卡在初始位置、无法关闭。
+   也不包含 .card__inner —— 它有 transform: translateY(-4px → 0) 展开过渡，
+   translateZ(0) 会覆盖 translateY。 */
+.card,
+.note,
+.note--info,
+.note--warn,
+.note--danger,
+.note--ok,
+.note--plain,
+.answer,
+.qz__fb,
+.list__item,
+.phase,
+.stat {
+  transform: translateZ(0) !important;
+  backface-visibility: hidden !important;
+  will-change: opacity, transform !important;
+}
+
+/* 2. 为蒙版元素增加平滑过渡，消除硬切感 */
+.note,
+.note--info,
+.note--warn,
+.note--danger,
+.note--ok,
+.note--plain,
+.answer,
+.qz__fb,
+.appbar::after,
+.sheet__grab::before {
+  transition: opacity 0.28s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+              background-color 0.28s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+}
+
+/* 3. 在 Android WebView 中，保留 glass-on 类，但用纯色替代 backdrop-filter */
+.android-webview body.glass-on .note--info,
+.android-webview body.glass-on .answer {
+  background: rgba(59, 130, 246, 0.18) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+.android-webview body.glass-on .note--plain,
+.android-webview body.glass-on .note {
+  background: rgba(255, 255, 255, 0.65) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+.android-webview.dark body.glass-on .note--plain,
+.android-webview.dark body.glass-on .note {
+  background: rgba(35, 35, 40, 0.70) !important;
+}
+
+/* 4. 针对 Android WebView 额外保证滑动时背景不透明（防闪白） */
+.android-webview body.glass-on .card,
+.android-webview body.glass-on .sheet,
+.android-webview body.glass-on .list__item,
+.android-webview body.glass-on .list,
+.android-webview body.glass-on .phase,
+.android-webview body.glass-on .stat,
+.android-webview body.glass-on .ring,
+.android-webview body.glass-on .meta {
+  background: rgba(255, 255, 255, 0.85) !important;
+}
+.android-webview.dark body.glass-on .card,
+.android-webview.dark body.glass-on .sheet,
+.android-webview.dark body.glass-on .list__item,
+.android-webview.dark body.glass-on .list,
+.android-webview.dark body.glass-on .phase,
+.android-webview.dark body.glass-on .stat,
+.android-webview.dark body.glass-on .ring,
+.android-webview.dark body.glass-on .meta {
+  background: rgba(44, 44, 46, 0.85) !important;
 }
