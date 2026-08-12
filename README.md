@@ -2,9 +2,9 @@
 
 > 从零基础数通到云原生架构，把整个网络运维知识体系装进口袋。**完全离线，无需任何网络连接。**
 
-[![Platform](https://img.shields.io/badge/platform-Android%2024%2B-green.svg)](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.2)
+[![Platform](https://img.shields.io/badge/platform-Android%2024%2B-green.svg)](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.3)
 [![Offline](https://img.shields.io/badge/network-100%25%20offline-orange.svg)](#)
-[![Release](https://img.shields.io/badge/release-v2.0.2-blue.svg)](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.2)
+[![Release](https://img.shields.io/badge/release-v2.0.3-blue.svg)](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.3)
 
 ---
 
@@ -127,6 +127,29 @@ NetOps 2.0 是一个为零基础萌新打造的 **Android 离线网络运维学�
 
 ## 更新日志
 
+### v2.0.3 · 玻璃三模式 + 手势返回 + 退出确认
+
+质感三模式终于统一了：
+
+- **液态玻璃**：背景透明，看得到壁纸。通透度滑块（10-95%）联动所有内容组件——主卡、子段、列表、统计、阶段全模块响应，不再"只能看见底栏在变"。
+- **毛玻璃（frosted）**：实色暖白磨砂 + 背景模糊跟随 px 滑块（8-20px）。朦胧感统一，不再"有时模糊有时色块"。
+- **高斯模糊（gaussian）**：近不透明 + 轻模糊，省电档。和毛玻璃同套 px 滑块。
+- **Android WebView 降级检测**：检测到 WebView 或低版本 Chrome 时，自动禁用 backdrop-filter 改用高 alpha 实色蒙版（0.85）——修复之前 Android 上"滚动白雾闪/色块/蒙版消失"。
+
+手势与返回彻底打通：
+
+- **左滑手势全页面生效**：二级菜单左滑=返回上一级，学习页根界面左滑=呼出目录。非学习模块左滑也响应。
+- **退出二次确认**：根界面触发返回时弹 Toast「再按一次退出应用」，2 秒内再次才真正退出——物理返回键和网页手势行为一致。
+- **NetOpsBack 统一 `handleBackOrExit`**：首次拦截返回 `true` 阻止原生退出，二次返回 `false` 才放行——之前原生返回键绕过确认直接退出的 bug 修复。
+- **Home 回桌面重进修复**：boot() 防重复绑定、visibilitychange + focus 重置退出计时——之前回桌面重进后手势失效的问题根治。
+
+内容与稳定性：
+
+- **面试题 Q1 标题**删除"大专/"词条
+- **GPU 合成层提升排除 sheet/drawer/appbar/tabbar**（它们已有自己的 slide transform）——之前 GPU 提升覆盖 slide 动画导致 sheet/drawer 卡死的 bug 修复
+- **壁纸下二级子段统一蒙版**（液体=透明 / 毛玻璃=高 alpha 实色 + 模糊 / 高斯=近不透明），不再"抠图"或"白雾闪"
+- **截图中屏幕与壁纸**两套视觉语言统一
+
 ### v2.0.2 · 壁纸与个性化
 
 加了 14 张内置壁纸，二次元、芙宁娜、今汐等各两张，可以直接选，也可以从相册自己挑。选了背景壁纸之后，卡片自动半透明，能透出壁纸来。
@@ -156,7 +179,7 @@ CLI 模拟器终于像样了。命令从原来 200 多条扩到 500 多条，前
 
 ## 下载
 
-📥 [**v2.0.2 Release（含 APK）**](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.2)
+📥 [**v2.0.3 Release（含 APK）**](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.3)
 
 ## 许可
 
