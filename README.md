@@ -145,7 +145,6 @@ NetOps 2.0 是一个为零基础萌新打造的 **Android 离线网络运维学�
 
 内容与稳定性：
 
-- **面试题 Q1 标题**删除"大专/"词条
 - **GPU 合成层提升排除 sheet/drawer/appbar/tabbar**（它们已有自己的 slide transform）——之前 GPU 提升覆盖 slide 动画导致 sheet/drawer 卡死的 bug 修复
 - **壁纸下二级子段统一蒙版**（液体=透明 / 毛玻璃=高 alpha 实色 + 模糊 / 高斯=近不透明），不再"抠图"或"白雾闪"
 - **截图中屏幕与壁纸**两套视觉语言统一
