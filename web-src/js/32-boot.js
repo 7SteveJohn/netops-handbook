@@ -13,7 +13,7 @@
 
   /* 路由元数据 */
   var META = {
-    learn:    { t: 'NetOps 2.0',  s: '全栈网络运维技能导航', tab: 'learn', accent: 'teal' },
+    learn:    { t: 'NetOps 2.0',  s: '网络学习辅助手册', tab: 'learn', accent: 'teal' },
     fault:    { t: '排障字典',     s: '现象 → 根因 → 命令 → 验证', tab: 'fault', accent: 'rose' },
     dict:     { t: '命令字典',     s: '华为 / Cisco / 中兴 / Linux', tab: 'dict', accent: 'blue' },
     iv:       { t: '面试题库',     s: '高频真题与 STAR 话术', tab: 'iv', accent: 'amber' },
@@ -158,6 +158,8 @@
      直接 finish() 退出，绕过网页的 Toast + 2 秒二次确认。
      修复：handleBackOrExit() 统一处理 —— 首次返回 true 拦截原生退出并弹
      Toast，2 秒内再次才返回 false 允许原生关闭。
+     2026-09-22 再收一层：物理返回键不再走这里（改由原生壳自己双按，见下方 NetOpsBack），
+     handleBackOrExit 只服务网页内手势退出，两套确认不再叠加。
      ============================================================ */
   var lastExitTap = 0;
   /* 切后台/重新获得焦点时重置退出时间戳（Home→重进不会误判二次点击） */
@@ -184,9 +186,11 @@
       return true; /* 首次触发：拦截返回事件，显示 Toast，阻止原生壳直接退出 */
     }
   }
-  /* Android 物理返回键桥接：返回 true 表示网页已处理（拦截），false 才允许原生退出 */
+  /* Android 物理返回键桥接：只回答「网页这一层消费了没有」（关抽屉 / 关 Sheet / 回退一页）。
+     退出确认收回原生侧（MainActivity 的「再按一次退出」）：同一键不会再叠两个 Toast，
+     网页逻辑卡死时返回键也仍然能退出。手势路径仍用下面的 handleBackOrExit 做网页侧确认。 */
   w.NetOpsBack = function () {
-    try { return handleBackOrExit(); } catch (e) { return false; }
+    try { return back(); } catch (e) { return false; }
   };
   /* 浏览器/桌面：手势或 Alt+← 返回时也走同一套栈 */
   w.addEventListener('popstate', function () { back(); });
@@ -258,6 +262,11 @@
           inner.dataset.lazy = '0';
         }
         cardEl.classList.toggle('is-open');
+        /* 宽屏两栏时展开的卡要占满整行，否则终端与拓扑被压进半列 */
+        var wrap = cardEl.parentElement;
+        if (wrap && wrap.classList.contains('anim-in')) {
+          wrap.classList.toggle('is-wide', cardEl.classList.contains('is-open'));
+        }
         if (cardEl.classList.contains('is-open')) {
           setTimeout(function () {
             var r = cardEl.getBoundingClientRect(), sr = scroll.getBoundingClientRect();
@@ -320,6 +329,22 @@
         drawerCtl.close();
         go('phase', jp.getAttribute('data-pid'));
         focusCard(jp.getAttribute('data-jump'));
+        return;
+      }
+
+      /* 错题本/答题结果里的「回看这张卡」锚点 */
+      var jc = t.closest('[data-jumpcard]');
+      if (jc) { jumpToCard(jc.getAttribute('data-jumpcard')); return; }
+
+      /* 面试目标岗位：只影响排序与标注，不删题 */
+      var fv = t.closest('[data-ivfocus]');
+      if (fv) {
+        A.S.jobFocus = fv.getAttribute('data-ivfocus') || 'any';
+        if (!U.store.set('jobFocus', A.S.jobFocus)) { /* 写不进去时 store 已经统一提示过 */ }
+        var spv = scroll.scrollTop;
+        render(cur, false);
+        scroll.scrollTop = Math.min(spv, 120);
+        U.toast(A.S.jobFocus === 'any' ? '已取消岗位偏好，按默认顺序展示' : '目标岗位：' + A.S.jobFocus, 'ok');
         return;
       }
 
@@ -389,6 +414,17 @@
     if (use) use.setAttribute('href', on ? '#i-check-circle' : '#i-circle');
   }
 
+  /* 跳到讲过它的卡片：知识模块回阶段页，排障/面试卡回各自列表页 */
+  function jumpToCard(id) {
+    var m = A.BY_ID[id];
+    if (!m) { U.toast('找不到对应卡片：' + id, null); return; }
+    if (drawerCtl.isOpen()) drawerCtl.close();
+    if (/^G\d/.test(id)) go('fault');
+    else if (/^IVQ\d/.test(id)) go('iv');
+    else go('phase', m.pid);
+    focusCard(id);
+  }
+
   function focusCard(id) {
     setTimeout(function () {
       var el = view.querySelector('.card[data-id="' + id + '"]');
@@ -451,6 +487,9 @@
      的 --glass-specular-dyn 镜面高光随手指移动，模拟真实光线折射。
      仅在 glass-on 时生效；用 rAF 节流避免低端机掉帧。 */
   function initGlassLight() {
+    /* 只绑一次：boot 与进「我的」都会走到这里 */
+    if (w.__netopsGlassLight) return;
+    w.__netopsGlassLight = true;
     var root = document.documentElement;
     var ticking = false, lx = 50, ly = -8;
     function apply() {
@@ -487,6 +526,13 @@
 
   /* ---------------- 背景壁纸（内置 7 类 x 2 张 + 相册自定义） ---------------- */
   var WP_KEY = 'netops_wallpaper';
+  /* 相册自选图是 dataURL（可达数 MB），单独占一个键；
+     WP_KEY 只存选择（'custom' / 'wp-x-y' / 'none'），不再被大图挤掉。 */
+  var WP_CUSTOM_KEY = 'netops_wp_custom';
+  function lsSet(key, val) {
+    try { localStorage.setItem(key, val); return true; } catch (e) { return false; }
+  }
+  function lsGet(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
   /* 内置壁纸清单:由 tools/gen-wallpapers.py 生成,文件在 assets/wallpapers/ */
   var WALLPAPERS = [{"id": "wp-1-1", "cat": "二次元", "name": "二次元1", "file": "二次元1.webp"}, {"id": "wp-1-2", "cat": "二次元", "name": "二次元2", "file": "二次元2.webp"}, {"id": "wp-2-1", "cat": "芙宁娜", "name": "芙宁娜1", "file": "芙宁娜1.webp"}, {"id": "wp-2-2", "cat": "芙宁娜", "name": "芙宁娜2", "file": "芙宁娜2.webp"}, {"id": "wp-3-1", "cat": "今汐", "name": "今汐1", "file": "今汐1.webp"}, {"id": "wp-3-2", "cat": "今汐", "name": "今汐2", "file": "今汐2.webp"}, {"id": "wp-4-1", "cat": "卡提希娅", "name": "卡提希娅1", "file": "卡提希娅1.webp"}, {"id": "wp-4-2", "cat": "卡提希娅", "name": "卡提希娅2", "file": "卡提希娅2.webp"}, {"id": "wp-5-1", "cat": "雷电将军", "name": "雷电将军1", "file": "雷电将军1.webp"}, {"id": "wp-5-2", "cat": "雷电将军", "name": "雷电将军2", "file": "雷电将军2.webp"}, {"id": "wp-6-1", "cat": "纳西妲", "name": "纳西妲1", "file": "纳西妲1.webp"}, {"id": "wp-6-2", "cat": "纳西妲", "name": "纳西妲2", "file": "纳西妲2.webp"}, {"id": "wp-7-1", "cat": "守岸人", "name": "守岸人1", "file": "守岸人1.webp"}, {"id": "wp-7-2", "cat": "守岸人", "name": "守岸人2", "file": "守岸人2.webp"}];
 
@@ -514,7 +560,7 @@
     var sheet = $('#wpSheet');
     if (!lbl || !sheet) return;
 
-    var cur = localStorage.getItem(WP_KEY) || 'none';
+    var cur = lsGet(WP_KEY) || 'none';
     updateWallpaperLabel(cur);
 
     /* 点击「背景壁纸」行打开弹窗 */
@@ -528,7 +574,7 @@
     function renderWpGrid() {
       var grid = $('#wpGrid');
       if (!grid) return;
-      var curId = localStorage.getItem(WP_KEY) || 'none';
+      var curId = lsGet(WP_KEY) || 'none';
       var html = '', lastCat = null;
       for (var i = 0; i < WALLPAPERS.length; i++) {
         var wp = WALLPAPERS[i];
@@ -586,13 +632,21 @@
 
   /** 原生桥接回调：收到 base64 图片 */
   w.NetOpsOnWallpaper = function (dataUrl) {
-    localStorage.setItem(WP_KEY, dataUrl);
+    if (!dataUrl || String(dataUrl).indexOf('data:image/') !== 0) {
+      U.toast('壁纸未设置：读到的不是有效图片', 'danger');
+      return;
+    }
+    /* 旧写法把 dataURL 写进 WP_KEY，紧接着又被 applyWallpaper('custom') 覆盖成 'custom'，
+       而 restoreWallpaper 只认 data: 前缀 → 相册自选的壁纸重启必丢，只剩半透明内容层没底图。 */
+    var saved = lsSet(WP_CUSTOM_KEY, dataUrl);
     applyWallpaper('custom', dataUrl);
-    U.toast('壁纸已设置', 'ok');
+    U.toast(saved ? '壁纸已设置' : '壁纸已应用，但本地容量不足，重启后不会保留（建议改用内置壁纸）',
+      saved ? 'ok' : 'danger', saved ? 1800 : 4200);
   };
 
   function applyWallpaper(id, cssValue) {
-    localStorage.setItem(WP_KEY, id || 'none');
+    if (id === 'none' || !id) { try { localStorage.removeItem(WP_CUSTOM_KEY); } catch (e) {} }
+    lsSet(WP_KEY, id || 'none');
     if (!cssValue || id === 'none') {
       document.documentElement.style.setProperty('--wallpaper', 'none');
       d.body.style.background = '';
@@ -628,11 +682,19 @@
 
   /* 页面启动时恢复已保存的壁纸 */
   (function restoreWallpaper() {
-    var saved = localStorage.getItem(WP_KEY);
+    var saved = lsGet(WP_KEY);
     if (!saved || saved === 'none') return;
     if (saved.indexOf('wp-') === 0) {
       var wp = findWp(saved);
       if (wp) { setWallpaperBg(wp); return; }
+    }
+    /* 'custom' 的图在 WP_CUSTOM_KEY 里；兼容更早版本直接把 dataURL 存在 WP_KEY 的情况 */
+    if (saved === 'custom') saved = lsGet(WP_CUSTOM_KEY) || lsGet(WP_KEY);
+    if (!saved || saved.indexOf('data:') !== 0) {
+      /* 选择记着但图没了（容量不足被丢弃 / 旧版本遗留）：回到无壁纸，别留半透明空壳 */
+      lsSet(WP_KEY, 'none');
+      updateWallpaperLabel('none');
+      return;
     }
     d.body.classList.add('has-wallpaper');
     if (saved.startsWith('data:')) {
@@ -656,7 +718,7 @@
   function getGlass() {
     try { var s = localStorage.getItem(GLASS_KEY); return s ? JSON.parse(s) : null; } catch(e) { return null; }
   }
-  function saveGlass(g) { localStorage.setItem(GLASS_KEY, JSON.stringify(g)); }
+  function saveGlass(g) { lsSet(GLASS_KEY, JSON.stringify(g)); }
 
   /* 设备降级状态：低电/旧设备自动切到模式 B（标准毛玻璃）。
      deviceDegraded ：硬件层（内存/CPU/省电偏好），启动时判定一次，不自动恢复；
@@ -714,6 +776,21 @@
     /* 滚动区域"实色蒙版"alpha（frosted/gaussian 主卡/子段用，跟随 px 滑块，范围 .72-.92） */
     var maskA = Math.min(0.92, Math.max(0.72, 0.60 + (g.blur - 8) / 12 * 0.30));
     root.style.setProperty('--glass-mask-a', maskA.toFixed(3));
+    /* 内容层统一 alpha（2026-09-22）：主卡、内层底板（表头/芯片/图标底板/进度轨/开关/环）、
+       WebView 降级蒙版全部共用这一个值，不再各写各的：
+       liquid 跟通透度滑块 a；frosted/gaussian 跟 px 滑块 maskA；关玻璃时回落到壁纸基线 .72。
+       消费方见 01-tokens.css 的 --surf-* 与 06-anim.css 末尾的 body.has-wallpaper 段。 */
+    var contentA = g.on ? (em === 'liquid' ? a : maskA) : 0.72;
+    root.style.setProperty('--glass-content-a', contentA.toFixed(3));
+    /* 弹窗（.sheet）没有周围层次可借，不能跟着通透度一路透下去：
+       实测 tint 10 时暗壁纸区文字对比度只剩 1.12:1（AA 要 4.5）。
+       故给弹窗单独一档下限 .55（≈5.6:1），内联卡片仍完全跟随滑块。 */
+    var sheetA = Math.max(contentA, 0.55);
+    var sheetB = Math.max(0.03, sheetA - 0.13);
+    root.style.setProperty('--glass-sheet-top', 'rgba(255,255,255,' + sheetA.toFixed(3) + ')');
+    root.style.setProperty('--glass-sheet-bot', 'rgba(250,250,252,' + sheetB.toFixed(3) + ')');
+    root.style.setProperty('--glass-sheet-top-k', 'rgba(44,44,46,' + sheetA.toFixed(3) + ')');
+    root.style.setProperty('--glass-sheet-bot-k', 'rgba(32,32,36,' + sheetB.toFixed(3) + ')');
     d.body.classList.toggle('glass-on', g.on);
     d.body.classList.toggle('glass-liquid', g.on && em === 'liquid');
     d.body.classList.toggle('glass-gaussian', g.on && em === 'gaussian');
@@ -747,7 +824,7 @@
         { k: 'gaussian', ico: '◯',  name: '高斯模糊',   desc: '近乎不透明 · 最省电，适合旧设备/户外护眼' }
       ];
       h += '<div style="margin-top:14px"><div class="t-xs bold" style="margin-bottom:8px;color:var(--text-2)">全局质感（单选）</div>';
-      h += '<div style="display:flex;gap:8px;background:var(--surface-2);border-radius:var(--r-md);padding:6px">';
+      h += '<div style="display:flex;gap:8px;background:var(--surf-2);border-radius:var(--r-md);padding:6px">';
       modes.forEach(function (m) {
         var on = em === m.k;
         h += '<button type="button" class="chip' + (on ? ' is-active' : '') + '" data-glass="mode" data-gval="' + m.k + '"' +
@@ -783,7 +860,7 @@
         '通透度 = 浮层不透明度（越低越透，壁纸越清晰可见）。液态玻璃为 0 模糊（通透感由本滑块控制）。</div>' :
         '');
 
-      h += '<div class="t-xs t-mute" style="margin-top:14px;padding:10px;background:var(--surface-2);border-radius:var(--r-sm);line-height:1.65">' +
+      h += '<div class="t-xs t-mute" style="margin-top:14px;padding:10px;background:var(--surf-2);border-radius:var(--r-sm);line-height:1.65">' +
         (isLiquid ? '提示：设一张背景壁纸后，通透度变化更明显。推荐 40-60% 平衡通透与可读性。' :
                    '提示：设一张背景壁纸后效果更明显。推荐 12-16px 平衡观感与流畅度。') + '</div>';
     }
@@ -872,7 +949,7 @@
     try { return localStorage.getItem(TABBAR_KEY) || 'float'; } catch(e) { return 'float'; }
   }
   function setTabbarMode(mode) {
-    localStorage.setItem(TABBAR_KEY, mode || 'float');
+    lsSet(TABBAR_KEY, mode || 'float');
     d.body.classList.toggle('tabbar-regular', mode === 'regular');
     d.body.classList.toggle('tabbar-float', mode !== 'regular');
     updateTabbarLabel(mode);
@@ -917,7 +994,7 @@
   };
   function getSpeedIdx() {
     try {
-      var i = parseInt(localStorage.getItem(SPEED_KEY), 10);
+      var i = parseInt(lsGet(SPEED_KEY), 10);
       if (isFinite(i) && i >= 0) {
         /* 旧版存过 2.5x/3x（索引 7/8）被删除后，平滑收敛到最高档（2x） */
         return i < SPEED_STEPS.length ? i : SPEED_STEPS.length - 1;
@@ -980,7 +1057,10 @@
   function initGlass() {
     var lbl = $('#glassLbl');
     var sheet = $('#glassSheet');
-    if (!lbl || !sheet) return;
+    /* 门禁只认弹窗节点（静态 HTML 里就有）。#glassLbl 属于「我的」页，
+       那页是首次进入才构建的——拿它当门禁会让冷启动整段玻璃初始化被跳过，
+       表现为「开 App 时玻璃没生效，进一次我的才对」。 */
+    if (!sheet) return;
 
     /* 硬件层降级：启动时判定一次（低端机自动回退到模式 B） */
     deviceDegraded = shouldDegrade();
@@ -1013,8 +1093,8 @@
       }, 400);
     }
 
-    /* 点击「个性化」行打开弹窗 */
-    lbl.closest('.list__item').addEventListener('click', function (e) {
+    /* 点击「个性化」行打开弹窗（该行只有「我的」页构建后才存在） */
+    if (lbl) lbl.closest('.list__item').addEventListener('click', function (e) {
       if (sheet.classList.contains('is-open')) return;
       e.stopPropagation();
       sheet.classList.add('is-open');
@@ -1035,7 +1115,7 @@
     lbl.textContent = m + (em === 'liquid' ? ' · 通透' + (g.tint || 55) + '%' : ' · 模糊' + g.blur + 'px');
   }
   (function restoreWallpaper() {
-    var saved = localStorage.getItem(WP_KEY);
+    var saved = lsGet(WP_KEY);
     if (!saved || saved === 'none') return;
     d.body.classList.add('has-wallpaper');
     if (saved.startsWith('data:')) {
@@ -1091,7 +1171,7 @@
     U.download('NetOps-' + p.short + '.md', s);
   }
   function exportAll() {
-    var s = '# NetOps 2.0 · 全栈网络运维技能导航\n\n> 离线知识库导出 · ' + new Date().toLocaleString('zh-CN') + '\n\n';
+    var s = '# NetOps 2.0 · 网络学习辅助手册\n\n> 离线知识库导出 · ' + new Date().toLocaleString('zh-CN') + '\n\n';
     CORE.phases.forEach(function (p) {
       s += '\n## ' + p.title + '\n\n' + p.desc + '\n\n';
       p.modules.forEach(function (m) { s += mdOfModule(m); });
@@ -1124,10 +1204,10 @@
       onMount: function (el) {
         el.querySelector('[data-sheet-cancel]').onclick = function () { U.sheet.close(); };
         el.querySelector('[data-sheet-ok]').onclick = function () {
-          A.S.done = {}; A.S.fav = {}; A.S.quizBest = 0; A.S.quizRuns = 0;
+          A.S.done = {}; A.S.fav = {}; A.S.quizBest = 0; A.S.quizRuns = 0; A.S.wrong = {};
           A.S.streak = { n: 0, last: '' };
           U.store.set('done', {}); U.store.set('fav', {});
-          U.store.set('quizBest', 0); U.store.set('quizRuns', 0);
+          U.store.set('quizBest', 0); U.store.set('quizRuns', 0); U.store.del('quizWrong');
           U.store.set('streak', A.S.streak);
           U.sheet.close();
           buildDrawer();
@@ -1140,12 +1220,34 @@
 
   /* ---------------- 测验 ---------------- */
   var qzState = null;
+  /* 题目指纹：题干一改就换键，避免旧错题挂到被改过的题上 */
+  function qKey(text) {
+    var s = String(text), h = 2166136261, i;
+    for (i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = (h * 16777619) >>> 0; }
+    return h.toString(36);
+  }
+  function saveWrong() { U.store.set('quizWrong', A.S.wrong); }
+  /* 判分后原地刷新错题本卡片：不刷新的话，页面上会留着已经过期的计数 */
+  function refreshWrongCard() {
+    var el = d.getElementById('wrongCard');
+    if (!el || !V.wrongCard) return;
+    var tmp = d.createElement('div');
+    tmp.innerHTML = V.wrongCard();
+    if (tmp.firstElementChild) el.parentNode.replaceChild(tmp.firstElementChild, el);
+  }
   function handleQuiz(btn) {
     var act = btn.getAttribute('data-quiz');
     var box = $('#quizBox');
-    if (act === 'start' || act === 'again') {
-      var n = parseInt(btn.getAttribute('data-n') || (qzState ? qzState.n : 10), 10);
-      var pool = QUIZ.slice();
+    if (act === 'wrongclear') {
+      A.S.wrong = {}; saveWrong(); go('quiz');
+      U.toast('错题本已清空', 'ok');
+      return;
+    }
+    if (act === 'start' || act === 'again' || act === 'wrong') {
+      var onlyWrong = act === 'wrong';
+      var pool = onlyWrong ? QUIZ.filter(function (x) { return !!A.S.wrong[qKey(x.q)]; }) : QUIZ.slice();
+      if (!pool.length) { U.toast('错题本是空的，先做一组题', null); return; }
+      var n = onlyWrong ? pool.length : parseInt(btn.getAttribute('data-n') || (qzState ? qzState.n : 10), 10);
       for (var i = pool.length - 1; i > 0; i--) {
         var j = Math.floor(Math.random() * (i + 1)), t = pool[i]; pool[i] = pool[j]; pool[j] = t;
       }
@@ -1156,8 +1258,16 @@
       return;
     }
     if (act === 'submit' && qzState) {
-      var right = 0;
-      qzState.items.forEach(function (it, i) { if (qzState.answers[i] === it.a) right++; });
+      var right = 0, fixed = 0, missed = 0;
+      qzState.items.forEach(function (it, i) {
+        var k = qKey(it.q), ok = (qzState.answers[i] === it.a);
+        if (ok) { right++; if (A.S.wrong[k]) { delete A.S.wrong[k]; fixed++; } }
+        else {
+          A.S.wrong[k] = { m: it.m || '', n: ((A.S.wrong[k] && A.S.wrong[k].n) || 0) + 1 };
+          missed++;
+        }
+      });
+      saveWrong();
       var pct = Math.round(right / qzState.items.length * 100);
       qzState.sub = true;
       box.innerHTML = '<div class="card" data-accent="' + (pct >= 80 ? 'emerald' : pct >= 60 ? 'amber' : 'rose') + '">' +
@@ -1165,8 +1275,10 @@
         '<div class="ring" style="--p:' + pct + ';width:76px;height:76px"><div class="ring__val">' +
         '<div class="ring__num" style="font-size:19px">' + pct + '</div><div class="ring__lbl">分</div></div></div>' +
         '<div><div class="t-md bold">' + (pct >= 80 ? '优秀，稳了' : pct >= 60 ? '及格，还得练' : '基础不牢，回去看模块') + '</div>' +
-        '<div class="t-xs t-mute" style="margin-top:3px">答对 ' + right + ' / ' + qzState.items.length + ' 题</div></div>' +
+        '<div class="t-xs t-mute" style="margin-top:3px">答对 ' + right + ' / ' + qzState.items.length + ' 题' +
+        (missed || fixed ? ' · 错题本 +' + missed + (fixed ? ' / -' + fixed : '') : '') + '</div></div>' +
         '</div></div>' + V.quizRender(qzState.items, qzState.answers, true);
+      refreshWrongCard();
       A.S.quizRuns++; U.store.set('quizRuns', A.S.quizRuns);
       if (pct > A.S.quizBest) { A.S.quizBest = pct; U.store.set('quizBest', pct); U.toast('刷新最佳成绩 ' + pct + '%', 'ok'); }
       U.buzz(18);
@@ -1218,6 +1330,7 @@
 
   function buildCliDb() {
     if (CLI_DB) return CLI_DB;
+    var R = w.NetOpsCliRules || { normalize: function (x) { return String(x || '').trim(); }, isCommand: function (x) { return !!x; }, detectPlat: function () { return null; } };
     var db = [], seen = {};
     function push(cmd, raw, fn, plat, out) {
       var k = String(cmd).toLowerCase().trim();
@@ -1226,31 +1339,33 @@
       var it = { cmd: k, raw: raw || cmd, fn: fn, plat: plat || 'hw', out: out };
       seen[k] = it; db.push(it);
     }
-    /* 1. 字典全量：'-' 字段也用功能名建条目，保证关键字搜索有返回 */
+    /* 1. 字典：只收真正的命令。
+       旧写法在某家为 '-' 时拿中文功能名顶上（37 处），会造出「接口描述」这种
+       根本敲不出来的"命令"，比缺条目更坏；关键字检索由字典页自己负责。 */
     CORE.dict.rows.forEach(function (r) {
       ['hw', 'cs', 'zte', 'lx'].forEach(function (k) {
-        var c = r[k];
-        push(c && c !== '-' ? c : r.fn, c && c !== '-' ? c : r.fn, r.fn, k);
+        var n = R.normalize(r[k]);
+        if (!R.isCommand(n)) return;
+        push(n, r[k], r.fn, k);
       });
     });
-    /* 2. 知识模块全量命令（每行去提示符，不只第一行） */
-    A.MODS.forEach(function (m) {
-      if (!m.c) return;
-      String(m.c).split('\n').forEach(function (line) {
-        var clean = line.replace(/^[<\[][^>\]]*[>\]]\s*/, '').trim();
-        if (clean) push(clean, line, A.cleanTitle(m.t), 'hw', m.o);
+    /* 2/3. 知识模块与故障案例命令：逐行清洗后按命令自身判平台
+       （以前整批硬编码 'hw'，kubectl / git / tc / uname 都被标成华为） */
+    function collect(text, fnLabel, out) {
+      String(text || '').split('\n').forEach(function (line) {
+        var n = R.normalize(line);
+        if (!R.isCommand(n)) return;
+        push(n, line, fnLabel, R.detectPlat(n) || 'hw', out);
       });
-    });
-    /* 3. 故障案例命令 */
-    CORE.faults.forEach(function (f) {
-      if (!f.c) return;
-      String(f.c).split('\n').forEach(function (line) {
-        var clean = line.replace(/^[<\[][^>\]]*[>\]]\s*/, '').trim();
-        if (clean) push(clean, line, f.t, 'hw', f.o);
-      });
-    });
+    }
+    A.MODS.forEach(function (m) { collect(m.c, A.cleanTitle(m.t), m.o); });
+    CORE.faults.forEach(function (f) { collect(f.c, f.t, f.o); });
     /* 4. 内置常用命令（带平台标记，回显贴近真实输出） */
-    COMMON_CMDS.forEach(function (x) { push(x.cmd, x.cmd, x.fn, x.plat || 'lx', x.out); });
+    COMMON_CMDS.forEach(function (x) {
+      var n = R.normalize(x.cmd);
+      if (!R.isCommand(n)) return;
+      push(n, x.cmd, x.fn, x.plat || R.detectPlat(n) || 'lx', x.out);
+    });
     CLI_DB = db;
     return db;
   }
@@ -1387,23 +1502,106 @@
   }
 
   /* ---------------- 数据备份导出/导入(优化5) ---------------- */
-  function exportData() {
-    var keys = U.store.keys(), data = {}, n = 0;
-    keys.forEach(function (k) { data[k] = U.store.get(k, null); n++; });
-    U.download('NetOps-数据备份-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify(data, null, 2));
-    U.toast('已导出 ' + n + ' 项数据', 'ok');
+  /* 个性化项历史上存在非前缀的裸键里，store 的 keys() 看不到它们 → 备份会静默漏掉玻璃参数、
+     标签栏形态、速度档、壁纸选择与 CLI 历史。导出时一并取出，导入时逐项验形。
+     唯一例外：自选壁纸图片本体（最大约 1.8MB 的 dataURL）不进文本备份，
+     只记「当前用的是自定义壁纸」，恢复后由 restoreWallpaper 提示重选。 */
+  var RAW_BACKUP = {
+    'netops_glass': function (v) {
+      if (typeof v !== 'string' || v.length > 4000) return false;
+      if (!v) return true;
+      try { var o = JSON.parse(v); return !!o && typeof o === 'object' && !Array.isArray(o); } catch (e) { return false; }
+    },
+    'netops_tabbar': function (v) { return v === 'float' || v === 'regular'; },
+    'netops_speed':  function (v) { return typeof v === 'string' && /^\d{1,3}$/.test(v); },
+    'netops_wallpaper': function (v) { return typeof v === 'string' && v.length < 400 && v.indexOf('data:') !== 0; },
+    'netops_cli_hist': function (v) {
+      if (typeof v !== 'string' || v.length > 200000) return false;
+      try { var a = JSON.parse(v); return Array.isArray(a) && a.every(function (x) { return typeof x === 'string' && x.length < 400; }); } catch (e) { return false; }
+    },
+    'netops_swipe_tip': function (v) { return v === '1'; }
+  };
+  var isRawKey = function (k) { return Object.prototype.hasOwnProperty.call(RAW_BACKUP, k); };
+
+  /* 备份内容的组装：prefixed store 全量 + 裸键（壁纸降级为标记） */
+  function buildBackup() {
+    var data = {}, n = 0;
+    U.store.keys().forEach(function (k) { data[k] = U.store.get(k, null); n++; });
+    Object.keys(RAW_BACKUP).forEach(function (k) {
+      var v = lsGet(k);
+      if (v == null || v === '') return;
+      if (k === 'netops_wallpaper' && v.indexOf('data:') === 0) { data[k] = 'custom'; n++; return; }
+      data[k] = v; n++;
+    });
+    /* 自定义壁纸可能只存在于 WP_CUSTOM_KEY：没有选择项时也补一个标记，恢复后才能给出提示 */
+    if (data['netops_wallpaper'] === undefined && lsGet(WP_CUSTOM_KEY)) data['netops_wallpaper'] = 'custom';
+    return { data: data, n: n };
   }
+  A.buildBackup = buildBackup;
+
+  function exportData() {
+    var b = buildBackup();
+    U.download('NetOps-数据备份-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify(b.data, null, 2));
+    U.toast('已导出 ' + b.n + ' 项数据', 'ok');
+  }
+  /* 备份里允许落地的键，以及各自的可信形状 */
+  var IMPORT_OK = {
+    done:     function (v) { return v && typeof v === 'object' && !Array.isArray(v); },
+    fav:      function (v) { return v && typeof v === 'object' && !Array.isArray(v); },
+    vendor:   function (v) { return ['hw', 'cs', 'zte', 'lx'].indexOf(v) >= 0; },
+    quizBest: function (v) { return typeof v === 'number' && v >= 0 && v <= 100; },
+    quizRuns: function (v) { return typeof v === 'number' && v >= 0 && v < 1e6; },
+    /* 面试目标岗位画像 */
+    jobFocus: function (v) { return v === 'any' || ['数通', '云原生', 'SRE', '安全', '自动化'].indexOf(v) >= 0; },
+    /* 错题本：键是题目指纹，值必须是 { m: 字符串锚点, n: 正整数错次 } */
+    quizWrong: function (v) {
+      if (!v || typeof v !== 'object' || Array.isArray(v)) return false;
+      return Object.keys(v).every(function (k) {
+        var e = v[k];
+        return e && typeof e === 'object' && typeof e.m === 'string' &&
+          typeof e.n === 'number' && e.n > 0 && e.n < 1e4;
+      });
+    },
+    streak:   function (v) { return v && typeof v === 'object' && !Array.isArray(v); },
+    theme:    function (v) { return ['auto', 'light', 'dark'].indexOf(v) >= 0; },
+    motion:   function (v) { return typeof v === 'number' || typeof v === 'string'; }
+  };
   function importData(file) {
     var rd = new FileReader();
     rd.onload = function () {
-      try {
-        var data = JSON.parse(rd.result);
-        if (!data || typeof data !== 'object') throw new Error('bad');
-        var n = 0;
-        Object.keys(data).forEach(function (k) { U.store.set(k, data[k]); n++; });
-        U.toast('已恢复 ' + n + ' 项，即将刷新', 'ok');
-        setTimeout(function () { try { location.reload(); } catch (e) {} }, 900);
-      } catch (e) { U.toast('导入失败：文件格式不正确', 'danger'); }
+      var data;
+      try { data = JSON.parse(rd.result); }
+      catch (e) { U.toast('导入失败：不是有效的 JSON 备份', 'danger'); return; }
+      if (!data || typeof data !== 'object' || Array.isArray(data)) {
+        U.toast('导入失败：备份内容格式不对', 'danger'); return;
+      }
+      var all = Object.keys(data);
+      var keys = all.filter(function (k) { return IMPORT_OK[k] || isRawKey(k); });
+      var ignored = all.length - keys.length;
+      if (!keys.length) { U.toast('导入失败：备份里没有本应用可恢复的数据', 'danger'); return; }
+      var readAny = function (k) { return isRawKey(k) ? lsGet(k) : U.store.get(k, null); };
+      var over = keys.filter(function (k) { return readAny(k) != null; }).length;
+      /* 旧实现是「选完文件直接覆盖 + reload」，挑错文件进度就没了，且没有任何确认。 */
+      var q = '确认恢复 ' + keys.length + ' 项数据？' +
+        (over ? '其中 ' + over + ' 项会覆盖当前内容。' : '') +
+        (ignored ? ' 另有 ' + ignored + ' 项非本应用数据会被忽略。' : '');
+      if (!w.confirm(q)) { U.toast('已取消导入，未改动任何数据', null); return; }
+      /* 先留一份可回滚快照（放在 store 前缀之外，不会被导出/再导入污染） */
+      var snap = {};
+      keys.forEach(function (k) { snap[k] = readAny(k); });
+      lsSet('netops_pre_import', JSON.stringify(snap));
+      var n = 0, bad = 0;
+      keys.forEach(function (k) {
+        var okShape = isRawKey(k) ? RAW_BACKUP[k](data[k]) : IMPORT_OK[k](data[k]);
+        if (!okShape) { bad++; return; }
+        if (isRawKey(k)) { lsSet(k, data[k]); } else { U.store.set(k, data[k]); }
+        n++;
+      });
+      if (!n) { U.toast('导入失败：备份里的每一项都不合法', 'danger'); return; }
+      var wpBack = data['netops_wallpaper'] === 'custom';
+      U.toast('已恢复 ' + n + ' 项' + (bad ? '，忽略 ' + bad + ' 项异常值' : '') +
+        (wpBack ? '；自选壁纸图片本体不进文本备份，请重新选一次' : '') + '，即将刷新', 'ok');
+      setTimeout(function () { try { location.reload(); } catch (e) {} }, 900);
     };
     rd.onerror = function () { U.toast('读取文件失败', 'danger'); };
     rd.readAsText(file);
@@ -1537,6 +1735,11 @@
     var tbm = getTabbarMode();
     d.body.classList.toggle('tabbar-regular', tbm === 'regular');
     d.body.classList.toggle('tabbar-float', tbm !== 'regular');
+    /* 液态玻璃：降级判定 + 立即应用。必须在这里跑——「我的」页是懒建的，
+       原先只有进一次「我的」才会触发，导致冷启动时玻璃停在样式表默认值上。 */
+    initGlass();
+    /* 高光跟随手指（镜面折射）——降级 / 省电动效偏好下不启用 */
+    if (!deviceDegraded) initGlassLight();
     try {
       if (w.matchMedia) w.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
         if (U.theme.get() === 'auto') { U.theme.apply(); syncThemeIcon(); }

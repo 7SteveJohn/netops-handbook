@@ -117,9 +117,9 @@
   border-radius: var(--r-sm);
   background: linear-gradient(
     90deg,
-    var(--surface-2) 0%,
-    var(--surface-3) 40%,
-    var(--surface-2) 60%
+    var(--surf-2) 0%,
+    var(--surf-3) 40%,
+    var(--surf-2) 60%
   );
   background-size: 300% 100%;
   animation: apple-skel 1.5s ease-in-out infinite;
@@ -1868,10 +1868,10 @@ body.tabbar-regular .tab.is-active::before {
   to   { width: 26px; opacity: 1; }
 }
 
-/* 7. 大屏（>640px）：限制单个 tab 最大 130px，居中排列 */
-@media (min-width: 640px) {
+/* 7. 大屏（≥600px，与 05-views.css 的正文列断点保持一致）：限制单个 tab 最大 130px，居中排列 */
+@media (min-width: 600px) {
   body.tabbar-regular .tabbar { justify-content: center; }
-  body.tabbar-regular .tab { max-width: 130px; }
+  body.tabbar-regular .tab { max-width: 130px; justify-self: center; }
 }
 
 /* 8. 键盘弹出（data-kb=1）：整条底栏下沉隐藏 */
@@ -2135,7 +2135,13 @@ body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .dict__row,
 body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .dict__kv,
 body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .chips,
 body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .btn--soft,
-body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .card__head {
+body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .card__head,
+/* 2026-09-22：实测 .sec / .sheet / .note--plain / .answer / .qz__fb 一直停在 1972 的 .78/.62 蒙版上，
+   通透度调下去它们不动 → 在近乎全透的主卡里就是两块白斑。并入本清单跟随滑块。 */
+body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .sec,
+body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .note--plain,
+body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .answer,
+body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .qz__fb {
   background: linear-gradient(160deg,
     var(--glass-tint-top, rgba(255,255,255,.55)) 0%,
     var(--glass-tint-bot, rgba(250,250,252,.42)) 100%) !important;
@@ -2154,7 +2160,11 @@ html.dark body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .
 html.dark body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .dict__kv,
 html.dark body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .chips,
 html.dark body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .btn--soft,
-html.dark body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .card__head {
+html.dark body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .card__head,
+html.dark body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .sec,
+html.dark body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .note--plain,
+html.dark body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .answer,
+html.dark body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .qz__fb {
   background: linear-gradient(160deg, rgba(44,44,46,var(--glass-tint-top-a, .52)) 0%, rgba(32,32,36,var(--glass-tint-bot-a, .40)) 100%) !important;
   border-color: rgba(255,255,255,.14) !important;
   box-shadow: inset 0 -.5px 0 rgba(255,255,255,.04), 0 2px 10px rgba(0,0,0,.18) !important;
@@ -2190,7 +2200,6 @@ html.dark body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .
 .android-webview body.glass-on .stat,
 .android-webview body.glass-on .dict__row,
 .android-webview body.glass-on .qz__item,
-.android-webview body.glass-on .ring,
 .android-webview body.glass-on .meta,
 .android-webview body.glass-on .note,
 .android-webview body.glass-on .note--info,
@@ -2202,7 +2211,7 @@ html.dark body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .
 .android-webview body.glass-on .qz__fb {
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
-  background: rgba(255, 255, 255, 0.85) !important;
+  background: rgba(255, 255, 255, var(--glass-content-a, .85)) !important;
   border-color: rgba(0, 0, 0, 0.08) !important;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06) !important;
 }
@@ -2226,14 +2235,14 @@ html.dark body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .
 .android-webview.dark body.glass-on .note--plain,
 .android-webview.dark body.glass-on .answer,
 .android-webview.dark body.glass-on .qz__fb {
-  background: rgba(44, 44, 46, 0.85) !important;
+  background: rgba(44, 44, 46, var(--glass-content-a, .85)) !important;
   border-color: rgba(255, 255, 255, 0.08) !important;
 }
 .android-webview .ring {
-  background: conic-gradient(var(--accent) calc(var(--p,0) * 1%), #e2e8f0 0%) !important;
+  background: conic-gradient(var(--accent) calc(var(--p,0) * 1%), var(--surf-3) 0%) !important;
 }
 .android-webview.dark .ring {
-  background: conic-gradient(var(--accent) calc(var(--p,0) * 1%), #2d3748 0%) !important;
+  background: conic-gradient(var(--accent) calc(var(--p,0) * 1%), var(--surf-3) 0%) !important;
 }
 body.is-scrolling.glass-frosted .card,
 body.is-scrolling.glass-frosted .sheet,
@@ -2342,9 +2351,8 @@ body.is-scrolling.glass-gaussian .list__item {
 .android-webview body.glass-on .list,
 .android-webview body.glass-on .phase,
 .android-webview body.glass-on .stat,
-.android-webview body.glass-on .ring,
 .android-webview body.glass-on .meta {
-  background: rgba(255, 255, 255, 0.85) !important;
+  background: rgba(255, 255, 255, var(--glass-content-a, .85)) !important;
 }
 .android-webview.dark body.glass-on .card,
 .android-webview.dark body.glass-on .sheet,
@@ -2352,7 +2360,48 @@ body.is-scrolling.glass-gaussian .list__item {
 .android-webview.dark body.glass-on .list,
 .android-webview.dark body.glass-on .phase,
 .android-webview.dark body.glass-on .stat,
-.android-webview.dark body.glass-on .ring,
 .android-webview.dark body.glass-on .meta {
-  background: rgba(44, 44, 46, 0.85) !important;
+  background: rgba(44, 44, 46, var(--glass-content-a, .85)) !important;
+}
+
+
+/* ============================================================
+   2026-09-22 内容层统一通透度通道（修「壁纸上还有白色色块」）
+   ------------------------------------------------------------
+   根因：壁纸/玻璃的覆盖是逐组件手写清单（见 1951 / 1987 / 2128 / 2147 / 2180 五段），
+   只写到容器层。内层底板（table 表头与首列、.chip、.badge--soft、.list__ico、.bar、
+   .switch、.lvl i、.ring 内圆与进度弧、.glass-slider 轨道、:active 按压态）一直吃
+   --surface*（浅色 = #ffffff 纯白），所以容器半透明了、它们仍是白块。
+   改法：这些组件的背景改用 --surf-1/2/3 token（01-tokens.css），透明度在此处统一给，
+   数值由 32-boot.js applyGlass() 按「模式 + 通透度 + 是否 WebView 降级」算成
+   --glass-content-a 写到根节点。以后新增组件只要用 --surf-*，天然跟随，不再漏。
+   兜底值 = 该模式下容器层既有基线（has-wallpaper 1972 的 .78/.62 一档），JS 未就绪时不闪。
+   --surface* 保持实色语义，仍供 border / SVG fill 等不可透明的用法使用。
+   ============================================================ */
+body.has-wallpaper {
+  --surf-a-1: var(--glass-content-a, .72);
+  --surf-a-2: var(--glass-content-a, .66);
+  --surf-a-3: var(--glass-content-a, .60);
+  /* 必须在这里重新合成一次：自定义属性在「声明所在元素」上完成替换。
+     --surf-* 若只在 :root 合成，alpha 会在 :root 就用掉 --surf-a-*(=1)，
+     body 作用域再改 --surf-a-* 也追不回来（实测 .ring::after 仍为纯白）。 */
+  --surf-1: rgba(var(--surf-rgb-1), var(--surf-a-1));
+  --surf-2: rgba(var(--surf-rgb-2), var(--surf-a-2));
+  --surf-3: rgba(var(--surf-rgb-3), var(--surf-a-3));
+}
+
+/* 弹窗（.sheet）液态下走「下限档」：跟随通透度，但由 --glass-sheet-* 兜住不低于 .55。
+   周围没有层次可借的浮层若一路透到底，实测暗壁纸区正文对比度只剩 1.12:1（AA 需 4.5）。
+   本块须位于上面各清单之后，靠特异性(0,5,1)+源顺序压过 1972 段的 .78 常量。 */
+body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .sheet {
+  background: linear-gradient(160deg,
+    var(--glass-sheet-top, rgba(255,255,255,.78)) 0%,
+    var(--glass-sheet-bot, rgba(250,250,252,.62)) 100%) !important;
+  transition: background .18s ease;
+}
+html.dark body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .sheet {
+  background: linear-gradient(160deg,
+    var(--glass-sheet-top-k, rgba(44,44,46,.68)) 0%,
+    var(--glass-sheet-bot-k, rgba(32,32,36,.56)) 100%) !important;
+  transition: background .18s ease;
 }

@@ -246,7 +246,7 @@
   line-height: 1.7;
   white-space: nowrap;
 }
-.badge--soft   { background: var(--surface-2); color: var(--text-2); }
+.badge--soft   { background: var(--surf-2); color: var(--text-2); }
 .badge--accent { background: var(--accent-soft); color: var(--accent-text); }
 .badge--ok     { background: var(--ok-soft); color: var(--ok); }
 .badge--warn   { background: var(--warn-soft); color: var(--warn); }
@@ -255,7 +255,7 @@
 
 /* 难度点阵 */
 .lvl { display: inline-flex; gap: 2.5px; align-items: center; }
-.lvl i { width: 5px; height: 5px; border-radius: 50%; background: var(--surface-3); }
+.lvl i { width: 5px; height: 5px; border-radius: 50%; background: var(--surf-3); }
 .lvl i.on { background: var(--ph, var(--accent)); }
 
 /* ---------------- 按钮（纯色，无玻璃） ---------------- */
@@ -320,7 +320,7 @@ btn[disabled] { opacity: .45; pointer-events: none; }
   align-items: center;
   gap: 5px;
   border-radius: var(--r-full);
-  background: var(--surface-2);
+  background: var(--surf-2);
   border: 1px solid var(--border);
   color: var(--text-2);
   font-size: 12.5px;
@@ -342,14 +342,14 @@ btn[disabled] { opacity: .45; pointer-events: none; }
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   overflow: hidden;
-  background: var(--surface);
+  background: var(--surf-1);
 }
 /* 表格玻璃：让命令字典等页面的表格也有质感 */
 .tablescroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 table.tbl { width: 100%; border-collapse: collapse; font-size: 11.8px; }
 table.tbl th {
   position: sticky; top: 0;
-  background: var(--surface-2);
+  background: var(--surf-2);
   color: var(--text-2);
   font-weight: 800;
   font-size: 10.5px;
@@ -374,13 +374,13 @@ table.tbl td:first-child {
   font-weight: 650;
   color: var(--text);
   position: sticky; left: 0;
-  background: var(--surface);
+  background: var(--surf-1);
   box-shadow: 1px 0 0 var(--border);
   white-space: normal;
   min-width: 108px;
 }
 table.tbl tr:last-child td { border-bottom: 0; }
-table.tbl tr:active td { background: var(--surface-2); }
+table.tbl tr:active td { background: var(--surf-2); }
 
 /* ---------------- 底部弹窗 (Bottom Sheet) ----------------
    2026-08-11：z-index 80 → 92——悬浮胶囊 tabbar 是 z 90，
@@ -554,7 +554,7 @@ body.glass-gaussian .toast {
   width: 96px; height: 96px;
   border-radius: 50%;
   display: grid; place-items: center;
-  background: conic-gradient(var(--accent) calc(var(--p,0) * 1%), var(--surface-3) 0);
+  background: conic-gradient(var(--accent) calc(var(--p,0) * 1%), var(--surf-3) 0);
   transition: background var(--t-slow) var(--ease-out);
 }
 .ring::after {
@@ -562,14 +562,14 @@ body.glass-gaussian .toast {
   position: absolute;
   inset: 8px;
   border-radius: 50%;
-  background: var(--surface);
+  background: var(--surf-1);
 }
 .ring__val { position: relative; z-index: 1; text-align: center; line-height: 1.1; }
 .ring__num { font-size: 23px; font-weight: 800; }
 .ring__lbl { font-size: 9.5px; color: var(--text-3); font-weight: 700; letter-spacing: .5px; }
 
 /* 线性进度条 */
-.bar { height: 6px; border-radius: var(--r-full); background: var(--surface-3); overflow: hidden; }
+.bar { height: 6px; border-radius: var(--r-full); background: var(--surf-3); overflow: hidden; }
 .bar__fill {
   height: 100%;
   width: 0;
@@ -611,7 +611,7 @@ html.dark mark.hl { background: var(--c-amber-500); color: #000; }
               transform var(--t-fast) var(--ease-apple-spring),
               filter var(--t-fast) var(--ease-out);
 }
-.tree__head:active { background: var(--surface-2); }
+.tree__head:active { background: var(--surf-2); }
 .tree__dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ph); flex: 0 0 auto; }
 .tree__name { font-size: 13.5px; font-weight: 700; flex: 1; min-width: 0; }
 .tree__cnt { font-size: 10.5px; color: var(--text-3); font-weight: 700; }
@@ -633,7 +633,7 @@ html.dark mark.hl { background: var(--c-amber-500); color: #000; }
   line-height: 1.45;
   min-height: 38px;
 }
-.tree__item:active { background: var(--surface-2); }
+.tree__item:active { background: var(--surf-2); }
 .tree__item.is-done { color: var(--ok); }
 
 /* ============================================================
@@ -648,7 +648,7 @@ html.dark mark.hl { background: var(--c-amber-500); color: #000; }
   width: 100%;
   height: 6px;
   border-radius: 3px;
-  background: var(--surface-3);
+  background: var(--surf-3);
   outline: none;
   cursor: pointer;
 }

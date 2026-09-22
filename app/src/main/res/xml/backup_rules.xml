@@ -1,13 +1,15 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample backup rules file; uncomment and customize as necessary.
-   See https://developer.android.com/guide/topics/data/autobackup
-   for details.
-   Note: This file is ignored for devices older than API 31
-   See https://developer.android.com/about/versions/12/backup-restore
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   传统备份（Android 11 及以下走这条）。
+   原为 AS 空模板（全部 include 被注释掉），等于「只备份清单、不备份数据」。
+   用户的进度/收藏/测验成绩都在 WebView 的 localStorage 与 shell 偏好里，
+   不显式 include 就永远不会被备份。
 -->
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <include domain="sharedpref" path="."/>
+    <include domain="database" path="."/>
+    <include domain="file" path="app_webview"/>
+    <exclude domain="file" path="app_webview/Default/GPUCache"/>
+    <exclude domain="file" path="app_webview/Default/blob_storage"/>
+    <exclude domain="file" path="cache"/>
 </full-backup-content>

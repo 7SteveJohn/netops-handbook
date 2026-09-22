@@ -1,19 +1,23 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample data extraction rules file; uncomment and customize as necessary.
-   See https://developer.android.com/about/versions/12/backup-restore#xml-changes
-   for details.
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Android 12+ 的数据提取规则。
+   系统语义：只要存在 <cloud-backup> 而缺少 <device-transfer>，
+   换机（D2D）就不再迁移任何数据 —— 旧模板正是这个状态，
+   所以「换机可导入恢复」此前只能靠用户自己导出 JSON。
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
+        <include domain="sharedpref" path="."/>
+        <include domain="database" path="."/>
+        <include domain="file" path="app_webview"/>
+        <exclude domain="file" path="app_webview/Default/GPUCache"/>
+        <exclude domain="file" path="app_webview/Default/blob_storage"/>
     </cloud-backup>
-    <!--
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <include domain="sharedpref" path="."/>
+        <include domain="database" path="."/>
+        <include domain="file" path="app_webview"/>
+        <exclude domain="file" path="app_webview/Default/GPUCache"/>
+        <exclude domain="file" path="app_webview/Default/blob_storage"/>
     </device-transfer>
-    -->
 </data-extraction-rules>

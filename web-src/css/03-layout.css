@@ -61,7 +61,7 @@ html.dark body.glass-on .appbar {
 /* 顶部进度条 */
 .topbar-progress {
   height: 2.5px;
-  background: var(--surface-3);
+  background: var(--surf-3);
   overflow: hidden;
 }
 .topbar-progress__fill {
@@ -87,7 +87,7 @@ html.dark body.glass-on .appbar {
               color var(--t-fast) var(--ease-out),
               transform var(--t-fast) var(--ease-out);
 }
-.ibtn:active { transform: scale(.86); background: var(--surface-2); filter: brightness(1.05); }
+.ibtn:active { transform: scale(.86); background: var(--surf-2); filter: brightness(1.05); }
 .ibtn.is-on  { color: var(--accent); background: var(--accent-soft); }
 .ibtn__badge {
   position: absolute; top: 7px; right: 7px;

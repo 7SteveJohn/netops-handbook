@@ -51,9 +51,21 @@
         return v == null ? dft : JSON.parse(v);
       } catch (e) { return dft; }
     },
+    /* 配额满 / 隐私模式下 setItem 会抛，以前直接静默退回内存：
+       用户以为存住了，重启才发现进度没了。现在如实返回结果并在首次失败时说明。 */
+    degraded: false,
     set: function (k, v) {
-      var s = JSON.stringify(v);
-      try { if (LS) LS.setItem(PFX + k, s); else MEM[k] = s; } catch (e) { MEM[k] = s; }
+      var s;
+      try { s = JSON.stringify(v); } catch (e) { return false; }
+      if (!LS) { MEM[k] = s; store.degraded = true; store.warnOnce(); return false; }
+      try { LS.setItem(PFX + k, s); return true; }
+      catch (e) { MEM[k] = s; store.degraded = true; store.warnOnce(); return false; }
+    },
+    warned: false,
+    warnOnce: function () {
+      if (store.warned) return;
+      store.warned = true;
+      toast('本地存储写不进去（空间不足或隐私模式），这些改动重启后会丢失', 'danger', 4200);
     },
     del: function (k) { try { if (LS) LS.removeItem(PFX + k); else delete MEM[k]; } catch (e) {} },
     keys: function () {

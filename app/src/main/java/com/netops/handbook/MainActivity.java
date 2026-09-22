@@ -1,6 +1,7 @@
 package com.netops.handbook;
 
 import android.annotation.SuppressLint;
+import android.content.ComponentCallbacks2;
 import android.content.ContentValues;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -39,6 +40,7 @@ import java.io.OutputStream;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * NetOps 2.0 离线壳。
@@ -74,10 +76,21 @@ public class MainActivity extends AppCompatActivity {
     private WebView webView;
     private FrameLayout root;
 
+    /** 主文档连续载入失败计数（成功载入或手动重试时清零）。 */
+    private int reloadTries = 0;
+    /** 渲染进程已被系统回收：此后严禁再触碰旧 WebView 实例。 */
+    private boolean rendererGone = false;
+    /** 内存吃紧时收掉过离屏预栅格化，回前台要还回去（否则玻璃退回平涂）。 */
+    private boolean preRasterDropped = false;
+    /** 错误页「重新载入」链接的目标（about: 不产生真实导航）。 */
+    private static final String RETRY_PAGE = "about:netops-retry";
+
     /** 「再按一次退出」防误触：记录上次根页面按下返回键的时间戳（毫秒）。 */
     private long lastBackPressMs = 0;
     /** 两次返回键的最大间隔（毫秒），超出则重置计数。 */
     private static final int BACK_EXIT_INTERVAL_MS = 2000;
+    /** 等网页应答返回键的时限：超时按「已在根页面」处理，防止 JS 卡死导致返回键失灵。 */
+    private static final int BACK_ACK_TIMEOUT_MS = 500;
     /** 相册选图的请求码。 */
     private static final int REQ_PICK_IMAGE = 9001;
     /** 文件导入（<input type=file> 选择器）请求码。 */
@@ -107,24 +120,140 @@ public class MainActivity extends AppCompatActivity {
         root = new FrameLayout(this);
         root.setId(View.generateViewId());
         root.setFitsSystemWindows(false);
-
-        webView = new WebView(this);
-        webView.setLayoutParams(new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
-        webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
-        webView.setBackgroundColor(bg);
         root.setBackgroundColor(bg);
-        root.addView(webView);
         setContentView(root);
 
-        configureWebView();
         applyBarAppearance(dark);
         bindInsets();
         bindGestureExclusion();
         bindBackKey();
 
+        createWebView(bg, savedInstanceState);
+    }
+
+    /**
+     * 建（或重建）WebView。载入失败与渲染进程被杀都走这一条路径，
+     * 避免初始化配置在两处副本之间漂移。
+     */
+    private void createWebView(int bg, Bundle state) {
+        webView = new WebView(this);
+        webView.setLayoutParams(new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        webView.setBackgroundColor(bg);
+        root.addView(webView);
+
+        configureWebView();
         webView.addJavascriptInterface(new Bridge(), "NetBridge");
-        webView.loadUrl(PAGE);
+        pageReady = false;
+        rendererGone = false;
+
+        boolean restored = false;
+        if (state != null) {
+            try { restored = webView.restoreState(state) != null; } catch (Exception e) { restored = false; }
+        }
+        if (!restored) webView.loadUrl(PAGE);
+    }
+
+    /** 渲染进程没了 / 反复载入失败后的自我了断式重建。 */
+    private void rebuildWebView() {
+        runOnUiThread(() -> {
+            try {
+                if (webView != null) {
+                    root.removeView(webView);
+                    try { webView.removeJavascriptInterface("NetBridge"); } catch (Exception ignored) { }
+                    webView.destroy();
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "销毁旧 WebView 失败（继续重建）", e);
+            }
+            webView = null;
+            reloadTries = 0;
+            createWebView(resolvedDark() ? BG_DARK : BG_LIGHT, null);
+        });
+    }
+
+    /**
+     * 主文档载入失败：先有限次自动重载（资源被安全软件瞬时拦截时可自愈），
+     * 仍失败就显示错误页 —— 旧实现什么也不做，用户只会看到永久白屏。
+     */
+    private void handleLoadFailure(String why) {
+        if (webView == null || rendererGone) return;
+        if (reloadTries++ < 2) {
+            Log.w(TAG, "首页载入失败，第 " + reloadTries + " 次自动重试：" + why);
+            webView.postDelayed(() -> {
+                if (webView != null && !rendererGone) webView.loadUrl(PAGE);
+            }, 600L * reloadTries);
+            return;
+        }
+        Log.e(TAG, "首页多次载入失败：" + why);
+        pageReady = false;
+        String skin = resolvedDark()
+                ? "background:#0B1220;color:#f5f5f7" : "background:#f5f7fb;color:#1d1d1f";
+        String mute = resolvedDark() ? "#8e8e93" : "#86868b";
+        webView.loadDataWithBaseURL(null,
+                "<!doctype html><meta charset=utf-8>"
+              + "<meta name=viewport content='width=device-width,initial-scale=1'>"
+              + "<body style='font:15px/1.7 system-ui;margin:0;padding:26vh 26px 0;" + skin + ";text-align:center'>"
+              + "<b>页面没能载入</b><br>"
+              + "<span style='font-size:13px;opacity:.85'>本应用完全离线、不申请网络权限；"
+              + "连续三次载入失败通常是安装包资源损坏，或被安全软件拦截。</span><br><br>"
+              + "<a href='" + RETRY_PAGE + "' style='color:#2563eb'>重新载入</a>"
+              + "<p style='color:" + mute + ";font-size:12px'>NetOps 2.0 · 网络学习辅助手册</p></body>",
+                "text/html", "utf-8", null);
+    }
+
+    @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        // 旋转已被 configChanges 接管，这里保的是「进程被杀后重建」
+        if (webView != null && !rendererGone) {
+            try { webView.saveState(outState); } catch (Exception e) { Log.w(TAG, "saveState 失败", e); }
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // 不暂停的话，网页里的定时器与预栅格化会在后台继续烧 CPU/电
+        if (webView != null && !rendererGone) {
+            // 注意：WebView 没有 pause()/resume()，按视图暂停用的是 onPause()/onResume()
+            try { webView.onPause(); } catch (Exception e) { Log.w(TAG, "onPause 失败", e); }
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (webView != null && !rendererGone) {
+            try { webView.onResume(); } catch (Exception e) { Log.w(TAG, "onResume 失败", e); }
+            if (preRasterDropped) {
+                try { webView.getSettings().setOffscreenPreRaster(true); } catch (Exception e) { Log.w(TAG, "恢复预栅格化失败", e); }
+                preRasterDropped = false;
+            }
+        }
+        if (root != null) ViewCompat.requestApplyInsets(root);
+    }
+
+    /**
+     * 系统内存压力下的降级。javap 查过：WebView 没有 trimMemory/onLowMemory 可供转发，
+     * 只剩 freeMemory()；真正值钱的是收掉 offscreenPreRaster 那份视口大小的离屏缓冲
+     * （1080p 一页量级约 10 MB）。回前台再恢复，否则 backdrop-filter 会退回平涂。
+     */
+    @Override
+    public void onTrimMemory(int level) {
+        super.onTrimMemory(level);
+        if (webView == null || rendererGone) return;
+        if (level < ComponentCallbacks2.TRIM_MEMORY_BACKGROUND) return;
+        try {
+            if (webView.getSettings().getOffscreenPreRaster()) {
+                webView.getSettings().setOffscreenPreRaster(false);
+                preRasterDropped = true;
+            }
+            webView.freeMemory();
+        } catch (Exception e) {
+            Log.w(TAG, "内存降级失败", e);
+        }
     }
 
     @Override
@@ -165,6 +294,7 @@ public class MainActivity extends AppCompatActivity {
            offscreenPreRaster 预栅格化离屏缓冲；LAYER_TYPE_HARDWARE 强制 WebView
            走硬件合成层，否则中低端机 blur 会失效（纯透明/平涂）。 */
         s.setOffscreenPreRaster(true);
+        preRasterDropped = false;
         webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
 
         if ((getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
@@ -208,8 +338,40 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 pageReady = true;
+                reloadTries = 0;
                 flushInsets();
                 pushTheme(isNightMode());
+            }
+
+            @SuppressWarnings("deprecation")
+            @Override
+            public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
+                if (failingUrl != null && failingUrl.startsWith(PAGE)) handleLoadFailure(description);
+            }
+
+            @Override
+            public void onReceivedError(WebView view, WebResourceRequest request,
+                                        android.webkit.WebResourceError error) {
+                if (request == null || !request.isForMainFrame()) return;   // 子资源（壁纸）失败忽略
+                String u = request.getUrl() == null ? "" : request.getUrl().toString();
+                if (!u.startsWith(PAGE)) return;
+                handleLoadFailure(error == null ? "unknown" : String.valueOf(error.getDescription()));
+            }
+
+            /**
+             * 渲染进程被系统回收或崩溃后，旧 WebView 实例不可再用，任何后续调用都会闪退。
+             * 必须返回 true（= 应用已接管）；返回 false 会让系统直接杀掉整个进程。
+             * 低版本不会回调本方法（API 26+），因此无需版本判断。
+             */
+            @Override
+            public boolean onRenderProcessGone(WebView view, android.webkit.RenderProcessGoneDetail detail) {
+                rendererGone = true;
+                pageReady = false;
+                Log.e(TAG, "WebView 渲染进程退出，重建界面。didCrash="
+                        + (detail != null && detail.didCrash()));
+                Toast.makeText(MainActivity.this, "界面进程被系统回收，正在恢复", Toast.LENGTH_SHORT).show();
+                rebuildWebView();
+                return true;
             }
         });
     }
@@ -217,6 +379,11 @@ public class MainActivity extends AppCompatActivity {
     /** 只允许留在本地页面内；其余（含 http/https）全部丢弃。 */
     private boolean blockExternal(Uri uri) {
         if (uri == null) return true;
+        if (RETRY_PAGE.equals(uri.toString())) {
+            reloadTries = 0;
+            if (webView != null && !rendererGone) webView.loadUrl(PAGE);
+            return true;
+        }
         String sc = uri.getScheme();
         boolean local = "file".equalsIgnoreCase(sc) || "about".equalsIgnoreCase(sc)
                 || "data".equalsIgnoreCase(sc) || "blob".equalsIgnoreCase(sc);
@@ -340,27 +507,34 @@ public class MainActivity extends AppCompatActivity {
             public void handleOnBackPressed() {
                 if (webView == null) { setEnabled(false); getOnBackPressedDispatcher().onBackPressed(); return; }
                 final OnBackPressedCallback self = this;
+                /* 网页侧只回答「这一页我消费了吗」。退出确认只由本类负责，
+                   避免同一键叠两个 Toast，也避免网页逻辑卡住时返回键彻底失灵。 */
+                final AtomicBoolean answered = new AtomicBoolean(false);
                 webView.evaluateJavascript(JS_BACK, value -> {
-                    if ("true".equals(value)) {
-                        // 网页已消费（关闭 Drawer / Sheet / 返回上一页），不做任何事
-                    } else {
-                        // 网页在根页面 —— 防误触：首次按提示，2 秒内再按才真退
-                        long now = System.currentTimeMillis();
-                        if (now - lastBackPressMs < BACK_EXIT_INTERVAL_MS) {
-                            // 第二次按下，确认退出
-                            lastBackPressMs = 0;
-                            self.setEnabled(false);
-                            getOnBackPressedDispatcher().onBackPressed();
-                        } else {
-                            // 第一次按下，Toast 提示
-                            lastBackPressMs = now;
-                            Toast.makeText(MainActivity.this,
-                                    "再按一次退出应用", Toast.LENGTH_SHORT).show();
-                        }
-                    }
+                    if (answered.compareAndSet(false, true)) onBackConsumed("true".equals(value), self);
                 });
+                webView.postDelayed(() -> {
+                    if (answered.compareAndSet(false, true)) {
+                        Log.w(TAG, "网页未在时限内应答返回键，按根页面处理");
+                        onBackConsumed(false, self);
+                    }
+                }, BACK_ACK_TIMEOUT_MS);
             }
         });
+    }
+
+    /** 返回键归属：网页消费则什么都不做；处于根页面走「再按一次退出」防误触。 */
+    private void onBackConsumed(boolean consumed, OnBackPressedCallback self) {
+        if (consumed) return;
+        long now = System.currentTimeMillis();
+        if (now - lastBackPressMs < BACK_EXIT_INTERVAL_MS) {
+            lastBackPressMs = 0;
+            self.setEnabled(false);
+            getOnBackPressedDispatcher().onBackPressed();
+        } else {
+            lastBackPressMs = now;
+            Toast.makeText(MainActivity.this, "再按一次退出应用", Toast.LENGTH_SHORT).show();
+        }
     }
 
     // ------------------------------------------------------------------ JS 桥
@@ -407,7 +581,7 @@ public class MainActivity extends AppCompatActivity {
         /** 导出 Markdown：Q 及以上写入公共 Downloads，低版本写应用私有目录，均无需权限。 */
         @JavascriptInterface
         public void saveFile(String name, String text) {
-            final String fileName = (name == null || name.trim().isEmpty()) ? "netops.md" : name.trim();
+            final String fileName = safeName(name);
             final String body = text == null ? "" : text;
             runOnUiThread(() -> {
                 String where;
@@ -448,6 +622,17 @@ public class MainActivity extends AppCompatActivity {
                 try { finish(); } catch (Exception e) { /* ignore */ }
             });
         }
+    }
+
+    /** 只留文件名本体：挡掉 ../、绝对路径与分隔符（旧实现直接 new File(dir, 网页传入名)）。 */
+    private String safeName(String name) {
+        String n = name == null ? "" : name.trim();
+        int cut = Math.max(n.lastIndexOf('/'), n.lastIndexOf('\\'));
+        if (cut >= 0) n = n.substring(cut + 1);
+        n = n.replace("..", "").replace(":", "");
+        if (n.isEmpty()) n = "netops.md";
+        if (n.length() > 120) n = n.substring(n.length() - 120);
+        return n;
     }
 
     /** 根据文件名后缀推断 MIME（2026-08-12 修复：导出 JSON 被当 markdown 处理）。 */
@@ -514,27 +699,69 @@ public class MainActivity extends AppCompatActivity {
         if (requestCode == REQ_PICK_IMAGE && resultCode == RESULT_OK && data != null) {
             Uri uri = data.getData();
             if (uri == null) return;
-            try {
-                java.io.InputStream is = getContentResolver().openInputStream(uri);
-                if (is == null) return;
-                byte[] bytes = new byte[is.available()];
-                int total = 0;
-                int read;
-                while ((read = is.read(bytes, total, bytes.length - total)) > 0) {
-                    total += read;
-                    if (total >= bytes.length) break;
-                }
-                is.close();
-                // 只取前 2MB（背景图不需要超高分辨率）
-                int len = Math.min(total, 2 * 1024 * 1024);
-                String b64 = android.util.Base64.encodeToString(bytes, 0, len,
-                        android.util.Base64.NO_WRAP);
-                String js = "if(window.NetOpsOnWallpaper) NetOpsOnWallpaper('data:image/jpeg;base64," + b64 + "');";
-                if (webView != null) webView.evaluateJavascript(js, null);
-            } catch (Exception e) {
-                Log.w(TAG, "读取选图失败", e);
-                Toast.makeText(this, "读取图片失败", Toast.LENGTH_SHORT).show();
+            /* 旧实现两处硬伤：available() 不保证等于全长度（内容流常返回 0），
+               以及把 JPEG 从中间截成 2MB —— 得到的是一张必坏图，还谎报「壁纸已设置」。
+               现在按界内缩放重压缩，控制在网页侧 localStorage 能吃下的量级。 */
+            String dataUrl = null;
+            try { dataUrl = readImageAsDataUrl(uri); } catch (Exception e) { Log.w(TAG, "解码选图失败", e); }
+            if (dataUrl == null) {
+                Toast.makeText(this, "读取图片失败，换一张或改用内置壁纸", Toast.LENGTH_LONG).show();
+                return;
             }
+            final String js = "if(window.NetOpsOnWallpaper) NetOpsOnWallpaper('" + dataUrl + "');";
+            if (webView != null) webView.post(() -> { if (webView != null) webView.evaluateJavascript(js, null); });
+        }
+    }
+
+    /** 读相册图片 → 等比缩到长边 ≤2560 → JPEG 逐级降质压到 ≤1.8MB → dataURL；失败返回 null。 */
+    private String readImageAsDataUrl(Uri uri) {
+        android.graphics.Rect bounds = new android.graphics.Rect();
+        int sw = 0, sh = 0;
+        try (java.io.InputStream is = getContentResolver().openInputStream(uri)) {
+            if (is == null) return null;
+            android.graphics.BitmapFactory.Options probe = new android.graphics.BitmapFactory.Options();
+            probe.inJustDecodeBounds = true;
+            android.graphics.BitmapFactory.decodeStream(is, null, probe);
+            sw = probe.outWidth; sh = probe.outHeight;
+            if (sw <= 0 || sh <= 0) return null;
+            int sample = 1;
+            while (Math.max(sw, sh) / sample > 2560) sample *= 2;
+            bounds.set(0, 0, sw / sample, sh / sample);
+        } catch (Exception e) {
+            Log.w(TAG, "探测图片尺寸失败", e);
+            return null;
+        }
+
+        android.graphics.Bitmap bmp;
+        try (java.io.InputStream is2 = getContentResolver().openInputStream(uri)) {
+            if (is2 == null) return null;
+            android.graphics.BitmapFactory.Options opt = new android.graphics.BitmapFactory.Options();
+            int sample = 1;
+            while (Math.max(sw, sh) / sample > 2560) sample *= 2;
+            opt.inSampleSize = sample;
+            bmp = android.graphics.BitmapFactory.decodeStream(is2, bounds, opt);
+        } catch (Exception e) {
+            Log.w(TAG, "解码图片失败", e);
+            return null;
+        }
+        if (bmp == null) return null;
+
+        try {
+            java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+            int q = 85;
+            bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, q, bos);
+            while (bos.size() > 1_800_000 && q > 45) {
+                bos.reset();
+                q -= 10;
+                bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, q, bos);
+            }
+            byte[] out = bos.toByteArray();
+            return "data:image/jpeg;base64," + android.util.Base64.encodeToString(out, android.util.Base64.NO_WRAP);
+        } catch (Exception e) {
+            Log.w(TAG, "压缩图片失败", e);
+            return null;
+        } finally {
+            try { bmp.recycle(); } catch (Exception ignored) { }
         }
     }
 

@@ -9,7 +9,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="referrer" content="no-referrer">
-<title>NetOps 2.0 · 全栈网络运维技能导航</title>
+<title>NetOps 2.0 · 网络学习辅助手册</title>
 <script>
 (function() {
   /* 2026-08-12 18:18（按用户整合方案）：Android WebView 降级检测 v2 ——
@@ -22,18 +22,9 @@
   var chromeVersion = parseInt(RegExp.$1) || 0;
   if (isWebView || (isAndroid && chromeVersion < 90)) {
     document.documentElement.classList.add('android-webview');
-    // 只禁用 backdrop-filter，但保留 glass-on 类，以便复用样式
-    try {
-      var g = localStorage.getItem('netops_glass');
-      if (g) {
-        var obj = JSON.parse(g);
-        // 强制将 on 设为 true，但靠 CSS 覆盖 backdrop-filter
-        if (obj.on === false) obj.on = true;
-        localStorage.setItem('netops_glass', JSON.stringify(obj));
-      } else {
-        localStorage.setItem('netops_glass', JSON.stringify({ on: true, mode: 'liquid', blur: 14, tint: 55 }));
-      }
-    } catch(e) {}
+    /* 只打降级标记，交给 CSS 把 backdrop-filter 换成实色蒙版。
+       这里以前会把用户关掉的玻璃强行写回 on:true 并持久化 ——
+       用户每次关掉都会在下次启动被偷偷打开。applyGlass 自有默认值，无需在此落盘。 */
   }
 })();
 </script>
@@ -53,7 +44,7 @@
       </button>
       <div class="appbar__title">
         <div class="appbar__name ellipsis" id="barName">NetOps 2.0</div>
-        <div class="appbar__sub ellipsis" id="barSub">全栈网络运维技能导航</div>
+        <div class="appbar__sub ellipsis" id="barSub">网络学习辅助手册</div>
       </div>
       <div class="grow"></div>
       <button class="ibtn" id="btnSearch" type="button" aria-label="搜索">
@@ -116,7 +107,7 @@
       <svg class="icon icon--lg" style="color:var(--accent)" aria-hidden="true"><use href="#i-network"/></svg>
       <div class="grow">
         <div style="font-size:15px;font-weight:800">技能目录</div>
-        <div class="t-xs t-mute" id="drawerSub">全栈技能导航 · 离线版</div>
+        <div class="t-xs t-mute" id="drawerSub">网络学习辅助手册 · 离线版</div>
       </div>
     </div>
     <div class="row gap-1" style="margin-top:12px">

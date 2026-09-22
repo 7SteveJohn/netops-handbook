@@ -46,8 +46,8 @@
 
     h += '<div class="hero">' + GRID + '<div class="hero__glow"></div><div class="hero__inner">' +
       '<div class="hero__eyebrow">' + icon('i-zap', 'icon--xs') + 'OFFLINE READY</div>' +
-      '<div class="hero__title">全栈网络运维<br>技能导航 2.0</div>' +
-      '<div class="hero__desc">从零基础数通到云原生架构 · 排障字典 · 面试题库<br>纯离线运行，无需任何网络连接</div>' +
+      '<div class="hero__title">网络学习<br>辅助手册 2.0</div>' +
+      '<div class="hero__desc">从零基础数通到云原生架构 · 排障字典 · 面试题库<br>辅助工具，配合教材与真机实验使用<br>纯离线运行，无需任何网络连接</div>' +
       '<div class="hero__stats">' +
         stat(A.MODS.length, '知识模块') +
         stat(CORE.faults.length, '排障案例') +
@@ -158,9 +158,9 @@
           icon('i-download', 'icon--xs') + '导出</button>' +
       '</div>' +
     '</div></div>';
-    h += p.modules.map(function (m, i) {
+    h += '<div class="plist">' + p.modules.map(function (m, i) {
       return '<div class="anim-in" style="--i:' + Math.min(i, 12) + '">' + A.modCard(m) + '</div>';
-    }).join('');
+    }).join('') + '</div>';
     h += '</div>';
     return page(h);
   };
@@ -180,7 +180,7 @@
         return chip(c, cat === c, n);
       }).join('') + '</div>';
     h += list.length
-      ? list.map(function (f, i) { return '<div class="anim-in" style="--i:' + Math.min(i, 12) + '">' + A.faultCard(f) + '</div>'; }).join('')
+      ? '<div class="plist">' + list.map(function (f, i) { return '<div class="anim-in" style="--i:' + Math.min(i, 12) + '">' + A.faultCard(f) + '</div>'; }).join('') + '</div>'
       : empty('该分类暂无案例', '换个分类试试', 'i-wrench');
     return page(h);
   };
@@ -230,30 +230,52 @@
   /* ================= 面试题库 ================= */
   V.iv = function (state) {
     var cat = (state && state.cat) || '全部';
-    var list = CORE.interview.filter(function (x) { return cat === '全部' || A.normCat(x.cat) === cat; });
-    var dn = A.countDone(CORE.interview);
+    var REL = '与你相关';
+    var all = CORE.interview;
+    var ranked = A.ivRank(all.filter(function (x) { return cat === '全部' || cat === REL || A.normCat(x.cat) === cat; }));
+    var relCount = A.ivRank(all).filter(function (r) { return r.s > 0; }).length;
+    var focus = A.S.jobFocus || 'any';
+    var dn = A.countDone(all);
+    var shown = cat === REL ? ranked.filter(function (r) { return r.s > 0; }) : ranked;
     var h = '';
     h += '<div class="card" data-accent="amber" style="margin-bottom:11px"><div style="padding:13px">' +
       '<div class="row gap-3">' +
         '<div class="phase__idx">' + icon('i-briefcase', 'icon--sm') + '</div>' +
         '<div class="grow"><div class="t-sm bold">面试冲刺</div>' +
-        '<div class="t-xs t-mute">' + CORE.interview.length + ' 道高频真题 · 已准备 ' + dn + ' 道</div></div>' +
+        '<div class="t-xs t-mute">' + all.length + ' 道高频真题 · ' + A.IV_CATS.length +
+          ' 个维度 · 已准备 ' + dn + ' 道</div></div>' +
         '<button class="btn btn--soft btn--sm" type="button" data-go="quiz">' + icon('i-award', 'icon--xs') + '测验</button>' +
       '</div>' +
       '<div class="bar" style="margin-top:11px"><div class="bar__fill" style="width:' +
-        Math.round(dn / CORE.interview.length * 100) + '%"></div></div>' +
+        Math.round(dn / all.length * 100) + '%"></div></div>' +
+      /* 目标岗位：决定哪些维度排前面，只改顺序不删题 */
+      '<div class="t-xs t-mute" style="margin-top:12px">目标岗位（只为排序，不影响看到全部题）</div>' +
+      '<div class="chips" style="margin-top:6px">' +
+        chipBtn('未定', focus === 'any', 'any') +
+        Object.keys(A.IV_FOCUS).map(function (k) { return chipBtn(k, focus === k, k); }).join('') +
+      '</div>' +
     '</div></div>';
     h += '<div class="chips" data-chipgroup="ivCat">' +
-      chip('全部', cat === '全部', CORE.interview.length) +
+      chip(REL, cat === REL, relCount) +
+      chip('全部', cat === '全部', all.length) +
       A.IV_CATS.map(function (c) {
-        var n = CORE.interview.filter(function (x) { return A.normCat(x.cat) === c; }).length;
+        var n = all.filter(function (x) { return A.normCat(x.cat) === c; }).length;
         return chip(c, cat === c, n);
       }).join('') + '</div>';
-    h += list.length
-      ? list.map(function (x, i) { return '<div class="anim-in" style="--i:' + Math.min(i, 12) + '">' + A.ivCard(x) + '</div>'; }).join('')
-      : empty('该分类暂无题目', '', 'i-briefcase');
+    if (cat === REL && !relCount) {
+      h += empty('暂时没有可推荐的', '做个目标岗位选择，或先答几道测验题留下错题', 'i-briefcase');
+    } else {
+      h += '<div class="plist">' + shown.map(function (r, i) {
+        return '<div class="anim-in" style="--i:' + Math.min(i, 12) + '">' + A.ivCard(r.q, null, r.why) + '</div>';
+      }).join('') + '</div>';
+    }
     return page(h);
   };
+
+  function chipBtn(label, on, key) {
+    return '<button class="chip' + (on ? ' is-active' : '') + '" type="button" data-ivfocus="' +
+      esc(key) + '">' + esc(label) + '</button>';
+  }
 
   /* ================= 我的 ================= */
   V.me = function () {
@@ -317,10 +339,10 @@
         '<svg class="icon icon--sm t-mute" aria-hidden="true"><use href="#i-chev-right"/></svg></button>' +
       /* 数据备份导出/导入(优化5) */
       '<button class="list__item" type="button" data-exportdata><span class="list__ico" style="background:linear-gradient(135deg,#e0f2fe 0%,#c7d2fe 100%);color:var(--c-indigo-600, #4f46e5)">' + icon('i-download', 'icon--sm') + '</span>' +
-        '<span class="grow"><span class="list__t">导出数据备份</span><span class="list__d">进度/收藏/测验成绩 → JSON</span></span>' +
+        '<span class="grow"><span class="list__t">导出数据备份</span><span class="list__d">进度/测验/错题/岗位画像 + 玻璃与壁纸等个性化 → JSON</span></span>' +
         '<svg class="icon icon--sm t-mute" aria-hidden="true"><use href="#i-chev-right"/></svg></button>' +
       '<button class="list__item" type="button" data-importdata><span class="list__ico" style="background:linear-gradient(135deg,#dcfce7 0%,#a7f3d0 100%);color:var(--c-emerald-600, #059669)">' + icon('i-upload', 'icon--sm') + '</span>' +
-        '<span class="grow"><span class="list__t">导入数据恢复</span><span class="list__d">从 JSON 备份恢复进度</span></span>' +
+        '<span class="grow"><span class="list__t">导入数据恢复</span><span class="list__d">逐项校验后恢复，恢复前自动留可回滚快照</span></span>' +
         '<svg class="icon icon--sm t-mute" aria-hidden="true"><use href="#i-chev-right"/></svg></button>' +
       '<input type="file" id="impFile" accept="application/json,.json" style="display:none">' +
       '<button class="list__item" type="button" data-reset><span class="list__ico" style="background:linear-gradient(135deg,#fef2f2 0%,#fee2e2 100%);color:var(--danger)">' + icon('i-trash', 'icon--sm') + '</span>' +
@@ -329,7 +351,7 @@
     '</div>';
 
     h += '<div class="center t-xs t-mute" style="padding:22px 0 6px;line-height:1.7">' +
-      'NetOps 2.0 · 全栈网络运维技能导航<br>完全离线运行 · 无网络权限 · 无第三方依赖</div>';
+      'NetOps 2.0 · 网络学习辅助手册<br>完全离线运行 · 无网络权限 · 无第三方依赖</div>';
     return page(h);
   };
 
@@ -398,7 +420,7 @@
   V.roadmap = function () {
     var colors = ['teal', 'blue', 'purple', 'rose', 'amber'];
     var h = '<div class="note note--info" style="margin-bottom:14px">' +
-      '按这个节奏走，一年内可以从零基础打到能独立扛云网融合项目。</div>';
+      '路线图只用来对照进度，看清自己在学哪一块；具体内容还得跟着教材和真机实验走。</div>';
     h += '<div class="rm">' + EXT.roadmap.map(function (n, i) {
       return '<div class="rm__node" data-accent="' + (n.c || colors[i % 5]) + '">' +
         '<div class="rm__t">' + esc(n.t) + '</div><div class="rm__d">' + esc(n.d) + '</div></div>';
@@ -419,8 +441,24 @@
         '<button class="btn btn--soft" type="button" data-quiz="start" data-n="' + QUIZ.length + '">全量</button>' +
       '</div>' +
     '</div></div>';
+    /* 错题本：答错的题留在这里，做对一次自动移走。单独成函数，判分后要原地刷新 */
+    h += V.wrongCard();
     h += '<div id="quizBox" style="margin-top:12px"></div>';
     return page(h);
+  };
+
+  V.wrongCard = function () {
+    var wn = Object.keys(A.S.wrong || {}).length;
+    return '<div class="card" id="wrongCard" data-accent="' + (wn ? 'rose' : 'teal') + '" style="margin-top:12px"><div style="padding:13px">' +
+      '<div class="t-md bold">' + icon('i-target', 'icon--xs') + '错题本</div>' +
+      '<div class="t-xs t-mute" style="margin-top:4px;line-height:1.6">' +
+        (wn ? '攒了 ' + wn + ' 道答错过的题。跳回原卡看完再练，做对一次就自动移出错题本。'
+            : '还没有错题。答错的题会自动留在这里，直到你做对一次。') +
+      '</div>' +
+      (wn ? '<div class="row gap-1" style="margin-top:12px">' +
+        '<button class="btn btn--primary grow" type="button" data-quiz="wrong">只练这 ' + wn + ' 题</button>' +
+        '<button class="btn btn--soft" type="button" data-quiz="wrongclear">清空</button></div>' : '') +
+      '</div></div>';
   };
 
   V.quizRender = function (items, answers, submitted) {
@@ -443,7 +481,13 @@
       if (submitted) {
         var right = picked === it.a;
         h += '<div class="qz__fb ' + (right ? 'is-right' : 'is-wrong') + '">' +
-          (right ? '✓ 回答正确 · ' : '✗ 正确答案：' + esc(it.o[it.a]) + ' · ') + esc(it.e) + '</div>';
+          (right ? '✓ 回答正确 · ' : '✗ 正确答案：' + esc(it.o[it.a]) + ' · ') + esc(it.e);
+        if (!right && it.m && A.BY_ID[it.m]) {
+          h += '<div style="margin-top:9px"><button class="btn btn--soft btn--sm" type="button" data-jumpcard="' +
+            esc(it.m) + '">' + icon('i-book', 'icon--xs') + '回看：' +
+            esc(A.cleanTitle(A.BY_ID[it.m].t).slice(0, 20)) + '</button></div>';
+        }
+        h += '</div>';
       }
       h += '</div>';
     });
@@ -499,6 +543,12 @@
             return '<div class="dict__kv"><div class="dict__k">' + esc(c.n.split(' ')[0]) + '</div>' +
               '<div class="dict__v" data-cmd="' + esc(v) + '">' + U.hl(v, q) + '</div></div>';
           }).join('') + '</div>';
+      }).join('') + '</div>';
+    }
+    if (res.refs && res.refs.length) {
+      h += sec('i-inbox', '速查表 · ' + res.refs.length);
+      h += '<div class="list">' + res.refs.map(function (s) {
+        return li(s.icon || 'i-inbox', U.hl(s.t, q), U.hl(s.d, q), 'ref', s.id);
       }).join('') + '</div>';
     }
     if (res.gloss.length) {

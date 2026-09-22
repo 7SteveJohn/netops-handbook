@@ -279,7 +279,7 @@ html.dark .topo { opacity: .96; }
   flex: 0 0 auto;
   border-radius: var(--r-sm);
   display: grid; place-items: center;
-  background: var(--surface-2);
+  background: var(--surf-2);
   color: var(--text-2);
 }
 .list__t { font-size: 13.5px; font-weight: 650; }
@@ -291,7 +291,7 @@ html.dark .topo { opacity: .96; }
   width: 44px; height: 26px;
   flex: 0 0 auto;
   border-radius: var(--r-full);
-  background: var(--surface-3);
+  background: var(--surf-3);
   transition: background-color var(--t-base) var(--ease-out);
 }
 .switch::after {
@@ -424,18 +424,51 @@ html.dark .topo { opacity: .96; }
 .fab:active { transform: scale(.88); }
 
 /* ---------------- 大屏适配（平板 / 横屏） ---------------- */
-@media (min-width: 640px) {
+/* 640 → 600：8" 平板竖屏与分屏常落在 600dp，此前会整档跳到无上限布局 */
+@media (min-width: 600px) {
   .page { max-width: 720px; margin: 0 auto; padding: 16px 16px 0; }
   .stat-grid { grid-template-columns: repeat(4, 1fr); }
   .hero__title { font-size: 23px; }
   .appbar__row { max-width: 720px; margin: 0 auto; }
   .searchbar { max-width: 700px; margin-left: auto; margin-right: auto; }
   .tabbar { justify-content: center; }
-  .tab { max-width: 130px; }
+  /* 浮动胶囊与正文列同宽并居中：此前 left/right:24px 让它横跨整屏，
+     与 860 的正文列脱节；绝对定位 + 确定宽度 + auto 外边距即可居中 */
+  body:not(.tabbar-regular) .tabbar {
+    max-width: 720px; margin-left: auto; margin-right: auto;
+  }
+  /* 格子里的 tab 原本贴左（max-width 使 stretch 退化为 start），
+     导致整组中心比视口中心偏左约半格；显式居中 */
+  .tab { max-width: 130px; justify-self: center; }
+  /* 中文正文行长压到可读区间（13px 下约 42 字/行）；终端与拓扑保持满宽 */
+  .note { max-width: 42em; }
+  .bullets li, .steps li { max-width: 42em; }
 }
 @media (min-width: 900px) {
   .page { max-width: 860px; }
+  /* 标题栏此前停在 720，正文已到 860 → 左边缘差 70px，这里跟齐 */
+  .appbar__row { max-width: 860px; }
+  .searchbar { max-width: 840px; }
+  body:not(.tabbar-regular) .tabbar { max-width: 860px; }
   .card__inner { padding-left: 16px; padding-right: 16px; }
+}
+/* ≥1200（大横屏平板 / 桌面 / DeX）：卡片流改两栏。
+   此前只有一列 860，1600 宽时两侧各空 370px 纯浪费。
+   只作用于 .plist（阶段页/排障页/面试页的卡片流），标题、统计、速查表等保持整行。 */
+@media (min-width: 1200px) {
+  .page { max-width: 1180px; }
+  .appbar__row { max-width: 1180px; }
+  .searchbar { max-width: 1160px; }
+  body:not(.tabbar-regular) .tabbar { max-width: 1180px; }
+  .plist {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    align-items: start;            /* 两栏高度不等时各自上对齐，不拉伸 */
+  }
+  .plist > .anim-in { min-width: 0; }
+  /* 展开的卡由 JS 打 is-wide：占满整行，终端与拓扑不被压进半列 */
+  .plist > .anim-in.is-wide { grid-column: 1 / -1; }
 }
 /* 横屏矮屏：压缩纵向占用 */
 @media (max-height: 460px) and (orientation: landscape) {

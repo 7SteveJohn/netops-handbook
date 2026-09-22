@@ -17,8 +17,8 @@
   "3. 保存配置",
   "save",
   "write memory",
-  "save config",
-  "netplan apply"
+  "write",
+  "-"
  ],
  [
   "4. 日志缓存",
@@ -39,7 +39,7 @@
   "dis ip int br",
   "show ip int br",
   "show interface br",
-  "ip -br link show"
+  "ip addr show"
  ],
  [
   "7. 配置 IP",
@@ -67,41 +67,41 @@
   "description",
   "description",
   "description",
-  "-"
+  "ip link set dev eth0 alias \"TO-CORE-GE0/0/1\""
  ],
  [
   "11. 批量VLAN",
   "vlan batch 10 20",
   "vlan 10,20",
   "vlan 10,20",
-  "-"
+  "ip link add link eth0 name eth0.10 type vlan id 10   # 没有批量语法，按子接口逐个建"
  ],
  [
   "12. VLAN成员",
   "display vlan",
   "show vlan",
   "show vlan",
-  "-"
+  "bridge vlan"
  ],
  [
   "13. Access模式",
   "port link-type access",
   "switchport mode access",
-  "port link-type access",
-  "-"
+  "switchport mode access",
+  "bridge vlan add dev eth0 vid 10 pvid untagged   # 还要 bridge 开 vlan_filtering 1，并把默认 vid 1 删掉"
  ],
  [
   "14. Trunk放行",
   "port trunk allow-pass vlan 10",
   "switchport trunk allowed",
-  "port trunk permit vlan",
-  "-"
+  "switchport trunk allowed vlan add 10",
+  "for v in $(seq 10 20); do bridge vlan add dev eth0 vid $v tagged; done"
  ],
  [
   "15. Hybrid模式",
   "port link-type hybrid",
   "无(类似general)",
-  "port link-type hybrid",
+  "-",
   "-"
  ],
  [
@@ -109,7 +109,7 @@
   "display mac-address",
   "show mac address-table",
   "show mac-address",
-  "ip neigh show"
+  "bridge fdb show"
  ],
  [
   "17. 默认路由",
@@ -120,24 +120,24 @@
  ],
  [
   "18. OSPF宣告",
+  "area 0 ; network x.x.x.x y.y.y.y",
   "network x.x.x.x y.y.y.y area 0",
   "network x.x.x.x y.y.y.y area 0",
-  "network x.x.x.x y.y.y.y",
-  "bird: protocol ospf"
+  "birdc show protocols all ospf"
  ],
  [
   "19. OSPF邻居",
   "display ospf peer",
   "show ip ospf neighbor",
   "show ospf neighbor",
-  "birdc show ospf neighbors"
+  "birdc show protocols all ospf"
  ],
  [
   "20. BGP邻居",
   "peer x.x.x.x as-number 100",
   "neighbor x.x.x.x remote-as",
   "peer x.x.x.x as 100",
-  "bird: protocol bgp"
+  "vtysh -c \"show ip bgp summary\""
  ],
  [
   "21. BGP路由表",
@@ -147,11 +147,11 @@
   "birdc show route"
  ],
  [
-  "22. 全局IPv6",
+  "22. 接口 IPv6 使能",
   "ipv6 enable",
-  "ipv6 unicast-routing",
   "ipv6 enable",
-  "sysctl net.ipv6.conf.all"
+  "ipv6 enable",
+  "sysctl -w net.ipv6.conf.all.disable_ipv6=0"
  ],
  [
   "23. IPv6地址",
@@ -186,21 +186,21 @@
   "security-policy",
   "zone security",
   "zone",
-  "firewalld"
+  "firewall-cmd --get-zones"
  ],
  [
   "28. 链路聚合",
   "interface Eth-Trunk 1",
   "interface Port-channel 1",
   "interface aggregation",
-  "bonding"
+  "ip link add bond0 type bond"
  ],
  [
   "29. VRRP网关",
   "vrrp vrid 1 virtual-ip",
   "vrrp 1 ip x.x.x.x",
   "vrrp 1 ip x.x.x.x",
-  "keepalived"
+  "keepalived.conf: vrrp_instance VI_1 { virtual_ipaddress { 10.1.1.1/24 dev eth0 } }"
  ],
  [
   "30. 查看堆叠",
@@ -254,8 +254,8 @@
  [
   "37. MPLS LSP",
   "display mpls lsp",
-  "show mpls lsp",
-  "show mpls lsp",
+  "show mpls forwarding-table",
+  "-",
   "-"
  ],
  [
@@ -268,9 +268,9 @@
  [
   "39. BGP EVPN",
   "display bgp l2vpn evpn",
-  "show bgp evpn",
-  "show bgp evpn",
-  "-"
+  "show bgp l2vpn evpn",
+  "-",
+  "vtysh -c \"show bgp l2vpn evpn\""
  ],
  [
   "40. MPLS LDP",
@@ -311,7 +311,7 @@
   "45. 堆叠优先级",
   "stack member 1 priority",
   "switch 1 priority",
-  "stack priority",
+  "-",
   "-"
  ],
  [
@@ -347,7 +347,7 @@
   "info-center loghost level",
   "logging trap",
   "log level",
-  "rsyslog.conf"
+  "journalctl -p warning"
  ],
  [
   "51. NAT64",
@@ -365,10 +365,10 @@
  ],
  [
   "53. VXLAN VNI",
-  "evpn vni 100",
+  "vxlan vni 100",
   "vni 100",
-  "evpn",
-  "-"
+  "-",
+  "ip link add vxlan100 type vxlan id 100 dev eth0 dstport 4789"
  ],
  [
   "54. SRv6 Policy",

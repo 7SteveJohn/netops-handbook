@@ -33,6 +33,19 @@
   --surface-3:     #f0f0f3;          /* 第三级表面 */
   --hairline:      rgba(0,0,0,.07);  /* 发丝分隔线（apple 风格） */
   --surface-glass: rgba(255,255,255,.55);
+
+  /* ---- 内容层表面 token（壁纸/玻璃下由 --glass-content-a 统一驱动）----
+     --surface* 保留实色语义给边框、SVG 填充等不该透明的用法；
+     背景一律走 --surf-*，这样通透度一处改、所有内层底板同步跟随。 */
+  --surf-rgb-1: 255,255,255;
+  --surf-rgb-2: 251,251,253;
+  --surf-rgb-3: 240,240,243;
+  --surf-a-1:   1;
+  --surf-a-2:   1;
+  --surf-a-3:   1;
+  --surf-1:     rgba(var(--surf-rgb-1), var(--surf-a-1));
+  --surf-2:     rgba(var(--surf-rgb-2), var(--surf-a-2));
+  --surf-3:     rgba(var(--surf-rgb-3), var(--surf-a-3));
   --border:        #e3e3e8;          /* 比 hairline 略重的结构边框 */
   --border-strong: var(--c-slate-300);
   --text:          #1d1d1f;          /* 苹果近黑文本 */
@@ -208,6 +221,11 @@ html.dark {
   --surface-3:     #3a3a3c;
   --hairline:      rgba(255,255,255,.10);
   --surface-glass: rgba(28,28,30,.55);
+  /* 暗色内容层：RGB 通道对齐上面三个实色 token，透明度仍由 --surf-a-* 统一控制 */
+  --surf-rgb-1: 28,28,30;
+  --surf-rgb-2: 44,44,46;
+  --surf-rgb-3: 58,58,60;
+
   --border:        #38383a;
   --border-strong: #48484a;
   --text:          #f5f5f7;
