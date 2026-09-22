@@ -4,20 +4,18 @@
    系统语义：只要存在 <cloud-backup> 而缺少 <device-transfer>，
    换机（D2D）就不再迁移任何数据 —— 旧模板正是这个状态，
    所以「换机可导入恢复」此前只能靠用户自己导出 JSON。
+   root 域=数据目录本身，一条 include 即覆盖 files/databases/shared_prefs
+   与 WebView 私有目录；两块规则必须成对出现，缺 device-transfer 就不做迁移。
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <include domain="sharedpref" path="."/>
-        <include domain="database" path="."/>
-        <include domain="file" path="app_webview"/>
-        <exclude domain="file" path="app_webview/Default/GPUCache"/>
-        <exclude domain="file" path="app_webview/Default/blob_storage"/>
+        <include domain="root" path="."/>
+        <exclude domain="root" path="cache"/>
+        <exclude domain="root" path="no_backup"/>
     </cloud-backup>
     <device-transfer>
-        <include domain="sharedpref" path="."/>
-        <include domain="database" path="."/>
-        <include domain="file" path="app_webview"/>
-        <exclude domain="file" path="app_webview/Default/GPUCache"/>
-        <exclude domain="file" path="app_webview/Default/blob_storage"/>
+        <include domain="root" path="."/>
+        <exclude domain="root" path="cache"/>
+        <exclude domain="root" path="no_backup"/>
     </device-transfer>
 </data-extraction-rules>

@@ -1,15 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-   传统备份（Android 11 及以下走这条）。
-   原为 AS 空模板（全部 include 被注释掉），等于「只备份清单、不备份数据」。
-   用户的进度/收藏/测验成绩都在 WebView 的 localStorage 与 shell 偏好里，
-   不显式 include 就永远不会被备份。
+   传统备份（Android 11 及以下走这条）。原为 AS 空模板（include 全被注释掉），
+   等于「只备份清单、不备份数据」，用户的进度/收藏/测验成绩永远进不了备份。
+   这里用 root 域一条 include 覆盖数据目录下的全部内容：files / databases /
+   shared_prefs 与 WebView 的私有目录都在它下面，于是不必赌 localStorage 的确切子路径。
+   cache / no_backup 系统本就不备份，显式排除既表明意图，也满足 lint 的
+   「exclude 必须落在某条 include 路径之内」——违反即 fatal，assembleRelease 会被拦下。
 -->
 <full-backup-content>
-    <include domain="sharedpref" path="."/>
-    <include domain="database" path="."/>
-    <include domain="file" path="app_webview"/>
-    <exclude domain="file" path="app_webview/Default/GPUCache"/>
-    <exclude domain="file" path="app_webview/Default/blob_storage"/>
-    <exclude domain="file" path="cache"/>
+    <include domain="root" path="."/>
+    <exclude domain="root" path="cache"/>
+    <exclude domain="root" path="no_backup"/>
 </full-backup-content>
