@@ -78,6 +78,7 @@
 
     /* 标签栏高亮 */
     $$('.tab').forEach(function (b) { b.classList.toggle('is-active', b.dataset.tab === m.tab); });
+    positionTabPill();
     /* 导航按钮：一级用菜单，二级用返回 */
     navUse.setAttribute('href', (isRoot(st.r) && !stack.length) ? '#i-menu' : '#i-chev-left');
 
@@ -776,6 +777,21 @@
     return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
   }
 
+  /* 共享选中态药丸：把 .tab-pill 平移到当前 tab 上。
+     用 getBoundingClientRect 而不是按 1/5 算宽度 —— 内边距、安全区、平板限宽
+     （05-views.css 的 max-width:860px 与 justify-content:center）都会改变格宽，
+     算出来的会和实际错位。 */
+  function positionTabPill() {
+    var bar = $('#tabbar'), pill = $('#tabPill');
+    if (!bar || !pill) return;
+    var act = bar.querySelector('.tab.is-active');
+    if (!act) return;
+    var rb = bar.getBoundingClientRect(), rt = act.getBoundingClientRect();
+    if (!rt.width) return;                       /* 尚未布局（隐藏/首帧），别写 0 宽 */
+    pill.style.setProperty('--pill-x', (rt.left - rb.left).toFixed(1) + 'px');
+    pill.style.setProperty('--pill-w', rt.width.toFixed(1) + 'px');
+  }
+
   function initWallpaper() {
     var lbl = $('#wallpaperLbl');
     var sheet = $('#wpSheet');
@@ -1312,6 +1328,7 @@
     d.body.classList.toggle('tabbar-regular', mode === 'regular');
     d.body.classList.toggle('tabbar-float', mode !== 'regular');
     updateTabbarLabel(mode);
+    positionTabPill();
   }
 
   function updateTabbarLabel(mode) {
@@ -2088,6 +2105,9 @@
     var tbm = getTabbarMode();
     d.body.classList.toggle('tabbar-regular', tbm === 'regular');
     d.body.classList.toggle('tabbar-float', tbm !== 'regular');
+    /* 共享药丸要跟着视口重算：平板限宽 860px 会居中，格宽不等于五分之一 */
+    positionTabPill();
+    w.addEventListener('resize', positionTabPill);
     /* 液态玻璃：降级判定 + 立即应用。必须在这里跑——「我的」页是懒建的，
        原先只有进一次「我的」才会触发，导致冷启动时玻璃停在样式表默认值上。 */
     initGlass();

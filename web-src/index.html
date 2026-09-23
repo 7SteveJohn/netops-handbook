@@ -88,6 +88,9 @@
   <!-- ============ 底部标签栏 ============ -->
   <!-- SVG 样式由 sprite.svg 内的 presentation attribute 控制（fill/stroke 跨 use 边界不传递，必须 attribute 兜底） -->
   <nav class="tabbar" id="tabbar" role="tablist">
+    <!-- 共享选中态药丸：在 5 个 tab 之间平移 + 弹簧，取代"每个 tab 自己的 ::before 原地弹出"。
+         绝对定位，所以不占 grid 格子（.tabbar 是 repeat(5,1fr)，多一个子元素会挤出版式）。 -->
+    <i class="tab-pill" id="tabPill" aria-hidden="true"></i>
     <button class="tab is-active" type="button" data-tab="learn" role="tab">
       <svg class="icon tab__icon" aria-hidden="true"><use href="#i-layers"/></svg><span>学习</span>
     </button>
