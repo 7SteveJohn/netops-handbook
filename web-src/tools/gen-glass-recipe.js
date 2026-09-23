@@ -36,7 +36,14 @@ function build() {
     const l = r.backdrop.light.levels.find(x => x.t === t);
     const d = r.backdrop.dark.levels.find(x => x.t === t);
     put('cmp-' + t, l ? cmp(l) : undefined, d ? cmp(d) : undefined);
+    /* 两套主题都再放一份主题无关的名字：measureWallFloor 要在一次快照里同时算明暗，
+       而 --gr-cmp-<t> 会被 html.dark 覆盖，读一次只拿得到当前生效的那一套 —— 曾因此
+       把暗色的亮度量成浅色的，下限算低。 */
+    put('cmp-light-' + t, l ? cmp(l) : undefined);
+    put('cmp-dark-' + t, d ? cmp(d) : undefined);
   }
+  put('surf-light', r.surfaces.tabbar.light.filter);
+  put('surf-dark', r.surfaces.tabbar.dark.filter);
   put('cmp-stops', stops.join(' '));
 
   const s = r.surfaces;

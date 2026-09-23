@@ -5,8 +5,16 @@
 :root {
   --gr-bg-sat: 180%;
   --gr-cmp-10: saturate(180%) contrast(0.15) brightness(1.8);
+  --gr-cmp-light-10: saturate(180%) contrast(0.15) brightness(1.8);
+  --gr-cmp-dark-10: saturate(180%) brightness(0.5) contrast(0.9);
   --gr-cmp-52: saturate(180%) contrast(0.25) brightness(1.6);
+  --gr-cmp-light-52: saturate(180%) contrast(0.25) brightness(1.6);
+  --gr-cmp-dark-52: saturate(180%) brightness(0.5) contrast(0.7);
   --gr-cmp-95: saturate(180%) contrast(0.9) brightness(1.4);
+  --gr-cmp-light-95: saturate(180%) contrast(0.9) brightness(1.4);
+  --gr-cmp-dark-95: saturate(180%) brightness(0.7) contrast(0.9);
+  --gr-surf-light: blur(28px);
+  --gr-surf-dark: blur(28px);
   --gr-cmp-stops: 10 52 95;
   --gr-tabbar-tint-top: rgba(255,255,255,.72);
   --gr-tabbar-tint-bot: rgba(245,245,247,.62);

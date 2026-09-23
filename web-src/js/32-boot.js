@@ -659,60 +659,117 @@
     d.body.classList.add('has-wallpaper');
     measureWallFloor(cssUrl);
   }
-  /* 按当前壁纸的亮度带算出玻璃板的最小不透明度：
-     把图缩到 24px 宽（等价于一次强模糊，也正是 .wall 层会呈现的效果），
-     取 p05/p95 相对亮度，解出让二/三级文字都过 4.5:1 所需的最小 alpha。
+  /* 按当前壁纸算玻璃板的最小不透明度 —— 但用的是**穿过滤镜链之后**的亮度带。
+     ------------------------------------------------------------
+     旧版把原图缩到 24px 宽取分位，那是 .wall 都没模糊过的原始动态范围，于是它算出
+     0.46–0.92 的厚板下限；而表面早就在吃 saturate/contrast/brightness 压缩了，
+     结果是一个已经不存在的模型在夹住通透度滑杆的低段。
+     现在按真实链路量：pass1 = .wall（--bg-blur/--bg-sat/--bg-bri），
+     pass2 = 表面的 --gr-tabbar-filter + 当前档位的 --gr-cmp-<档>。
+     三个实测档位之间按通透度线性内插。所有数值都从 CSS 变量读，配方表仍是唯一真源。
      明暗两套一次算完存下来，切主题时不必重新解码图片。 */
   var wallFloor = { light: null, dark: null };
-  function measureWallFloor(cssUrl) {
+  var FLOOR_W = 390;                       /* 与 tools/lum-harness.html 同口径 */
+  function floorBands(cssUrl, then) {
     var im = new Image();
     im.onload = function () {
       try {
-        var cv = document.createElement('canvas');
-        var w = 24, h = Math.max(1, Math.round(24 * im.naturalHeight / im.naturalWidth));
-        cv.width = w; cv.height = h;
-        var ctx = cv.getContext('2d', { willReadFrequently: true });
-        ctx.drawImage(im, 0, 0, w, h);
-        var px = ctx.getImageData(0, 0, w, h).data, L = [];
-        for (var i = 0; i < px.length; i += 4) L.push(relLum(px[i], px[i + 1], px[i + 2]));
-        L.sort(function (a, b) { return a - b; });
-        var q = function (p) { return L[Math.min(L.length - 1, Math.floor(L.length * p))]; };
-        var ends = [q(0.05), q(0.95)];
-        /* 背景层的压暗系数（浅色轻压 0.92、深色重压 0.55）必须与 applyGlass 写的
-           --bg-bri 同值。CSS brightness 作用在线性光上，相对亮度也是线性的，
-           所以这里直接乘。 */
+        var rootCS = w.getComputedStyle(document.documentElement);
+        var grab = function (n, dflt) { var v = (rootCS.getPropertyValue(n) || '').trim(); return v || dflt; };
+        var wallBlur = grab('--bg-blur', '24px'), wallSat = grab('--bg-sat', '180%');
+        /* 背景压暗系数必须与 applyGlass 按主题写的 --bg-bri 同值（门禁核对）。
+           明暗两套曲线/表面模糊走 --gr-*-light/dark 这套主题无关的名字：一次
+           getComputedStyle 快照只能拿到当前生效主题的 --gr-cmp-<t>。 */
         var DIM_LIGHT = 0.92, DIM_DARK = 0.55;
-        /* 两档目标：AA 正文 4.5:1（默认自动兜住）与长时间阅读 7:1
-           （「增强对比度」开关，取自华为《通用无障碍用户体验设计指南》的推荐值）。
-           hiText 是增强档换上的更强文字色，见 01-tokens.css 的 html.hi-contrast。 */
-        var AA_TARGET = 4.5, HI_TARGET = 7;
-        /* 相对亮度是线性量，所以"板 + 壁纸"的合成可以直接在线性空间按 alpha 插值 */
-        var combos = [
-          { k: 'light', plate: 1,                 dim: DIM_LIGHT, text: relLum(85, 85, 90),   hiText: relLum(44, 44, 48) },
-          { k: 'dark',  plate: relLum(44, 44, 46), dim: DIM_DARK, text: relLum(185, 185, 194), hiText: relLum(230, 230, 234) }
-        ];
-        function solve(c, target, text) {
-          var need = null;
-          ends.forEach(function (bg0) {
-            var bg = bg0 * c.dim;
-            for (var i = 0; i <= 48; i++) {
-              var a = i / 50;
-              var lb = a * c.plate + (1 - a) * bg;
-              if ((Math.max(lb, text) + 0.05) / (Math.min(lb, text) + 0.05) >= target) {
-                need = need === null ? a : Math.max(need, a); break;
-              }
-            }
+        var stops = (grab('--gr-cmp-stops', '') || '').split(/\s+/).filter(Boolean).map(Number);
+        if (!stops.length) { then(null); return; }
+        var cv = d.createElement('canvas');
+        cv.width = FLOOR_W;
+        cv.height = Math.max(1, Math.round(FLOOR_W * im.naturalHeight / im.naturalWidth));
+        var ctx = cv.getContext('2d', { willReadFrequently: true });
+        ctx.drawImage(im, 0, 0, cv.width, cv.height);
+        var out = { stops: stops };
+        [['light', Math.round(DIM_LIGHT * 100) + '%', 'surf-light', 'cmp-light-'],
+         ['dark',  Math.round(DIM_DARK * 100) + '%', 'surf-dark',  'cmp-dark-']].forEach(function (pair) {
+          var theme = pair[0];
+          var c1 = d.createElement('canvas'); c1.width = cv.width; c1.height = cv.height;
+          var x1 = c1.getContext('2d', { willReadFrequently: true });
+          x1.filter = 'blur(' + wallBlur + ') saturate(' + wallSat + ') brightness(' + pair[1] + ')';
+          x1.drawImage(cv, 0, 0); x1.filter = 'none';
+          out[theme] = {};
+          stops.forEach(function (t) {
+            var cmp = grab('--gr-' + pair[3] + t, '');
+            if (!cmp) return;
+            var c2 = d.createElement('canvas'); c2.width = cv.width; c2.height = cv.height;
+            var x2 = c2.getContext('2d', { willReadFrequently: true });
+            x2.filter = grab('--gr-' + pair[2], 'blur(28px)') + ' ' + cmp;
+            x2.drawImage(c1, 0, 0); x2.filter = 'none';
+            var px = x2.getImageData(0, 0, c2.width, c2.height).data, L = [];
+            for (var i = 0; i < px.length; i += 4) L.push(relLum(px[i], px[i + 1], px[i + 2]));
+            L.sort(function (a, b) { return a - b; });
+            var q = function (p) { return L[Math.min(L.length - 1, Math.floor(L.length * p))]; };
+            out[theme][t] = [q(0.05), q(0.95)];
           });
-          return need === null ? 0.96 : need;
-        }
-        combos.forEach(function (c) {
-          var aa = solve(c, AA_TARGET, c.text);
-          wallFloor[c.k] = { aa: aa, hi: Math.max(aa, solve(c, HI_TARGET, c.hiText)) };
         });
-        applyGlass(getGlass() || glassDefaults);
-      } catch (e) { /* 画布不可用（罕见）：留在 0，通透度照旧，不阻塞启动 */ }
+        then(out);
+      } catch (e) {
+        /* 画布不可用（罕见）时留在 0、不阻塞启动 —— 但绝不能静默：
+           这里曾经吞掉过一个 "root is not defined"，于是四道构建门禁全绿、
+           暗色下限实际按浅色的带在算，而界面显示"一档没夹"。 */
+        if (w.console && w.console.warn) w.console.warn('[glass] measureWallFloor 失败，下限退回 0：', e && e.message ? e.message : e);
+        then(null);
+      }
+    };
+    im.onerror = function () {
+      if (w.console && w.console.warn) w.console.warn('[glass] 壁纸解码失败，无法量亮度带：' + cssUrl.slice(0, 48));
+      then(null);
     };
     im.src = cssUrl.slice(4, -1).replace(/^["']|["']$/g, '');
+  }
+  function buildWallFloor(bands) {
+    if (!bands) { wallFloor = { light: null, dark: null }; return; }
+    /* 存**亮度带**而不是存解出来的板厚：门禁和运行时必须用同一个模型，而且要在档位之间
+       内插带之后再解板厚。以前运行时内插的是已解出的 alpha（t10=0、t52=0.36 → t20 得
+       0.086），门禁内插的是带（t20 带下沿 0.536 → 需 0.12），两者在低段差出一个
+       baseA 的量级 —— 于是门禁说"夹住 24 档"而运行时说"一档没夹"。带→解才保物理。 */
+    var AA_TARGET = 4.5, HI_TARGET = 7;
+    var combos = {
+      light: { plate: 1,                 text: relLum(85, 85, 90),   hiText: relLum(44, 44, 48) },
+      dark:  { plate: relLum(44, 44, 46), text: relLum(185, 185, 194), hiText: relLum(230, 230, 234) }
+    };
+    wallFloor = { stops: bands.stops, bands: bands, combos: combos, AA: AA_TARGET, HI: HI_TARGET };
+  }
+  /* 取当前通透度档位下的下限：先在实测档位之间线性内插亮度带，再解板厚。tier = 'aa' | 'hi' */
+  function floorAt(theme, t, tier) {
+    var wf = wallFloor;
+    if (!wf.stops || !wf.bands) return 0;
+    var b = wf.bands[theme];
+    if (!b) return 0;
+    var s = wf.stops, lo = s[0], hi = s[s.length - 1], i;
+    for (i = 0; i < s.length - 1; i++) if (t >= s[i] && t <= s[i + 1]) { lo = s[i]; hi = s[i + 1]; break; }
+    var A = b[lo], B = b[hi];
+    if (!A) return 0;
+    var band = !B ? A : [0, 1].map(function (j) {
+      var k = hi === lo ? 0 : (t - lo) / (hi - lo);
+      return A[j] + (B[j] - A[j]) * k;
+    });
+    var c = wf.combos[theme];
+    function solve(text, target) {
+      for (var i2 = 0; i2 <= 48; i2++) {
+        var a = i2 / 50;
+        var ok = band.every(function (bg) {
+          var lb = a * c.plate + (1 - a) * bg;
+          return (Math.max(lb, text) + 0.05) / (Math.min(lb, text) + 0.05) >= target;
+        });
+        if (ok) return a;
+      }
+      return 0.96;
+    }
+    var aa = solve(c.text, wf.AA);
+    return tier === 'hi' ? Math.max(aa, solve(c.hiText, wf.HI)) : aa;
+  }
+  function measureWallFloor(cssUrl) {
+    floorBands(cssUrl, function (bands) { buildWallFloor(bands); applyGlass(getGlass() || glassDefaults); });
   }
   function relLum(r, g, b) {
     var f = function (c) { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
@@ -953,9 +1010,8 @@
     /* 承载文字的玻璃板不能跟着通透度一路透下去：
        下限按当前壁纸的亮度带实测算出（measureWallFloor），无壁纸时为 0 不干预。
        「增强对比度」把目标从 AA 的 4.5:1 抬到长时间阅读的 7:1。 */
-    var wf = wallFloor[root.classList.contains('dark') ? 'dark' : 'light'];
-    var floor = (g.on && d.body.classList.contains('has-wallpaper') && wf)
-      ? (g.hiContrast ? wf.hi : wf.aa) : 0;
+    var floor = (g.on && d.body.classList.contains('has-wallpaper'))
+      ? floorAt(root.classList.contains('dark') ? 'dark' : 'light', t, g.hiContrast ? 'hi' : 'aa') : 0;
     a = Math.max(a, floor);
     /* 被地板抬过时，界面必须说出"实际生效的是多少"。
        反解 baseA：t_eff = 10 + 85·((a-0.04)/0.9)^(1/1.2)，板越厚等效通透度越高。 */
