@@ -2105,56 +2105,56 @@
     /* 2026-08-12 19:20：防重复绑定（WebView restoreState 后 boot 可能重复执行） */
     if (w.__swipeBound) return;
     w.__swipeBound = true;
-    var TH = 55;
-    var sx = 0, sy = 0, active = false, fired = false;
+    /* 边缘手势（2026-09-24 重做）。用户真机反馈"稍微划一划屏幕就退出应用"，
+       旧写法有三处错：起手位置不限（屏幕中间也能触发）、阈值只有 55px、
+       判定发生在 touchmove 中途（用户还在滑就触发动作）。
+       现在：必须从左侧边缘区起手、位移阈值提到 90px、方向以水平为主，
+       并且**统一在松手时判定**。 */
+    var EDGE = 26, TH = 90;
+    var sx = 0, sy = 0, dx = 0, dy = 0, active = false, fired = false;
     function start(e) {
       var t = e.touches ? e.touches[0] : e;
       sx = t.clientX; sy = t.clientY;
-      active = true; fired = false;
+      dx = 0; dy = 0;
+      /* 只有从左侧边缘起手才算"返回/呼出目录"手势；其余横向拖动一律不当手势，
+         这样列表里的斜向滑动、拖拽都不会误触发 */
+      active = sx <= EDGE;
+      fired = false;
     }
     function move(e) {
       if (!active || fired) return;
       var t = e.touches ? e.touches[0] : e;
       if (!t) return;
-      var dx = t.clientX - sx, dy = t.clientY - sy;
-      /* 垂直滚动为主：放行滚动、放弃手势（防滚动误触） */
-      if (Math.abs(dy) * 1.2 > Math.abs(dx)) { active = false; return; }
+      dx = t.clientX - sx; dy = t.clientY - sy;
+    }
+    function end() {
+      if (!active || fired) { active = false; return; }
+      active = false;
       var opened = drawerCtl && drawerCtl.isOpen && drawerCtl.isOpen();
-      if (dx > TH) { /* 左滑（从左往右滑） */
-        fired = true; active = false;
-        if (e.cancelable) e.preventDefault();
-        if (opened) {
-          if (w.console) console.log('[swipe] 左滑关目录', dx);
-          openFn();
-        } else if (closeOpenCard()) {
-          /* 页面有展开的卡片(二级菜单) → 收起卡片 */
-          if (w.console) console.log('[swipe] 左滑收起卡片', dx);
-        } else if (cur.r === 'learn' && !stack.length) {
-          if (w.console) console.log('[swipe] 左滑呼出目录', dx);
-          U.toast('呼出目录', 'ok');
-          openFn();
-        } else {
-          /* 二级导航 / 其他模块 → 统一走 handleBackOrExit()
-             （返回上一级；根界面 → Toast + 2 秒二次确认,与原生返回键一致） */
-          if (w.console) console.log('[swipe] 左滑 handleBackOrExit', dx, cur.r, stack.length);
-          handleBackOrExit();
-        }
-      } else if (dx < -TH && opened) {
-        fired = true; active = false;
-        if (e.cancelable) e.preventDefault();
-        if (w.console) console.log('[swipe] 右滑关目录', dx);
+      /* 水平为主且超过阈值才算；垂直占优（正常滚动）直接放过 */
+      if (Math.abs(dx) < TH || Math.abs(dy) * 1.4 > Math.abs(dx)) return;
+      fired = true;
+      if (dx > 0) {
+        if (opened) { openFn(); return; }
+        if (closeOpenCard()) return;
+        /* 关键改动：滑动**永不退出应用**。back() 自己会判断有没有可退的
+           （弹窗 / 抽屉 / 展开卡片 / 上一级页面），返回 false 才说明到了根界面 ——
+           这时呼出目录，而不是走 handleBackOrExit() 的二次确认退出。 */
+        if (!back()) openFn();
+      } else if (dx < 0 && opened) {
         openFn();
       }
     }
-    function end() { active = false; fired = false; }
     /* 当前页面是否有展开的折叠卡片（二级菜单为 DOM 展开，非 stack 导航） */
     function closeOpenCard() {
       var oc = d.querySelector('.card.is-open');
       if (oc) { oc.classList.remove('is-open'); return true; }
       return false;
     }
+    /* move 现在只记录坐标、不 preventDefault，所以三个监听都可以 passive，
+       滚动交回合成器处理；判定挪到 touchend */
     w.addEventListener('touchstart', start, { passive: true });
-    w.addEventListener('touchmove', move, { passive: false });
+    w.addEventListener('touchmove', move, { passive: true });
     w.addEventListener('touchend', end, { passive: true });
     w.addEventListener('touchcancel', end, { passive: true });
   }

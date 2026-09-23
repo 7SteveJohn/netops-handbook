@@ -3712,51 +3712,42 @@ lastTop = t;
 function bindLearnSwipeOpen(openFn) {
 if (w.__swipeBound) return;
 w.__swipeBound = true;
-var TH = 55;
-var sx = 0, sy = 0, active = false, fired = false;
+var EDGE = 26, TH = 90;
+var sx = 0, sy = 0, dx = 0, dy = 0, active = false, fired = false;
 function start(e) {
 var t = e.touches ? e.touches[0] : e;
 sx = t.clientX; sy = t.clientY;
-active = true; fired = false;
+dx = 0; dy = 0;
+active = sx <= EDGE;
+fired = false;
 }
 function move(e) {
 if (!active || fired) return;
 var t = e.touches ? e.touches[0] : e;
 if (!t) return;
-var dx = t.clientX - sx, dy = t.clientY - sy;
-if (Math.abs(dy) * 1.2 > Math.abs(dx)) { active = false; return; }
+dx = t.clientX - sx; dy = t.clientY - sy;
+}
+function end() {
+if (!active || fired) { active = false; return; }
+active = false;
 var opened = drawerCtl && drawerCtl.isOpen && drawerCtl.isOpen();
-if (dx > TH) {  
-fired = true; active = false;
-if (e.cancelable) e.preventDefault();
-if (opened) {
-if (w.console) console.log('[swipe] 左滑关目录', dx);
-openFn();
-} else if (closeOpenCard()) {
-if (w.console) console.log('[swipe] 左滑收起卡片', dx);
-} else if (cur.r === 'learn' && !stack.length) {
-if (w.console) console.log('[swipe] 左滑呼出目录', dx);
-U.toast('呼出目录', 'ok');
-openFn();
-} else {
-if (w.console) console.log('[swipe] 左滑 handleBackOrExit', dx, cur.r, stack.length);
-handleBackOrExit();
-}
-} else if (dx < -TH && opened) {
-fired = true; active = false;
-if (e.cancelable) e.preventDefault();
-if (w.console) console.log('[swipe] 右滑关目录', dx);
+if (Math.abs(dx) < TH || Math.abs(dy) * 1.4 > Math.abs(dx)) return;
+fired = true;
+if (dx > 0) {
+if (opened) { openFn(); return; }
+if (closeOpenCard()) return;
+if (!back()) openFn();
+} else if (dx < 0 && opened) {
 openFn();
 }
 }
-function end() { active = false; fired = false; }
 function closeOpenCard() {
 var oc = d.querySelector('.card.is-open');
 if (oc) { oc.classList.remove('is-open'); return true; }
 return false;
 }
 w.addEventListener('touchstart', start, { passive: true });
-w.addEventListener('touchmove', move, { passive: false });
+w.addEventListener('touchmove', move, { passive: true });
 w.addEventListener('touchend', end, { passive: true });
 w.addEventListener('touchcancel', end, { passive: true });
 }
