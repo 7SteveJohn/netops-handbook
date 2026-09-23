@@ -783,10 +783,15 @@
   function measureWallFloor(cssUrl) {
     floorBands(cssUrl, function (bands) { buildWallFloor(bands); applyGlass(getGlass() || glassDefaults); });
   }
-  /* 取滤镜结果底部 8% 的平均色并转成 HSL。
+  /* 取滤镜结果底部条带的平均色并转成 HSL。
      底栏贴在屏幕底部，所以这条带就是它背后大致是什么颜色 —— 高光据此取色相，
      不再写死白色。近似之处：只算壁纸（cover 裁切后的底部条带），滚动到药丸底下的
-     文字与卡片不算进来。 */
+     文字与卡片不算进来。
+
+     试过按彩度加权求均值来"提彩度"，实测撤销：那 10–24% 的低彩度不是平均抵消
+     出来的，而是这些壁纸的底部本来就是浅色区（芙宁娜1 底部条带中位彩度仅 0.094、
+     p90 0.129）。背景淡则高光淡是正确行为，加权只是给不存在的问题加复杂度。
+     参考片那条亮带 S 37% 是因为它的玻璃压在鲜艳橙沙上。 */
   function stripHue(px, w, h) {
     var y0 = Math.floor(h * 0.92), n = 0, r = 0, g = 0, b = 0;
     for (var y = y0; y < h; y++) {
