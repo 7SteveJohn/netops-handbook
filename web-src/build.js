@@ -275,6 +275,20 @@ function build() {
     contrastGate.msg = String(e.stdout || e.stderr || e.message).trim();
   }
 
+  /* ---------- 配方 token 消费门禁 ----------
+     glass-recipe.json 自称"唯一参数来源"，但实测曾有 13 个 token 零消费者 —— 改它们
+     屏幕上什么都不变。清完必须立闸，否则死参数会长回来。详见 tools/audit-recipe-consumers.js。 */
+  let tokensGate = { ok: true, msg: '' };
+  try {
+    tokensGate.msg = require('child_process')
+      .execFileSync(process.execPath, [path.join(__dirname, 'tools', 'audit-recipe-consumers.js')], { encoding: 'utf8' })
+      .trim();
+    tokensGate.ok = /全部有消费者/.test(tokensGate.msg);
+  } catch (e) {
+    tokensGate.ok = false;
+    tokensGate.msg = String(e.stdout || e.stderr || e.message).trim();
+  }
+
   /* ---------- 报告 ---------- */
   console.log('\n  NetOps 2.0 构建' + (MIN ? '（压缩）' : '（未压缩）'));
   console.log('  ' + '-'.repeat(46));
@@ -287,7 +301,7 @@ function build() {
   console.log('  ' + '产物'.padEnd(30) + kb(html).padStart(12));
   console.log('  → ' + path.relative(path.resolve(ROOT, '..'), OUT).replace(/\\/g, '/'));
 
-  const failed = problems.length > 0 || !glass.ok || !content.ok || !contrastGate.ok;
+  const failed = problems.length > 0 || !glass.ok || !content.ok || !contrastGate.ok || !tokensGate.ok;
   if (failed) {
     if (problems.length) {
       console.log('\n  ✗ 离线校验未通过：');
@@ -306,12 +320,17 @@ function build() {
       console.log('\n  ✗ 可读性门禁未通过（见 tools/audit-contrast.js）：');
       console.log('    ' + contrastGate.msg.replace(/\n/g, '\n    '));
     }
+    if (!tokensGate.ok) {
+      console.log('\n  ✗ 配方 token 消费门禁未通过（见 tools/audit-recipe-consumers.js）：');
+      console.log('    ' + tokensGate.msg.replace(/\n/g, '\n    '));
+    }
     process.exitCode = 1;
   } else {
     console.log('\n  ✓ 离线校验通过：零外部请求 / 零 CDN / 全部资源内联');
     console.log('  ✓ 玻璃覆盖门禁通过：不透明底色全部走 --surf-* token 或登记了例外理由');
     console.log('  ✓ 内容一致性门禁通过：' + JSON.stringify(content.counts) + '（README 数字与产物措辞已比对）');
     console.log('  ' + contrastGate.msg);
+    console.log('  ' + tokensGate.msg);
   }
   console.log('  用时 ' + (Date.now() - t0) + 'ms\n');
 }
