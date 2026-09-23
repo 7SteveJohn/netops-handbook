@@ -1129,7 +1129,23 @@
     root.style.setProperty('--glass-content-a', contentA.toFixed(3));
     /* 预模糊背景层参数：玻璃开着才有模糊，关玻璃回到清晰壁纸（与历史行为一致）。
        层的模糊比元素 backdrop 略强，因为这层要替所有卡片承担"背后是虚的"。 */
-    root.style.setProperty('--bg-blur', g.on ? (blurPx + 6) + 'px' : '0px');
+    /* .wall 的全局预模糊按通透度档位取，值来自配方表（--gr-wall-blur-<档>）。
+       以前这里是 blurPx + 6 的硬编码，等于"表里写着 blur、屏幕上用常数"。
+       2026-09-24 实测：这一层从 0 加到 24px，最差需板厚一直是 0.36 —— 可读性
+       并不依赖它，而它把壁纸的细节糊成一团，正是用户反馈"壁纸完全看不清"的主因。 */
+    var wallBlurPx = (function () {
+      var rcs = w.getComputedStyle(root);
+      var sp = (rcs.getPropertyValue('--gr-cmp-stops') || '').trim().split(/\s+/).filter(Boolean).map(Number);
+      if (!sp.length) return blurPx + 6;
+      var lo = sp[0], hi = sp[sp.length - 1], i;
+      for (i = 0; i < sp.length - 1; i++) if (t >= sp[i] && t <= sp[i + 1]) { lo = sp[i]; hi = sp[i + 1]; break; }
+      var A = parseFloat(rcs.getPropertyValue('--gr-wall-blur-' + lo)),
+          B = parseFloat(rcs.getPropertyValue('--gr-wall-blur-' + hi));
+      if (!isFinite(A)) return blurPx + 6;
+      if (!isFinite(B) || hi === lo) return A;
+      return A + (B - A) * (t - lo) / (hi - lo);
+    })();
+    root.style.setProperty('--bg-blur', g.on ? wallBlurPx.toFixed(1) + 'px' : '0px');
     /* 饱和度上限来自配方表 backdrop.saturate（--gr-bg-sat），不再在这里写死 180%。
        gaussian 档是"纯模糊"，刻意不带饱和提升。 */
     var bgSat = (w.getComputedStyle(root).getPropertyValue('--gr-bg-sat') || '').trim() || '180%';

@@ -36,6 +36,10 @@ function build() {
     const l = r.backdrop.light.levels.find(x => x.t === t);
     const d = r.backdrop.dark.levels.find(x => x.t === t);
     put('cmp-' + t, l ? cmp(l) : undefined, d ? cmp(d) : undefined);
+    /* .wall 的全局预模糊也按档位生成：它此前只是表里的一个字段、连 token 都没输出，
+       applyGlass 里另写了一份 blurPx + 6。2026-09-24 实测该取值对可读性几乎无影响
+       （0→24px 最差需板厚恒为 0.36），却直接决定壁纸看不看得清，所以必须由表管。 */
+    put('wall-blur-' + t, l ? l.blur + 'px' : undefined, d ? d.blur + 'px' : undefined);
     /* 两套主题都再放一份主题无关的名字：measureWallFloor 要在一次快照里同时算明暗，
        而 --gr-cmp-<t> 会被 html.dark 覆盖，读一次只拿得到当前生效的那一套 —— 曾因此
        把暗色的亮度量成浅色的，下限算低。 */

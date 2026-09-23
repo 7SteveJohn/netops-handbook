@@ -5,16 +5,16 @@
     "saturate": "180%",
     "light": {
       "levels": [
-        { "t": 10, "blur": 14, "chain": [["contrast", 0.15], ["brightness", 1.8]] },
-        { "t": 52, "blur": 9,  "chain": [["contrast", 0.25], ["brightness", 1.6]] },
-        { "t": 95, "blur": 5,  "chain": [["contrast", 0.9],  ["brightness", 1.4]] }
+        { "t": 10, "blur": 2, "chain": [["contrast", 0.15], ["brightness", 1.8]] },
+        { "t": 52, "blur": 4,  "chain": [["contrast", 0.25], ["brightness", 1.6]] },
+        { "t": 95, "blur": 8,  "chain": [["contrast", 0.9],  ["brightness", 1.4]] }
       ]
     },
     "dark": {
       "levels": [
-        { "t": 10, "blur": 14, "chain": [["brightness", 0.5], ["contrast", 0.9]] },
-        { "t": 52, "blur": 9,  "chain": [["brightness", 0.5], ["contrast", 0.7]] },
-        { "t": 95, "blur": 5,  "chain": [["brightness", 0.7], ["contrast", 0.9]] }
+        { "t": 10, "blur": 2, "chain": [["brightness", 0.5], ["contrast", 0.9]] },
+        { "t": 52, "blur": 4,  "chain": [["brightness", 0.5], ["contrast", 0.7]] },
+        { "t": 95, "blur": 8,  "chain": [["brightness", 0.7], ["contrast", 0.9]] }
       ]
     }
   },

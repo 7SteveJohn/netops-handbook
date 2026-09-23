@@ -27,7 +27,8 @@ const DYNAMIC = [
   { prefix: '--gr-cmp-light-',  evidence: "'--gr-' + pair[3] + t",   why: 'measureWallFloor 量明暗两套带，需主题无关镜像' },
   { prefix: '--gr-cmp-dark-',   evidence: "'--gr-' + pair[3] + t",   why: '同上' },
   { prefix: '--gr-surf-light',  evidence: "'--gr-' + pair[2]",       why: '同上（表面 blur 也要主题无关镜像）' },
-  { prefix: '--gr-surf-dark',   evidence: "'--gr-' + pair[2]",       why: '同上' }
+  { prefix: '--gr-surf-dark',   evidence: "'--gr-' + pair[2]",       why: '同上' },
+  { prefix: '--gr-wall-blur-',  evidence: "'--gr-wall-blur-' + lo",  why: 'applyGlass 按档位插值 .wall 的全局预模糊' }
 ];
 
 function sources() {

@@ -63,6 +63,10 @@ if (src.chain0 !== wantChain)
   errs.push('实测数据用的曲线 ' + src.chain0 + ' 与配方表 t' + recipe.backdrop.light.levels[0].t + ' 的 ' + wantChain + ' 不一致：曲线改过但没重采样');
 if (src.surfBlur !== recipe.surfaces.tabbar.light.filter)
   errs.push('实测数据用的表面 blur ' + src.surfBlur + ' 与配方表 ' + recipe.surfaces.tabbar.light.filter + ' 不一致');
+/* .wall 的按档 blur 也是采样口径的一部分 */
+const wantBlurs = recipe.backdrop.light.levels.map(l => l.blur).join(',');
+if (String(src.wallBlurs) !== wantBlurs)
+  errs.push('实测数据用的 .wall blur ' + src.wallBlurs + ' 与配方表 ' + wantBlurs + ' 不一致：改模糊后要重跑 lum 工装');
 /* saturate 同样是采样口径的一部分：改了它而不重采样，亮度带就还是旧色空间的数 */
 if (src.sat !== recipe.backdrop.saturate)
   errs.push('实测数据用的 saturate ' + src.sat + ' 与配方表 ' + recipe.backdrop.saturate + ' 不一致：改饱和度后要重跑 lum 工装');

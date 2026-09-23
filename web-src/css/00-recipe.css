@@ -5,12 +5,15 @@
 :root {
   --gr-bg-sat: 180%;
   --gr-cmp-10: saturate(180%) contrast(0.15) brightness(1.8);
+  --gr-wall-blur-10: 2px;
   --gr-cmp-light-10: saturate(180%) contrast(0.15) brightness(1.8);
   --gr-cmp-dark-10: saturate(180%) brightness(0.5) contrast(0.9);
   --gr-cmp-52: saturate(180%) contrast(0.25) brightness(1.6);
+  --gr-wall-blur-52: 4px;
   --gr-cmp-light-52: saturate(180%) contrast(0.25) brightness(1.6);
   --gr-cmp-dark-52: saturate(180%) brightness(0.5) contrast(0.7);
   --gr-cmp-95: saturate(180%) contrast(0.9) brightness(1.4);
+  --gr-wall-blur-95: 8px;
   --gr-cmp-light-95: saturate(180%) contrast(0.9) brightness(1.4);
   --gr-cmp-dark-95: saturate(180%) brightness(0.7) contrast(0.9);
   --gr-surf-light: blur(28px);
@@ -47,8 +50,11 @@
 
 html.dark {
   --gr-cmp-10: saturate(180%) brightness(0.5) contrast(0.9);
+  --gr-wall-blur-10: 2px;
   --gr-cmp-52: saturate(180%) brightness(0.5) contrast(0.7);
+  --gr-wall-blur-52: 4px;
   --gr-cmp-95: saturate(180%) brightness(0.7) contrast(0.9);
+  --gr-wall-blur-95: 8px;
   --gr-tabbar-tint-top: rgba(20,20,22,.72);
   --gr-tabbar-tint-bot: rgba(20,20,22,.56);
   --gr-tabbar-filter: blur(28px);
