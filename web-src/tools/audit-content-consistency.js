@@ -249,17 +249,30 @@ function analyze() {
       '\\| 面试真题 \\| (\\d+) \\|': counts.面试,
       '\\| 速查表 \\| (\\d+) 张 \\|': counts.速查,
       '\\| 术语词典 \\| (\\d+) 条 \\|': counts.术语,
-      '\\| 模拟测验 \\| (\\d+) 题 \\|': counts.题库
+      '\\| 模拟测验 \\| (\\d+) 题 \\|': counts.题库,
+      /* 小标题用的是另一套措辞（"25 个真实场景" / "30 道真题"），以前不在断言里，
+         所以正文写对了、小标题写错了也能绿。补上，让它们和正文受同一条门禁约束。 */
+      '(\\d+) 个真实场景': counts.排障,
+      '(\\d+) 道真题': counts.面试
     };
     if (cliCount != null) {
       want['(\\d+) 条 CLI 模拟器命令'] = cliCount;
       want['CLI 终端模拟器 — (\\d+) 条命令'] = cliCount;
       want['\\*\\*(\\d+) 条命令\\*\\*'] = cliCount;
     }
+    /* 全量核对，不再只取第一个命中。以前 README:17 写对就能让 :50/:82 的错误数字
+       蒙混过关 —— 一个不可能失败的检查等于没有检查。 */
     Object.keys(want).forEach(re => {
-      const m = rmNow.match(new RegExp(re));
-      if (!m) { notes.push('README 未出现「' + re + '」（可能被改写，核对不到）'); return; }
-      if (Number(m[1]) !== want[re]) errs.push('README 写 ' + m[1] + '，实际 ' + want[re] + ' → ' + re);
+      const g = new RegExp(re, 'g');
+      let m, hits = 0;
+      while ((m = g.exec(rmNow))) {
+        hits++;
+        if (Number(m[1]) !== want[re]) {
+          const line = rmNow.slice(0, m.index).split('\n').length;
+          errs.push('README:' + line + ' 写 ' + m[1] + '，实际 ' + want[re] + ' → ' + re);
+        }
+      }
+      if (!hits) notes.push('README 未出现「' + re + '」（可能被改写，核对不到）');
     });
     /* H. 被否决的措辞 */
     BANNED.forEach(([re, why]) => {
