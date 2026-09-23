@@ -18,6 +18,26 @@ function build() {
   };
   put('bg-sat', r.backdrop.saturate);
 
+  /* 压缩曲线 → --gr-cmp-<档位>。这是 backdrop.levels 第一次真正被运行时读到：
+     以前它只是记在表里没人用，于是表面滤镜只有 saturate+blur 两味、没有
+     brightness/contrast，也就没有动态范围压缩 —— 可读性只能靠抬板厚换，
+     通透度滑杆因此有一半行程是死的（2026-09-23 实测 54–68%）。
+     曲线口径来自对参考实现逐像素取样：背后亮度摆 101 个单位时，玻璃内部只摆
+     13 个（≈8:1 压缩），色相继承背景、彩度被夹到中间值。
+     明暗分别写进 :root / html.dark，所以运行时读到的就是当前主题的字符串，
+     JS 里不需要再判断主题。 */
+  const sat = r.backdrop.saturate;
+  const cmp = lv => 'saturate(' + sat + ') brightness(' + lv.brightness + ') contrast(' + lv.contrast + ')';
+  const stops = [...new Set([].concat(
+    r.backdrop.light.levels.map(l => l.t), r.backdrop.dark.levels.map(l => l.t)
+  ))].sort((a, b) => a - b);
+  for (const t of stops) {
+    const l = r.backdrop.light.levels.find(x => x.t === t);
+    const d = r.backdrop.dark.levels.find(x => x.t === t);
+    put('cmp-' + t, l ? cmp(l) : undefined, d ? cmp(d) : undefined);
+  }
+  put('cmp-stops', stops.join(' '));
+
   const s = r.surfaces;
   put('tabbar-tint-top', s.tabbar.light.tintTop, s.tabbar.dark.tintTop);
   put('tabbar-tint-bot', s.tabbar.light.tintBot, s.tabbar.dark.tintBot);

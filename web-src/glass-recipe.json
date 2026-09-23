@@ -1,7 +1,7 @@
 {
   "_note": "玻璃配方表：全站玻璃表面的唯一参数来源。改这里 → tools/gen-glass-recipe.js 生成 css/00-recipe.css → 表面只读 --gr-* 变量。数值口径来自 2026-09-23 对 14 张内置壁纸穿过真实 CSS 滤镜的实测（见 tools/data/wall-lum.json 与 README 的质感一节）。",
   "backdrop": {
-    "_note": ".wall 预模糊背景层。t = 通透度档位（10 最透 / 95 最厚）。可读性靠压背景动态范围拿到，不靠抬板厚；levels 是实测采样时用的三档滤镜组合。",
+    "_note": "动态范围压缩曲线。t = 通透度档位（10 最透 / 95 最厚）。2026-09-23 起由 gen-glass-recipe.js 生成 --gr-cmp-<档位>，32-boot.js 的 applyGlass 按当前档位插值成 --glass-cmp，底栏与弹窗的 backdrop-filter 读取它 —— 这条曲线第一次真正被运行时读到。口径来自对参考实现的逐像素取样：背后亮度摆 101 个单位时玻璃内部只摆 13 个（≈8:1），色相继承背景、彩度夹到中间值。blur 是 .wall 预模糊层和各表面自己的轴，不进这条曲线。",
     "saturate": "180%",
     "light": {
       "levels": [
@@ -49,18 +49,19 @@
     }
   },
   "surfaces": {
+    "_note": "filter 只写 blur —— 彩度/亮度/对比度的压缩统一来自 backdrop.levels，由 tools/gen-glass-recipe.js 生成 --gr-cmp-<档位>，运行时按通透度档位插值。两个轴混在这里就会重演「表面自带 saturate、曲线又 saturate 一次」的双重饱和。",
     "tabbar": {
       "light": {
         "tintTop": "rgba(255,255,255,.72)",
         "tintBot": "rgba(245,245,247,.62)",
-        "filter": "saturate(1.8) blur(28px)",
+        "filter": "blur(28px)",
         "shadow": "0 0 0 .5px rgba(0,0,0,.05), 0 -1px 0 rgba(255,255,255,.7) inset, 0 -8px 24px rgba(0,0,0,.06), 0 -20px 48px rgba(0,0,0,.04)",
         "specular": "rgba(255,255,255,.88)"
       },
       "dark": {
         "tintTop": "rgba(20,20,22,.72)",
         "tintBot": "rgba(20,20,22,.56)",
-        "filter": "saturate(1.6) blur(28px) brightness(.85)",
+        "filter": "blur(28px)",
         "shadow": "0 0 0 .5px rgba(255,255,255,.08), 0 -1px 0 rgba(255,255,255,.12) inset, 0 -8px 24px rgba(0,0,0,.32)",
         "specular": "rgba(255,255,255,.28)"
       }
@@ -69,14 +70,14 @@
       "light": {
         "tintTop": "rgba(255,255,255,.92)",
         "tintBot": "rgba(245,245,247,.86)",
-        "filter": "saturate(1.8) blur(40px)",
+        "filter": "blur(40px)",
         "shadow": "inset 0 1px 0 rgba(255,255,255,.9), 0 -12px 48px rgba(0,0,0,.12), 0 -2px 8px rgba(0,0,0,.06)",
         "specular": "rgba(255,255,255,.95)"
       },
       "dark": {
         "tintTop": "rgba(28,28,30,.92)",
         "tintBot": "rgba(20,20,22,.86)",
-        "filter": "saturate(1.6) blur(40px)",
+        "filter": "blur(40px)",
         "shadow": "inset 0 1px 0 rgba(255,255,255,.12), 0 -12px 48px rgba(0,0,0,.5), 0 -2px 8px rgba(0,0,0,.3)",
         "specular": "rgba(255,255,255,.32)"
       }

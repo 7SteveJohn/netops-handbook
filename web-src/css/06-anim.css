@@ -1837,15 +1837,15 @@ html.dark body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .
 body.glass-on .tabbar,
 html.dark body.glass-on .tabbar {
   background: linear-gradient(180deg, var(--gr-tabbar-tint-top) 0%, var(--gr-tabbar-tint-bot) 100%) !important;
-  -webkit-backdrop-filter: var(--gr-tabbar-filter) !important;
-  backdrop-filter: var(--gr-tabbar-filter) !important;
+  -webkit-backdrop-filter: var(--gr-tabbar-filter) var(--glass-cmp, var(--gr-cmp-52)) !important;
+  backdrop-filter: var(--gr-tabbar-filter) var(--glass-cmp, var(--gr-cmp-52)) !important;
   box-shadow: var(--gr-tabbar-shadow), var(--gr-lens-rim), var(--gr-lens-glow), var(--gr-lens-aberration) !important;
 }
 body.glass-on .sheet,
 html.dark body.glass-on .sheet {
   background: linear-gradient(180deg, var(--gr-sheet-tint-top) 0%, var(--gr-sheet-tint-bot) 100%) !important;
-  -webkit-backdrop-filter: var(--gr-sheet-filter) !important;
-  backdrop-filter: var(--gr-sheet-filter) !important;
+  -webkit-backdrop-filter: var(--gr-sheet-filter) var(--glass-cmp, var(--gr-cmp-52)) !important;
+  backdrop-filter: var(--gr-sheet-filter) var(--glass-cmp, var(--gr-cmp-52)) !important;
   box-shadow: var(--gr-sheet-shadow), var(--gr-lens-rim), var(--gr-lens-glow), var(--gr-lens-aberration) !important;
 }
 

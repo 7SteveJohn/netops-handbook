@@ -916,6 +916,33 @@
        - gaussian：在 liquid 基础上 +0.45 (近不透明,「iOS Reduce Transparency」)
        三模式统一用 var(--glass-tint-top/bot),但 alpha 范围不同——保持视觉差异同时响应滑块 */
     var t = Math.max(10, Math.min(95, g.tint || 55));
+    /* 压缩曲线按通透度档位插值。--gr-cmp-<档位> 由配方表生成、明暗两版分别落在
+       :root / html.dark，所以这里从 computed style 读到的已经是当前主题的串，
+       JS 不再判断主题。以前表面只有 saturate+blur，没有 brightness/contrast 就
+       没有动态范围压缩，可读性只能靠抬板厚换 —— 板厚一抬，滑杆行程就死了。 */
+    root.style.setProperty('--glass-cmp', (function () {
+      var cs = w.getComputedStyle(root);
+      var stops = (cs.getPropertyValue('--gr-cmp-stops') || '').trim().split(/\s+/).filter(Boolean).map(Number);
+      if (stops.length < 2) return '';
+      var parse = function (s) {
+        var o = {}, m, re = /(saturate|brightness|contrast)\(([\d.]+)(%?)\)/g;
+        while ((m = re.exec(s))) o[m[1]] = parseFloat(m[2]) / (m[3] ? 100 : 1);
+        return o;
+      };
+      var lo = stops[0], hi = stops[stops.length - 1], i;
+      for (i = 0; i < stops.length - 1; i++) {
+        if (t >= stops[i] && t <= stops[i + 1]) { lo = stops[i]; hi = stops[i + 1]; break; }
+      }
+      var A = parse(cs.getPropertyValue('--gr-cmp-' + lo)), B = parse(cs.getPropertyValue('--gr-cmp-' + hi));
+      var k = hi === lo ? 0 : (t - lo) / (hi - lo);
+      var mix = function (p) {
+        if (A[p] === undefined) return B[p];
+        if (B[p] === undefined) return A[p];
+        return A[p] + (B[p] - A[p]) * k;
+      };
+      return 'saturate(' + mix('saturate').toFixed(3) + ') brightness(' + mix('brightness').toFixed(3) +
+             ') contrast(' + mix('contrast').toFixed(3) + ')';
+    })());
     var baseA = 0.04 + Math.pow((t - 10) / 85, 1.2) * 0.90;  /* 非线性：低端稀薄、高端厚实 */
     var a;
     if (em === 'frosted') a = Math.min(0.85, baseA + 0.20);
