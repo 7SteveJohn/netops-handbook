@@ -66,6 +66,15 @@
     }
   },
   "lens": {
+    "_note": "rim/specular 是静态回退值（无壁纸时用）。有壁纸时运行时按 measureWallFloor 顺手量到的『药丸背后底部条带』平均色重新推导，参数见下面 specular 段。数值口径来自 2026-09-23 对参考实现的逐像素取样：亮带峰值比内外两侧都高 +58/255、彩度从 70% 降到 37%（×0.53）；顶缘反而是暗肩，比内部低 54/255。一亮一暗由光源方向决定，所以 lightAngle 是必需参数而不是装饰。",
+    "specular": {
+      "lightAngle": -60,
+      "lift": 0.227,
+      "satScale": 0.53,
+      "alpha": 0.85,
+      "darkDrop": 0.212,
+      "darkAlpha": 0.34
+    },
     "rim": "inset 0 0 0 .5px rgba(255,255,255,.55), inset 0 1px 1px rgba(255,255,255,.8), inset 0 -1px 1px rgba(0,0,0,.05)",
     "rimDark": "inset 0 0 0 .5px rgba(255,255,255,.24), inset 0 1px 1px rgba(255,255,255,.28), inset 0 -1px 1px rgba(0,0,0,.10)",
     "innerGlow": "inset 0 0 30px 1px rgba(255,255,255,.06)",

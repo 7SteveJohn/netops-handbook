@@ -697,7 +697,12 @@
           var x1 = c1.getContext('2d', { willReadFrequently: true });
           x1.filter = 'blur(' + wallBlur + ') saturate(' + wallSat + ') brightness(' + pair[1] + ')';
           x1.drawImage(cv, 0, 0); x1.filter = 'none';
-          out[theme] = {};
+          /* 高光取的是 .wall 输出上的底部条带 —— 也就是"玻璃背后是什么颜色"。
+             不能从再往下的压缩结果里取：那层已经提亮过一次，再加 lift 会顶到 99%
+             变成白色，"取背后色相"就白做了（实测参考片亮带 L≈0.76、彩度 37%）。
+             c1 与档位无关，所以每主题只算一次。 */
+          var p1 = x1.getImageData(0, 0, c1.width, c1.height).data;
+          out[theme] = { strip: stripHue(p1, c1.width, c1.height) };
           stops.forEach(function (t) {
             var cmp = grab('--gr-' + pair[3] + t, '');
             if (!cmp) return;
@@ -769,8 +774,40 @@
     var aa = solve(c.text, wf.AA);
     return tier === 'hi' ? Math.max(aa, solve(c.hiText, wf.HI)) : aa;
   }
+  /* 药丸背后的条带色：由 measureWallFloor 在 .wall 输出上量一次，与档位无关。 */
+  function specAt(theme) {
+    var wf = wallFloor;
+    if (!wf.bands || !wf.bands[theme]) return null;
+    return wf.bands[theme].strip || null;
+  }
   function measureWallFloor(cssUrl) {
     floorBands(cssUrl, function (bands) { buildWallFloor(bands); applyGlass(getGlass() || glassDefaults); });
+  }
+  /* 取滤镜结果底部 8% 的平均色并转成 HSL。
+     底栏贴在屏幕底部，所以这条带就是它背后大致是什么颜色 —— 高光据此取色相，
+     不再写死白色。近似之处：只算壁纸（cover 裁切后的底部条带），滚动到药丸底下的
+     文字与卡片不算进来。 */
+  function stripHue(px, w, h) {
+    var y0 = Math.floor(h * 0.92), n = 0, r = 0, g = 0, b = 0;
+    for (var y = y0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        var i = (y * w + x) * 4;
+        r += px[i]; g += px[i + 1]; b += px[i + 2]; n++;
+      }
+    }
+    if (!n) return null;
+    r /= 255 * n; g /= 255 * n; b /= 255 * n;
+    var mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+    var hh = 0;
+    if (d > 1e-6) {
+      if (mx === r) hh = (g - b) / d + (g < b ? 6 : 0);
+      else if (mx === g) hh = (b - r) / d + 2;
+      else hh = (r - g) / d + 4;
+      hh *= 60;
+    }
+    var l = (mx + mn) / 2;
+    var s = d <= 1e-6 ? 0 : Math.min(1, d / (1 - Math.abs(2 * l - 1)));
+    return [Math.round(hh), +s.toFixed(3), +l.toFixed(3)];
   }
   function relLum(r, g, b) {
     var f = function (c) { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
@@ -1029,6 +1066,28 @@
     var floor = (g.on && d.body.classList.contains('has-wallpaper'))
       ? floorAt(root.classList.contains('dark') ? 'dark' : 'light', t, g.hiContrast ? 'hi' : 'aa') : 0;
     a = Math.max(a, floor);
+    /* 高光跟着背后的色相走（用户缺陷⑤"根据背景颜色产生真实的光线反射"的颜色维度）。
+       亮带 = 同色相 + 提亮 lift + 彩度×satScale；顶缘暗肩 = 同色相 + 压暗 darkDrop。
+       参数取自配方表 lens.specular，口径是对参考实现的逐像素取样。
+       没壁纸或量不到时删掉这两个变量，CSS 自动退回表里的静态 specular 值。 */
+    (function () {
+      var rcs = w.getComputedStyle(root);
+      var lift = parseFloat(rcs.getPropertyValue('--gr-spec-lift')),
+        ssc = parseFloat(rcs.getPropertyValue('--gr-spec-sat')),
+        sal = parseFloat(rcs.getPropertyValue('--gr-spec-alpha')),
+        drp = parseFloat(rcs.getPropertyValue('--gr-rim-dark-drop')),
+        dal = parseFloat(rcs.getPropertyValue('--gr-rim-dark-alpha'));
+      if (!(lift >= 0) || !(ssc >= 0)) return;
+      var th = root.classList.contains('dark') ? 'dark' : 'light';
+      var c = (g.on && d.body.classList.contains('has-wallpaper')) ? specAt(th) : null;
+      if (!c) { root.style.removeProperty('--glass-spec'); root.style.removeProperty('--glass-rim-dark'); return; }
+      var h = Math.round(c[0]);
+      var sa = Math.round(Math.min(1, c[1] * ssc) * 100);
+      var lb = Math.round(Math.min(0.99, Math.max(0, c[2] + lift)) * 100);
+      var ld = Math.round(Math.min(0.99, Math.max(0.02, c[2] - drp)) * 100);
+      root.style.setProperty('--glass-spec', 'hsla(' + h + ',' + sa + '%,' + lb + '%,' + (isNaN(sal) ? .85 : sal) + ')');
+      root.style.setProperty('--glass-rim-dark', 'hsla(' + h + ',' + sa + '%,' + ld + '%,' + (isNaN(dal) ? .34 : dal) + ')');
+    })();
     /* 被地板抬过时，界面必须说出"实际生效的是多少"。
        反解 baseA：t_eff = 10 + 85·((a-0.04)/0.9)^(1/1.2)，板越厚等效通透度越高。 */
     var effT = Math.round(Math.max(t, Math.min(95,

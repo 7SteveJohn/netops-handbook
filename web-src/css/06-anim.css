@@ -1885,14 +1885,26 @@ html.dark body.glass-on .tabbar {
   background: linear-gradient(180deg, var(--gr-tabbar-tint-top) 0%, var(--gr-tabbar-tint-bot) 100%) !important;
   -webkit-backdrop-filter: var(--gr-tabbar-filter) var(--glass-cmp, var(--gr-cmp-52)) !important;
   backdrop-filter: var(--gr-tabbar-filter) var(--glass-cmp, var(--gr-cmp-52)) !important;
-  box-shadow: var(--gr-tabbar-shadow), var(--gr-lens-rim), var(--gr-lens-glow), var(--gr-lens-aberration) !important;
+  /* 方向性边缘光：朝光一侧提亮、背光一侧压暗。口径来自参考实现逐像素取样
+     （左缘亮带峰值比内外两侧都高 +58/255，顶缘反而低 54/255），方向按该帧的
+     光源（左下）。--glass-spec / --glass-rim-dark 由运行时按"药丸背后条带"的
+     平均色推导；量不到（无壁纸/画布不可用）时退回配方表的静态 specular。 */
+  box-shadow:
+    var(--gr-tabbar-shadow),
+    inset 2px 0 3px -1px var(--glass-spec, var(--gr-tabbar-specular)),
+    inset 0 2px 3px -1px var(--glass-rim-dark, transparent),
+    var(--gr-lens-rim), var(--gr-lens-glow), var(--gr-lens-aberration) !important;
 }
 body.glass-on .sheet,
 html.dark body.glass-on .sheet {
   background: linear-gradient(180deg, var(--gr-sheet-tint-top) 0%, var(--gr-sheet-tint-bot) 100%) !important;
   -webkit-backdrop-filter: var(--gr-sheet-filter) var(--glass-cmp, var(--gr-cmp-52)) !important;
   backdrop-filter: var(--gr-sheet-filter) var(--glass-cmp, var(--gr-cmp-52)) !important;
-  box-shadow: var(--gr-sheet-shadow), var(--gr-lens-rim), var(--gr-lens-glow), var(--gr-lens-aberration) !important;
+  box-shadow:
+    var(--gr-sheet-shadow),
+    inset 2px 0 3px -1px var(--glass-spec, var(--gr-sheet-specular)),
+    inset 0 2px 3px -1px var(--glass-rim-dark, transparent),
+    var(--gr-lens-rim), var(--gr-lens-glow), var(--gr-lens-aberration) !important;
 }
 
 /* ============================================================

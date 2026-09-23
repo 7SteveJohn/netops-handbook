@@ -65,6 +65,17 @@ function build() {
   put('lens-glow', r.lens.innerGlow, r.lens.innerGlowDark);
   put('lens-aberration', r.lens.aberration);
 
+  /* 高光推导参数：有壁纸时运行时用它们把"背后的色相"变成亮带与暗肩的配色，
+     没有壁纸时表面退回上面的静态 rim/specular 值。
+     lightAngle 暂不生成 —— 边缘方向目前固定按取样帧的光源（左下），
+     要按角度算偏移得等几何折射那一轮，先别造一个没人读的死 token。 */
+  const sp = r.lens.specular;
+  put('spec-lift', sp.lift);
+  put('spec-sat', sp.satScale);
+  put('spec-alpha', sp.alpha);
+  put('rim-dark-drop', sp.darkDrop);
+  put('rim-dark-alpha', sp.darkAlpha);
+
   put('spring', r.motion.spring);
   put('decel', r.motion.decel);
   const q = r.motion.squish;
