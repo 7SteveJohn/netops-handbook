@@ -27,7 +27,8 @@ function build() {
      明暗分别写进 :root / html.dark，所以运行时读到的就是当前主题的字符串，
      JS 里不需要再判断主题。 */
   const sat = r.backdrop.saturate;
-  const cmp = lv => 'saturate(' + sat + ') brightness(' + lv.brightness + ') contrast(' + lv.contrast + ')';
+  /* chain 是有序序列，按表里的顺序原样拼 —— 浅色靠"先压后抬"，顺序反了就白压白 */
+  const cmp = lv => 'saturate(' + sat + ') ' + lv.chain.map(p => p[0] + '(' + p[1] + ')').join(' ');
   const stops = [...new Set([].concat(
     r.backdrop.light.levels.map(l => l.t), r.backdrop.dark.levels.map(l => l.t)
   ))].sort((a, b) => a - b);

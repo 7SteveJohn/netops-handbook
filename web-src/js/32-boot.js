@@ -924,24 +924,26 @@
       var cs = w.getComputedStyle(root);
       var stops = (cs.getPropertyValue('--gr-cmp-stops') || '').trim().split(/\s+/).filter(Boolean).map(Number);
       if (stops.length < 2) return '';
+      /* 保序解析：浅色曲线是"先 contrast 压向中灰、再 brightness 抬向白"，顺序一反就等于
+         把刚压平的亮度带重新撑开。所以按出现顺序记 [函数名, 数值]，插值后按同序输出。 */
       var parse = function (s) {
-        var o = {}, m, re = /(saturate|brightness|contrast)\(([\d.]+)(%?)\)/g;
-        while ((m = re.exec(s))) o[m[1]] = parseFloat(m[2]) / (m[3] ? 100 : 1);
-        return o;
+        var out = [], m, re = /(saturate|brightness|contrast)\(([\d.]+)(%?)\)/g;
+        while ((m = re.exec(s))) out.push([m[1], parseFloat(m[2]) / (m[3] ? 100 : 1)]);
+        return out;
       };
-      var lo = stops[0], hi = stops[stops.length - 1], i;
+      var lo = stops[0], hi = stops[stops.length - 1], i, j;
       for (i = 0; i < stops.length - 1; i++) {
         if (t >= stops[i] && t <= stops[i + 1]) { lo = stops[i]; hi = stops[i + 1]; break; }
       }
       var A = parse(cs.getPropertyValue('--gr-cmp-' + lo)), B = parse(cs.getPropertyValue('--gr-cmp-' + hi));
       var k = hi === lo ? 0 : (t - lo) / (hi - lo);
-      var mix = function (p) {
-        if (A[p] === undefined) return B[p];
-        if (B[p] === undefined) return A[p];
-        return A[p] + (B[p] - A[p]) * k;
-      };
-      return 'saturate(' + mix('saturate').toFixed(3) + ') brightness(' + mix('brightness').toFixed(3) +
-             ') contrast(' + mix('contrast').toFixed(3) + ')';
+      var parts = [];
+      for (i = 0; i < A.length; i++) {
+        var v = A[i][1];
+        for (j = 0; j < B.length; j++) if (B[j][0] === A[i][0]) v = v + (B[j][1] - v) * k;
+        parts.push(A[i][0] + '(' + v.toFixed(3) + ')');
+      }
+      return parts.join(' ');
     })());
     var baseA = 0.04 + Math.pow((t - 10) / 85, 1.2) * 0.90;  /* 非线性：低端稀薄、高端厚实 */
     var a;

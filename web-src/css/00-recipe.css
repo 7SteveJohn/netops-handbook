@@ -4,9 +4,9 @@
    ============================================================ */
 :root {
   --gr-bg-sat: 180%;
-  --gr-cmp-10: saturate(180%) brightness(1.55) contrast(0.28);
-  --gr-cmp-52: saturate(180%) brightness(1.28) contrast(0.55);
-  --gr-cmp-95: saturate(180%) brightness(1) contrast(0.95);
+  --gr-cmp-10: saturate(180%) contrast(0.15) brightness(1.8);
+  --gr-cmp-52: saturate(180%) contrast(0.25) brightness(1.6);
+  --gr-cmp-95: saturate(180%) contrast(0.9) brightness(1.4);
   --gr-cmp-stops: 10 52 95;
   --gr-tabbar-tint-top: rgba(255,255,255,.72);
   --gr-tabbar-tint-bot: rgba(245,245,247,.62);
@@ -34,9 +34,9 @@
 }
 
 html.dark {
-  --gr-cmp-10: saturate(180%) brightness(0.32) contrast(0.28);
-  --gr-cmp-52: saturate(180%) brightness(0.45) contrast(0.5);
-  --gr-cmp-95: saturate(180%) brightness(0.55) contrast(0.8);
+  --gr-cmp-10: saturate(180%) brightness(0.5) contrast(0.9);
+  --gr-cmp-52: saturate(180%) brightness(0.5) contrast(0.7);
+  --gr-cmp-95: saturate(180%) brightness(0.7) contrast(0.9);
   --gr-tabbar-tint-top: rgba(20,20,22,.72);
   --gr-tabbar-tint-bot: rgba(20,20,22,.56);
   --gr-tabbar-filter: blur(28px);

@@ -1,50 +1,20 @@
 {
   "_note": "玻璃配方表：全站玻璃表面的唯一参数来源。改这里 → tools/gen-glass-recipe.js 生成 css/00-recipe.css → 表面只读 --gr-* 变量。数值口径来自 2026-09-23 对 14 张内置壁纸穿过真实 CSS 滤镜的实测（见 tools/data/wall-lum.json 与 README 的质感一节）。",
   "backdrop": {
-    "_note": "动态范围压缩曲线。t = 通透度档位（10 最透 / 95 最厚）。2026-09-23 起由 gen-glass-recipe.js 生成 --gr-cmp-<档位>，32-boot.js 的 applyGlass 按当前档位插值成 --glass-cmp，底栏与弹窗的 backdrop-filter 读取它 —— 这条曲线第一次真正被运行时读到。口径来自对参考实现的逐像素取样：背后亮度摆 101 个单位时玻璃内部只摆 13 个（≈8:1），色相继承背景、彩度夹到中间值。blur 是 .wall 预模糊层和各表面自己的轴，不进这条曲线。",
+    "_note": "动态范围压缩曲线。t = 通透度档位（10 最透 / 95 最厚）。chain 是**有序**滤镜序列，顺序有意义：浅色必须先 contrast 压向中灰、再 brightness 整体抬向白；反过来会把刚压平的亮度带重新撑开。2026-09-23 由网格搜索定档（14 张内置壁纸 × 明暗 × 156 组候选，两遍真实滤镜链、常量取自 32-boot.js 的 --bg-bri/--bg-blur 与 measureWallFloor combo），目标是在所需板厚不超过该档 baseA（滑杆保持有效）的前提下让最差壁纸的亮度带尽量宽。blur 是 .wall 与各表面自己的轴，不进这条曲线。",
     "saturate": "180%",
     "light": {
       "levels": [
-        {
-          "t": 10,
-          "blur": 14,
-          "brightness": 1.55,
-          "contrast": 0.28
-        },
-        {
-          "t": 52,
-          "blur": 9,
-          "brightness": 1.28,
-          "contrast": 0.55
-        },
-        {
-          "t": 95,
-          "blur": 5,
-          "brightness": 1,
-          "contrast": 0.95
-        }
+        { "t": 10, "blur": 14, "chain": [["contrast", 0.15], ["brightness", 1.8]] },
+        { "t": 52, "blur": 9,  "chain": [["contrast", 0.25], ["brightness", 1.6]] },
+        { "t": 95, "blur": 5,  "chain": [["contrast", 0.9],  ["brightness", 1.4]] }
       ]
     },
     "dark": {
       "levels": [
-        {
-          "t": 10,
-          "blur": 14,
-          "brightness": 0.32,
-          "contrast": 0.28
-        },
-        {
-          "t": 52,
-          "blur": 9,
-          "brightness": 0.45,
-          "contrast": 0.5
-        },
-        {
-          "t": 95,
-          "blur": 5,
-          "brightness": 0.55,
-          "contrast": 0.8
-        }
+        { "t": 10, "blur": 14, "chain": [["brightness", 0.5], ["contrast", 0.9]] },
+        { "t": 52, "blur": 9,  "chain": [["brightness", 0.5], ["contrast", 0.7]] },
+        { "t": 95, "blur": 5,  "chain": [["brightness", 0.7], ["contrast", 0.9]] }
       ]
     }
   },
