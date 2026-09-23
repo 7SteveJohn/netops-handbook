@@ -148,6 +148,72 @@ if (errs.length === 0) {
   }
 }
 
+/* ---------- 4. 滑杆行程必须真的走得动 ----------
+   上面只验证"下限那一档合格"，从没验证不同档位之间有没有区别。这正是死区能上线的
+   缺口：下限把 54–68% 的档位钉在同一个 alpha 上，每一档单看都合格，连起来看滑杆没
+   反应。这里把 32-boot.js 的 alpha 公式原样搬过来扫全程整数档，公式常量从源码解析 ——
+   改了写法就解析失败并报错，不允许门禁和运行时各算各的。 */
+const alphaSrc = read(path.join(ROOT, 'js', '32-boot.js'));
+const baseM = alphaSrc.match(/var baseA = ([\d.]+) \+ Math\.pow\(\(t - (\d+)\) \/ (\d+), ([\d.]+)\) \* ([\d.]+);/);
+const frostedM = alphaSrc.match(/em === 'frosted'\) a = Math\.min\(([\d.]+), baseA \+ ([\d.]+)\)/);
+const gaussM = alphaSrc.match(/em === 'gaussian'\) a = Math\.min\(([\d.]+), baseA \+ ([\d.]+)\)/);
+if (!baseM) errs.push('32-boot.js 里解析不到 baseA 公式（写法改了要同步改本门禁，否则滑杆行程无从校验）');
+if (!frostedM) errs.push('32-boot.js 里解析不到 frosted 的 alpha 偏移与上限');
+if (!gaussM) errs.push('32-boot.js 里解析不到 gaussian 的 alpha 偏移与上限');
+
+/* 棘轮（ratchet）。今天实测最差是暗色 98% 行程被下限钉死——这是用户报的缺陷①本身，
+   不是门禁在撒谎。但把构建永久弄红只会让下一次打包时有人直接关掉它，所以硬阈值先钉在
+   略高于现状的 99%：现状不可能再变糟，同时数字被大声打印出来。
+   ↓ 压缩模型接管可读性之后，把 DEAD_HARD 降到 DEAD_TARGET，且必须与撤掉
+     measureWallFloor 的板厚下限放在同一轮提交里，否则就是又一次绿色检查保护旧模型。 */
+const DEAD_HARD = 0.99;
+const DEAD_TARGET = 0.20;
+const deadRows = [];
+if (baseM && frostedM && gaussM && errs.length === 0) {
+  const A0 = +baseM[1], T0 = +baseM[2], RG = +baseM[3], EX = +baseM[4], SP = +baseM[5];
+  const baseA = t => A0 + Math.pow((t - T0) / RG, EX) * SP;
+  for (const f of known) {
+    const ends = [data.wallpapers[f].p05, data.wallpapers[f].p95];
+    for (const mode of ['light', 'dark']) {
+      const sv = solver[mode], dimEnds = band(ends, sv);
+      ['aa', 'hi'].forEach(key => {
+        const target = key === 'aa' ? TARGETS.aa : TARGETS.hi;
+        const textL = key === 'aa' ? sv.text : sv.hiText;
+        /* 增强档换的是另一套文字 token（抬板厚到不了 7:1，靠的是更强的文字色），
+           所以二级文字必须也跟着取 hi 作用域的那一对；拿默认档的 token 去要求 7:1
+           会造出一批假失败。 */
+        const pair = key === 'hi'
+          ? (mode === 'light' ? hiLightTok : hiDarkTok)
+          : (mode === 'light' ? lightTok : darkTok);
+        const t2 = pair ? relLum(...hex(pair[1])) : null;
+        let floor = solveFloor(ends, sv.plate, sv.dim, textL, target);
+        if (floor === null) floor = MAX_A;
+        if (key === 'hi') {
+          const aaFloor = solveFloor(ends, sv.plate, sv.dim, sv.text, TARGETS.aa);
+          floor = Math.max(aaFloor === null ? MAX_A : aaFloor, floor);
+        }
+        let same = 0, prev = null, worst = 99;
+        for (let t = T0; t <= T0 + RG; t++) {
+          const a = Math.max(baseA(t), floor);
+          if (prev !== null && Math.abs(a - prev) < 1e-4) same++;
+          prev = a;
+          for (const bg of dimEnds) {
+            const lb = a * sv.plate + (1 - a) * bg;
+            worst = Math.min(worst, contrast(lb, textL));
+            if (t2 !== null) worst = Math.min(worst, contrast(lb, t2));
+          }
+        }
+        const frac = same / RG;
+        if (worst < target)
+          errs.push(f + ' · ' + mode + ' · ' + key + '档：扫全程最低只有 ' + worst.toFixed(2) + ':1（要求 ' + target + ':1）');
+        if (frac > DEAD_HARD)
+          errs.push(f + ' · ' + mode + ' · ' + key + '档：通透度有 ' + Math.round(frac * 100) + '% 的行程被下限钉死（阈值 ' + Math.round(DEAD_HARD * 100) + '%），滑杆拖了画面不动');
+        else if (frac > DEAD_TARGET) deadRows.push(f.replace('.webp', '') + '·' + mode + '·' + key + ' ' + Math.round(frac * 100) + '%');
+      });
+    }
+  }
+}
+
 if (errs.length) {
   console.error('✗ 可读性门禁未通过：\n  ' + errs.join('\n  '));
   process.exit(1);
@@ -157,4 +223,6 @@ const worstAt = k => Math.min(...report.map(r => r[k]));
 console.log('✓ 可读性门禁通过：' + known.length + ' 张内置壁纸 × 明暗两套 = ' + report.length + ' 组；' +
   '默认档玻璃板下限 ' + rng('aa') + '（实测最低 ' + worstAt('at_aa').toFixed(2) + ':1，要求 ≥' + TARGETS.aa + '）；' +
   '增强档 ' + rng('hi') + '（实测最低 ' + worstAt('at_hi').toFixed(2) + ':1，要求 ≥' + TARGETS.hi + '）');
+console.log('  滑杆行程已扫全程整数档；死档 >' + Math.round(DEAD_TARGET * 100) + '%（目标值）的组共 ' + deadRows.length + ' 个 / ' + (known.length * 4) + '，最差 ' +
+  (deadRows.length ? Math.max.apply(null, deadRows.map(r => +r.split(' ').pop().replace('%', ''))) + '%，棘轮上限 ' + Math.round(DEAD_HARD * 100) + '%，压缩模型接管后须降到目标值' : '无'));
 module.exports = { report };
