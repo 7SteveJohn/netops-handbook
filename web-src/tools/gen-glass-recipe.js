@@ -61,6 +61,14 @@ function build() {
   put('lens-glow', r.lens.innerGlow, r.lens.innerGlowDark);
   put('lens-aberration', r.lens.aberration);
 
+  /* 边缘折射透镜：由 33-apple.js 的 lensOptics() 读取，用来生成位移贴图。
+     刻意不生成 curvature —— 当前贴图数学还没建模"边缘轮廓曲率"，若照样输出，
+     消费门禁会因为 JS 里读了这个名字而放行，变成空心消费。 */
+  const op = r.lens.optics;
+  put('lens-refraction', op.refraction + 'px');
+  put('lens-bezel', op.bezel);
+  put('lens-ior', op.ior);
+
   /* 高光推导参数：有壁纸时运行时用它们把"背后的色相"变成亮带与暗肩的配色，
      没有壁纸时表面退回上面的静态 rim/specular 值。
      lightAngle 暂不生成 —— 边缘方向目前固定按取样帧的光源（左下），
