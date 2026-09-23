@@ -443,6 +443,8 @@
   /* ---------------- 主题 ---------------- */
   function setTheme(t) {
     U.theme.set(t);
+    /* 玻璃参数按主题分两套（暗色要压暗背景层、下限也不同），换主题必须重算 */
+    applyGlass(getGlass() || glassDefaults);
     syncThemeIcon();
     if (cur.r === 'me') initSettings();
     U.toast('主题：' + ({ auto: '跟随系统', light: '浅色', dark: '深色' }[t]), 'ok');
@@ -480,6 +482,98 @@
     }
     /* 高光跟随手指（液态玻璃动态折射）——降级 / 省电动效偏好下不启用 */
     if (!deviceDegraded) initGlassLight();
+    initSquish();   /* 自带降级判断与重复绑定保护 */
+  }
+
+  /* ---------------- 按压形变（"按住能拉扯"的活玻璃） ----------------
+     位移跟手、沿拖动方向拉伸（另一轴反向压缩，看着才像软体），松手用弹簧过冲回位。
+     只碰 transform；浏览器一旦接管滚动会发 pointercancel，我们顺势回位，绝不和滚动抢。
+     幅度/时长是手感参数，只能真机上手调，所以做成可实时改的 store 值：
+     长按「全局质感」弹窗标题 0.6 秒开调参面板（隐藏入口，不占正式界面）。 */
+  var SQUISH_SEL = '.tab, .chip, .btn, .ibtn, .list__item, .phase, .stat, .card__head, #fab';
+  var SQT_DEF = { max: 7, press: 0.975, stretch: 0.06, squash: 0.035, back: 460 };
+  function getSqt() {
+    var v = null;
+    try { v = U.store.get('sqtune', null); } catch (e) { v = null; }
+    var out = {};
+    for (var k in SQT_DEF) out[k] = SQT_DEF[k];
+    if (v && typeof v === 'object') {
+      for (var k2 in SQT_DEF) { if (typeof v[k2] === 'number' && isFinite(v[k2])) out[k2] = v[k2]; }
+    }
+    /* 夹在可用范围内：备份导入或手滑不该把形变调成看不见，也不该调成卡通 */
+    out.max = Math.max(0, Math.min(20, out.max));
+    out.press = Math.max(0.85, Math.min(1, out.press));
+    out.stretch = Math.max(0, Math.min(0.2, out.stretch));
+    out.squash = Math.max(0, Math.min(0.2, out.squash));
+    out.back = Math.max(120, Math.min(1200, out.back));
+    return out;
+  }
+  var SQT = getSqt();
+  function applySqt() {
+    SQT = getSqt();
+    document.documentElement.style.setProperty('--sq-back', (SQT.back / 1000).toFixed(2) + 's');
+    return SQT;
+  }
+  function squishBlocked() {
+    try {
+      if (U.motion.get() !== 'on') return true;
+      if (deviceDegraded || batteryDegraded) return true;
+      if (w.matchMedia && w.matchMedia('(prefers-reduced-motion: reduce)').matches) return true;
+    } catch (e) { /* 探测失败就不做形变，别拖慢交互 */ return true; }
+    return false;
+  }
+  function initSquish() {
+    if (w.__netopsSquish) return;
+    w.__netopsSquish = true;
+    applySqt();
+    var el = null, id = -1, x0 = 0, y0 = 0, nx = 0, ny = 0, timer = 0;
+    function paint() {
+      if (!el) return;
+      var s = Math.min(1, Math.sqrt(nx * nx + ny * ny) / Math.max(1, SQT.max));
+      var a = SQT.press + s * SQT.stretch, b = SQT.press - s * SQT.squash;
+      if (Math.abs(ny) > Math.abs(nx)) { var t = a; a = b; b = t; }   /* 拉伸轴跟着拖动方向走 */
+      el.style.setProperty('--sqx', nx.toFixed(2) + 'px');
+      el.style.setProperty('--sqy', ny.toFixed(2) + 'px');
+      el.style.setProperty('--sqsx', a.toFixed(3));
+      el.style.setProperty('--sqsy', b.toFixed(3));
+    }
+    function move(e) {
+      if (!el || (e.pointerId !== undefined && e.pointerId !== id)) return;
+      if (typeof e.clientX !== 'number') return;
+      var dx = e.clientX - x0, dy = e.clientY - y0, m = Math.sqrt(dx * dx + dy * dy);
+      if (m > SQT.max) { dx *= SQT.max / m; dy *= SQT.max / m; }
+      nx = dx; ny = dy; x0 = e.clientX; y0 = e.clientY;
+      paint();   /* 只改一个元素的 transform，直接写比 rAF 更跟手 */
+    }
+    function release() {
+      if (!el) return;
+      var e0 = el;
+      el = null; id = -1; nx = ny = 0;
+      e0.classList.remove('sq-live');
+      e0.classList.add('sq-back');
+      e0.style.setProperty('--sqx', '0px'); e0.style.setProperty('--sqy', '0px');
+      e0.style.setProperty('--sqsx', '1');  e0.style.setProperty('--sqsy', '1');
+      /* 回位结束后摘掉类与变量，别把组件自己的 transition 永久接管 */
+      clearTimeout(timer);
+      timer = setTimeout(function () {
+        e0.classList.remove('sq-back');
+        ['--sqx', '--sqy', '--sqsx', '--sqsy'].forEach(function (k) { e0.style.removeProperty(k); });
+      }, SQT.back + 80);
+    }
+    var opt = { passive: true };
+    d.addEventListener('pointerdown', function (e) {
+      if (el || squishBlocked()) return;
+      var t = e.target && e.target.closest ? e.target.closest(SQUISH_SEL) : null;
+      if (!t) return;
+      el = t; id = e.pointerId; x0 = e.clientX; y0 = e.clientY;
+      el.classList.remove('sq-back');
+      el.classList.add('sq-live');
+      paint();
+    }, opt);
+    d.addEventListener('pointermove', move, opt);
+    d.addEventListener('pointerup', release, opt);
+    d.addEventListener('pointercancel', release, opt);
+    w.addEventListener('blur', release);
   }
 
   /* ---------------- 高光跟随手指（液态玻璃动态反馈） ----------------
@@ -498,8 +592,9 @@
       root.style.setProperty('--my', ly + '%');
     }
     function onMove(e) {
-      /* 降级设备 / 低电量 / 省电动效偏好：不写入高光位置，保持静态 */
+      /* 降级设备 / 低电量 / 省电动效偏好 / 用户关掉动画：不写入高光位置，保持静态 */
       if (deviceDegraded || batteryDegraded) return;
+      if (U.motion.get() !== 'on') return;
       if (w.matchMedia && w.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
       if (!d.body.classList.contains('glass-on')) return;
       var t = e.touches ? e.touches[0] : e;
@@ -515,6 +610,7 @@
        避免高光冻结在最后触点，松手即回落，更「活」。 */
     function reset() {
       if (deviceDegraded || batteryDegraded) return;
+      if (U.motion.get() !== 'on') return;
       if (w.matchMedia && w.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
       lx = 50; ly = -8;
       if (!ticking) { ticking = true; requestAnimationFrame(apply); }
@@ -547,12 +643,80 @@
   }
   function setWallpaperBg(wp) {
     var u = wpUrl(wp.file);
-    document.documentElement.style.setProperty('--wallpaper', 'url(' + u + ')');
-    d.body.style.background = 'url(' + u + ')';
-    d.body.style.backgroundSize = 'cover';
-    d.body.style.backgroundPosition = 'center';
-    d.body.style.backgroundAttachment = 'fixed';
+    paintWallpaper('url(' + u + ')');
+  }
+  /* 壁纸只写 --wallpaper 一个真源，由 .wall 层负责铺与模糊。
+     以前这里还会往 body 上写一份 inline background（四处各写一遍，
+     其中一份还漏了内置壁纸分支），现在统一收口到一个函数。 */
+  function paintWallpaper(cssUrl) {
+    var root = document.documentElement;
+    if (!cssUrl || cssUrl === 'none') {
+      root.style.setProperty('--wallpaper', 'none');
+      d.body.classList.remove('has-wallpaper');
+      return;
+    }
+    root.style.setProperty('--wallpaper', cssUrl);
     d.body.classList.add('has-wallpaper');
+    measureWallFloor(cssUrl);
+  }
+  /* 按当前壁纸的亮度带算出玻璃板的最小不透明度：
+     把图缩到 24px 宽（等价于一次强模糊，也正是 .wall 层会呈现的效果），
+     取 p05/p95 相对亮度，解出让二/三级文字都过 4.5:1 所需的最小 alpha。
+     明暗两套一次算完存下来，切主题时不必重新解码图片。 */
+  var wallFloor = { light: null, dark: null };
+  function measureWallFloor(cssUrl) {
+    var im = new Image();
+    im.onload = function () {
+      try {
+        var cv = document.createElement('canvas');
+        var w = 24, h = Math.max(1, Math.round(24 * im.naturalHeight / im.naturalWidth));
+        cv.width = w; cv.height = h;
+        var ctx = cv.getContext('2d', { willReadFrequently: true });
+        ctx.drawImage(im, 0, 0, w, h);
+        var px = ctx.getImageData(0, 0, w, h).data, L = [];
+        for (var i = 0; i < px.length; i += 4) L.push(relLum(px[i], px[i + 1], px[i + 2]));
+        L.sort(function (a, b) { return a - b; });
+        var q = function (p) { return L[Math.min(L.length - 1, Math.floor(L.length * p))]; };
+        var ends = [q(0.05), q(0.95)];
+        /* 背景层的压暗系数（浅色轻压 0.92、深色重压 0.55）必须与 applyGlass 写的
+           --bg-bri 同值。CSS brightness 作用在线性光上，相对亮度也是线性的，
+           所以这里直接乘。 */
+        var DIM_LIGHT = 0.92, DIM_DARK = 0.55;
+        /* 两档目标：AA 正文 4.5:1（默认自动兜住）与长时间阅读 7:1
+           （「增强对比度」开关，取自华为《通用无障碍用户体验设计指南》的推荐值）。
+           hiText 是增强档换上的更强文字色，见 01-tokens.css 的 html.hi-contrast。 */
+        var AA_TARGET = 4.5, HI_TARGET = 7;
+        /* 相对亮度是线性量，所以"板 + 壁纸"的合成可以直接在线性空间按 alpha 插值 */
+        var combos = [
+          { k: 'light', plate: 1,                 dim: DIM_LIGHT, text: relLum(85, 85, 90),   hiText: relLum(44, 44, 48) },
+          { k: 'dark',  plate: relLum(44, 44, 46), dim: DIM_DARK, text: relLum(185, 185, 194), hiText: relLum(230, 230, 234) }
+        ];
+        function solve(c, target, text) {
+          var need = null;
+          ends.forEach(function (bg0) {
+            var bg = bg0 * c.dim;
+            for (var i = 0; i <= 48; i++) {
+              var a = i / 50;
+              var lb = a * c.plate + (1 - a) * bg;
+              if ((Math.max(lb, text) + 0.05) / (Math.min(lb, text) + 0.05) >= target) {
+                need = need === null ? a : Math.max(need, a); break;
+              }
+            }
+          });
+          return need === null ? 0.96 : need;
+        }
+        combos.forEach(function (c) {
+          var aa = solve(c, AA_TARGET, c.text);
+          wallFloor[c.k] = { aa: aa, hi: Math.max(aa, solve(c, HI_TARGET, c.hiText)) };
+        });
+        applyGlass(getGlass() || glassDefaults);
+      } catch (e) { /* 画布不可用（罕见）：留在 0，通透度照旧，不阻塞启动 */ }
+    };
+    im.src = cssUrl.slice(4, -1).replace(/^["']|["']$/g, '');
+  }
+  function relLum(r, g, b) {
+    var f = function (c) { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
   }
 
   function initWallpaper() {
@@ -648,21 +812,14 @@
     if (id === 'none' || !id) { try { localStorage.removeItem(WP_CUSTOM_KEY); } catch (e) {} }
     lsSet(WP_KEY, id || 'none');
     if (!cssValue || id === 'none') {
-      document.documentElement.style.setProperty('--wallpaper', 'none');
-      d.body.style.background = '';
-      d.body.classList.remove('has-wallpaper');
+      paintWallpaper(null);
     } else if (cssValue === 'wp') {
       /* 内置壁纸:按 id 查清单,设置相对路径背景 */
       var wp = findWp(id);
       if (wp) setWallpaperBg(wp);
     } else {
       var cssUrl = 'url(' + cssValue + ')';
-      document.documentElement.style.setProperty('--wallpaper', cssUrl);
-      d.body.style.background = cssUrl;
-      d.body.style.backgroundSize = 'cover';
-      d.body.style.backgroundPosition = 'center';
-      d.body.style.backgroundAttachment = 'fixed';
-      d.body.classList.add('has-wallpaper');
+      paintWallpaper(cssUrl);
     }
     updateWallpaperLabel(id || 'none');
   }
@@ -696,14 +853,7 @@
       updateWallpaperLabel('none');
       return;
     }
-    d.body.classList.add('has-wallpaper');
-    if (saved.startsWith('data:')) {
-      document.documentElement.style.setProperty('--wallpaper', 'url(' + saved + ')');
-      d.body.style.background = 'url(' + saved + ')';
-      d.body.style.backgroundSize = 'cover';
-      d.body.style.backgroundPosition = 'center';
-      d.body.style.backgroundAttachment = 'fixed';
-    }
+    if (saved.startsWith('data:')) paintWallpaper('url(' + saved + ')');
   })();
 
   /* ---------------- 涛态玻璃 / 毛玻璃效果（三模式：关闭/毛玻璃/液态玻璃） ---------------- */
@@ -712,7 +862,8 @@
     on: true,           /* 总开关 */
     mode: 'liquid',     /* A=液态玻璃(默认,通透+高光)  B=标准毛玻璃(frosted,扁平省电)  gaussian=纯模糊(极致省电档) */
     blur: 14,           /* 模糊强度 8-20 px（业界甜区） */
-    tint: 55            /* 液态玻璃通透度 20-90（% 不透明度，越低越通透） */
+    tint: 55,           /* 液态玻璃通透度 20-90（% 不透明度，越低越通透） */
+    hiContrast: false   /* 增强对比度：玻璃板下限从 AA 4.5:1 抬到长时间阅读的 7:1 */
   };
 
   function getGlass() {
@@ -753,7 +904,10 @@
     /* 2026-08-12 17:43（按用户修复方案）：blur 独立于 mode ——
        liquid 模式下 blur 为 0（通透设计），frosted/gaussian 用用户设定值 g.blur，
        切换模式时正确恢复，不再出现"切换后模糊失效"。 */
-    var blurPx = (em === 'liquid') ? 0 : (g.blur || 14);
+    /* blur 不再按模式归零：以前 liquid 强制 0 模糊（注释写"通透设计"），
+       于是"液态玻璃"在真机上就是一张平涂白纱，壁纸的高频细节直接压在字底下。
+       通透感交给板的 alpha 表达，模糊是玻璃之所以是玻璃的那一味。 */
+    var blurPx = (em === 'liquid') ? 18 : (g.blur || 14);
     root.style.setProperty('--glass-blur', blurPx + 'px');
     root.style.setProperty('--glass-blur-strong', Math.round(blurPx * 1.4) + 'px');
     /* 三模式统一 alpha 公式：
@@ -767,6 +921,18 @@
     if (em === 'frosted') a = Math.min(0.85, baseA + 0.20);
     else if (em === 'gaussian') a = Math.min(0.94, baseA + 0.45);
     else a = baseA;
+    /* 承载文字的玻璃板不能跟着通透度一路透下去：
+       下限按当前壁纸的亮度带实测算出（measureWallFloor），无壁纸时为 0 不干预。
+       「增强对比度」把目标从 AA 的 4.5:1 抬到长时间阅读的 7:1。 */
+    var wf = wallFloor[root.classList.contains('dark') ? 'dark' : 'light'];
+    var floor = (g.on && d.body.classList.contains('has-wallpaper') && wf)
+      ? (g.hiContrast ? wf.hi : wf.aa) : 0;
+    a = Math.max(a, floor);
+    /* 被地板抬过时，界面必须说出"实际生效的是多少"。
+       反解 baseA：t_eff = 10 + 85·((a-0.04)/0.9)^(1/1.2)，板越厚等效通透度越高。 */
+    var effT = Math.round(Math.max(t, Math.min(95,
+      10 + 85 * Math.pow(Math.max(0, Math.min(1, (a - 0.04) / 0.90)), 1 / 1.2))));
+    w.__glassTint = { want: t, eff: effT, clamped: effT > t + 1 };
     var b = Math.max(0.03, a - 0.13);
     root.style.setProperty('--glass-tint-top', 'rgba(255,255,255,' + a.toFixed(3) + ')');
     root.style.setProperty('--glass-tint-bot', 'rgba(250,250,252,' + b.toFixed(3) + ')');
@@ -780,8 +946,20 @@
        WebView 降级蒙版全部共用这一个值，不再各写各的：
        liquid 跟通透度滑块 a；frosted/gaussian 跟 px 滑块 maskA；关玻璃时回落到壁纸基线 .72。
        消费方见 01-tokens.css 的 --surf-* 与 06-anim.css 末尾的 body.has-wallpaper 段。 */
-    var contentA = g.on ? (em === 'liquid' ? a : maskA) : 0.72;
+    var contentA = Math.max(g.on ? (em === 'liquid' ? a : maskA) : 0.72, floor);
     root.style.setProperty('--glass-content-a', contentA.toFixed(3));
+    /* 预模糊背景层参数：玻璃开着才有模糊，关玻璃回到清晰壁纸（与历史行为一致）。
+       层的模糊比元素 backdrop 略强，因为这层要替所有卡片承担"背后是虚的"。 */
+    root.style.setProperty('--bg-blur', g.on ? (blurPx + 6) + 'px' : '0px');
+    root.style.setProperty('--bg-sat', g.on && em !== 'gaussian' ? '180%' : '100%');
+    /* 关键一味：只 saturate 不压亮度就是"难看的灰玻璃"——业界配方是
+       饱和度提上去的同时把背后压暗（浅色轻压、深色重压），玻璃才读得出厚度。
+       这里的百分比必须与 measureWallFloor 两套 combo 的 dim 同值，门禁会核对。 */
+    root.style.setProperty('--bg-bri', !g.on ? '100%'
+      : (root.classList.contains('dark') ? '55%' : '92%'));
+    /* 把当前生效的下限暴露成可读变量：冒烟测试与门禁据此断言"兜住了"，
+       也方便在真机上直接看出是哪一档在起作用。 */
+    root.style.setProperty('--glass-min-a', floor.toFixed(2));
     /* 弹窗（.sheet）没有周围层次可借，不能跟着通透度一路透下去：
        实测 tint 10 时暗壁纸区文字对比度只剩 1.12:1（AA 要 4.5）。
        故给弹窗单独一档下限 .55（≈5.6:1），内联卡片仍完全跟随滑块。 */
@@ -792,6 +970,8 @@
     root.style.setProperty('--glass-sheet-top-k', 'rgba(44,44,46,' + sheetA.toFixed(3) + ')');
     root.style.setProperty('--glass-sheet-bot-k', 'rgba(32,32,36,' + sheetB.toFixed(3) + ')');
     d.body.classList.toggle('glass-on', g.on);
+    /* 增强对比度：换文字 token（CSS 侧 html.hi-contrast）+ 用更厚的板（floor 走 hi） */
+    root.classList.toggle('hi-contrast', !!(g.on && g.hiContrast));
     d.body.classList.toggle('glass-liquid', g.on && em === 'liquid');
     d.body.classList.toggle('glass-gaussian', g.on && em === 'gaussian');
     d.body.classList.toggle('glass-frosted', g.on && em === 'frosted');
@@ -799,6 +979,13 @@
     if (g.on) {
       root.style.setProperty('--glass-saturate', em === 'gaussian' ? '100%' : '180%');
     }
+  }
+
+  /** 通透度读数：被可读性下限抬过时如实标出实际值，不再显示一个对不上界面的数字 */
+  function tintLabel(g) {
+    var ct = w.__glassTint;
+    if (!ct) return (g && g.tint || 55) + '%';
+    return ct.clamped ? ct.want + '% · 实际 ' + ct.eff + '%' : ct.want + '%';
   }
 
   /** 渲染玻璃设置面板（双模式段控：A 液态玻璃 / B 标准毛玻璃 + 高斯省电档） */
@@ -843,7 +1030,7 @@
       }
 
       /* 滑块语义随模式切换：液态玻璃 → 通透度(%不透明度)；毛玻璃/高斯 → 模糊强度(px)。
-        液态玻璃本身 0 模糊，通透度由 g.tint 控制；滑块不锁死，切模式即时换语义 */
+        三种模式都带模糊（由 .wall 背景层统一提供），通透度由 g.tint 控制；滑块不锁死，切模式即时换语义 */
       var isLiquid = (g.on && effectiveGlassMode(g) === 'liquid');
       var sKey = isLiquid ? 'tint' : 'blur';
       var sMin = isLiquid ? 10 : 8;
@@ -853,15 +1040,43 @@
       var sSfx = isLiquid ? '%' : 'px';
       h += '<div style="margin-top:16px"><div class="row" style="justify-content:space-between;margin-bottom:8px">' +
         '<span class="t-xs bold" style="color:var(--text-2)">' + sLbl + '</span>' +
-        '<span class="t-xs mono" style="color:var(--accent)" id="glassVal_' + sKey + '">' + sVal + sSfx + '</span></div>' +
+        '<span class="t-xs mono" style="color:var(--accent)" id="glassVal_' + sKey + '">' +
+          (sKey === 'tint' ? tintLabel(g) : sVal + sSfx) + '</span></div>' +
         '<input type="range" class="glass-slider" min="' + sMin + '" max="' + sMax + '" step="' + (isLiquid ? 5 : 1) + '" value="' + sVal + '" data-glass="' + sKey + '" style="width:100%"></div>' +
       (isLiquid ?
         '<div class="t-xs" style="margin-top:8px;padding:8px 10px;border-radius:var(--r-sm);background:var(--accent-soft);color:var(--accent-text);line-height:1.55">' +
-        '通透度 = 浮层不透明度（越低越透，壁纸越清晰可见）。液态玻璃为 0 模糊（通透感由本滑块控制）。</div>' :
+        '通透度 = 浮层不透明度（越低越透，壁纸越清晰）。背景已统一预模糊，且低于可读性下限时会自动兜住，再透也不会把字埋掉。</div>' :
         '');
 
+      /* 增强对比度：玻璃板下限从 AA 的 4.5:1 抬到长时间阅读的 7:1 */
+      h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 0 2px">' +
+        '<div><div class="t-sm bold">增强对比度</div>' +
+        '<div class="t-xs t-mute">把说明文字换成更强对比的一档，与背景对比从 4.5:1 提到 7:1（长时间阅读推荐值），必要时玻璃板同步加厚</div></div>' +
+        '<span class="switch' + (g.hiContrast ? ' is-on' : '') + '" id="glassSw_hi"></span></div>';
+
+      /* 按压形变手感调参。隐藏入口：长按本弹窗标题 0.6 秒 —— 这是给我自己
+         调手感用的，不该占正式界面；数值存 store，所以自动进 JSON 备份。 */
+      function sqRow(k, name, unit, min, max, step, val) {
+        return '<div style="margin-top:10px"><div class="row" style="justify-content:space-between">' +
+          '<span class="t-xs" style="color:var(--text-2)">' + name + '</span>' +
+          '<span class="t-xs mono" style="color:var(--accent)" id="sqVal_' + k + '">' + val + unit + '</span></div>' +
+          '<input type="range" class="glass-slider" min="' + min + '" max="' + max + '" step="' + step +
+          '" value="' + val + '" data-sq="' + k + '" style="width:100%"></div>';
+      }
+      h += '<div id="sqTune" style="display:none;margin-top:14px;padding:12px;border-radius:var(--r-md);background:var(--surf-2)">' +
+        '<div class="t-xs bold" style="color:var(--text-2)">按压形变手感（调试）</div>' +
+        sqRow('max', '跟手位移上限', 'px', 0, 20, 1, SQT.max) +
+        sqRow('press', '按下压缩', '%', 0, 15, 1, Math.round((1 - SQT.press) * 100)) +
+        sqRow('stretch', '沿拖动方向拉伸', '%', 0, 20, 1, Math.round(SQT.stretch * 100)) +
+        sqRow('squash', '垂直轴反向压缩', '%', 0, 20, 1, Math.round(SQT.squash * 100)) +
+        sqRow('back', '回弹时长', 'ms', 120, 1200, 20, SQT.back) +
+        '<div class="row" style="gap:10px;margin-top:12px;align-items:center">' +
+        '<span class="chip" id="sqDemo">按住我试</span>' +
+        '<button type="button" class="btn btn--soft t-xs" id="sqReset" style="padding:6px 10px">复位</button></div>' +
+        '<div class="t-xs mono" id="sqOut" style="margin-top:10px;word-break:break-all"></div></div>';
+
       h += '<div class="t-xs t-mute" style="margin-top:14px;padding:10px;background:var(--surf-2);border-radius:var(--r-sm);line-height:1.65">' +
-        (isLiquid ? '提示：设一张背景壁纸后，通透度变化更明显。推荐 40-60% 平衡通透与可读性。' :
+        (isLiquid ? '提示：设一张背景壁纸后，通透度变化更明显。滑块拉到很透时，为保证文字可读，板厚会停在按这张壁纸算出的下限上。' :
                    '提示：设一张背景壁纸后效果更明显。推荐 12-16px 平衡观感与流畅度。') + '</div>';
     }
 
@@ -876,6 +1091,62 @@
       U.toast(g.on ? '玻璃效果已开启' : '玻璃效果已关闭', 'ok');
     });
 
+    /* 绑定事件：增强对比度 */
+    var swHi = body.querySelector('#glassSw_hi');
+    if (swHi) swHi.parentElement.addEventListener('click', function () {
+      g.hiContrast = !g.hiContrast; saveGlass(g); applyGlass(g);
+      renderGlassPanel(); updateGlassLabel(g);
+      U.toast(g.hiContrast ? '已增强对比度：玻璃板加厚' : '已恢复默认通透度', 'ok');
+    });
+
+    /* 绑定事件：形变手感调参（滑块即时生效，演示块当场可拉扯） */
+    var tune = body.querySelector('#sqTune');
+    if (tune) {
+      var out = body.querySelector('#sqOut');
+      if (out) { out.style.marginTop = '10px'; out.textContent = JSON.stringify(SQT); }
+      body.querySelectorAll('[data-sq]').forEach(function (input) {
+        var k = input.getAttribute('data-sq');
+        input.addEventListener('input', function () {
+          var raw = parseFloat(input.value), s2 = getSqt();
+          if (k === 'max') s2.max = raw;
+          else if (k === 'back') s2.back = raw;
+          else if (k === 'press') s2.press = 1 - raw / 100;
+          else s2[k] = raw / 100;
+          U.store.set('sqtune', s2);
+          var cur = applySqt();
+          var lbl = body.querySelector('#sqVal_' + k);
+          if (lbl) lbl.textContent = input.value + (k === 'max' ? 'px' : k === 'back' ? 'ms' : '%');
+          if (out) out.textContent = JSON.stringify(cur);
+        });
+      });
+      var rst = body.querySelector('#sqReset');
+      if (rst) rst.addEventListener('click', function () {
+        U.store.set('sqtune', SQT_DEF); applySqt(); renderGlassPanel();
+        U.toast('形变参数已复位', 'ok');
+      });
+    }
+    /* 隐藏入口：长按弹窗标题 0.6 秒 */
+    var gTitle = d.querySelector('#glassSheet .sheet__title');
+    if (gTitle && !gTitle.__sqBound) {
+      gTitle.__sqBound = true;
+      var lp = 0;
+      gTitle.addEventListener('pointerdown', function () {
+        clearTimeout(lp);
+        lp = setTimeout(function () {
+          var t2 = body.querySelector('#sqTune');
+          if (!t2) return;
+          var show = t2.style.display === 'none';
+          t2.style.display = show ? 'block' : 'none';
+          if (show) U.toast(squishBlocked()
+            ? '调参面板已展开，但当前设备/设置停用了形变（检查「动画效果」与省电状态）'
+            : '调参面板已展开：按住下面那块试手感', 'ok', 3200);
+        }, 600);
+      }, { passive: true });
+      ['pointerup', 'pointermove', 'pointercancel', 'pointerleave'].forEach(function (ev) {
+        gTitle.addEventListener(ev, function () { clearTimeout(lp); }, { passive: true });
+      });
+    }
+
     /* 绑定事件：段控 */
     body.querySelectorAll('[data-glass="mode"]').forEach(function (btn) {
       btn.addEventListener('click', function () {
@@ -888,16 +1159,19 @@
     });
 
     /* 绑定事件：滑块（requestAnimationFrame 节流，避免拖动时连续 input 事件
-       频繁重绘导致 WebView 闪屏） */
-    body.querySelectorAll('.glass-slider').forEach(function (input) {
+       频繁重绘导致 WebView 闪屏）。必须按 [data-glass] 收窄 —— 调参面板的滑块
+       同样用 .glass-slider 复用外观，早期版本会把它们一起绑上，key 取到 null
+       后 `$('#glassVal_null').textContent` 直接抛异常。 */
+    body.querySelectorAll('.glass-slider[data-glass]').forEach(function (input) {
       var key = input.getAttribute('data-glass');
       var raf = 0, lastText = '';
       function applyFlush() {
         raf = 0;
         var val = parseInt(input.value, 10);
         g[key] = val;
-        var txt = val + (key === 'tint' ? '%' : 'px');
-        if (txt !== lastText) { $('#glassVal_' + key).textContent = txt; lastText = txt; }
+        var txt = key === 'tint' ? tintLabel(g) : val + 'px';
+        var out2 = $('#glassVal_' + key);
+        if (out2 && txt !== lastText) { out2.textContent = txt; lastText = txt; }
         saveGlass(g); applyGlass(g);
       }
       function apply() {
@@ -1112,20 +1386,9 @@
     if (!g || !g.on) { lbl.textContent = '关闭'; return; }
     var em = effectiveGlassMode(g);
     var m = em === 'liquid' ? '液态玻璃' : em === 'gaussian' ? '高斯模糊' : '标准毛玻璃';
-    lbl.textContent = m + (em === 'liquid' ? ' · 通透' + (g.tint || 55) + '%' : ' · 模糊' + g.blur + 'px');
+    lbl.textContent = m + (em === 'liquid' ? ' · 通透' + tintLabel(g) : ' · 模糊' + g.blur + 'px') +
+      (g.hiContrast ? ' · 增强对比' : '');
   }
-  (function restoreWallpaper() {
-    var saved = lsGet(WP_KEY);
-    if (!saved || saved === 'none') return;
-    d.body.classList.add('has-wallpaper');
-    if (saved.startsWith('data:')) {
-      document.documentElement.style.setProperty('--wallpaper', 'url(' + saved + ')');
-      d.body.style.background = 'url(' + saved + ')';
-      d.body.style.backgroundSize = 'cover';
-      d.body.style.backgroundPosition = 'center';
-      d.body.style.backgroundAttachment = 'fixed';
-    }
-  })();
 
   /* ---------------- 搜索 ---------------- */
   function bindSearch() {
@@ -1564,7 +1827,12 @@
     },
     streak:   function (v) { return v && typeof v === 'object' && !Array.isArray(v); },
     theme:    function (v) { return ['auto', 'light', 'dark'].indexOf(v) >= 0; },
-    motion:   function (v) { return typeof v === 'number' || typeof v === 'string'; }
+    motion:   function (v) { return typeof v === 'number' || typeof v === 'string'; },
+    /* 按压形变手感参数：只收数值字段，越界由 getSqt 夹紧后再用 */
+    sqtune:   function (v) {
+      return !!v && typeof v === 'object' && !Array.isArray(v) &&
+        Object.keys(v).every(function (k) { return typeof v[k] === 'number' && isFinite(v[k]); });
+    }
   };
   function importData(file) {
     var rd = new FileReader();
@@ -1740,9 +2008,10 @@
     initGlass();
     /* 高光跟随手指（镜面折射）——降级 / 省电动效偏好下不启用 */
     if (!deviceDegraded) initGlassLight();
+    initSquish();   /* 自带降级判断与重复绑定保护 */
     try {
       if (w.matchMedia) w.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
-        if (U.theme.get() === 'auto') { U.theme.apply(); syncThemeIcon(); }
+        if (U.theme.get() === 'auto') { U.theme.apply(); applyGlass(getGlass() || glassDefaults); syncThemeIcon(); }
       });
     } catch (e) {}
 

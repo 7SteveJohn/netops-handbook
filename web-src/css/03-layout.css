@@ -201,29 +201,10 @@ body.tabbar-regular .tabbar {
 /* 底栏液态玻璃：悬浮圆角胶囊 / 常规贴底栏。
    2026-08-11 联网校准 iOS 26 thinMaterial（导航/tab bar）：
    blur 16-20px · saturate 1.4-1.65x · 低不透明度白底 · 顶部 1pt 高光 */
-body.glass-on .tabbar::before {
-  background: rgba(255, 255, 255, 0.22);
-  -webkit-backdrop-filter: saturate(var(--glass-saturate)) blur(var(--glass-blur));
-  backdrop-filter: saturate(var(--glass-saturate)) blur(var(--glass-blur));
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  box-shadow:
-    0 5px 14px rgba(0, 0, 0, 0.08),
-    0 2px 5px rgba(0, 0, 0, 0.04),
-    inset 0 -2px 3px rgba(255, 255, 255, 0.12),
-    var(--glass-rim), var(--glass-aberration);   /* 透镜边缘折射 + 色散（液态玻璃） */
-}
-/* 底栏跟随光镜面高光（动态反馈）—— 单独伪元素，避免污染 ::before 表面 */
-body.glass-on .tabbar::after {
-  content: "";
-  position: absolute;
-  left: 0; right: 0; bottom: 0;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--glass-specular-dyn);
-  pointer-events: none;
-  z-index: -1;
-  transition: background var(--t-base) var(--ease-out);
-}
+/* 底栏那层玻璃现在住在 06-anim.css 的 .tabbar 自身（配方变量 --gr-tabbar-*）。
+   这里旧的 body.glass-on .tabbar::before / ::after 两条规则是上一代遗留：
+   ::before 已被改成边缘高光层、::after 是顶部 1px 发丝线，继续把表面参数压在
+   它们身上只会叠出第二层"假玻璃"，故删除。 */
 /* 常规模式下高光铺满底栏 */
 body.glass-on.tabbar-regular .tabbar::after {
   left: 0; right: 0; bottom: 0;
@@ -241,15 +222,8 @@ body.glass-on.tabbar-regular .tabbar::before {
     0 -1px 0 rgba(255,255,255,.2),
     0 -4px 16px rgba(15,23,42,.08);
 }
-html.dark body.glass-on .tabbar::before {
-  background: rgba(30, 30, 35, 0.18);
-  border-color: rgba(255, 255, 255, 0.15);
-  box-shadow:
-    0 5px 14px rgba(0, 0, 0, 0.20),
-    0 2px 5px rgba(0, 0, 0, 0.12),
-    inset 0 -2px 3px rgba(255, 255, 255, 0.06),
-    var(--glass-rim), var(--glass-aberration);   /* 透镜边缘折射 + 色散（液态玻璃·深色） */
-}
+/* 深色底栏不再单写一份：--gr-tabbar-* 变量在 html.dark 下由配方表换值，
+   就地重复一遍只会造成"改了表还有半套旧值生效"。 */
 
 .tab {
   position: relative;

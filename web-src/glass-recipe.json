@@ -1,0 +1,116 @@
+{
+  "_note": "玻璃配方表：全站玻璃表面的唯一参数来源。改这里 → tools/gen-glass-recipe.js 生成 css/00-recipe.css → 表面只读 --gr-* 变量。数值口径来自 2026-09-23 对 14 张内置壁纸穿过真实 CSS 滤镜的实测（见 tools/data/wall-lum.json 与 README 的质感一节）。",
+  "backdrop": {
+    "_note": ".wall 预模糊背景层。t = 通透度档位（10 最透 / 95 最厚）。可读性靠压背景动态范围拿到，不靠抬板厚；levels 是实测采样时用的三档滤镜组合。",
+    "saturate": "180%",
+    "light": {
+      "levels": [
+        {
+          "t": 10,
+          "blur": 14,
+          "brightness": 1.55,
+          "contrast": 0.28
+        },
+        {
+          "t": 52,
+          "blur": 9,
+          "brightness": 1.28,
+          "contrast": 0.55
+        },
+        {
+          "t": 95,
+          "blur": 5,
+          "brightness": 1,
+          "contrast": 0.95
+        }
+      ]
+    },
+    "dark": {
+      "levels": [
+        {
+          "t": 10,
+          "blur": 14,
+          "brightness": 0.32,
+          "contrast": 0.28
+        },
+        {
+          "t": 52,
+          "blur": 9,
+          "brightness": 0.45,
+          "contrast": 0.5
+        },
+        {
+          "t": 95,
+          "blur": 5,
+          "brightness": 0.55,
+          "contrast": 0.8
+        }
+      ]
+    }
+  },
+  "surfaces": {
+    "tabbar": {
+      "light": {
+        "tintTop": "rgba(255,255,255,.72)",
+        "tintBot": "rgba(245,245,247,.62)",
+        "filter": "saturate(1.8) blur(28px)",
+        "shadow": "0 0 0 .5px rgba(0,0,0,.05), 0 -1px 0 rgba(255,255,255,.7) inset, 0 -8px 24px rgba(0,0,0,.06), 0 -20px 48px rgba(0,0,0,.04)",
+        "specular": "rgba(255,255,255,.88)"
+      },
+      "dark": {
+        "tintTop": "rgba(20,20,22,.72)",
+        "tintBot": "rgba(20,20,22,.56)",
+        "filter": "saturate(1.6) blur(28px) brightness(.85)",
+        "shadow": "0 0 0 .5px rgba(255,255,255,.08), 0 -1px 0 rgba(255,255,255,.12) inset, 0 -8px 24px rgba(0,0,0,.32)",
+        "specular": "rgba(255,255,255,.28)"
+      }
+    },
+    "sheet": {
+      "light": {
+        "tintTop": "rgba(255,255,255,.92)",
+        "tintBot": "rgba(245,245,247,.86)",
+        "filter": "saturate(1.8) blur(40px)",
+        "shadow": "inset 0 1px 0 rgba(255,255,255,.9), 0 -12px 48px rgba(0,0,0,.12), 0 -2px 8px rgba(0,0,0,.06)",
+        "specular": "rgba(255,255,255,.95)"
+      },
+      "dark": {
+        "tintTop": "rgba(28,28,30,.92)",
+        "tintBot": "rgba(20,20,22,.86)",
+        "filter": "saturate(1.6) blur(40px)",
+        "shadow": "inset 0 1px 0 rgba(255,255,255,.12), 0 -12px 48px rgba(0,0,0,.5), 0 -2px 8px rgba(0,0,0,.3)",
+        "specular": "rgba(255,255,255,.32)"
+      }
+    },
+    "card": {
+      "light": {
+        "tintTop": "rgba(255,255,255,.20)",
+        "tintBot": "rgba(250,250,252,.14)",
+        "border": "rgba(255,255,255,.35)"
+      },
+      "dark": {
+        "tintTop": "rgba(44,44,46,.52)",
+        "tintBot": "rgba(32,32,36,.40)",
+        "border": "rgba(255,255,255,.14)"
+      }
+    }
+  },
+  "lens": {
+    "rim": "inset 0 0 0 .5px rgba(255,255,255,.55), inset 0 1px 1px rgba(255,255,255,.8), inset 0 -1px 1px rgba(0,0,0,.05)",
+    "rimDark": "inset 0 0 0 .5px rgba(255,255,255,.24), inset 0 1px 1px rgba(255,255,255,.28), inset 0 -1px 1px rgba(0,0,0,.10)",
+    "innerGlow": "inset 0 0 30px 1px rgba(255,255,255,.06)",
+    "innerGlowDark": "inset 0 0 30px 1px rgba(255,255,255,.04)",
+    "aberration": "inset 1px 0 0 rgba(120,170,255,.06), inset -1px 0 0 rgba(255,150,120,.05)"
+  },
+  "motion": {
+    "spring": "cubic-bezier(.34,1.56,.64,1)",
+    "decel": "cubic-bezier(.05,.7,.1,1)",
+    "pillBackMs": 460,
+    "squish": {
+      "max": 7,
+      "press": 0.975,
+      "stretch": 0.06,
+      "squash": 0.035,
+      "back": 460
+    }
+  }
+}

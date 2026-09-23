@@ -401,16 +401,16 @@ table.tbl tr:active td { background: var(--surf-2); }
   transition: transform var(--t-base) var(--ease-out);
   padding-bottom: var(--sa-bottom);
 }
-/* 弹窗玻璃（更强折射 + 边缘光描边） */
+/* 弹窗玻璃（更强折射 + 边缘光描边）。底色默认值来自配方表；
+   applyGlass 运行时会写 --glass-sheet-top/bot（带 ≥.55 的可读性下限）覆盖它。 */
 body.glass-on .sheet {
-  background: linear-gradient(180deg, var(--glass-tint-top) 0%, var(--glass-tint-bot) 100%);
-  -webkit-backdrop-filter: saturate(var(--glass-saturate)) blur(var(--glass-blur-strong));
-  backdrop-filter: saturate(var(--glass-saturate)) blur(var(--glass-blur-strong));
+  background: linear-gradient(180deg,
+    var(--glass-sheet-top, var(--gr-sheet-tint-top)) 0%,
+    var(--glass-sheet-bot, var(--gr-sheet-tint-bot)) 100%);
+  -webkit-backdrop-filter: var(--gr-sheet-filter);
+  backdrop-filter: var(--gr-sheet-filter);
   border-top: 1px solid transparent;
-  box-shadow: var(--glass-shadow), var(--glass-rim), var(--glass-aberration);
-}
-html.dark body.glass-on .sheet {
-  background: linear-gradient(180deg, var(--glass-tint-top) 0%, var(--glass-tint-bot) 100%);
+  box-shadow: var(--gr-sheet-shadow), var(--gr-lens-rim), var(--gr-lens-glow), var(--gr-lens-aberration);
 }
 /* 弹窗顶部边缘光 */
 body.glass-on .sheet::after {

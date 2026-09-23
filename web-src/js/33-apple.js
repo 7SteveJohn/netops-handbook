@@ -20,6 +20,12 @@
   window.__appleUltimate = true;
 
   var REDUCE = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  /* 应用内的「动画效果」开关：以前全站没有消费方，现在是真开关了（CSS 侧见
+     06-anim.css 的 html[data-motion="off"]）。这里管 JS 驱动的那部分。 */
+  function motionOff() {
+    try { return !!(window.NetUI && window.NetUI.motion && window.NetUI.motion.get() !== 'on'); }
+    catch (e) { return false; }
+  }
 
   // ---- 1. AppBar stuck 状态：滚动后透明度提升 + 出现细分割线 ----
   function attachAppbarStuck() {
@@ -75,8 +81,8 @@
   // ---- 3. count-up 数字滚动：在 stat/hero 内数字执行缓入 ----
   function countUp(root) {
     if (!root) root = document;
-    if (REDUCE) {
-      /* 无障碍：直接显示最终值，不做滚动动画（保留单位后缀） */
+    if (REDUCE || motionOff()) {
+      /* 无障碍 / 用户关掉动画：直接显示最终值，不做滚动动画（保留单位后缀） */
       root.querySelectorAll('.stat__n, .hero__num, .count').forEach(function (el) {
         if (el.__counted) return; el.__counted = true;
         var m = (el.textContent || '').trim().match(/^(\d+(?:\.\d+)?)/);

@@ -158,67 +158,11 @@
   .card__body { grid-template-rows: 1fr; }
   .sheet.is-open { transform: none; }
 }
-
-
-/* === APPLE ENHANCEMENT (mirrored from assets) === */
-
-/* ===== Apple 动效增强层（在保留全部原有功能前提下追加） ===== */
-:root{ --press-ibtn:.86; }
-/* 全局可点击元素的按压回弹反馈 (tactile press) */
-.ibtn,.tab,.chip,.btn{
-  -webkit-tap-highlight-color:transparent;
-  transition:transform var(--t-fast) var(--ease-apple-spring),
-             background-color var(--t-fast) var(--ease-out),
-             box-shadow var(--t-base) var(--ease-out);
-  will-change:transform;
-}
-.ibtn:active{ transform:scale(var(--press-ibtn)); }
-.tab:active{ transform:scale(.97); }
-.chip:active{ transform:scale(.94); }
-.btn:active{ transform:scale(.96); }
-/* 卡片按压微缩 + 桌面悬浮微抬 */
-.card{ transition:transform var(--t-fast) var(--ease-apple-spring), box-shadow var(--t-base) var(--ease-out); }
-.card:active{ transform:scale(.992); }
 @media (hover:hover){
-  .card:hover{ transform:translateY(-2px); box-shadow:var(--sh-md); }
-  .phase:hover{ box-shadow:var(--sh-sm); }
 }
-/* Hero 卡片入场：轻微上浮 + 缩放淡入 */
-.hero{ animation:hero-in .6s var(--ease-apple-decel) both; }
 @keyframes hero-in{ from{ opacity:0; transform:translateY(14px) scale(.985); } to{ opacity:1; transform:none; } }
-/* Apple 风格选区高亮与聚焦环 */
-::selection{ background:var(--accent-soft); color:var(--accent-text); }
-:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; border-radius:var(--r-xs); }
-/* iOS 动量滚动（不影响原有瞬时滚动恢复行为） */
-.scroll{ -webkit-overflow-scrolling:touch; }
 /* 尊重系统“减弱动态效果”设置 */
 @media (prefers-reduced-motion:reduce){
-  .hero,.ibtn,.tab,.chip,.btn,.card{ animation:none !important; transition-duration:.01ms !important; }
-  .hero{ opacity:1; transform:none; }
-}
-
-
-
-/* ===== Apple UI Pro：极致光影 / 深度 / 弹簧动效（增强层，复用现有变量） ===== */
-
-/* 1) 重新定义层级阴影：顶部光源 → 贴地接触阴影 + 柔和环境阴影 */
-:root{
-  --sh-xs:0 .5px 1px rgba(0,0,0,.05), 0 1px 2px rgba(0,0,0,.04);
-  --sh-sm:0 1px 2px rgba(0,0,0,.06), 0 3px 8px rgba(0,0,0,.05);
-  --sh-md:0 1px 2px rgba(0,0,0,.05), 0 6px 16px rgba(0,0,0,.08), 0 2px 4px rgba(0,0,0,.04);
-  --sh-lg:0 2px 4px rgba(0,0,0,.06), 0 14px 34px rgba(0,0,0,.11), 0 6px 14px rgba(0,0,0,.06);
-  --sh-xl:0 3px 8px rgba(0,0,0,.10), 0 24px 58px rgba(0,0,0,.16), 0 10px 24px rgba(0,0,0,.08);
-  --glass-shadow:0 0 0 .5px rgba(255,255,255,.45) inset, 0 1px 0 rgba(255,255,255,.65) inset, 0 12px 34px rgba(15,23,42,.16), 0 4px 12px rgba(15,23,42,.07);
-  --accent-glow:0 8px 22px color-mix(in srgb, var(--accent) 42%, transparent);
-}
-html.dark{
-  --sh-xs:0 .5px 1px rgba(0,0,0,.6), 0 1px 2px rgba(0,0,0,.5);
-  --sh-sm:0 1px 3px rgba(0,0,0,.7), 0 4px 10px rgba(0,0,0,.5);
-  --sh-md:0 2px 6px rgba(0,0,0,.75), 0 10px 26px rgba(0,0,0,.6);
-  --sh-lg:0 4px 10px rgba(0,0,0,.8), 0 18px 44px rgba(0,0,0,.7);
-  --sh-xl:0 6px 16px rgba(0,0,0,.85), 0 28px 70px rgba(0,0,0,.8);
-  --glass-shadow:0 0 0 .5px rgba(255,255,255,.14) inset, 0 1px 0 rgba(255,255,255,.22) inset, 0 14px 40px rgba(0,0,0,.55), 0 4px 14px rgba(0,0,0,.3);
-  --accent-glow:0 8px 24px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 
 /* 2) 入场动效：错峰 + 弹簧衰减 + 轻微缩放（替代原 apple-fade-up） */
@@ -227,88 +171,22 @@ html.dark{
   55%{opacity:1;}
   100%{opacity:1; transform:translate3d(0,0,0) scale(1); filter:blur(0);}
 }
-.anim-in{opacity:0; animation:apple-fade-up .62s cubic-bezier(.22,1,.36,1) both; animation-delay:calc(var(--i,0) * 46ms); will-change:transform,opacity;}
 
 /* 视图切换：从 0.985 缩放淡入，避免生硬 */
 @keyframes view-in{
   from{opacity:0; transform:translate3d(0,10px,0) scale(.992);}
   to{opacity:1; transform:none;}
 }
-.view.is-active{animation:view-in var(--t-pill, .42s) cubic-bezier(.22,1,.36,1) both;}
-
-/* 3) 弹簧滑入：底部 sheet / 侧边 drawer（轻微回弹） */
-.sheet{transition:transform .46s cubic-bezier(.32,1.14,.5,1), box-shadow .3s var(--ease-out);}
-.drawer{transition:transform .46s cubic-bezier(.32,1.14,.5,1), box-shadow .3s var(--ease-out);}
 
 /* 4) 卡片：桌面悬浮微抬 + 边缘高光；触摸按压回弹 */
 @media (hover:hover) and (pointer:fine){
-  .card{transition:box-shadow .34s var(--ease-out), border-color .3s var(--ease-out), transform .34s cubic-bezier(.34,1.56,.64,1);}
-  .card:hover{transform:translateY(-3px); box-shadow:var(--sh-lg); border-color:color-mix(in srgb, var(--accent) 22%, var(--border));}
 }
-.card, .btn, .chip, .tab, .ibtn, [data-tap]{ -webkit-tap-highlight-color:transparent; }
-
-/* 5) 统一按压反馈：真实触感（压缩 + 微亮/暗） */
-.btn:active, .chip:active, .tab:active, .ibtn:active, [data-tap]:active, .card--tap:active{
-  transform:scale(.965) !important; transition-duration:.09s !important; filter:brightness(.97);
-}
-.btn--primary:active{ transform:scale(.97) !important; box-shadow:var(--accent-glow) !important; }
-
-/* 6) 玻璃面交互高光（随指针移动的液态光泽，由 JS 更新 --mx/--my） */
-body.glass-on .appbar::after,
-body.glass-on .btn--primary::before {
-  background: var(--glass-specular-dyn) !important;
-  opacity: .9; transition: opacity .3s var(--ease-out);
-}
-
-/* 7) 滚动时顶部栏更“实”（iOS 同款：滚动后导航更不透明 + 投影） */
-.appbar{ transition:box-shadow .35s var(--ease-out), background-color .35s var(--ease-out); }
-body.is-scrolled .appbar{ box-shadow:var(--sh-sm); }
-body.glass-on.is-scrolled .appbar{ box-shadow:var(--glass-shadow); }
-body.is-scrolled .tabbar::before{ filter:brightness(1.05); }
-
-/* 8) Hero 入场光泽扫过 */
-.hero{ position:relative; overflow:hidden; }
-.hero::after{ content:""; position:absolute; inset:0; background:linear-gradient(115deg, transparent 30%, rgba(255,255,255,.22) 48%, transparent 66%); transform:translateX(-120%); pointer-events:none; }
 @media (prefers-reduced-motion: no-preference){
-  .hero::after{ animation:hero-sheen 2.4s var(--ease-out) .3s both; }
 }
 @keyframes hero-sheen{ to{ transform:translateX(120%); } }
 
-/* 9) 焦点可达性：键盘聚焦环（Apple 风格） */
-:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; border-radius:var(--r-sm); }
-
 /* 10) 减弱动态效果：彻底关闭本层动效，保留布局 */
 @media (prefers-reduced-motion: reduce){
-  .anim-in, .view.is-active, .hero::after, .sheet, .drawer{ animation:none !important; transition:none !important; }
-  .card:hover, .btn:active, .chip:active, .tab:active, .ibtn:active, [data-tap]:active, .card--tap:active{ transform:none !important; filter:none !important; }
-}
-
-
-
-
-
-/* === APPLE ULTIMATE (mirrored from assets) === */
-
-/* ==================================================================
- * Apple Ultimate UI — Liquid Glass + Motion + Light Design Language
- * 完全重写的 Liquid Glass 体系：
- *   - 仅在 functional layer（顶栏/底栏/按钮/sheet/drawer/FAB/激活态）
- *     应用 liquid glass，内容层（card/列表项）保持干净
- *   - 多层阴影（顶部光源 + 接触阴影 + 环境阴影 + 内嵌高光）
- *   - 真实弹簧物理（cubic-bezier 0.34, 1.56, 0.64, 1 与 0.16, 1.3, 0.3, 1）
- *   - 动效全部 GPU 加速（transform/opacity）
- *   - 关键修复：.anim-in 默认 visible，避免 reduce-motion 下截图空白
- *   - 全部尊重 prefers-reduced-motion
- * ================================================================== */
-
-/* ---------- 关键修复：卡片默认 visible ---------- */
-.anim-in{
-  /* 关键：默认 visible，避免 reduce-motion / 旧设备下"永远消失" */
-  opacity: 1;
-  transform: translate3d(0, 14px, 0) scale(.985);
-  animation: appleSpringIn .62s var(--ease-apple-spring-snap) both;
-  animation-delay: calc(var(--i, 0) * 38ms);
-  will-change: transform, opacity;
 }
 @keyframes appleSpringIn{
   0%   { opacity: 0; transform: translate3d(0, 18px, 0) scale(.96); }
@@ -321,433 +199,20 @@ body.is-scrolled .tabbar::before{ filter:brightness(1.05); }
   from{ opacity: 0; transform: translate3d(0, 12px, 0) scale(.985); }
   to  { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
 }
-
-/* ---------- 强化弹簧缓动变量 ---------- */
-:root{
-  --ease-apple-spring-snap: cubic-bezier(.34, 1.56, .64, 1);  /* iOS 默认 spring */
-  --ease-apple-spring-soft: cubic-bezier(.16, 1.3, .3, 1);    /* 更大幅度，回弹更明显 */
-  --ease-apple-spring-gentle: cubic-bezier(.22, 1.6, .36, 1);  /* 轻弹簧 */
-  --ease-apple-decel: cubic-bezier(.05, .7, .1, 1);           /* 真实减速（更精确） */
-  --ease-apple-accel: cubic-bezier(.55, 0, .7, .3);
-  --ease-apple-smooth: cubic-bezier(.4, 0, .2, 1);
-  --ease-apple-bounce: cubic-bezier(.68, -0.55, .27, 1.55);
-
-  /* 多层光源阴影 —— "顶部光源 + 接触阴影 + 环境阴影" */
-  --sh-l1: 0 1px 1px rgba(15, 23, 42, .04), 0 0 0 .5px rgba(15, 23, 42, .04);
-  --sh-l2: 0 1px 2px rgba(15, 23, 42, .06), 0 4px 10px rgba(15, 23, 42, .06), 0 0 0 .5px rgba(15, 23, 42, .03);
-  --sh-l3: 0 2px 4px rgba(15, 23, 42, .04), 0 8px 24px rgba(15, 23, 42, .08), 0 1px 0 rgba(255, 255, 255, .7) inset;
-  --sh-l4: 0 4px 8px rgba(15, 23, 42, .05), 0 24px 48px rgba(15, 23, 42, .10), 0 1px 0 rgba(255, 255, 255, .8) inset;
-  --sh-l5: 0 8px 16px rgba(15, 23, 42, .07), 0 32px 64px rgba(15, 23, 42, .14), 0 1px 0 rgba(255, 255, 255, .85) inset;
-
-  /* 暗色：发光感阴影 */
-  --sh-l1-dark: 0 1px 1px rgba(0, 0, 0, .35), 0 0 0 .5px rgba(255, 255, 255, .05);
-  --sh-l2-dark: 0 1px 2px rgba(0, 0, 0, .45), 0 4px 10px rgba(0, 0, 0, .55), 0 0 0 .5px rgba(255, 255, 255, .05);
-  --sh-l3-dark: 0 2px 4px rgba(0, 0, 0, .35), 0 8px 24px rgba(0, 0, 0, .55), 0 1px 0 rgba(255, 255, 255, .05) inset;
-  --sh-l4-dark: 0 4px 8px rgba(0, 0, 0, .4), 0 24px 48px rgba(0, 0, 0, .6), 0 1px 0 rgba(255, 255, 255, .06) inset;
-  --sh-l5-dark: 0 8px 16px rgba(0, 0, 0, .5), 0 32px 64px rgba(0, 0, 0, .7), 0 1px 0 rgba(255, 255, 255, .08) inset;
-}
-
-/* ---------- Liquid Glass v2：仅应用于 functional layer ----------
- *  关键原则：
- *   - 是功能层（顶栏/底栏/sheet/drawer/FAB/激活 chip）才应用
- *   - 是内容层（卡片、列表项、phase、stat）保持干净（或 very subtle tint）
- *   - 默认无 color，反映下方内容；scroll-edge fade 自动开启
- *   - 双层光影：specular 顶部高光 + rim 边缘光
- * ----------------------------------------------------------- */
-
-/* 1. AppBar 顶栏：iOS 26 style，滚动后变得更不透明 */
-.appbar{
-  /* 内容层上方（功能性）的玻璃 */
-  background: linear-gradient(180deg,
-    rgba(255, 255, 255, .78) 0%,
-    rgba(255, 255, 255, .62) 100%) !important;
-  -webkit-backdrop-filter: saturate(1.8) blur(28px) brightness(1.04) !important;
-  backdrop-filter: saturate(1.8) blur(28px) brightness(1.04) !important;
-  border-bottom-color: transparent !important;
-  position: relative;
-  overflow: hidden;
-}
-.appbar::before{
-  /* edge-light：高光勾勒顶部边 */
-  content: ""; position: absolute; inset: 0;
-  background: linear-gradient(180deg, rgba(255, 255, 255, .8) 0%, transparent 8%);
-  mask: linear-gradient(180deg, #000 0%, transparent 60%);
-  -webkit-mask: linear-gradient(180deg, #000 0%, transparent 60%);
-  pointer-events: none; z-index: 0;
-}
-.appbar::after{
-  /* 滚动后的"细分割线" + 阴影"贴底" */
-  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px;
-  background: linear-gradient(90deg,
-    transparent 0%, rgba(0, 0, 0, .08) 50%, transparent 100%);
-  opacity: 0; transition: opacity .3s var(--ease-apple-smooth);
-}
-.appbar.is-stuck::after{ opacity: 1; }
-.appbar > * { position: relative; z-index: 1; }
-
-/* 暗色 appbar */
-html.dark .appbar{
-  background: linear-gradient(180deg,
-    rgba(20, 20, 22, .72) 0%,
-    rgba(20, 20, 22, .56) 100%) !important;
-  -webkit-backdrop-filter: saturate(1.6) blur(28px) brightness(.85) !important;
-  backdrop-filter: saturate(1.6) blur(28px) brightness(.85) !important;
-}
-html.dark .appbar::before{
-  background: linear-gradient(180deg, rgba(255, 255, 255, .08) 0%, transparent 14%);
-}
-
-/* 2. TabBar 底栏：iOS 26 style，圆角浮动 + 多层阴影 */
-.tabbar{
-  position: fixed !important;
-  left: 0; right: 0; bottom: 0;
-  z-index: 90;
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  height: calc(var(--tabbar-h, 56px) + env(safe-area-inset-bottom, 0px));
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-  background: linear-gradient(180deg,
-    rgba(255, 255, 255, .72) 0%,
-    rgba(245, 245, 247, .62) 100%) !important;
-  -webkit-backdrop-filter: saturate(1.8) blur(28px) !important;
-  backdrop-filter: saturate(1.8) blur(28px) !important;
-  border-top: 0 !important;
-  box-shadow:
-    0 0 0 .5px rgba(0, 0, 0, .05),
-    0 -1px 0 rgba(255, 255, 255, .7) inset,
-    0 -8px 24px rgba(0, 0, 0, .06),
-    0 -20px 48px rgba(0, 0, 0, .04) !important;
-  overflow: hidden;
-}
-.tabbar::before{
-  /* edge-light，底部内圈高光 */
-  content: ""; position: absolute; inset: 0;
-  background: linear-gradient(0deg, rgba(255, 255, 255, .8) 0%, transparent 6%);
-  mask: linear-gradient(0deg, #000 0%, transparent 50%);
-  -webkit-mask: linear-gradient(0deg, #000 0%, transparent 50%);
-  pointer-events: none; z-index: 0;
-}
-.tabbar::after{
-  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px;
-  background: linear-gradient(90deg,
-    transparent 0%, rgba(0, 0, 0, .06) 50%, transparent 100%);
-}
-html.dark .tabbar{
-  background: linear-gradient(180deg,
-    rgba(20, 20, 22, .72) 0%,
-    rgba(20, 20, 22, .56) 100%) !important;
-  -webkit-backdrop-filter: saturate(1.6) blur(28px) !important;
-  backdrop-filter: saturate(1.6) blur(28px) !important;
-  box-shadow:
-    0 0 0 .5px rgba(255, 255, 255, .06),
-    0 -1px 0 rgba(255, 255, 255, .06) inset,
-    0 -8px 24px rgba(0, 0, 0, .5),
-    0 -20px 48px rgba(0, 0, 0, .4) !important;
-}
-
-/* 3. Tab 选中态：springy + liquid 缩放动效 */
-.tab{
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  min-width: 0;
-  height: 100%;
-  padding: 4px 0;
-  background: transparent;
-  border: 0;
-  font: inherit;
-  color: #8E8E93;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: transform .1s cubic-bezier(.34,1.56,.64,1),
-              color .18s var(--ease-apple-smooth);
-  transform-origin: center bottom;
-}
-.tab:active{ transform: scale(.88); }
-.tab.is-active::before{
-  /* pill 选中指示器 = 液态玻璃圆角胶囊 */
-  content: "";
-  position: absolute;
-  inset: 4px 4px 0 4px;
-  background: linear-gradient(180deg,
-    rgba(255, 255, 255, .85) 0%,
-    rgba(245, 245, 247, .75) 100%);
-  -webkit-backdrop-filter: blur(20px);
-  backdrop-filter: blur(20px);
-  border-radius: 18px 18px 6px 6px / 22px 22px 6px 6px;
-  box-shadow:
-    inset 0 0 0 .5px rgba(255, 255, 255, .7),
-    inset 0 1px 0 rgba(255, 255, 255, .9),
-    0 4px 12px rgba(0, 0, 0, .08),
-    0 1px 2px rgba(0, 0, 0, .04);
-  z-index: -1;
-  animation: tab-pill-spring .46s var(--ease-apple-spring-snap);
-}
 @keyframes tab-pill-spring{
   0%{ transform: scale(.92) translateY(8px); opacity: .3; }
   60%{ transform: scale(1.06) translateY(0); opacity: 1; }
   100%{ transform: scale(1) translateY(0); opacity: 1; }
-}
-html.dark .tab.is-active::before{
-  background: linear-gradient(180deg,
-    rgba(58, 58, 60, .85) 0%,
-    rgba(44, 44, 46, .75) 100%);
-  box-shadow:
-    inset 0 0 0 .5px rgba(255, 255, 255, .14),
-    inset 0 1px 0 rgba(255, 255, 255, .18),
-    0 4px 12px rgba(0, 0, 0, .35),
-    0 1px 2px rgba(0, 0, 0, .25);
-}
-
-/* 4. Buttons：真正的按压缩放（Apple 设计，不是放大！） */
-.btn{
-  transition: transform .24s var(--ease-apple-spring-snap),
-              filter .18s var(--ease-apple-smooth),
-              background-color .18s var(--ease-apple-smooth),
-              box-shadow .24s var(--ease-apple-smooth);
-  transform-origin: center center;
-}
-.btn:hover{ filter: brightness(1.04); }
-.btn:active{
-  /* 关键：按压时 scale 到 .94 而非放大——iOS 真实触感 */
-  transform: scale(.94);
-  filter: brightness(.96);
-  transition-duration: .08s; /* 按下立即响应 */
-}
-.btn--primary{
-  /* Liquid Glass 的彩色背景（点缀色） */
-  background: linear-gradient(180deg,
-    rgba(37, 99, 235, 1) 0%,
-    rgba(29, 78, 216, 1) 100%);
-  color: #fff;
-  box-shadow:
-    inset 0 0 0 .5px rgba(255, 255, 255, .25),
-    inset 0 1px 0 rgba(255, 255, 255, .35),
-    0 1px 1px rgba(0, 0, 0, .06),
-    0 6px 16px rgba(37, 99, 235, .35),
-    0 2px 4px rgba(37, 99, 235, .2);
-}
-.btn--primary:active{
-  box-shadow:
-    inset 0 1px 0 rgba(0, 0, 0, .1),
-    0 0 0 .5px rgba(255, 255, 255, .15),
-    0 2px 6px rgba(37, 99, 235, .25);
-  background: linear-gradient(180deg,
-    rgba(29, 78, 216, 1) 0%,
-    rgba(23, 65, 184, 1) 100%);
-}
-
-/* 5. Chips：激活态真正的液态玻璃感 */
-.chip{
-  transition: transform .28s var(--ease-apple-spring-snap),
-              background-color .2s var(--ease-apple-smooth),
-              color .2s var(--ease-apple-smooth),
-              box-shadow .24s var(--ease-apple-smooth);
-  transform-origin: center center;
-}
-.chip:active{ transform: scale(.92); }
-.chip.is-on{
-  /* 选中 chip 是液态玻璃着色：tint 顶部 */
-  background: linear-gradient(180deg,
-    rgba(37, 99, 235, 1) 0%,
-    rgba(29, 78, 216, 1) 100%) !important;
-  color: #fff !important;
-  border-color: transparent !important;
-  box-shadow:
-    inset 0 0 0 .5px rgba(255, 255, 255, .28),
-    inset 0 1px 0 rgba(255, 255, 255, .4),
-    0 3px 10px rgba(37, 99, 235, .3),
-    0 1px 3px rgba(37, 99, 235, .15);
-  animation: chip-pop .48s var(--ease-apple-spring-snap);
 }
 @keyframes chip-pop{
   0%{ transform: scale(.85); }
   50%{ transform: scale(1.08); }
   100%{ transform: scale(1); }
 }
-
-/* 6. FAB：弹簧型悬浮按钮 */
-.fab{
-  transition: transform .38s var(--ease-apple-spring-snap),
-              box-shadow .3s var(--ease-apple-smooth),
-              opacity .3s var(--ease-apple-decel),
-              visibility .3s;
-}
-.fab.is-show{
-  opacity: 1;
-  visibility: visible;
-  transform: translate(0, 0);
-}
-.fab:active{ transform: scale(.85); transition-duration: .08s; }
-
-/* 7. Card：内容层 KEEP 干净（仅多层光源阴影，无 glass） */
-.card{
-  background: linear-gradient(180deg, #ffffff 0%, #fbfbfd 100%);
-  border: 1px solid var(--border);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, .9) inset,
-    0 1px 2px rgba(15, 23, 42, .04),
-    0 6px 16px rgba(15, 23, 42, .06);
-  transition: transform .36s var(--ease-apple-spring-snap),
-              box-shadow .36s var(--ease-apple-smooth),
-              border-color .2s var(--ease-apple-smooth);
-  transform-origin: center;
-  position: relative;
-}
-.card:hover{
-  transform: translateY(-2px);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, .9) inset,
-    0 2px 4px rgba(15, 23, 42, .05),
-    0 12px 28px rgba(15, 23, 42, .1);
-}
-.card:active{ transform: translateY(0) scale(.997); transition-duration: .08s; }
-html.dark .card{
-  background: linear-gradient(180deg, #1f1f23 0%, #1a1a1d 100%);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, .06) inset,
-    0 1px 2px rgba(0, 0, 0, .35),
-    0 6px 16px rgba(0, 0, 0, .5);
-  border-color: rgba(255, 255, 255, .06);
-}
-
-/* 8. Phase / List 项：内容层，简洁 + 按压微缩 */
-.phase,
-.list__item{
-  transition: transform .3s var(--ease-apple-spring-snap),
-              background-color .2s var(--ease-apple-smooth),
-              box-shadow .3s var(--ease-apple-smooth);
-  transform-origin: center;
-}
-.phase:active{ transform: scale(.99); }
-.list__item:active{ transform: scale(.992); filter: brightness(.98); }
-
-/* 9. Drawer：可全屏的浮层 liquid glass */
-.drawer{
-  background: linear-gradient(180deg,
-    rgba(255, 255, 255, .86) 0%,
-    rgba(245, 245, 247, .76) 100%) !important;
-  -webkit-backdrop-filter: saturate(1.8) blur(36px) !important;
-  backdrop-filter: saturate(1.8) blur(36px) !important;
-  box-shadow:
-    inset 1px 0 0 rgba(255, 255, 255, .8),
-    4px 0 32px rgba(0, 0, 0, .1),
-    0 0 0 .5px rgba(0, 0, 0, .06) !important;
-}
-html.dark .drawer{
-  background: linear-gradient(180deg,
-    rgba(28, 28, 30, .86) 0%,
-    rgba(20, 20, 22, .76) 100%) !important;
-  -webkit-backdrop-filter: saturate(1.6) blur(36px) !important;
-  backdrop-filter: saturate(1.6) blur(36px) !important;
-}
-
-/* 10. Sheet：底栏弹出 springy 上滑 + 多层阴影 */
-.sheet{
-  background: linear-gradient(180deg,
-    rgba(255, 255, 255, .92) 0%,
-    rgba(245, 245, 247, .86) 100%);
-  -webkit-backdrop-filter: saturate(1.8) blur(40px);
-  backdrop-filter: saturate(1.8) blur(40px);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, .9),
-    0 -12px 48px rgba(0, 0, 0, .12),
-    0 -2px 8px rgba(0, 0, 0, .06);
-}
-html.dark .sheet{
-  background: linear-gradient(180deg,
-    rgba(28, 28, 30, .92) 0%,
-    rgba(20, 20, 22, .86) 100%);
-  -webkit-backdrop-filter: saturate(1.6) blur(40px);
-  backdrop-filter: saturate(1.6) blur(40px);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, .08),
-    0 -12px 48px rgba(0, 0, 0, .5),
-    0 -2px 8px rgba(0, 0, 0, .35);
-}
-
-/* 11. Search input：液态玻璃（功能层） */
-.searchbar,
-input[type="text"],
-input[type="search"]{
-  background: linear-gradient(180deg,
-    rgba(255, 255, 255, .88) 0%,
-    rgba(245, 245, 247, .82) 100%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(1.6);
-  backdrop-filter: blur(20px) saturate(1.6);
-  box-shadow:
-    inset 0 0 0 .5px rgba(0, 0, 0, .05),
-    inset 0 1px 2px rgba(0, 0, 0, .03),
-    0 1px 3px rgba(0, 0, 0, .04);
-  transition: box-shadow .24s var(--ease-apple-smooth),
-              background-color .18s var(--ease-apple-smooth);
-}
-.searchbar:focus-within,
-input[type="text"]:focus,
-input[type="search"]:focus{
-  box-shadow:
-    inset 0 0 0 .5px rgba(37, 99, 235, .35),
-    inset 0 1px 2px rgba(37, 99, 235, .05),
-    0 0 0 4px rgba(37, 99, 235, .12),
-    0 1px 3px rgba(37, 99, 235, .08);
-  outline: none;
-}
-html.dark .searchbar,
-html.dark input[type="text"],
-html.dark input[type="search"]{
-  background: linear-gradient(180deg,
-    rgba(58, 58, 60, .78) 0%,
-    rgba(44, 44, 46, .72) 100%) !important;
-}
-
-
-/* 13. Hero：动效光泽扫过 */
-.hero{ position: relative; overflow: hidden; }
-.hero::after{
-  content: "";
-  position: absolute;
-  top: -50%; left: -50%;
-  width: 60%; height: 200%;
-  background: linear-gradient(115deg,
-    transparent 0%,
-    transparent 35%,
-    rgba(255, 255, 255, .25) 50%,
-    transparent 65%,
-    transparent 100%);
-  transform: translateX(-150%) skewX(-20deg);
-  animation: hero-shine 6s ease-in-out 1s infinite;
-  pointer-events: none;
-}
 @keyframes hero-shine{
   0%{ transform: translateX(-150%) skewX(-20deg); }
   60%{ transform: translateX(250%) skewX(-20deg); }
   100%{ transform: translateX(250%) skewX(-20deg); }
-}
-
-/* 14. Scroll edge fade：iOS 列表到达顶部/底部时的渐隐遮罩 */
-.scroll-edge{
-  position: relative;
-}
-.scroll-edge::before,
-.scroll-edge::after{
-  content: ""; position: absolute; left: 0; right: 0; height: 18px;
-  pointer-events: none; z-index: 1;
-}
-.scroll-edge::before{
-  top: 0;
-  background: linear-gradient(180deg, var(--bg) 0%, transparent 100%);
-}
-.scroll-edge::after{
-  bottom: 0;
-  background: linear-gradient(0deg, var(--bg) 0%, transparent 100%);
-}
-
-/* 15. View 切换：apple 弹簧 + 缩放动画 */
-.view.is-active{
-  animation: view-spring-in var(--t-view, .52s) var(--ease-apple-spring-gentle);
 }
 @keyframes view-spring-in{
   0%{ opacity: 0; transform: translate3d(0, 16px, 0) scale(.985); }
@@ -755,86 +220,10 @@ html.dark input[type="search"]{
   100%{ opacity: 1; transform: none; }
 }
 
-/* 16. Tap feedback：触摸 ripple 用纯 CSS 取代（更轻量） */
-.tap-target{ position: relative; overflow: hidden; isolation: isolate; }
-.tap-target::after{
-  content: ""; position: absolute; inset: 0;
-  background: radial-gradient(circle at center,
-    rgba(0, 0, 0, .08) 0%,
-    rgba(0, 0, 0, 0) 70%);
-  opacity: 0;
-  transition: opacity .18s var(--ease-apple-smooth);
-  pointer-events: none;
-}
-.tap-target:active::after{ opacity: 1; }
-html.dark .tap-target::after{
-  background: radial-gradient(circle at center,
-    rgba(255, 255, 255, .12) 0%,
-    rgba(255, 255, 255, 0) 70%);
-}
-
-/* 17. Switch：开关中关键珠 springy 滑行 */
-.switch::after{
-  transition: transform .38s var(--ease-apple-spring-snap);
-}
-
-/* 18. Apple style chosen/focused：明确的 focus ring（无障碍） */
-:focus-visible{
-  outline: 2px solid rgba(37, 99, 235, .55);
-  outline-offset: 2px;
-  border-radius: 6px;
-}
-
 /* ---------- reduce-motion 适配：安全且优雅 ---------- */
 @media (prefers-reduced-motion: reduce){
-  *, *::before, *::after{
-    animation-duration: .001ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: .001ms !important;
-    scroll-behavior: auto !important;
-    animation-fill-mode: forwards !important;  /* 关键保护 */
-  }
-  /* 确保所有元素最终可见 */
-  .anim-in{ opacity: 1 !important; transform: none !important; }
-  .tab:active, .btn:active, .chip:active, .phase:active, .list__item:active,
-  .card:active, .fab:active{
-    transform: none !important;
-  }
-  /* 模拟（skeleton）也停掉 */
-  .skel, .pulse::after, .hero::after{ animation: none !important; }
 }
-
-/* ===== 卡片手风琴展开：grid-template-rows 0fr→1fr（双向 100% 可靠） ===== */
-.card > .card__body{
-  display: grid !important;
-  grid-template-rows: 0fr !important;
-  transition: grid-template-rows var(--t-pill, .42s) var(--ease-apple-spring, cubic-bezier(.34,1.56,.64,1)),
-              margin-top var(--t-pill, .42s) var(--ease-apple-spring, cubic-bezier(.34,1.56,.64,1));
-  margin-top: 0 !important;
-}
-.card > .card__body > div{ overflow: hidden; min-height: 0; }
-.card > .card__body > div > .card__inner{
-  display: block;
-  padding-top: 0;
-  opacity: 0;
-  transform: translateY(-4px);
-  transition: opacity .28s ease .04s, transform .34s var(--ease-apple-spring, cubic-bezier(.34,1.56,.64,1)) .04s, padding-top .28s ease .04s;
-}
-.card.is-open > .card__body{
-  grid-template-rows: 1fr !important;
-  margin-top: 10px !important;
-}
-.card.is-open > .card__body > div > .card__inner{
-  opacity: 1;
-  transform: translateY(0);
-  padding-top: 4px;
-}
-.card__arrow{ transition: transform .36s var(--ease-apple-spring, cubic-bezier(.34,1.56,.64,1)); }
-.card.is-open .card__arrow{ transform: rotate(180deg); }
 @media (prefers-reduced-motion: reduce){
-  .card > .card__body, .card > .card__body > div > .card__inner, .card__arrow{ transition: none !important; }
-  .card.is-open > .card__body{ grid-template-rows: 1fr !important; }
-  .card:not(.is-open) > .card__body{ grid-template-rows: 0fr !important; }
 }
 
 /* ===== TabBar 通用基底（适用于常规 + 悬浮两种状态） ===== */
@@ -878,7 +267,7 @@ body{
     height: 56px !important;
     padding: 8px 8px !important;
     overflow: visible;
-  
+
     /* iOS26 Liquid Glass：极薄玻璃 + 强模糊折射（背景仅 12% 不透明）
        2026-08-11 校准：blur/saturate 走 tokens（thinMaterial 级），
        避免与 ::before 双层 40px 叠加过厚 */
@@ -909,13 +298,13 @@ body{
     will-change: backdrop-filter;
     animation: tabbar-spring-in var(--t-enter, .72s) cubic-bezier(.34,1.56,.64,1) .15s both;
     }
-  
+
   @keyframes tabbar-spring-in{
     0%   { opacity: 0; transform: translateY(36px) scale(.92); }
     60%  { opacity: 1; }
     100% { opacity: 1; transform: translateY(0) scale(1); }
   }
-  
+
   /* 滚动变实：仅改表面层（背景不透明 + blur↓ + 阴影减淡），
      几何完全继承静止态（left/right/bottom/padding/border-radius 不变）——
      2026-08-11 用户反馈"胶囊随滑动晃"：原 left/right 24→39px 收窄 +
@@ -936,7 +325,6 @@ body{
       inset 0 -1px 2px rgba(255, 255, 255, .06),
       inset 0 1px 0 rgba(255, 255, 255, .25) !important;
   }
-
 
 /* 暗色适配（iOS 26 Liquid Glass 暗色变体） */
 @media (prefers-color-scheme: dark){
@@ -1061,8 +449,6 @@ body.dark .tab{ color: rgba(235, 235, 245, .60); }
   .hero{ opacity:1; transform:none; }
 }
 
-
-
 /* ===== Apple UI Pro：极致光影 / 深度 / 弹簧动效（增强层，复用现有变量） ===== */
 
 /* 1) 重新定义层级阴影：顶部光源 → 贴地接触阴影 + 柔和环境阴影 */
@@ -1146,10 +532,6 @@ body.is-scrolled .tabbar::before{ filter:brightness(1.05); }
   .anim-in, .view.is-active, .hero::after, .sheet, .drawer{ animation:none !important; transition:none !important; }
   .card:hover, .btn:active, .chip:active, .tab:active, .ibtn:active, [data-tap]:active, .card--tap:active{ transform:none !important; filter:none !important; }
 }
-
-
-
-
 
 /* === APPLE ULTIMATE (mirrored from assets) === */
 
@@ -1566,7 +948,6 @@ html.dark input[type="search"]{
     rgba(58, 58, 60, .78) 0%,
     rgba(44, 44, 46, .72) 100%) !important;
 }
-
 
 /* 13. Hero：动效光泽扫过 */
 .hero{ position: relative; overflow: hidden; }
@@ -1879,7 +1260,6 @@ html[data-kb="1"] body.tabbar-regular .tabbar {
   transform: translate3d(0, 100%, 0);
 }
 
-
 /* ============================================================
    Liquid 模式"通透 + 流畅"优化（用户 2026-08-11 23:40 反馈）
    液态玻璃核心 = 透明玻璃：背景"直接透出"而非模糊不透。
@@ -1962,7 +1342,8 @@ body.has-wallpaper .tablewrap,
 body.has-wallpaper .dict__row,
 body.has-wallpaper .qz__opt,
 body.has-wallpaper .qz__item,
-body.has-wallpaper .sheet,
+/* .sheet 不在这里：它是固定层，不随列表滚动重绘，吃"滚动层 0 blur"政策只会让它变成
+   一块无视通透度的平涂白。底栏/弹窗/抽屉/标题栏统一由文件末尾的配方段接管。 */
 body.has-wallpaper .chips,
 body.has-wallpaper .btn--soft,
 body.has-wallpaper .fab,
@@ -2364,7 +1745,6 @@ body.is-scrolling.glass-gaussian .list__item {
   background: rgba(44, 44, 46, var(--glass-content-a, .85)) !important;
 }
 
-
 /* ============================================================
    2026-09-22 内容层统一通透度通道（修「壁纸上还有白色色块」）
    ------------------------------------------------------------
@@ -2405,3 +1785,118 @@ html.dark body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .
     var(--glass-sheet-bot-k, rgba(32,32,36,.56)) 100%) !important;
   transition: background .18s ease;
 }
+
+/* 2026-09-22：Android 上的液态玻璃保留上下渐退（厂商配方里读"厚度"的线索之一）。
+   上面 .android-webview 那条降级把 2128 的渐变覆盖成了平涂白，于是"玻璃"只剩一块
+   均匀磨砂；这里把渐变补回来，只关掉 backdrop-filter —— 背后模糊已由 .wall 单层提供，
+   逐元素再模糊一遍既看不出差别（背景已经是虚的）又是滚动闪屏的来源。
+   只作用于 liquid：frosted / gaussian 的实色蒙版走上面原样。 */
+.android-webview body.glass-on.glass-liquid.has-wallpaper .card,
+.android-webview body.glass-on.glass-liquid.has-wallpaper .list,
+.android-webview body.glass-on.glass-liquid.has-wallpaper .list__item,
+.android-webview body.glass-on.glass-liquid.has-wallpaper .phase,
+.android-webview body.glass-on.glass-liquid.has-wallpaper .stat,
+.android-webview body.glass-on.glass-liquid.has-wallpaper .tablewrap,
+.android-webview body.glass-on.glass-liquid.has-wallpaper .dict__row,
+.android-webview body.glass-on.glass-liquid.has-wallpaper .dict__kv,
+.android-webview body.glass-on.glass-liquid.has-wallpaper .chips,
+.android-webview body.glass-on.glass-liquid.has-wallpaper .card__head,
+.android-webview body.glass-on.glass-liquid.has-wallpaper .sec,
+.android-webview body.glass-on.glass-liquid.has-wallpaper .note--plain,
+.android-webview body.glass-on.glass-liquid.has-wallpaper .answer,
+.android-webview body.glass-on.glass-liquid.has-wallpaper .qz__fb {
+  background: linear-gradient(160deg, var(--glass-tint-top) 0%, var(--glass-tint-bot) 100%) !important;
+}
+.android-webview.dark body.glass-on.glass-liquid.has-wallpaper .card,
+.android-webview.dark body.glass-on.glass-liquid.has-wallpaper .list,
+.android-webview.dark body.glass-on.glass-liquid.has-wallpaper .list__item,
+.android-webview.dark body.glass-on.glass-liquid.has-wallpaper .phase,
+.android-webview.dark body.glass-on.glass-liquid.has-wallpaper .stat,
+.android-webview.dark body.glass-on.glass-liquid.has-wallpaper .tablewrap,
+.android-webview.dark body.glass-on.glass-liquid.has-wallpaper .dict__row,
+.android-webview.dark body.glass-on.glass-liquid.has-wallpaper .dict__kv,
+.android-webview.dark body.glass-on.glass-liquid.has-wallpaper .chips,
+.android-webview.dark body.glass-on.glass-liquid.has-wallpaper .card__head,
+.android-webview.dark body.glass-on.glass-liquid.has-wallpaper .sec,
+.android-webview.dark body.glass-on.glass-liquid.has-wallpaper .note--plain,
+.android-webview.dark body.glass-on.glass-liquid.has-wallpaper .answer,
+.android-webview.dark body.glass-on.glass-liquid.has-wallpaper .qz__fb {
+  background: linear-gradient(160deg,
+    rgba(44,44,46,var(--glass-tint-top-a,.52)) 0%,
+    rgba(32,32,36,var(--glass-tint-bot-a,.40)) 100%) !important;
+}
+
+/* ============================================================
+   固定层的玻璃表面：唯一归属（读玻璃配方表）
+   ------------------------------------------------------------
+   底栏 / 弹窗是 position:fixed 的固定层，不随列表滚动重绘，因此可以吃真模糊；
+   上面那些散落在各块里的 .tabbar / .sheet 表面声明（含 has-wallpaper 的"0 blur"
+   政策）由这一段统一接管 —— 参数只存在于 glass-recipe.json → css/00-recipe.css。
+   明暗都写全选择器：少写一条，html.dark 的旧规则就会因优先级更高而绕过配方。
+   ============================================================ */
+body.glass-on .tabbar,
+html.dark body.glass-on .tabbar {
+  background: linear-gradient(180deg, var(--gr-tabbar-tint-top) 0%, var(--gr-tabbar-tint-bot) 100%) !important;
+  -webkit-backdrop-filter: var(--gr-tabbar-filter) !important;
+  backdrop-filter: var(--gr-tabbar-filter) !important;
+  box-shadow: var(--gr-tabbar-shadow), var(--gr-lens-rim), var(--gr-lens-glow), var(--gr-lens-aberration) !important;
+}
+body.glass-on .sheet,
+html.dark body.glass-on .sheet {
+  background: linear-gradient(180deg, var(--gr-sheet-tint-top) 0%, var(--gr-sheet-tint-bot) 100%) !important;
+  -webkit-backdrop-filter: var(--gr-sheet-filter) !important;
+  backdrop-filter: var(--gr-sheet-filter) !important;
+  box-shadow: var(--gr-sheet-shadow), var(--gr-lens-rim), var(--gr-lens-glow), var(--gr-lens-aberration) !important;
+}
+
+/* ============================================================
+   「动画效果 = 关闭」的真实开关（2026-09-22 接上）
+   此前这个设置只往 documentElement 写 data-motion，全站没有任何消费方 ——
+   界面写着"已关闭"，实际照旧动。现在按 prefers-reduced-motion 同一套做法接上。
+   用 .001ms 而不是 animation:none：后者会让带入场动画的元素停在 opacity:0，
+   整页文字消失 —— 正是本项目这两天在修的那一类缺陷，别再引进来。
+   ============================================================ */
+html[data-motion="off"] *,
+html[data-motion="off"] *::before,
+html[data-motion="off"] *::after {
+  animation-duration: .001ms !important;
+  animation-delay: 0ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: .001ms !important;
+  transition-delay: 0ms !important;
+  scroll-behavior: auto !important;
+}
+/* 省的就是这两样：合成层提示与视差 */
+html[data-motion="off"] .wall { will-change: auto; }
+html[data-motion="off"] .anim-in { opacity: 1 !important; transform: none !important; will-change: auto; }
+html[data-motion="off"] .card__body { transition: none !important; }
+
+/* ============================================================
+   分节标签收成胶囊（2026-09-23）
+   .sec 整行戴着玻璃板，却是零内边距零圆角 —— 深色壁纸上就是一条硬边色带，
+   用户原话"太生硬割裂"。板子挪到标签本身，分隔线留在板外并渐隐收尾。
+   ============================================================ */
+.sec { background: none !important; border-color: transparent !important; box-shadow: none !important; }
+.sec__t { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px 5px 8px; border-radius: var(--r-full); }
+.sec__line { background: linear-gradient(90deg, var(--border) 0%, transparent 92%); }
+body.glass-on.has-wallpaper .sec__t {
+  background: linear-gradient(160deg, var(--glass-tint-top) 0%, var(--glass-tint-bot) 100%);
+}
+html.dark body.glass-on.has-wallpaper .sec__t {
+  background: linear-gradient(160deg, rgba(44,44,46,var(--glass-tint-top-a,.52)) 0%, rgba(32,32,36,var(--glass-tint-bot-a,.40)) 100%);
+}
+body.has-wallpaper:not(.glass-on) .sec__t { background: rgba(255,255,255,.72); }
+html.dark body.has-wallpaper:not(.glass-on) .sec__t { background: rgba(44,44,46,.72); }
+
+/* ============================================================
+   按压形变（液态玻璃的"QQ弹弹、按住能拉扯"）
+   厂商那套手感的核心不是模糊，是跟手形变：按住 → 朝手指方向位移 + 沿拖动方向
+   拉伸，松手 → 弹簧过冲回位。只做 transform（合成层，不触发布局）。
+   必须用 !important：入场动画 .anim-in 的 fill:both 会盖过普通内联 transform，
+   而 important 作者声明的优先级在动画之上。
+   ============================================================ */
+.sq-live, .sq-back {
+  transform: translate3d(var(--sqx, 0px), var(--sqy, 0px), 0) scale(var(--sqsx, 1), var(--sqsy, 1)) !important;
+}
+.sq-live { transition: none !important; }
+.sq-back { transition: transform var(--sq-back, .46s) var(--ease-apple-spring) !important; }

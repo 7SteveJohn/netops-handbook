@@ -13,10 +13,7 @@ html {
 body {
   margin: 0;
   min-height: 100%;
-  background: var(--wallpaper), var(--ambient, none), var(--bg);
-  background-size: cover;
-  background-position: center;
-  background-attachment: fixed;
+  background: var(--ambient, none), var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
   font-size: 15px;
@@ -33,6 +30,21 @@ body {
   transition: background-color var(--t-base) var(--ease-out),
               color var(--t-base) var(--ease-out);
 }
+
+/* ---- 预模糊背景层（液态玻璃的"可透之物"）----
+   为什么单独一层：逐元素 backdrop-filter 的成本随卡片数量线性增长，滚动时反复重算，
+   正是当初 Android WebView「白雾闪」的根因。壁纸在这里铺一次、blur 一次，
+   上面的内容只叠半透明薄板，不再读取 backdrop —— 老 WebView 也吃得住。
+   overscan：blur 会把元素边缘吃成透明，所以四周要多留 3σ。 */
+.wall {
+  position: fixed;
+  inset: calc(-3 * var(--bg-blur, 0px) - 8px);
+  z-index: -1;
+  pointer-events: none;
+  background: var(--wallpaper, none) center / cover no-repeat;
+  filter: blur(var(--bg-blur, 0px)) saturate(var(--bg-sat, 100%)) brightness(var(--bg-bri, 100%));
+}
+body.glass-on.has-wallpaper .wall { will-change: filter; }
 
 h1,h2,h3,h4,h5,h6,p,ul,ol,figure { margin: 0; }
 ul, ol { padding: 0; list-style: none; }

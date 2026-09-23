@@ -11,7 +11,7 @@ const OUT = path.resolve(ROOT, '..', 'app', 'src', 'main', 'assets', 'index.html
 const MIN = !process.argv.includes('--no-min');
 
 const CSS_FILES = [
-  'css/01-tokens.css', 'css/02-base.css', 'css/03-layout.css',
+  'css/00-recipe.css', 'css/01-tokens.css', 'css/02-base.css', 'css/03-layout.css',
   'css/04-components.css', 'css/05-views.css', 'css/06-anim.css'
 ];
 const JS_FILES = [
@@ -142,6 +142,19 @@ function syntaxCheck(files, isCss) {
 
 function build() {
   const t0 = Date.now();
+  /* 玻璃配方表 → css/00-recipe.css。构建期直接重生成：表是唯一真源，
+     这样"改了 json 忘了生成"不可能发生（比报错更进一步）。 */
+  try {
+    const recipe = require('./tools/gen-glass-recipe');
+    const css = recipe.build();
+    if (!fs.existsSync(recipe.OUT) || fs.readFileSync(recipe.OUT, 'utf8') !== css) {
+      fs.writeFileSync(recipe.OUT, css, 'utf8');
+      console.log('  · 玻璃配方表已重新生成 css/00-recipe.css');
+    }
+  } catch (e) {
+    console.error('\n  ✗ 玻璃配方表生成失败（glass-recipe.json 有问题？）：' + e.message);
+    process.exit(1);
+  }
   const report = [];
 
   const preErrs = syntaxCheck(CSS_FILES, true).concat(syntaxCheck(JS_FILES, false));
@@ -248,6 +261,20 @@ function build() {
     problems.push('内容一致性门禁无法运行: ' + e.message);
   }
 
+  /* ---------- 可读性门禁 ----------
+     通透度 × 壁纸是用户自由组合，"字看不见"靠肉眼点检必漏（本项目真漏过：
+     14 张内置壁纸 100% 面积不达 AA、最差 1.00:1）。这里把运行时的下限求解
+     在构建期复算一遍。工具自带退出码与中文报告，用子进程跑，保持它能单独执行。 */
+  let contrastGate = { ok: true, msg: '' };
+  try {
+    contrastGate.msg = require('child_process')
+      .execFileSync(process.execPath, [path.join(__dirname, 'tools', 'audit-contrast.js')], { encoding: 'utf8' })
+      .trim();
+  } catch (e) {
+    contrastGate.ok = false;
+    contrastGate.msg = String(e.stdout || e.stderr || e.message).trim();
+  }
+
   /* ---------- 报告 ---------- */
   console.log('\n  NetOps 2.0 构建' + (MIN ? '（压缩）' : '（未压缩）'));
   console.log('  ' + '-'.repeat(46));
@@ -260,7 +287,7 @@ function build() {
   console.log('  ' + '产物'.padEnd(30) + kb(html).padStart(12));
   console.log('  → ' + path.relative(path.resolve(ROOT, '..'), OUT).replace(/\\/g, '/'));
 
-  const failed = problems.length > 0 || !glass.ok || !content.ok;
+  const failed = problems.length > 0 || !glass.ok || !content.ok || !contrastGate.ok;
   if (failed) {
     if (problems.length) {
       console.log('\n  ✗ 离线校验未通过：');
@@ -275,11 +302,16 @@ function build() {
       console.log('\n  ✗ 内容一致性门禁未通过（见 tools/audit-content-consistency.js）：');
       content.errs.forEach(v => console.log('    - ' + v));
     }
+    if (!contrastGate.ok) {
+      console.log('\n  ✗ 可读性门禁未通过（见 tools/audit-contrast.js）：');
+      console.log('    ' + contrastGate.msg.replace(/\n/g, '\n    '));
+    }
     process.exitCode = 1;
   } else {
     console.log('\n  ✓ 离线校验通过：零外部请求 / 零 CDN / 全部资源内联');
     console.log('  ✓ 玻璃覆盖门禁通过：不透明底色全部走 --surf-* token 或登记了例外理由');
     console.log('  ✓ 内容一致性门禁通过：' + JSON.stringify(content.counts) + '（README 数字与产物措辞已比对）');
+    console.log('  ' + contrastGate.msg);
   }
   console.log('  用时 ' + (Date.now() - t0) + 'ms\n');
 }

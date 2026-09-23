@@ -138,7 +138,8 @@
 
   /* ---------------- 通用片段 ---------------- */
   function sec(ico, text) {
-    return '<div class="sec">' + icon(ico, 'icon--xs') + esc(text) + '<i class="sec__line"></i></div>';
+    return '<div class="sec"><span class="sec__t">' + icon(ico, 'icon--xs') + esc(text) +
+           '</span><i class="sec__line"></i></div>';
   }
   function bullets(list, mod) {
     if (!list || !list.length) return '';

@@ -1,0 +1,48 @@
+/* ============================================================
+   玻璃配方表（生成物，勿手改）
+   真源：web-src/glass-recipe.json，改完跑 node tools/gen-glass-recipe.js
+   ============================================================ */
+:root {
+  --gr-bg-sat: 180%;
+  --gr-tabbar-tint-top: rgba(255,255,255,.72);
+  --gr-tabbar-tint-bot: rgba(245,245,247,.62);
+  --gr-tabbar-filter: saturate(1.8) blur(28px);
+  --gr-tabbar-shadow: 0 0 0 .5px rgba(0,0,0,.05), 0 -1px 0 rgba(255,255,255,.7) inset, 0 -8px 24px rgba(0,0,0,.06), 0 -20px 48px rgba(0,0,0,.04);
+  --gr-tabbar-specular: rgba(255,255,255,.88);
+  --gr-sheet-tint-top: rgba(255,255,255,.92);
+  --gr-sheet-tint-bot: rgba(245,245,247,.86);
+  --gr-sheet-filter: saturate(1.8) blur(40px);
+  --gr-sheet-shadow: inset 0 1px 0 rgba(255,255,255,.9), 0 -12px 48px rgba(0,0,0,.12), 0 -2px 8px rgba(0,0,0,.06);
+  --gr-sheet-specular: rgba(255,255,255,.95);
+  --gr-card-tint-top: rgba(255,255,255,.20);
+  --gr-card-tint-bot: rgba(250,250,252,.14);
+  --gr-card-border: rgba(255,255,255,.35);
+  --gr-lens-rim: inset 0 0 0 .5px rgba(255,255,255,.55), inset 0 1px 1px rgba(255,255,255,.8), inset 0 -1px 1px rgba(0,0,0,.05);
+  --gr-lens-glow: inset 0 0 30px 1px rgba(255,255,255,.06);
+  --gr-lens-aberration: inset 1px 0 0 rgba(120,170,255,.06), inset -1px 0 0 rgba(255,150,120,.05);
+  --gr-spring: cubic-bezier(.34,1.56,.64,1);
+  --gr-decel: cubic-bezier(.05,.7,.1,1);
+  --gr-squish-max: 7px;
+  --gr-squish-press: 0.975;
+  --gr-squish-stretch: 0.06;
+  --gr-squish-squash: 0.035;
+  --gr-squish-back: 0.46s;
+}
+
+html.dark {
+  --gr-tabbar-tint-top: rgba(20,20,22,.72);
+  --gr-tabbar-tint-bot: rgba(20,20,22,.56);
+  --gr-tabbar-filter: saturate(1.6) blur(28px) brightness(.85);
+  --gr-tabbar-shadow: 0 0 0 .5px rgba(255,255,255,.08), 0 -1px 0 rgba(255,255,255,.12) inset, 0 -8px 24px rgba(0,0,0,.32);
+  --gr-tabbar-specular: rgba(255,255,255,.28);
+  --gr-sheet-tint-top: rgba(28,28,30,.92);
+  --gr-sheet-tint-bot: rgba(20,20,22,.86);
+  --gr-sheet-filter: saturate(1.6) blur(40px);
+  --gr-sheet-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 -12px 48px rgba(0,0,0,.5), 0 -2px 8px rgba(0,0,0,.3);
+  --gr-sheet-specular: rgba(255,255,255,.32);
+  --gr-card-tint-top: rgba(44,44,46,.52);
+  --gr-card-tint-bot: rgba(32,32,36,.40);
+  --gr-card-border: rgba(255,255,255,.14);
+  --gr-lens-rim: inset 0 0 0 .5px rgba(255,255,255,.24), inset 0 1px 1px rgba(255,255,255,.28), inset 0 -1px 1px rgba(0,0,0,.10);
+  --gr-lens-glow: inset 0 0 30px 1px rgba(255,255,255,.04);
+}
