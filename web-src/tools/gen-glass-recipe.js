@@ -57,10 +57,6 @@ function build() {
   put('sheet-filter', s.sheet.light.filter, s.sheet.dark.filter);
   put('sheet-shadow', s.sheet.light.shadow, s.sheet.dark.shadow);
   put('sheet-specular', s.sheet.light.specular, s.sheet.dark.specular);
-  put('card-tint-top', s.card.light.tintTop, s.card.dark.tintTop);
-  put('card-tint-bot', s.card.light.tintBot, s.card.dark.tintBot);
-  put('card-border', s.card.light.border, s.card.dark.border);
-
   put('lens-rim', r.lens.rim, r.lens.rimDark);
   put('lens-glow', r.lens.innerGlow, r.lens.innerGlowDark);
   put('lens-aberration', r.lens.aberration);
@@ -77,7 +73,6 @@ function build() {
   put('rim-dark-alpha', sp.darkAlpha);
 
   put('spring', r.motion.spring);
-  put('decel', r.motion.decel);
   const q = r.motion.squish;
   put('squish-max', q.max + 'px');
   put('squish-press', q.press);

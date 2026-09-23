@@ -53,16 +53,8 @@
       }
     },
     "card": {
-      "light": {
-        "tintTop": "rgba(255,255,255,.20)",
-        "tintBot": "rgba(250,250,252,.14)",
-        "border": "rgba(255,255,255,.35)"
-      },
-      "dark": {
-        "tintTop": "rgba(44,44,46,.52)",
-        "tintBot": "rgba(32,32,36,.40)",
-        "border": "rgba(255,255,255,.14)"
-      }
+      "_note": "已停用：滚动层不做真玻璃（2026-08-12 决策，逐元素 backdrop-filter 在 WebView 滚动时反复重采样背景必闪）。保留这段只为说明卡片为什么不该有玻璃参数；生成器不再输出 --gr-card-*。",
+      "disabled": true
     }
   },
   "lens": {
@@ -82,8 +74,8 @@
     "aberration": "inset 1px 0 0 rgba(120,170,255,.06), inset -1px 0 0 rgba(255,150,120,.05)"
   },
   "motion": {
+    "_note": "spring 供共享药丸与底栏 morph 使用；squish 五项是隐藏调参面板（长按「全局质感」标题）的默认值，由 32-boot.js 的 SQT_DEF 从 --gr-squish-* 读取，别再在 JS 里抄第二份。decel 已删：代码库里另有 --ease-apple-decel 且是不同曲线，这条没有消费者。",
     "spring": "cubic-bezier(.34,1.56,.64,1)",
-    "decel": "cubic-bezier(.05,.7,.1,1)",
     "pillBackMs": 460,
     "squish": {
       "max": 7,

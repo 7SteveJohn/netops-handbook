@@ -492,7 +492,21 @@
      幅度/时长是手感参数，只能真机上手调，所以做成可实时改的 store 值：
      长按「全局质感」弹窗标题 0.6 秒开调参面板（隐藏入口，不占正式界面）。 */
   var SQUISH_SEL = '.tab, .chip, .btn, .ibtn, .list__item, .phase, .stat, .card__head, #fab';
-  var SQT_DEF = { max: 7, press: 0.975, stretch: 0.06, squash: 0.035, back: 460 };
+  /* 形变默认值取自玻璃配方表（motion.squish → --gr-squish-*），不再在这里抄第二份。
+     以前 SQT_DEF 和表里是同一组数字各存一份，改表其实不改行为。
+     单位换算：max 生成的是 px、back 是 s，而面板按 px 数值与 ms 用。
+     读不到（CSS 未到）时退回字面值，保证调参面板不会因为取不到变量而瘫掉。 */
+  var SQT_DEF = (function () {
+    var cs = w.getComputedStyle(d.documentElement);
+    var num = function (n, dflt) { var v = parseFloat(cs.getPropertyValue(n)); return isFinite(v) ? v : dflt; };
+    return {
+      max: num('--gr-squish-max', 7),
+      press: num('--gr-squish-press', 0.975),
+      stretch: num('--gr-squish-stretch', 0.06),
+      squash: num('--gr-squish-squash', 0.035),
+      back: Math.round(num('--gr-squish-back', 0.46) * 1000)
+    };
+  })();
   function getSqt() {
     var v = null;
     try { v = U.store.get('sqtune', null); } catch (e) { v = null; }
@@ -1116,7 +1130,10 @@
     /* 预模糊背景层参数：玻璃开着才有模糊，关玻璃回到清晰壁纸（与历史行为一致）。
        层的模糊比元素 backdrop 略强，因为这层要替所有卡片承担"背后是虚的"。 */
     root.style.setProperty('--bg-blur', g.on ? (blurPx + 6) + 'px' : '0px');
-    root.style.setProperty('--bg-sat', g.on && em !== 'gaussian' ? '180%' : '100%');
+    /* 饱和度上限来自配方表 backdrop.saturate（--gr-bg-sat），不再在这里写死 180%。
+       gaussian 档是"纯模糊"，刻意不带饱和提升。 */
+    var bgSat = (w.getComputedStyle(root).getPropertyValue('--gr-bg-sat') || '').trim() || '180%';
+    root.style.setProperty('--bg-sat', g.on && em !== 'gaussian' ? bgSat : '100%');
     /* 关键一味：只 saturate 不压亮度就是"难看的灰玻璃"——业界配方是
        饱和度提上去的同时把背后压暗（浅色轻压、深色重压），玻璃才读得出厚度。
        这里的百分比必须与 measureWallFloor 两套 combo 的 dim 同值，门禁会核对。 */
