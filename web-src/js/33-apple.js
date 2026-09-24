@@ -164,9 +164,12 @@
    * =sRGB 才不会整体偏移），B 留给边缘高光。位移只发生在 bezel 环形带内，中心保持
    * 平坦 —— 参考实现就是"边缘弯、中间平"，中间平了字才读得清。
    * ================================================================== */
-  var LENS_SURFACES = [
-    { sel: '.tabbar', id: 'glass-lens-tabbar', cls: 'glass-lens--tabbar' }
-  ];
+  /* 2026-09-25 真机裁决（荣耀 AAP-AN00 / Chrome 151，截图迭代实证）：透镜在底栏上
+     的首版渲染是**负资产**——位移带 band=min(hw,hh)=栏高一半，整条栏都在形变区内，
+     左圆角（第一个 tab）被扭成一坨深色圆斑，用户原话"叠加元素太多了"。清空本列表
+     即全局停用；optics 参数与 makeLensMap/applyLensTo 保留，等真机调参（缩小
+     bezel/refraction、或只对药丸做透镜）验证过关后再恢复。 */
+  var LENS_SURFACES = [];
 
   function lensOptics() {
     var cs = getComputedStyle(document.documentElement);

@@ -233,14 +233,17 @@ html.dark body.glass-on.glass-gaussian { --ambient: none; }
      最暗/最亮合成（L2 = .715 / .044）分别 5.38:1 / 4.76:1；
    - 未选中 #54545c：对板合成 L1=.624 为 4.77:1（暗色 rgba(235,235,245,.60)
    叠暗板实测 5.77:1，本就达标，不覆盖）。 */
+/* 2026-09-25 二轮：暗色底栏改为"白 veil 高光"后，选中 tab 转白（未选中 60% 灰白）。
+   深灰药丸+浅蓝字的旧组合在玻璃栏上是块贴纸；白 veil 下浅蓝只有 2:1，白色 5.1:1。
+   hi 档同样转白——veil 上限对比 ~5.6，7:1 对 chrome 标签物理不可达（正文仍 7:1）。 */
 body.glass-on.has-wallpaper { --text-2: #3c3c40; --text-3: #55555a; --accent-muted: #2e4fae; --tab-inactive: #54545c; }
-html.dark body.glass-on.has-wallpaper { --text-2: #e6e6ea; --text-3: #b9b9c2; --accent-muted: #6faeeb; }
+html.dark body.glass-on.has-wallpaper { --text-2: #e6e6ea; --text-3: #b9b9c2; --accent-muted: #f5f5f7; }
 /* 「增强对比度」档：目标 7:1（华为指南的长时间阅读值）。
    只加厚玻璃到不了 7:1 —— 实测暗色下把 alpha 顶到 0.96 也只有 5.6:1，
    因为天花板是玻璃板自身的亮度。厂商做法是同时提文字对比，这里照做。
    放在上面两条之后：同优先级靠后者生效。 */
 html.hi-contrast body.glass-on.has-wallpaper { --text-2: #232326; --text-3: #2c2c30; --accent-muted: #1e3a85; }
-html.dark.hi-contrast body.glass-on.has-wallpaper { --text-2: #f5f5f7; --text-3: #e6e6ea; --accent-muted: #b3d6fa; }
+html.dark.hi-contrast body.glass-on.has-wallpaper { --text-2: #f5f5f7; --text-3: #e6e6ea; --accent-muted: #f5f5f7; }
 
 /* ============================================================
    暗色主题（深色玻璃更透、边缘光更收敛）

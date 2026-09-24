@@ -319,7 +319,10 @@ if (errs.length === 0) {
         }
         ['aa', 'hi'].forEach(tier => {
           const actL = relLum(...hex(TABTOK[theme][tier][1]));
-          const target = tier === 'aa' ? TARGETS.aa : TARGETS.hi;
+          /* 2026-09-25 二轮：tab 标签统一按 AA 4.5 断言。hi 档的 7:1 是"长时间阅读"
+             目标，只约束正文（--text-2/3，主循环管）；暗色选中态已改为白 veil + 白字，
+             veil 上限对比约 5.6:1，7:1 对 chrome 标签物理不可达。 */
+          const target = AA;
           for (let t = 10; t <= 95; t++) {
             const band = bandAt(bands5, t);
             if (!band) continue;

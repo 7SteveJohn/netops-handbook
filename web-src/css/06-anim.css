@@ -199,11 +199,6 @@
   from{ opacity: 0; transform: translate3d(0, 12px, 0) scale(.985); }
   to  { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
 }
-@keyframes tab-pill-spring{
-  0%{ transform: scale(.92) translateY(8px); opacity: .3; }
-  60%{ transform: scale(1.06) translateY(0); opacity: 1; }
-  100%{ transform: scale(1) translateY(0); opacity: 1; }
-}
 @keyframes chip-pop{
   0%{ transform: scale(.85); }
   50%{ transform: scale(1.08); }
@@ -687,18 +682,9 @@ html.dark .appbar::before{
   background: linear-gradient(90deg,
     transparent 0%, rgba(0, 0, 0, .06) 50%, transparent 100%);
 }
-html.dark .tabbar{
-  background: linear-gradient(180deg,
-    rgba(20, 20, 22, .72) 0%,
-    rgba(20, 20, 22, .56) 100%) !important;
-  -webkit-backdrop-filter: saturate(1.6) blur(28px) !important;
-  backdrop-filter: saturate(1.6) blur(28px) !important;
-  box-shadow:
-    0 0 0 .5px rgba(255, 255, 255, .06),
-    0 -1px 0 rgba(255, 255, 255, .06) inset,
-    0 -8px 24px rgba(0, 0, 0, .5),
-    0 -20px 48px rgba(0, 0, 0, .4) !important;
-}
+/* html.dark .tabbar 的旧字面玻璃块已删（2026-09-25）：玻璃开时配方块（源序更晚）
+   本来就盖掉它，留着只会造成"改表还有半套旧值"；玻璃关时它错误地把底栏画成玻璃
+   （关玻璃的底栏应是 03-layout 的透明容器 + ::before 实色内胆）。 */
 
 /* 3. Tab 选中态：springy + liquid 缩放动效 */
 .tab{
@@ -722,40 +708,13 @@ html.dark .tabbar{
   transform-origin: center bottom;
 }
 .tab:active{ transform: scale(.88); }
-.tab.is-active::before{
-  /* pill 选中指示器 = 液态玻璃圆角胶囊 */
-  content: "";
-  position: absolute;
-  inset: 4px 4px 0 4px;
-  background: linear-gradient(180deg,
-    rgba(255, 255, 255, .85) 0%,
-    rgba(245, 245, 247, .75) 100%);
-  -webkit-backdrop-filter: blur(20px);
-  backdrop-filter: blur(20px);
-  border-radius: 18px 18px 6px 6px / 22px 22px 6px 6px;
-  box-shadow:
-    inset 0 0 0 .5px rgba(255, 255, 255, .7),
-    inset 0 1px 0 rgba(255, 255, 255, .9),
-    0 4px 12px rgba(0, 0, 0, .08),
-    0 1px 2px rgba(0, 0, 0, .04);
-  z-index: -1;
-  animation: tab-pill-spring .46s var(--ease-apple-spring-snap);
-}
-@keyframes tab-pill-spring{
-  0%{ transform: scale(.92) translateY(8px); opacity: .3; }
-  60%{ transform: scale(1.06) translateY(0); opacity: 1; }
-  100%{ transform: scale(1) translateY(0); opacity: 1; }
-}
-html.dark .tab.is-active::before{
-  background: linear-gradient(180deg,
-    rgba(58, 58, 60, .85) 0%,
-    rgba(44, 44, 46, .75) 100%);
-  box-shadow:
-    inset 0 0 0 .5px rgba(255, 255, 255, .14),
-    inset 0 1px 0 rgba(255, 255, 255, .18),
-    0 4px 12px rgba(0, 0, 0, .35),
-    0 1px 2px rgba(0, 0, 0, .25);
-}
+/* 3. Tab 选中态指示器（2026-09-25 重做：原生液态玻璃只画一层）
+   ------------------------------------------------------------
+   浮层（tabbar-float，默认）模式以前画了**两套**选中指示器：每 tab 的玻璃胶囊
+   （本处旧块，深色版 rgba(58,58,60,.85)+双重投影）叠在共享药丸上——用户真机反馈
+   "叠加元素太多了"。现在浮层一律只由共享药丸负责（见下方 .tabbar > .tab-pill），
+   本块整删；每 tab 的指示只剩 03-layout 的 5px 圆点（被浮层 content:none 关掉）
+   与常规贴底模式的顶部蓝线。 */
 
 /* ---- 边缘折射透镜层（方案 A）----
    独立一层而不是并进上面的曲线链：backdrop-filter 整条声明要么一起生效要么一起被
@@ -772,6 +731,8 @@ html.dark .tab.is-active::before{
   -webkit-backdrop-filter: var(--lens-url);
   backdrop-filter: var(--lens-url);
   pointer-events: none;
+  /* 2026-09-25：LENS_SURFACES 已清空（真机裁决见 33-apple.js），此层不会再被创建；
+     规则保留给将来的调参恢复。 */
 }
 
 /* ---- 共享选中态药丸（用户 2026-09-23 缺陷②：底栏动效生硬）----
@@ -797,9 +758,7 @@ html.dark .tab.is-active::before{
   backdrop-filter: blur(20px) saturate(1.6);
   box-shadow:
     inset 0 0 0 .5px rgba(255, 255, 255, .5),
-    inset 0 1px 0 rgba(255, 255, 255, .55),
-    0 4px 12px rgba(0, 0, 0, .08),
-    0 1px 2px rgba(0, 0, 0, .04);
+    inset 0 1px 0 rgba(255, 255, 255, .55);
   z-index: 0;
   pointer-events: none;
   transition: transform var(--gr-squish-back, .46s) var(--gr-spring, cubic-bezier(.34,1.56,.64,1)),
@@ -807,14 +766,15 @@ html.dark .tab.is-active::before{
   will-change: transform;
 }
 html.dark .tabbar > .tab-pill{
+  /* 2026-09-25 二轮：深灰 .85 药丸在玻璃栏上是一块"贴纸"（用户实测反馈）。
+     原生液态玻璃的选中高光是"更亮一层玻璃"——极淡白色 veil + 选中项转白字
+     （未选中 60% 灰白，层级不变）。alpha 不能再高：白字 4.5:1 反向压着它。 */
   background: linear-gradient(180deg,
-    rgba(58, 58, 60, .85) 0%,
-    rgba(44, 44, 46, .75) 100%);
+    rgba(255, 255, 255, .08) 0%,
+    rgba(255, 255, 255, .05) 100%);
   box-shadow:
-    inset 0 0 0 .5px rgba(255, 255, 255, .14),
-    inset 0 1px 0 rgba(255, 255, 255, .18),
-    0 4px 12px rgba(0, 0, 0, .35),
-    0 1px 2px rgba(0, 0, 0, .25);
+    inset 0 0 0 .5px rgba(255, 255, 255, .16),
+    inset 0 1px 0 rgba(255, 255, 255, .20);
 }
 /* 浮动模式下关掉旧的每-tab 药丸：两枚叠在一起就是第二层"假玻璃"。
    常规（贴底满宽）模式不动，仍用原来那枚，所以这里把共享药丸藏起来。 */
