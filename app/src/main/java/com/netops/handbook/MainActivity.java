@@ -304,10 +304,14 @@ public class MainActivity extends AppCompatActivity {
         s.setJavaScriptEnabled(true);          // 全部逻辑在本地脚本内
         s.setDomStorageEnabled(true);          // 打卡 / 收藏 / 主题偏好持久化
         s.setDatabaseEnabled(true);
-        s.setAllowFileAccess(true);            // 仅用于 android_asset
+        s.setAllowFileAccess(true);            // assets 与外部目录（devpage 热加载）都要
         s.setAllowContentAccess(false);
-        s.setAllowFileAccessFromFileURLs(false);
-        s.setAllowUniversalAccessFromFileURLs(false);
+        /* 2026-09-24：devpage 指向应用外部目录后，file:// 页面加载同目录子资源
+           （壁纸 img / CSS url）被 WebView 判为跨 file 访问而拒载（真机探针实证
+           img FAIL；assets 源不受影响——android_asset 走内部资产通道不经文件系统）。
+           打开两个开关；内容全部本地打包、blockExternal 拦外部导航，无远程输入面。 */
+        s.setAllowFileAccessFromFileURLs(true);
+        s.setAllowUniversalAccessFromFileURLs(true);
         s.setUseWideViewPort(true);
         s.setLoadWithOverviewMode(true);
         s.setSupportZoom(false);
