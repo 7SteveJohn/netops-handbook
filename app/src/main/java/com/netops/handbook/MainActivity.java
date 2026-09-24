@@ -35,6 +35,7 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
 import java.nio.charset.Charset;
@@ -56,6 +57,35 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "NetOps";
     private static final String PAGE = "file:///android_asset/index.html";
+
+    /**
+     * 热加载钩子：应用专属外部目录下若有 devpage 文件（内容为 file:/// 开头的 URL），
+     * 加载它而不是内置 assets —— 配合 tools/dev-push.js 免重打包调试。
+     * 文件不存在/内容不合法/读取失败一律回退 PAGE，本钩子绝不影响正常启动。
+     */
+    private String page() {
+        try {
+            File f = new File(getExternalFilesDir(null), "devpage");
+            if (f.isFile() && f.length() > 0 && f.length() < 4096) {
+                byte[] buf;
+                try (FileInputStream in = new FileInputStream(f)) {
+                    buf = new byte[(int) f.length()];
+                    int n = in.read(buf);
+                    if (n < 0) n = 0;
+                }
+                String u = new String(buf, java.nio.charset.StandardCharsets.UTF_8).trim();
+                u = u.replace("\uFEFF", "");   // 去 BOM，防记事本类工具写入的 UTF-8 签名
+                if (u.startsWith("file:///")) {
+                    Log.i(TAG, "devpage 生效：" + u);
+                    return u;
+                }
+                Log.w(TAG, "devpage 内容非 file:/// 开头，忽略：" + u);
+            }
+        } catch (Throwable t) {
+            Log.w(TAG, "devpage 读取失败（回退内置页）", t);
+        }
+        return PAGE;
+    }
 
     private static final String PREFS = "netops.shell";
     /** 网页最近一次生效的配色（"dark" / "light"），用于下次冷启动首帧配色。 */
@@ -152,7 +182,7 @@ public class MainActivity extends AppCompatActivity {
         if (state != null) {
             try { restored = webView.restoreState(state) != null; } catch (Exception e) { restored = false; }
         }
-        if (!restored) webView.loadUrl(PAGE);
+        if (!restored) webView.loadUrl(page());
     }
 
     /** 渲染进程没了 / 反复载入失败后的自我了断式重建。 */
@@ -182,7 +212,7 @@ public class MainActivity extends AppCompatActivity {
         if (reloadTries++ < 2) {
             Log.w(TAG, "首页载入失败，第 " + reloadTries + " 次自动重试：" + why);
             webView.postDelayed(() -> {
-                if (webView != null && !rendererGone) webView.loadUrl(PAGE);
+                if (webView != null && !rendererGone) webView.loadUrl(page());
             }, 600L * reloadTries);
             return;
         }
@@ -346,7 +376,7 @@ public class MainActivity extends AppCompatActivity {
             @SuppressWarnings("deprecation")
             @Override
             public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
-                if (failingUrl != null && failingUrl.startsWith(PAGE)) handleLoadFailure(description);
+                if (failingUrl != null && failingUrl.startsWith(page())) handleLoadFailure(description);
             }
 
             @Override
@@ -354,7 +384,7 @@ public class MainActivity extends AppCompatActivity {
                                         android.webkit.WebResourceError error) {
                 if (request == null || !request.isForMainFrame()) return;   // 子资源（壁纸）失败忽略
                 String u = request.getUrl() == null ? "" : request.getUrl().toString();
-                if (!u.startsWith(PAGE)) return;
+                if (!u.startsWith(page())) return;
                 handleLoadFailure(error == null ? "unknown" : String.valueOf(error.getDescription()));
             }
 
