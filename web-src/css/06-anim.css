@@ -1633,13 +1633,15 @@ html.dark body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .
    - 深色同理；.ring 进度环用 conic-gradient 兜底；sheet/drawer 用近实色
    - is-scrolling 防御：若存在 is-scrolling 类,强制保持 blur(滚动不 on/off)
    - 按压态移除 filter: brightness(避免 GPU 图层重绘闪)
+   2026-09-24 修订（P1）：固定层（.tabbar::before/.appbar/.drawer/.sheet）
+   从降级清单摘出，玻璃表面归「固定层的玻璃表面」配方表拥有块接管。原因：
+   降级块特异性 (0,3,1) 高于拥有块 (0,2,1)，同带 !important 时把真机固定层
+   压成白板（底栏不通透的根因）。白雾闪病灶在滚动内容，固定层不随滚动重绘，
+   无需陪降；.searchbar 在文档流内、.toast 短暂即逝，维持降级。
    ============================================================ */
-.android-webview body.glass-on .appbar,
-.android-webview body.glass-on .tabbar::before,
-.android-webview body.glass-on .drawer,
+/* 2026-09-24（P1）：.appbar/.tabbar::before/.drawer/.sheet 摘出，归配方表 */
 .android-webview body.glass-on .searchbar,
 .android-webview body.glass-on .card,
-.android-webview body.glass-on .sheet,
 .android-webview body.glass-on .toast,
 .android-webview body.glass-on .list__item,
 .android-webview body.glass-on .list,
@@ -1662,12 +1664,9 @@ html.dark body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .
   border-color: rgba(0, 0, 0, 0.08) !important;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06) !important;
 }
-.android-webview.dark body.glass-on .appbar,
-.android-webview.dark body.glass-on .tabbar::before,
-.android-webview.dark body.glass-on .drawer,
+/* 2026-09-24（P1）：dark 同上摘出固定层 */
 .android-webview.dark body.glass-on .searchbar,
 .android-webview.dark body.glass-on .card,
-.android-webview.dark body.glass-on .sheet,
 .android-webview.dark body.glass-on .toast,
 .android-webview.dark body.glass-on .list__item,
 .android-webview.dark body.glass-on .phase,
@@ -1717,16 +1716,8 @@ body.is-scrolling.glass-gaussian .list__item {
 .card[data-kind="iv"] .card__body .card__inner .note::before {
   display: none !important;
 }
-.android-webview .sheet,
-.android-webview .drawer {
-  background: rgba(255, 255, 255, 0.92) !important;
-  -webkit-backdrop-filter: none !important;
-  backdrop-filter: none !important;
-}
-.android-webview.dark .sheet,
-.android-webview.dark .drawer {
-  background: rgba(28, 28, 30, 0.92) !important;
-}
+/* 2026-09-24（P1）：sheet/drawer 的近实色降级已删 —— 固定层表面归配方表拥有块
+   （本文件「固定层的玻璃表面」段）接管；白雾闪病灶在滚动内容，固定层不随滚动重绘。 */
 
 /* ============================================================
    2026-08-12 18:18（按用户整合方案）：WebView 滚动时蒙版消失修复（GPU 合成层提升）
@@ -1791,9 +1782,9 @@ body.is-scrolling.glass-gaussian .list__item {
   background: rgba(35, 35, 40, 0.70) !important;
 }
 
-/* 4. 针对 Android WebView 额外保证滑动时背景不透明（防闪白） */
+/* 4. 针对 Android WebView 额外保证滑动时背景不透明（防闪白）
+   2026-09-24（P1）：.sheet 摘出，归配方表 */
 .android-webview body.glass-on .card,
-.android-webview body.glass-on .sheet,
 .android-webview body.glass-on .list__item,
 .android-webview body.glass-on .list,
 .android-webview body.glass-on .phase,
@@ -1802,7 +1793,6 @@ body.is-scrolling.glass-gaussian .list__item {
   background: rgba(255, 255, 255, var(--glass-content-a, .85)) !important;
 }
 .android-webview.dark body.glass-on .card,
-.android-webview.dark body.glass-on .sheet,
 .android-webview.dark body.glass-on .list__item,
 .android-webview.dark body.glass-on .list,
 .android-webview.dark body.glass-on .phase,
@@ -1836,21 +1826,10 @@ body.has-wallpaper {
   --surf-3: rgba(var(--surf-rgb-3), var(--surf-a-3));
 }
 
-/* 弹窗（.sheet）液态下走「下限档」：跟随通透度，但由 --glass-sheet-* 兜住不低于 .55。
-   周围没有层次可借的浮层若一路透到底，实测暗壁纸区正文对比度只剩 1.12:1（AA 需 4.5）。
-   本块须位于上面各清单之后，靠特异性(0,5,1)+源顺序压过 1972 段的 .78 常量。 */
-body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .sheet {
-  background: linear-gradient(160deg,
-    var(--glass-sheet-top, rgba(255,255,255,.78)) 0%,
-    var(--glass-sheet-bot, rgba(250,250,252,.62)) 100%) !important;
-  transition: background .18s ease;
-}
-html.dark body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .sheet {
-  background: linear-gradient(160deg,
-    var(--glass-sheet-top-k, rgba(44,44,46,.68)) 0%,
-    var(--glass-sheet-bot-k, rgba(32,32,36,.56)) 100%) !important;
-  transition: background .18s ease;
-}
+/* 2026-09-24（P6）：弹窗「下限档」已删。它以 (0,5,1)+!important 压过配方表拥有块，
+   导致 --gr-sheet-tint-* 只在无壁纸时生效。配方表 sheet alpha（.92/.86，明暗同）
+   高于旧下限档（≥.55），可读性不回退；--glass-sheet-* 仍由 04-components.css 的
+   body.glass-on .sheet 兜底链消费，JS 写入逻辑不变。 */
 
 /* 2026-09-22：Android 上的液态玻璃保留上下渐退（厂商配方里读"厚度"的线索之一）。
    上面 .android-webview 那条降级把 2128 的渐变覆盖成了平涂白，于是"玻璃"只剩一块
