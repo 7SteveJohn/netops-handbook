@@ -19,6 +19,7 @@ import android.view.View;
 import android.view.Window;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -358,6 +359,42 @@ public class MainActivity extends AppCompatActivity {
         });
 
         webView.setWebViewClient(new WebViewClient() {
+            /**
+             * 2026-09-25（探针三臂鉴别实证）：Android 17 / Chrome 151 的 WebView 对
+             * file→file 访问整体硬拦 —— 主文档可载，但子资源 img 与 XHR 全拒
+             * （status=0），setAllowFileAccessFromFileURLs/Universal 两个开关已失效。
+             * devpage 热加载源的子资源由此处从应用进程直接流式供给，绕开 file 策略；
+             * 只接管应用外部目录，android_asset 等其余请求返回 null 走默认通道。
+             */
+            @Override
+            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                Uri u = request == null ? null : request.getUrl();
+                if (u == null || !"file".equalsIgnoreCase(u.getScheme())) return null;
+                File ext = getExternalFilesDir(null);
+                if (ext == null) return null;
+                String url = u.toString();
+                String prefix = "file://" + ext.getAbsolutePath() + "/";
+                if (!url.startsWith(prefix)) return null;
+                String rel = url.substring(prefix.length());
+                /* URL 里的路径是百分号编码的（中文名 → %E7%BA%B3…），磁盘上是解码后的
+                   文件名——不先解码就会全部 404（首次实测就是这么败的）。Uri.decode 只解
+                   %XX、不动 '+'，正是这里要的语义。 */
+                rel = Uri.decode(rel);
+                try {
+                    File f = new File(ext, rel);
+                    if (rel.contains("..")
+                            || !f.getCanonicalPath().startsWith(ext.getCanonicalPath() + File.separator)
+                            || !f.isFile()) {
+                        return emptyResponse(404, "not found");
+                    }
+                    return new WebResourceResponse(mimeFor(f.getName()), null,
+                            new FileInputStream(f));
+                } catch (Exception e) {
+                    Log.w(TAG, "子资源接管失败：" + rel, e);
+                    return emptyResponse(500, "intercept error");
+                }
+            }
+
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 return blockExternal(request.getUrl());
@@ -676,7 +713,25 @@ public class MainActivity extends AppCompatActivity {
         if (n.endsWith(".md") || n.endsWith(".markdown")) return "text/markdown";
         if (n.endsWith(".txt")) return "text/plain";
         if (n.endsWith(".html") || n.endsWith(".htm")) return "text/html";
+        /* 2026-09-25：子资源接管用——壁纸/样式/脚本按正确 MIME 流出 */
+        if (n.endsWith(".webp")) return "image/webp";
+        if (n.endsWith(".png")) return "image/png";
+        if (n.endsWith(".jpg") || n.endsWith(".jpeg")) return "image/jpeg";
+        if (n.endsWith(".gif")) return "image/gif";
+        if (n.endsWith(".svg")) return "image/svg+xml";
+        if (n.endsWith(".css")) return "text/css";
+        if (n.endsWith(".js") || n.endsWith(".mjs")) return "text/javascript";
         return "application/octet-stream";
+    }
+
+    /** 拦截路径上的最小错误响应（404/500），绝不让接管逻辑自身抛异常打断加载。 */
+    private WebResourceResponse emptyResponse(int code, String reason) {
+        try {
+            return new WebResourceResponse("text/plain", "utf-8", code, reason, null,
+                    new java.io.ByteArrayInputStream(new byte[0]));
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private String writeDocument(String fileName, String body) throws Exception {
