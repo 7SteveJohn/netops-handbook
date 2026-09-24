@@ -669,7 +669,10 @@ html.dark .appbar::before{
     0 -1px 0 rgba(255, 255, 255, .7) inset,
     0 -8px 24px rgba(0, 0, 0, .06),
     0 -20px 48px rgba(0, 0, 0, .04) !important;
-  overflow: hidden;
+  /* overflow:hidden 已删（P4 陷阱②）：位移折射的滤镜输出本应允许溢出 border box
+     （参考引擎规则：玻璃层要留形变空间）。子元素全都待在盒内（药丸 inset 4px、
+     ::before 带 border-radius:inherit、tab 有内边距），当年这行没有可见职责；
+     真机定稿若给 .glass-lens 加负 inset overscan，不会再被这里裁掉。 */
 }
 .tabbar::before{
   /* edge-light，底部内圈高光 */
@@ -757,7 +760,11 @@ html.dark .tab.is-active::before{
 /* ---- 边缘折射透镜层（方案 A）----
    独立一层而不是并进上面的曲线链：backdrop-filter 整条声明要么一起生效要么一起被
    丢弃，把 url(#lens) 追加进去等于拿已经可用的压缩曲线去赌一个 WebView 版本支持。
-   --lens-url 由 33-apple.js 写入；没写入之前这条声明无效，整层自然惰性。 */
+   --lens-url 由 33-apple.js 写入；没写入之前这条声明无效，整层自然惰性。
+   33-apple.js 只在 body.glass-on 时建层（P4 陷阱①：关玻璃的 tabbar 是透明底，
+   位移贴图会重复计 alpha）；这层绝不能自带 background —— 任何不透明底都画在
+   backdrop-filter 输出之上，等于亲手盖掉折射。形变空间：宿主 overflow 已放开（P4②），
+   overscan 待真机定稿后再议。 */
 .glass-lens{
   position: absolute;
   inset: 0;

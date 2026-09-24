@@ -294,11 +294,17 @@
     if (!(window.CSS && CSS.supports && CSS.supports('backdrop-filter', 'url(#x)'))) return;
     var raf = 0;
     function run() {
+      var glassOn = document.body.classList.contains('glass-on');
       LENS_SURFACES.forEach(function (s) {
         var host = document.querySelector(s.sel);
         if (!host) return;
-        var rb = host.getBoundingClientRect();
         var layer = host.querySelector(':scope > .' + s.cls);
+        /* 陷阱①（P4）：关玻璃时 tabbar 本体是透明底（03-layout .tabbar{background:transparent}，
+           表面由 ::before 提供）。位移贴图在先乘空间对各通道求和，透明底会把 alpha 重复算进
+           采样（参考引擎规则：承载层要有不透明底）。透镜本来就是玻璃设计的一部分 ——
+           关玻璃直接摘层，不存在"在透明表面上折射"。 */
+        if (!glassOn) { if (layer) layer.remove(); return; }
+        var rb = host.getBoundingClientRect();
         var key = Math.round(rb.width) + 'x' + Math.round(rb.height);
         /* 只在形状真的变了才重画贴图：切 tab 时药丸移动，底栏本身尺寸不变 */
         if (layer && layer.dataset.lensW === key) return;
