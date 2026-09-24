@@ -15,6 +15,7 @@ const CSS_FILES = [
   'css/04-components.css', 'css/05-views.css', 'css/06-anim.css'
 ];
 const JS_FILES = [
+  'js/00-guard.js',
   'js/data/10-core.js', 'js/data/20-extend.js', 'js/data/21-quiz.js',
   'js/data/22-cli-rules.js',
   'js/10-topo.js', 'js/20-ui.js', 'js/30-core.js', 'js/31-views.js', 'js/32-boot.js', 'js/33-apple.js'
@@ -211,6 +212,9 @@ function build() {
   if (MIN) {
     html = html.replace(/\n\s*\n/g, '\n');
   }
+  /* problems 必须在占位符/尺寸自检之前声明：下面几条 push 曾经写在声明之后 ——
+     没触发所以没炸过，一旦触发就是 ReferenceError，把真正的构建问题掩掉 */
+  const problems = [];
   /* 占位符若被改名/漏写，replace 会静默不生效 —— 产物照样“构建成功”但什么都没有 */
   const leftover = ['/*__CSS__*/', '<!--__SPRITE__-->', '/*__JS__*/'].filter(t => html.indexOf(t) >= 0);
   if (leftover.length) problems.push('模板占位符未被替换：' + leftover.join(' '));
@@ -221,7 +225,6 @@ function build() {
   catch (e) { problems.push('内联后的 JS 无法编译（拼接把某处截断了？）：' + String(e.message).slice(0, 120)); }
 
   /* ---------- 离线合规校验 ---------- */
-  const problems = [];
   const externals = html.match(/(?:src|href)\s*=\s*["'](?!#)[^"']*["']/gi) || [];
   externals.forEach(m => {
     if (/["'](https?:)?\/\//i.test(m)) problems.push('外部资源引用: ' + m);
