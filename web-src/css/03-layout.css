@@ -236,7 +236,7 @@ body.glass-on.tabbar-regular .tabbar::before {
   justify-content: center;
   gap: 4px;                               /* 规范：图标-文字间距 4pt */
   padding: 8px 0 6px;                     /* 顶部 8pt + 底部 6pt，给图标显式垂直居中空间 */
-  color: #8E8E93;                         /* 规范：未选中 #8E8E93 */
+  color: var(--tab-inactive, #8E8E93);    /* 规范：未选中 #8E8E93；壁纸模式由 token 加深（门禁核 4.5:1） */
   font-size: 10px;                        /* 规范：文字 10pt */
   font-weight: 500;
   line-height: 1.2;                       /* 锁定行高，避免中文 fallback 让 10pt 撑到 18-20pt 顶爆容器 */

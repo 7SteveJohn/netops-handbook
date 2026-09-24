@@ -11,9 +11,23 @@
    旧版这里用的是未压缩的原始分位，于是它要求 0.46–0.92 的板厚；而压缩曲线接进运行时之后，
    那个下限既不再必要、又把滑杆低段整段夹死 —— 门禁在保护一个已经不存在的模型。
 
-   两条断言：
-     1. 每一个整数档位的实际 alpha 下，二级/三级文字都要过目标对比度（硬）。
+   三条光路（2026-09-25 P2 摸清，别再混）：
+     A. tabbar / sheet：配方表面自带 blur(28/40px) + --glass-cmp 压缩链 → 本文件主循环
+        的带就是它们的真实背景。第 5 节的底栏文字（药丸选中态 / 板上未选中态）也走这里。
+     B. 消费 --glass-tint-* 的表面（appbar/搜索栏/抽屉/sec__t）与 --glass-content-a 的
+        滚动内容：liquid 模式 backdrop-filter 全是 none，背景是**未经压缩链的 .wall 输出**
+        （数据里的 wallOnly 口径）。主循环的带对它们是乐观口径 —— 差距见末尾"结构性缺口"
+        报告（不阻断，HANDOFF P2 定为仅靠人眼验收 + 留待设计决策：诚实下限会夹死
+        滑杆 57–88% 行程，等于砍掉低通透档）。
+     C. 混合口径：门禁与运行时求解器统一在 relLum 空间做 alpha 叠加（保持求解器奇偶校验）。
+        真实渲染在 sRGB 通道空间叠加，对"亮板压暗底"比本模型暗（如 72% 白/黑底：真实
+        0.48 vs 模型 0.72）。方向是"模型乐观"，底栏文字的 token 值已按更严的真实口径
+        反解（见 01-tokens.css has-wallpaper 块注释），门禁断言用同一口径防漂移。
+
+   断言：
+     1. 每一个整数档位的实际 alpha 下，二级/三级文字都要过目标对比度（硬，光路 A 口径）。
      2. 被下限夹住（滑杆拖了画面不动）的档位数不得超过棘轮 DEAD_HARD。
+     3. 底栏文字（药丸选中态 4.5/增强 7、未选中态 4.5）在全带扫描下达标（硬，光路 A）。
    ============================================================ */
 const fs = require('fs');
 const path = require('path');
@@ -151,6 +165,64 @@ function solveFloor(band, plate, text, target) {
   return null;
 }
 
+/* ---------- 5. 底栏文字（P2，2026-09-25）：药丸上的选中态 + 板上的未选中态 ----------
+   光路 A：tabbar 自带配方 blur + 压缩链，主循环的带就是它背后的真实分布。
+   叠层与取样位置：
+     - 文字中心取 56px tab 高度的 69.6%（图标 22 + 间距 4 + 标签 12 垂直居中），
+       药丸（top:4px 起，高 52px）在自身局部 67.3%。渐变温和，位置差几像素不敏感。
+     - 板/药丸在文字高度上的等效 rgba = 两端 stop 按位置线性混合（relLum 空间，口径 C）。
+     - 未选中文字直接对板合成 L1 断言 4.5:1（暗色 token 自带 alpha，先对 L1 预合成）。
+     - 选中文字先叠板（L1）再叠药丸（L2），对 L2 断言 4.5:1；增强对比度档 7:1。
+   模型输入全部从源码解析（药丸渐变、配方 tint、token），谁改了谁，这里跟着重算。 */
+const animCss = read(path.join(ROOT, 'css', '06-anim.css'));
+const layoutCss = read(path.join(ROOT, 'css', '03-layout.css'));
+function gradStops(css, sel) {
+  /* 同一选择器文本可能出现多次（如减动效块里的无参覆盖），取第一个带两端 rgba 的块 */
+  let i = css.indexOf(sel);
+  while (i >= 0) {
+    const body = css.slice(i, css.indexOf('}', i));
+    const stops = [...body.matchAll(/rgba\(([\d.]+),\s*([\d.]+),\s*([\d.]+),\s*([\d.]+)\)/g)]
+      .slice(0, 2).map(m => ({ rgb: [+m[1], +m[2], +m[3]], a: +m[4] }));
+    if (stops.length === 2) return stops;
+    i = css.indexOf(sel, i + 1);
+  }
+  return null;
+}
+function rgbaStops(css, re) {
+  return [...css.matchAll(re)].map(m => ({ rgb: [+m[1], +m[2], +m[3]], a: +m[4] }));
+}
+const pillStops = gradStops(animCss, '.tabbar > .tab-pill{');
+const pillStopsDark = gradStops(animCss, 'html.dark .tabbar > .tab-pill{');
+const tintTopAll = rgbaStops(recCss, /--gr-tabbar-tint-top:\s*rgba\(([\d.]+),\s*([\d.]+),\s*([\d.]+),\s*([\d.]+)\)/g);
+const tintBotAll = rgbaStops(recCss, /--gr-tabbar-tint-bot:\s*rgba\(([\d.]+),\s*([\d.]+),\s*([\d.]+),\s*([\d.]+)\)/g);
+if (!pillStops || !pillStopsDark)
+  errs.push('06-anim.css 里找不到共享药丸两端的 rgba 渐变（底栏文字门禁的叠层模型失效）');
+if (tintTopAll.length !== 2 || tintBotAll.length !== 2)
+  errs.push('00-recipe.css 的 --gr-tabbar-tint-top/bot 须明暗各两条（解析到 top ' + tintTopAll.length + ' / bot ' + tintBotAll.length + '）');
+if (!/color:\s*var\(--tab-inactive/.test(layoutCss))
+  errs.push('03-layout.css 的 .tab 不再消费 var(--tab-inactive) —— 未选中色被改回字面值，门禁与实现脱钩');
+if (!/color:\s*var\(--tab-inactive/.test(animCss))
+  errs.push('06-anim.css 的 html.dark .tab 不再消费 var(--tab-inactive)');
+const TABTOK = {
+  light: { aa: tokens.match(/body\.glass-on\.has-wallpaper \{[^}]*--accent-muted:\s*(#[0-9a-f]{6})/i),
+           hi: tokens.match(/html\.hi-contrast body\.glass-on\.has-wallpaper \{[^}]*--accent-muted:\s*(#[0-9a-f]{6})/i),
+           inactive: tokens.match(/body\.glass-on\.has-wallpaper \{[^}]*--tab-inactive:\s*(#[0-9a-f]{6})/i) },
+  dark:  { aa: tokens.match(/html\.dark body\.glass-on\.has-wallpaper \{[^}]*--accent-muted:\s*(#[0-9a-f]{6})/i),
+           hi: tokens.match(/html\.dark\.hi-contrast body\.glass-on\.has-wallpaper \{[^}]*--accent-muted:\s*(#[0-9a-f]{6})/i),
+           inactive: tokens.match(/html\.dark \{[^}]*--tab-inactive:\s*rgba\(([^)]+)\)/) }
+};
+['light', 'dark'].forEach(t => ['aa', 'hi'].forEach(k => {
+  if (!TABTOK[t][k]) errs.push('01-tokens.css 缺 ' + t + '/' + k + ' 壁纸作用域的 --accent-muted（底栏选中态门禁需要，含 hi-contrast 档）');
+}));
+if (!TABTOK.light.inactive) errs.push('01-tokens.css 缺壁纸作用域 --tab-inactive（浅色未选中态门禁需要）');
+if (!TABTOK.dark.inactive) errs.push('01-tokens.css 的 html.dark 块缺 --tab-inactive（暗色未选中态门禁需要）');
+
+/* frosted/gaussian 的 .appbar 字面值（结构性报告用；liquid 下它被 --glass-tint 曲线盖掉，见 P3） */
+const appbarLit = { light: gradStops(animCss, '.appbar{'), dark: gradStops(animCss, 'html.dark .appbar{') };
+
+const structural = { tint: 99, frost: 99 };
+const tabReport = { act: { aa: 99, hi: 99 }, ina: 99 };
+
 const report = [];
 if (errs.length === 0) {
   for (const f of known) {
@@ -173,6 +245,23 @@ if (errs.length === 0) {
           if (floor === null) floor = MAX_A;
           const a = Math.max(baseA(t), floor);
           if (floor > baseA(t) + 1e-9) row.dead[tier]++;
+          /* 结构性缺口采样（只记录不阻断，口径 B）：tint 表面的真实背景是未经压缩链的
+             .wall 输出。数据只存了最小 blur 档的 wallOnly —— 取对本主题文字最不利的一端，
+             是保守口径。这里跑的是运行时实际会用的 alpha（max(baseA, floor)）。 */
+          const wo = data.wallpapers[f][theme].wallOnly;
+          if (wo) {
+            const bgRaw = theme === 'light' ? wo[0] : wo[2];
+            const cT = contrast(a * combo.plate + (1 - a) * bgRaw, text);
+            if (cT < structural.tint) structural.tint = cT;
+            const ab = appbarLit[theme];
+            if (ab) {
+              const mixI = i => ab[0].rgb[i] + (ab[1].rgb[i] - ab[0].rgb[i]) * 0.696;
+              const abl = relLum(mixI(0), mixI(1), mixI(2));
+              const aba = ab[0].a + (ab[1].a - ab[0].a) * 0.696;
+              const cF = contrast(aba * abl + (1 - aba) * bgRaw, text);
+              if (cF < structural.frost) structural.frost = cF;
+            }
+          }
           for (const bg of band) {
             const lb = a * combo.plate + (1 - a) * bg;
             const c3 = contrast(lb, text);
@@ -191,6 +280,62 @@ if (errs.length === 0) {
   const worstDead = Math.max(...report.map(r => Math.max(r.dead.aa, r.dead.hi)));
   if (worstDead / 86 > DEAD_HARD)
     errs.push('最差情况下通透度有 ' + worstDead + '/86 档（' + Math.round(worstDead / 86 * 100) + '%）被下限钉死，棘轮上限 ' + Math.round(DEAD_HARD * 100) + '% —— 滑杆拖了画面不动');
+
+  /* 第 5 节扫描：底栏文字（光路 A，精确叠层） */
+  if (!pillStops || !pillStopsDark || tintTopAll.length !== 2 || tintBotAll.length !== 2) {
+    /* 上面已 errs 点名，这里无法建模 */
+  } else {
+    const Y_TAB = 0.696, Y_PILL = 0.673;
+    const mixStop = (s0, s1, y) => ({
+      rgb: [0, 1, 2].map(i => s0.rgb[i] + (s1.rgb[i] - s0.rgb[i]) * y),
+      a: s0.a + (s1.a - s0.a) * y
+    });
+    for (const f of known) {
+      if (!onDisk.includes(f)) continue;
+      for (const theme of ['light', 'dark']) {
+        const bands5 = {};
+        STOPS.forEach(t => { bands5[t] = data.wallpapers[f][theme]['t' + t]; });
+        const thI = theme === 'light' ? 0 : 1;
+        const tb = mixStop(tintTopAll[thI], tintBotAll[thI], Y_TAB);
+        const pw = mixStop(theme === 'light' ? pillStops[0] : pillStopsDark[0],
+                           theme === 'light' ? pillStops[1] : pillStopsDark[1], Y_PILL);
+        const plateL = relLum(tb.rgb[0], tb.rgb[1], tb.rgb[2]);
+        const pillL = relLum(pw.rgb[0], pw.rgb[1], pw.rgb[2]);
+        const inaRaw = TABTOK[theme].inactive[1];
+        const inaM = inaRaw.match(/([\d.]+),\s*([\d.]+),\s*([\d.]+),\s*([\d.]+)/);
+        const inaCol = inaM ? { rgb: [+inaM[1], +inaM[2], +inaM[3]], a: +inaM[4] }
+                             : { rgb: hex(inaRaw), a: 1 };
+        const inaL = relLum(inaCol.rgb[0], inaCol.rgb[1], inaCol.rgb[2]);
+        for (let t = 10; t <= 95; t++) {
+          const band = bandAt(bands5, t);
+          if (!band) continue;                     /* 缺档已由第 4 节点名 */
+          for (const bg of band) {
+            const L1 = tb.a * plateL + (1 - tb.a) * bg;
+            const cIna = contrast(inaCol.a * inaL + (1 - inaCol.a) * L1, L1);
+            if (cIna < tabReport.ina) tabReport.ina = cIna;
+            if (cIna < AA)
+              errs.push(f + ' · ' + theme + ' · t' + t + '：未选中 tab 文字只有 ' + cIna.toFixed(2) + ':1（要求 ' + AA + '）—— 壁纸作用域加深 --tab-inactive');
+          }
+        }
+        ['aa', 'hi'].forEach(tier => {
+          const actL = relLum(...hex(TABTOK[theme][tier][1]));
+          const target = tier === 'aa' ? TARGETS.aa : TARGETS.hi;
+          for (let t = 10; t <= 95; t++) {
+            const band = bandAt(bands5, t);
+            if (!band) continue;
+            for (const bg of band) {
+              const L1 = tb.a * plateL + (1 - tb.a) * bg;
+              const L2 = pw.a * pillL + (1 - pw.a) * L1;
+              const cAct = contrast(actL, L2);
+              if (cAct < tabReport.act[tier]) tabReport.act[tier] = cAct;
+              if (cAct < target)
+                errs.push(f + ' · ' + theme + ' · ' + tier + ' · t' + t + '：药丸上选中 tab 只有 ' + cAct.toFixed(2) + ':1（要求 ' + target + '）—— 壁纸作用域调整 --accent-muted');
+            }
+          }
+        });
+      }
+    }
+  }
 }
 
 if (errs.length) {
@@ -202,4 +347,10 @@ console.log('✓ 可读性门禁通过：' + known.length + ' 张 × 明暗 = ' 
   '最低对比度 默认档 ' + Math.min(...report.map(r => r.worst.aa)).toFixed(2) + ':1（要求 ≥' + TARGETS.aa + '），' +
   '增强档 ' + Math.min(...report.map(r => r.worst.hi)).toFixed(2) + ':1（要求 ≥' + TARGETS.hi + '）；' +
   '被下限夹住的档位最多 ' + maxDead + '/86（棘轮 ' + Math.round(DEAD_HARD * 100) + '%）');
+console.log('  底栏文字（药丸选中/板上未选中，光路 A）：选中 最差 aa ' +
+  tabReport.act.aa.toFixed(2) + ':1 / hi ' + tabReport.act.hi.toFixed(2) + ':1，未选中 ' + tabReport.ina.toFixed(2) + ':1');
+console.log('  ⚠ 结构性缺口（不阻断，HANDOFF P2 定为人眼验收）：tint 表面（appbar/搜索栏/抽屉/内容卡，' +
+  'liquid 无链光路）按未经压缩的 wallOnly 带最差 ' + structural.tint.toFixed(2) + ':1，' +
+  'frosted appbar 字面值板最差 ' + structural.frost.toFixed(2) + ':1。诚实下限会夹死滑杆 57–88% 行程，' +
+  '需要设计决策（固定层补压缩链 / 自适应文字色 / 接受），不要用本报告当"已达标"。');
 module.exports = { report };

@@ -404,7 +404,7 @@ body.dark .tabbar > .tab.is-active::before{
     0 2px 6px rgba(0, 0, 0, .4) !important;
 }
 html.dark .tab,
-body.dark .tab{ color: rgba(235, 235, 245, .60); }
+body.dark .tab{ color: var(--tab-inactive, rgba(235, 235, 245, .60)); }
 
 /* 减少动效：跳过弹簧入场和选中态 pop */
 @media (prefers-reduced-motion: reduce){

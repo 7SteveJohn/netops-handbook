@@ -56,6 +56,7 @@
   --accent:        var(--c-blue-600);
   --accent-soft:   #e8f0fe;
   --accent-muted:  #4877d8;          /* 选中态品牌蓝（仅描边方案：图标 stroke + 文字色 + 5px 小圆点） */
+  --tab-inactive:  #8e8e93;          /* 未选中 tab 文字（iOS 系统灰）。壁纸模式由门禁强制加深，见 has-wallpaper 块 */
   /* --accent-tint 已移除：15% 浅蓝在 24px 描边图标上看着接近实心，不如纯描边方案干净 */
   --accent-border: #c8dcfb;
   --accent-text:   #1a56db;
@@ -224,15 +225,22 @@ html.dark body.glass-on.glass-gaussian { --ambient: none; }
 /* ---- 玻璃 + 壁纸作用域下的文字色 ----
    三级灰 #86868b 在纯白上就只有 3.6:1，本来就够不到 AA（4.5:1）；
    叠到壁纸上实测 14 张内置壁纸 100% 面积不达标、最差 1.00:1（等于隐形）。
-   所以在"看得见壁纸"这个作用域里整体压深二/三级文字，暗色反之提亮。 */
-body.glass-on.has-wallpaper { --text-2: #3c3c40; --text-3: #55555a; }
-html.dark body.glass-on.has-wallpaper { --text-2: #e6e6ea; --text-3: #b9b9c2; }
+   所以在"看得见壁纸"这个作用域里整体压深二/三级文字，暗色反之提亮。
+   2026-09-25（P2）加入底栏文字：药丸上的选中态与板上的未选中态此前不在
+   门禁覆盖内（真机曾 3.55:1 / 2.42:1）。数值由 audit-contrast.js 第 5 节
+   同一口径全带扫描反解得出，改了这里的色值门禁会重新核：
+   - 选中 #2e4fae / #6faeeb：对"tabbar 板 .72 白 → 共享药丸 .34 白"两次叠加后
+     最暗/最亮合成（L2 = .715 / .044）分别 5.38:1 / 4.76:1；
+   - 未选中 #54545c：对板合成 L1=.624 为 4.77:1（暗色 rgba(235,235,245,.60)
+   叠暗板实测 5.77:1，本就达标，不覆盖）。 */
+body.glass-on.has-wallpaper { --text-2: #3c3c40; --text-3: #55555a; --accent-muted: #2e4fae; --tab-inactive: #54545c; }
+html.dark body.glass-on.has-wallpaper { --text-2: #e6e6ea; --text-3: #b9b9c2; --accent-muted: #6faeeb; }
 /* 「增强对比度」档：目标 7:1（华为指南的长时间阅读值）。
    只加厚玻璃到不了 7:1 —— 实测暗色下把 alpha 顶到 0.96 也只有 5.6:1，
    因为天花板是玻璃板自身的亮度。厂商做法是同时提文字对比，这里照做。
    放在上面两条之后：同优先级靠后者生效。 */
-html.hi-contrast body.glass-on.has-wallpaper { --text-2: #232326; --text-3: #2c2c30; }
-html.dark.hi-contrast body.glass-on.has-wallpaper { --text-2: #f5f5f7; --text-3: #e6e6ea; }
+html.hi-contrast body.glass-on.has-wallpaper { --text-2: #232326; --text-3: #2c2c30; --accent-muted: #1e3a85; }
+html.dark.hi-contrast body.glass-on.has-wallpaper { --text-2: #f5f5f7; --text-3: #e6e6ea; --accent-muted: #b3d6fa; }
 
 /* ============================================================
    暗色主题（深色玻璃更透、边缘光更收敛）
@@ -260,6 +268,7 @@ html.dark {
   --accent:        #0a84ff;          /* 苹果深色模式蓝 */
   --accent-soft:   rgba(10,132,255,.16);
   --accent-muted:  #6aa8e8;          /* 深色模式选中降饱和蓝 */
+  --tab-inactive:  rgba(235,235,245,.60);  /* 深色未选中 tab（iOS 深色规范），壁纸模式实测 5.77:1 达标无需覆盖 */
   /* --accent-tint 已移除：深色同样仅描边方案 */
   --accent-border: rgba(10,132,255,.38);
   --accent-text:   #5ac8ff;
