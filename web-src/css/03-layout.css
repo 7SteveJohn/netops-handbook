@@ -154,12 +154,14 @@ html.dark body.glass-on .searchbar {
   /* 浮动模式：内容区底部留白对齐 ::before 胶囊（胶囊 bottom = sa-bottom+8px） */
   padding-bottom: calc(var(--sa-bottom, 0px) + 8px);
 }
-/* 浮动模式：.tabbar 自身即玻璃胶囊容器，5 个 tab 严格约束在胶囊内部（杜绝贴壁/溢出） */
+/* 浮动模式（2026-09-25 按 WWDC25 Liquid Glass 理念重构，用户供片）：
+   底栏不再是悬浮胶囊，而是边到边玻璃板——底角与屏幕圆角同心（视频 0:27-0:31），
+   占更多高度，折射发生在屏幕角落的大曲率处。 */
 body:not(.tabbar-regular) .tabbar {
-  left: 24px; right: 24px; bottom: calc(var(--sa-bottom, 0px) + 12px);
-  height: 56px;
-  border-radius: 32px;
-  padding: 0 8px;                  /* 两端各 8pt 内边距 */
+  left: 0; right: 0; bottom: 0;
+  height: calc(56px + var(--sa-bottom, 0px) + 10px);
+  border-radius: 26px 26px 42px 42px;
+  padding: 0 10px;                 /* 两端各 10pt 内边距 */
   transition: left var(--t-base) var(--ease-out), right var(--t-base) var(--ease-out);
 }
 /* 浮动栏内胆（真正的玻璃表面）—— 填满 .tabbar 胶囊盒，随其一起收窄 */

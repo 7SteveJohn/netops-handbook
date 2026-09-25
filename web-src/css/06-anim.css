@@ -651,8 +651,8 @@ html.dark .appbar::before{
   z-index: 90;
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  height: calc(var(--tabbar-h, 56px) + env(safe-area-inset-bottom, 0px));
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  height: calc(var(--tabbar-h, 56px) + env(safe-area-inset-bottom, 0px) + 10px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
   background: linear-gradient(180deg,
     rgba(255, 255, 255, .72) 0%,
     rgba(245, 245, 247, .62) 100%) !important;
@@ -749,7 +749,7 @@ html.dark .appbar::before{
      的同心原则（developer.apple.com/documentation/technologyoverviews/
      adopting-liquid-glass：嵌套圆角 = 外层半径 − 内缩距）改为四边等距内缩、
      全胶囊圆角，选中高光永远以平行曲线嵌在栏内，不与外缘相切相撞。 */
-  left: 5px; top: 4px; bottom: 4px;
+  left: 5px; top: 4px; bottom: calc(var(--sa-bottom, 0px) + 14px);
   width: calc(var(--pill-w, 52px) - 10px);
   transform: translateX(var(--pill-x, 0px));
   border-radius: 999px;
