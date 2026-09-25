@@ -101,7 +101,7 @@
     "tabbar": {
       "light": {
         "filter": "blur(28px)",
-        "shadow": "0 0 0 .5px rgba(0,0,0,.05), 0 -1px 0 rgba(255,255,255,.7) inset, 0 -8px 24px rgba(0,0,0,.06), 0 -20px 48px rgba(0,0,0,.04)",
+        "shadow": "0 0 0 .5px rgba(0,0,0,.05), inset 0 2px 6px rgba(255,255,255,.75), inset 0 -6px 14px rgba(255,255,255,.35), inset 0 0 18px rgba(255,255,255,.12), 0 8px 24px rgba(15,23,42,.10)",
         "specular": "rgba(255,255,255,.88)",
         "rgbTop": "255,255,255",
         "rgbBot": "245,245,247",
@@ -110,7 +110,7 @@
       },
       "dark": {
         "filter": "blur(28px)",
-        "shadow": "0 0 0 .5px rgba(255,255,255,.10), 0 -1px 0 rgba(255,255,255,.30) inset, 0 -8px 24px rgba(0,0,0,.30)",
+        "shadow": "0 0 0 .5px rgba(255,255,255,.10), inset 0 2px 6px rgba(255,255,255,.28), inset 0 -6px 14px rgba(255,255,255,.08), inset 0 0 18px rgba(255,255,255,.05), 0 -1px 0 rgba(255,255,255,.30) inset, 0 8px 24px rgba(0,0,0,.28)",
         "specular": "rgba(255,255,255,.28)",
         "rgbTop": "30,32,40",
         "rgbBot": "14,15,18",
