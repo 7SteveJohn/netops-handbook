@@ -206,9 +206,10 @@
     var img = ctx.createImageData(cw, ch), d = img.data;
     var hw = cw / 2, hh = ch / 2;
     var rr = Math.min(r, hw, hh);
-    /* 2026-09-25：形变带固定 16px（旧 band=min(hw,hh) 让整栏都在形变区内=圆斑根因），
-       只在边缘/角落弯折——WWDC25 解析视频的核心做法：预采样位移贴图、放大边缘 */
-    var band = 16;
+    /* 2026-09-25：形变带固定 8px（掘金 7514618352829448244 的做法：仅在边缘
+       5px 级别的窄带用置换滤镜，折射精度优先；旧 band=min(hw,hh)=整栏形变=圆斑），
+       只在边缘/角落弯折——WWDC25 解析视频同款：预采样位移贴图、放大边缘 */
+    var band = 8;
     for (var y = 0; y < ch; y++) {
       for (var x = 0; x < cw; x++) {
         var i = (y * cw + x) * 4;

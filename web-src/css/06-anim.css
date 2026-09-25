@@ -759,8 +759,8 @@ html.dark .appbar::before{
   background: linear-gradient(180deg,
     rgba(255, 255, 255, .34) 0%,
     rgba(245, 245, 247, .26) 100%);
-  -webkit-backdrop-filter: blur(20px) saturate(1.6);
-  backdrop-filter: blur(20px) saturate(1.6);
+  /* 掘金 7514618352829448244：切换态按钮 = 无模糊的高透玻璃——模糊只会糊掉
+     选中态的清晰感（板已在 .tabbar 上模糊过，药丸直接高透） */
   box-shadow:
     inset 0 0 0 .5px rgba(255, 255, 255, .5),
     inset 0 1px 0 rgba(255, 255, 255, .55),
