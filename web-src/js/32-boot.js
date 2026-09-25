@@ -755,6 +755,8 @@
     var AA_TARGET = 4.5, HI_TARGET = 7;
     var combos = {
       light: { plate: 1,                 text: relLum(85, 85, 90),   hiText: relLum(44, 44, 48) },
+      /* 2026-09-25 三轮：链亮度实测 .5 为物理上限（.62/.85 棘轮 62%/80%），文字不动，
+         暗色"原生感"由板渐变方向承担；--text-3 保持 #b9b9c2 */
       dark:  { plate: relLum(44, 44, 46), text: relLum(185, 185, 194), hiText: relLum(230, 230, 234) }
     };
     wallFloor = { stops: bands.stops, bands: bands, combos: combos, AA: AA_TARGET, HI: HI_TARGET };

@@ -5,16 +5,94 @@
     "saturate": "180%",
     "light": {
       "levels": [
-        { "t": 10, "blur": 2, "chain": [["contrast", 0.15], ["brightness", 1.8]] },
-        { "t": 52, "blur": 4,  "chain": [["contrast", 0.25], ["brightness", 1.6]] },
-        { "t": 95, "blur": 8,  "chain": [["contrast", 0.9],  ["brightness", 1.4]] }
+        {
+          "t": 10,
+          "blur": 2,
+          "chain": [
+            [
+              "contrast",
+              0.15
+            ],
+            [
+              "brightness",
+              1.8
+            ]
+          ]
+        },
+        {
+          "t": 52,
+          "blur": 4,
+          "chain": [
+            [
+              "contrast",
+              0.25
+            ],
+            [
+              "brightness",
+              1.6
+            ]
+          ]
+        },
+        {
+          "t": 95,
+          "blur": 8,
+          "chain": [
+            [
+              "contrast",
+              0.9
+            ],
+            [
+              "brightness",
+              1.4
+            ]
+          ]
+        }
       ]
     },
     "dark": {
       "levels": [
-        { "t": 10, "blur": 2, "chain": [["brightness", 0.5], ["contrast", 0.9]] },
-        { "t": 52, "blur": 4,  "chain": [["brightness", 0.5], ["contrast", 0.7]] },
-        { "t": 95, "blur": 8,  "chain": [["brightness", 0.7], ["contrast", 0.9]] }
+        {
+          "t": 10,
+          "blur": 2,
+          "chain": [
+            [
+              "brightness",
+              0.5
+            ],
+            [
+              "contrast",
+              0.9
+            ]
+          ]
+        },
+        {
+          "t": 52,
+          "blur": 4,
+          "chain": [
+            [
+              "brightness",
+              0.5
+            ],
+            [
+              "contrast",
+              0.7
+            ]
+          ]
+        },
+        {
+          "t": 95,
+          "blur": 8,
+          "chain": [
+            [
+              "brightness",
+              0.7
+            ],
+            [
+              "contrast",
+              0.9
+            ]
+          ]
+        }
       ]
     }
   },
@@ -29,10 +107,10 @@
         "specular": "rgba(255,255,255,.88)"
       },
       "dark": {
-        "tintTop": "rgba(24, 24, 27, .55)",
-        "tintBot": "rgba(24, 24, 27, .45)",
+        "tintTop": "rgba(30, 32, 40, .44)",
+        "tintBot": "rgba(14, 15, 18, .68)",
         "filter": "blur(28px)",
-        "shadow": "0 0 0 .5px rgba(255,255,255,.08), 0 -1px 0 rgba(255,255,255,.12) inset, 0 -8px 24px rgba(0,0,0,.32)",
+        "shadow": "0 0 0 .5px rgba(255,255,255,.10), 0 -1px 0 rgba(255,255,255,.22) inset, 0 -8px 24px rgba(0,0,0,.32)",
         "specular": "rgba(255,255,255,.28)"
       }
     },
