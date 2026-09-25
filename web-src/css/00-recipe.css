@@ -42,7 +42,7 @@
   --gr-spec-alpha: 0.85;
   --gr-rim-dark-drop: 0.212;
   --gr-rim-dark-alpha: 0.34;
-  --gr-spring: cubic-bezier(.32,1.25,.45,1);
+  --gr-spring: cubic-bezier(.32,1.6,.45,1);
   --gr-squish-max: 7px;
   --gr-squish-press: 0.975;
   --gr-squish-stretch: 0.06;

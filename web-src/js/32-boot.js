@@ -871,7 +871,7 @@
     jelly.x += jelly.v;
     if (Math.abs(jelly.tx - jelly.x) > 0.4 || Math.abs(jelly.v) > 0.4) settled = false;
     /* 形变弹簧：目标由速度驱动（速度越大拉越长） */
-    var stretch = Math.min(0.30, Math.abs(jelly.v) * 0.016);
+    var stretch = Math.min(0.38, Math.abs(jelly.v) * 0.026);
     jelly.sv += ((1 + stretch - jelly.sx) * 0.30 - jelly.sv * 0.26);
     jelly.sx += jelly.sv;
     if (Math.abs(jelly.sx - (1 + stretch)) > 0.006) settled = false;

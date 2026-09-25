@@ -164,7 +164,7 @@
   },
   "motion": {
     "_note": "spring 供共享药丸与底栏 morph 使用；squish 五项是隐藏调参面板（长按「全局质感」标题）的默认值，由 32-boot.js 的 SQT_DEF 从 --gr-squish-* 读取，别再在 JS 里抄第二份。decel 已删：代码库里另有 --ease-apple-decel 且是不同曲线，这条没有消费者。",
-    "spring": "cubic-bezier(.32,1.25,.45,1)",
+    "spring": "cubic-bezier(.32,1.6,.45,1)",
     "pillBackMs": 460,
     "squish": {
       "max": 7,
