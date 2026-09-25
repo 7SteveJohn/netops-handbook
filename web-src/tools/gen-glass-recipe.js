@@ -51,8 +51,12 @@ function build() {
   put('cmp-stops', stops.join(' '));
 
   const s = r.surfaces;
-  put('tabbar-tint-top', s.tabbar.light.tintTop, s.tabbar.dark.tintTop);
-  put('tabbar-tint-bot', s.tabbar.light.tintBot, s.tabbar.dark.tintBot);
+  /* 2026-09-25：底栏板改为跟随通透度滑杆——真源拆成 RGB 分量 + alpha 上下限，
+     运行时按滑杆 clamp（32-boot 写 --tabbar-a/--tabbar-b），不再发死 rgba */
+  put('tabbar-rgb-top', s.tabbar.light.rgbTop, s.tabbar.dark.rgbTop);
+  put('tabbar-rgb-bot', s.tabbar.light.rgbBot, s.tabbar.dark.rgbBot);
+  put('tabbar-a-min', s.tabbar.light.alphaMin, s.tabbar.dark.alphaMin);
+  put('tabbar-a-max', s.tabbar.light.alphaMax, s.tabbar.dark.alphaMax);
   put('tabbar-filter', s.tabbar.light.filter, s.tabbar.dark.filter);
   put('tabbar-shadow', s.tabbar.light.shadow, s.tabbar.dark.shadow);
   put('tabbar-specular', s.tabbar.light.specular, s.tabbar.dark.specular);

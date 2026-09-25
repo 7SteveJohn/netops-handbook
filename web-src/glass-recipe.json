@@ -100,18 +100,22 @@
     "_note": "filter 只写 blur —— 彩度/亮度/对比度的压缩统一来自 backdrop.levels，由 tools/gen-glass-recipe.js 生成 --gr-cmp-<档位>，运行时按通透度档位插值。两个轴混在这里就会重演「表面自带 saturate、曲线又 saturate 一次」的双重饱和。",
     "tabbar": {
       "light": {
-        "tintTop": "rgba(255,255,255,.72)",
-        "tintBot": "rgba(245,245,247,.62)",
         "filter": "blur(28px)",
         "shadow": "0 0 0 .5px rgba(0,0,0,.05), 0 -1px 0 rgba(255,255,255,.7) inset, 0 -8px 24px rgba(0,0,0,.06), 0 -20px 48px rgba(0,0,0,.04)",
-        "specular": "rgba(255,255,255,.88)"
+        "specular": "rgba(255,255,255,.88)",
+        "rgbTop": "255,255,255",
+        "rgbBot": "245,245,247",
+        "alphaMin": 0.52,
+        "alphaMax": 0.72
       },
       "dark": {
-        "tintTop": "rgba(30, 32, 40, .44)",
-        "tintBot": "rgba(14, 15, 18, .68)",
         "filter": "blur(28px)",
         "shadow": "0 0 0 .5px rgba(255,255,255,.10), 0 -1px 0 rgba(255,255,255,.22) inset, 0 -8px 24px rgba(0,0,0,.32)",
-        "specular": "rgba(255,255,255,.28)"
+        "specular": "rgba(255,255,255,.28)",
+        "rgbTop": "30,32,40",
+        "rgbBot": "14,15,18",
+        "alphaMin": 0.32,
+        "alphaMax": 0.62
       }
     },
     "sheet": {
@@ -160,7 +164,7 @@
   },
   "motion": {
     "_note": "spring 供共享药丸与底栏 morph 使用；squish 五项是隐藏调参面板（长按「全局质感」标题）的默认值，由 32-boot.js 的 SQT_DEF 从 --gr-squish-* 读取，别再在 JS 里抄第二份。decel 已删：代码库里另有 --ease-apple-decel 且是不同曲线，这条没有消费者。",
-    "spring": "cubic-bezier(.34,1.56,.64,1)",
+    "spring": "cubic-bezier(.28,1.7,.55,1)",
     "pillBackMs": 460,
     "squish": {
       "max": 7,

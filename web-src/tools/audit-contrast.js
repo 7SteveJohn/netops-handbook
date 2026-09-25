@@ -191,14 +191,24 @@ function gradStops(css, sel) {
 function rgbaStops(css, re) {
   return [...css.matchAll(re)].map(m => ({ rgb: [+m[1], +m[2], +m[3]], a: +m[4] }));
 }
+function tripletStops(css, re) {
+  return [...css.matchAll(re)].map(m => [+m[1], +m[2], +m[3]]);
+}
+function numStops(css, re) {
+  return [...css.matchAll(re)].map(m => +m[1]);
+}
 const pillStops = gradStops(animCss, '.tabbar > .tab-pill{');
 const pillStopsDark = gradStops(animCss, 'html.dark .tabbar > .tab-pill{');
-const tintTopAll = rgbaStops(recCss, /--gr-tabbar-tint-top:\s*rgba\(([\d.]+),\s*([\d.]+),\s*([\d.]+),\s*([\d.]+)\)/g);
-const tintBotAll = rgbaStops(recCss, /--gr-tabbar-tint-bot:\s*rgba\(([\d.]+),\s*([\d.]+),\s*([\d.]+),\s*([\d.]+)\)/g);
+/* 2026-09-25：板改为滑杆驱动——真源 = RGB 分量 + alpha 上下限，运行时
+   clamp(baseA(t))（32-boot 写 --tabbar-a/b）。门禁按同一公式逐档复算。 */
+const rgbTopAll = tripletStops(recCss, /--gr-tabbar-rgb-top:\s*([\d.]+),\s*([\d.]+),\s*([\d.]+)/g);
+const rgbBotAll = tripletStops(recCss, /--gr-tabbar-rgb-bot:\s*([\d.]+),\s*([\d.]+),\s*([\d.]+)/g);
+const aMinAll = numStops(recCss, /--gr-tabbar-a-min:\s*([\d.]+)/g);
+const aMaxAll = numStops(recCss, /--gr-tabbar-a-max:\s*([\d.]+)/g);
 if (!pillStops || !pillStopsDark)
   errs.push('06-anim.css 里找不到共享药丸两端的 rgba 渐变（底栏文字门禁的叠层模型失效）');
-if (tintTopAll.length !== 2 || tintBotAll.length !== 2)
-  errs.push('00-recipe.css 的 --gr-tabbar-tint-top/bot 须明暗各两条（解析到 top ' + tintTopAll.length + ' / bot ' + tintBotAll.length + '）');
+if (rgbTopAll.length !== 2 || rgbBotAll.length !== 2 || aMinAll.length !== 2 || aMaxAll.length !== 2)
+  errs.push('00-recipe.css 的 --gr-tabbar-rgb-top/bot 与 a-min/max 须明暗各一条（解析到 rgb ' + rgbTopAll.length + '/' + rgbBotAll.length + '、a ' + aMinAll.length + '/' + aMaxAll.length + '）');
 if (!/color:\s*var\(--tab-inactive/.test(layoutCss))
   errs.push('03-layout.css 的 .tab 不再消费 var(--tab-inactive) —— 未选中色被改回字面值，门禁与实现脱钩');
 if (!/color:\s*var\(--tab-inactive/.test(animCss))
@@ -281,8 +291,8 @@ if (errs.length === 0) {
   if (worstDead / 86 > DEAD_HARD)
     errs.push('最差情况下通透度有 ' + worstDead + '/86 档（' + Math.round(worstDead / 86 * 100) + '%）被下限钉死，棘轮上限 ' + Math.round(DEAD_HARD * 100) + '% —— 滑杆拖了画面不动');
 
-  /* 第 5 节扫描：底栏文字（光路 A，精确叠层） */
-  if (!pillStops || !pillStopsDark || tintTopAll.length !== 2 || tintBotAll.length !== 2) {
+  /* 第 5 节扫描：底栏文字（光路 A，精确叠层，板透明度随滑杆 clamp 复算） */
+  if (!pillStops || !pillStopsDark || rgbTopAll.length !== 2 || rgbBotAll.length !== 2 || aMinAll.length !== 2 || aMaxAll.length !== 2) {
     /* 上面已 errs 点名，这里无法建模 */
   } else {
     const Y_TAB = 0.696, Y_PILL = 0.673;
@@ -296,11 +306,10 @@ if (errs.length === 0) {
         const bands5 = {};
         STOPS.forEach(t => { bands5[t] = data.wallpapers[f][theme]['t' + t]; });
         const thI = theme === 'light' ? 0 : 1;
-        const tb = mixStop(tintTopAll[thI], tintBotAll[thI], Y_TAB);
         const pw = mixStop(theme === 'light' ? pillStops[0] : pillStopsDark[0],
                            theme === 'light' ? pillStops[1] : pillStopsDark[1], Y_PILL);
-        const plateL = relLum(tb.rgb[0], tb.rgb[1], tb.rgb[2]);
         const pillL = relLum(pw.rgb[0], pw.rgb[1], pw.rgb[2]);
+        const aMin = aMinAll[thI], aMax = aMaxAll[thI];
         const inaRaw = TABTOK[theme].inactive[1];
         const inaM = inaRaw.match(/([\d.]+),\s*([\d.]+),\s*([\d.]+),\s*([\d.]+)/);
         const inaCol = inaM ? { rgb: [+inaM[1], +inaM[2], +inaM[3]], a: +inaM[4] }
@@ -309,8 +318,14 @@ if (errs.length === 0) {
         for (let t = 10; t <= 95; t++) {
           const band = bandAt(bands5, t);
           if (!band) continue;                     /* 缺档已由第 4 节点名 */
+          /* 板 alpha 与运行时 32-boot 同式：clamp(baseA(t), aMin, aMax)，底端再降 */
+          const aT = Math.min(aMax, Math.max(aMin, baseA(t)));
+          const aB = Math.min(aMax - 0.12, Math.max(aMin - 0.08, baseA(t) - 0.13));
+          const aTxt = aT + (aB - aT) * Y_TAB;
+          const rTxt = [0, 1, 2].map(i => rgbTopAll[thI][i] + (rgbBotAll[thI][i] - rgbTopAll[thI][i]) * Y_TAB);
+          const plateL = relLum(rTxt[0], rTxt[1], rTxt[2]);
           for (const bg of band) {
-            const L1 = tb.a * plateL + (1 - tb.a) * bg;
+            const L1 = aTxt * plateL + (1 - aTxt) * bg;
             const cIna = contrast(inaCol.a * inaL + (1 - inaCol.a) * L1, L1);
             if (cIna < tabReport.ina) tabReport.ina = cIna;
             if (cIna < AA)
@@ -326,8 +341,13 @@ if (errs.length === 0) {
           for (let t = 10; t <= 95; t++) {
             const band = bandAt(bands5, t);
             if (!band) continue;
+            const aT = Math.min(aMax, Math.max(aMin, baseA(t)));
+            const aB = Math.min(aMax - 0.12, Math.max(aMin - 0.08, baseA(t) - 0.13));
+            const aTxt = aT + (aB - aT) * Y_TAB;
+            const rTxt = [0, 1, 2].map(i => rgbTopAll[thI][i] + (rgbBotAll[thI][i] - rgbTopAll[thI][i]) * Y_TAB);
+            const plateL = relLum(rTxt[0], rTxt[1], rTxt[2]);
             for (const bg of band) {
-              const L1 = tb.a * plateL + (1 - tb.a) * bg;
+              const L1 = aTxt * plateL + (1 - aTxt) * bg;
               const L2 = pw.a * pillL + (1 - pw.a) * L1;
               const cAct = contrast(actL, L2);
               if (cAct < tabReport.act[tier]) tabReport.act[tier] = cAct;

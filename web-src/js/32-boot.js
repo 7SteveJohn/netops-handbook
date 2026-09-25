@@ -852,6 +852,11 @@
     if (!rt.width) return;                       /* 尚未布局（隐藏/首帧），别写 0 宽 */
     pill.style.setProperty('--pill-x', (rt.left - rb.left).toFixed(1) + 'px');
     pill.style.setProperty('--pill-w', rt.width.toFixed(1) + 'px');
+    /* Q弹挤压（2026-09-25 用户反馈"不够q弹"）：每次换位重启形变动画——
+       中段沿运动方向拉伸、落位反向过冲，与位移弹簧叠加成"果冻感" */
+    pill.style.animation = 'none';
+    void pill.offsetWidth;
+    pill.style.animation = '';
   }
 
   function initWallpaper() {
@@ -1121,6 +1126,19 @@
     var b = Math.max(0.03, a - 0.13);
     root.style.setProperty('--glass-tint-top', 'rgba(255,255,255,' + a.toFixed(3) + ')');
     root.style.setProperty('--glass-tint-bot', 'rgba(250,250,252,' + b.toFixed(3) + ')');
+    /* 2026-09-25：底栏板跟随通透度滑杆（用户反馈"通透度不够"——板此前是配方死值，
+       拖滑杆底栏纹丝不动）。alpha = clamp(滑杆 a, 配方 a-min, 配方 a-max)，
+       底端再降一档保持"顶透光/底沉实"。配方 rgb 分量由 06-anim 消费。 */
+    (function () {
+      var rcs = w.getComputedStyle(root);
+      var num = function (n) { var v = parseFloat(rcs.getPropertyValue(n)); return isFinite(v) ? v : NaN; };
+      var aMin = num('--gr-tabbar-a-min'), aMax = num('--gr-tabbar-a-max');
+      if (!isFinite(aMin) || !isFinite(aMax)) { root.style.setProperty('--tabbar-a', ''); root.style.setProperty('--tabbar-b', ''); return; }
+      var ta = Math.min(aMax, Math.max(aMin, a));
+      var tb = Math.min(aMax - 0.12, Math.max(aMin - 0.08, a - 0.13));
+      root.style.setProperty('--tabbar-a', ta.toFixed(3));
+      root.style.setProperty('--tabbar-b', tb.toFixed(3));
+    })();
     /* 暗色模式专用：纯 alpha 变量（暗色 CSS 用 rgba(44,44,46,var(--glass-tint-top-a)) 形式） */
     root.style.setProperty('--glass-tint-top-a', a.toFixed(3));
     root.style.setProperty('--glass-tint-bot-a', b.toFixed(3));

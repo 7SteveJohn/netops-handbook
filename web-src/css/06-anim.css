@@ -772,7 +772,16 @@ html.dark .appbar::before{
   pointer-events: none;
   transition: transform var(--gr-squish-back, .46s) var(--gr-spring, cubic-bezier(.34,1.56,.64,1)),
               width var(--gr-squish-back, .46s) var(--gr-spring, cubic-bezier(.34,1.56,.64,1));
+  /* Q弹挤压（独立 scale 属性与 transform 平移解耦，Chromium 104+）：
+     换 tab 时由 32-boot 重启动画——中段沿运动方向拉伸、落位反向过冲 */
+  animation: pill-squash .52s var(--gr-spring, cubic-bezier(.34,1.56,.64,1));
   will-change: transform;
+}
+@keyframes pill-squash{
+  0%  { scale: 1 1; }
+  38% { scale: 1.16 .86; }
+  68% { scale: .95 1.06; }
+  100%{ scale: 1 1; }
 }
 html.dark .tabbar > .tab-pill{
   /* 2026-09-25 二轮：深灰 .85 药丸在玻璃栏上是一块"贴纸"（用户实测反馈）。
@@ -1857,7 +1866,11 @@ body.has-wallpaper {
    ============================================================ */
 body.glass-on .tabbar,
 html.dark body.glass-on .tabbar {
-  background: linear-gradient(180deg, var(--gr-tabbar-tint-top) 0%, var(--gr-tabbar-tint-bot) 100%) !important;
+  /* 2026-09-25：板透明度跟随通透度滑杆（--tabbar-a/b 由 32-boot clamp 配方上下限），
+     RGB 分量仍是配方真源；拖滑杆底栏现在会实时变透/变实 */
+  background: linear-gradient(180deg,
+    rgba(var(--gr-tabbar-rgb-top), var(--tabbar-a, .55)) 0%,
+    rgba(var(--gr-tabbar-rgb-bot), var(--tabbar-b, .45)) 100%) !important;
   -webkit-backdrop-filter: var(--gr-tabbar-filter) var(--glass-cmp, var(--gr-cmp-52)) !important;
   backdrop-filter: var(--gr-tabbar-filter) var(--glass-cmp, var(--gr-cmp-52)) !important;
   /* 方向性边缘光：朝光一侧提亮、背光一侧压暗。口径来自参考实现逐像素取样
