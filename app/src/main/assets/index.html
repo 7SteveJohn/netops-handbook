@@ -2794,17 +2794,20 @@ function release(e) {
 if (!grab || (e.pointerId !== undefined && e.pointerId !== grab.id)) return;
 var wasMoved = grab.moved;
 grab = null;
-if (!wasMoved) return;                           
 var tabs = bar.querySelectorAll('.tab');
 var rb = bar.getBoundingClientRect();
 var idx = Math.min(tabs.length - 1, Math.max(0, Math.floor((e.clientX - rb.left) / (rb.width / tabs.length))));
 var target = tabs[idx];
+if (wasMoved) {
 if (target && !target.classList.contains('is-active')) { target.click(); return; }
 var act = bar.querySelector('.tab.is-active');
 if (act) {
 var rb2 = bar.getBoundingClientRect(), rt = act.getBoundingClientRect();
 jellyKick(rt.left - rb2.left + 6, rt.width - 12, jelly.pill || document.getElementById('tabPill'));
 }
+return;
+}
+if (target && !target.classList.contains('is-active')) target.click();
 }
 bar.addEventListener('pointerup', release);
 bar.addEventListener('pointercancel', function (e) { grab = null; });

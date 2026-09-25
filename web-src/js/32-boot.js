@@ -924,18 +924,23 @@
       if (!grab || (e.pointerId !== undefined && e.pointerId !== grab.id)) return;
       var wasMoved = grab.moved;
       grab = null;
-      if (!wasMoved) return;                          /* 普通点击走原有 click */
+      /* setPointerCapture 会把 click 重定向到 bar，tab 自己的点击监听收不到——
+         轻点的选中在这里接管（2026-09-26：捕获导致的点击选中失效回归） */
       var tabs = bar.querySelectorAll('.tab');
       var rb = bar.getBoundingClientRect();
       var idx = Math.min(tabs.length - 1, Math.max(0, Math.floor((e.clientX - rb.left) / (rb.width / tabs.length))));
       var target = tabs[idx];
-      if (target && !target.classList.contains('is-active')) { target.click(); return; }
-      /* 弹回当前激活格（带果冻过冲）——不允许停在两格之间 */
-      var act = bar.querySelector('.tab.is-active');
-      if (act) {
-        var rb2 = bar.getBoundingClientRect(), rt = act.getBoundingClientRect();
-        jellyKick(rt.left - rb2.left + 6, rt.width - 12, jelly.pill || document.getElementById('tabPill'));
+      if (wasMoved) {
+        if (target && !target.classList.contains('is-active')) { target.click(); return; }
+        /* 弹回当前激活格（带果冻过冲）——不允许停在两格之间 */
+        var act = bar.querySelector('.tab.is-active');
+        if (act) {
+          var rb2 = bar.getBoundingClientRect(), rt = act.getBoundingClientRect();
+          jellyKick(rt.left - rb2.left + 6, rt.width - 12, jelly.pill || document.getElementById('tabPill'));
+        }
+        return;
       }
+      if (target && !target.classList.contains('is-active')) target.click();
     }
     bar.addEventListener('pointerup', release);
     bar.addEventListener('pointercancel', function (e) { grab = null; });
