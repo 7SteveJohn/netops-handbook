@@ -744,10 +744,15 @@ html.dark .appbar::before{
    按 DOM 顺序自然压在它上面 —— 不用 z-index:-1，那会掉到 .tabbar 自身背景之后。 */
 .tabbar > .tab-pill{
   position: absolute;
-  left: 0; top: 4px; bottom: 0;
-  width: var(--pill-w, 52px);
+  /* 2026-09-25 三轮（用户拍到"方形不规则形状"）：旧几何 bottom:0 贴死栏底 +
+     6px 底角，矩形药丸撞上悬浮栏 32px 圆角端头，违和。按 Apple Liquid Glass
+     的同心原则（developer.apple.com/documentation/technologyoverviews/
+     adopting-liquid-glass：嵌套圆角 = 外层半径 − 内缩距）改为四边等距内缩、
+     全胶囊圆角，选中高光永远以平行曲线嵌在栏内，不与外缘相切相撞。 */
+  left: 5px; top: 4px; bottom: 4px;
+  width: calc(var(--pill-w, 52px) - 10px);
   transform: translateX(var(--pill-x, 0px));
-  border-radius: 18px 18px 6px 6px / 22px 22px 6px 6px;
+  border-radius: 999px;
   /* 从 .85/.75 的平涂白降到 .34/.26：用户真机反馈"选中时还有小白点"，那块 85% 的
      白正是它 —— 我一边在配方表注释里写"不要靠抬板厚换可读性"，一边给药丸涂了
      85% 的白。玻璃感来自背后的模糊透过来，不是来自涂白。 */
