@@ -167,9 +167,13 @@
   /* 2026-09-25 深夜（用户供片 WWDC25 解析，要求重构为同款）：恢复启用——
      底栏已改为边到边玻璃板（底角与屏幕圆角同心），折射发生在角落大曲率处；
      旧圆斑根因是形变带 band=min(hw,hh)=栏高一半（整栏都在形变区内），
-     现改为固定 16px 边带 + 折射强度降到 14px，只在边缘/角落弯折。 */
+     现改为固定 8px 边带 + 折射强度降到 14px，只在边缘/角落弯折。
+   2026-09-26（用户指出选中态仍是平板，karpathy 准则：改眼睛看的东西）：
+     把透镜装到**选中药丸本身**——参考实现全部是"透镜在交互元素上"，
+     不是装在 390px 宽的栏周长上（一圈 8px 窄带肉眼不可见=等于没做）。 */
   var LENS_SURFACES = [
-    { sel: '.tabbar', id: 'glass-lens-tabbar', cls: 'glass-lens--tabbar' }
+    { sel: '.tabbar', id: 'glass-lens-tabbar', cls: 'glass-lens--tabbar' },
+    { sel: '.tab-pill', id: 'glass-lens-pill', cls: 'glass-lens--pill' }
   ];
 
   function lensOptics() {

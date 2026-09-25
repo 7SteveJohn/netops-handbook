@@ -4074,7 +4074,8 @@ scroller.addEventListener('scroll', onScroll, { passive: true });
 update();
 }
 var LENS_SURFACES = [
-{ sel: '.tabbar', id: 'glass-lens-tabbar', cls: 'glass-lens--tabbar' }
+{ sel: '.tabbar', id: 'glass-lens-tabbar', cls: 'glass-lens--tabbar' },
+{ sel: '.tab-pill', id: 'glass-lens-pill', cls: 'glass-lens--pill' }
 ];
 function lensOptics() {
 var cs = getComputedStyle(document.documentElement);
