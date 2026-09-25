@@ -260,21 +260,25 @@
     f.setAttribute('id', surf.id);
     /* objectBoundingBox：WebKit 对 userSpaceOnUse 会把整块元素渲染成空白；
        sRGB：否则 128 不再等于"零位移"，整张图会平移。两条都是踩过的坑。 */
-    f.setAttribute('filterUnits', 'objectBoundingBox');
-    f.setAttribute('primitiveUnits', 'objectBoundingBox');
+    /* 2026-09-25（照 shuding/liquid-glass 源码重写滤镜几何，用户指出"你就没改"）：
+       旧 objectBoundingBox + 滤镜区域 ±0.2 外扩 → feImage 贴图被拉伸 1.4 倍，
+       折射环带大部分落在可见区外=几乎没折射。shuding 的做法：
+       userSpaceOnUse + 滤镜区域精确等于元素尺寸 + feImage 1:1 对齐 + scale=像素。 */
+    f.setAttribute('filterUnits', 'userSpaceOnUse');
+    f.setAttribute('primitiveUnits', 'userSpaceOnUse');
     f.setAttribute('color-interpolation-filters', 'sRGB');
-    f.setAttribute('x', '-0.2'); f.setAttribute('y', '-0.2');
-    f.setAttribute('width', '1.4'); f.setAttribute('height', '1.4');
+    f.setAttribute('x', '0'); f.setAttribute('y', '0');
+    f.setAttribute('width', Math.round(rb.width)); f.setAttribute('height', Math.round(rb.height));
     var fe = document.createElementNS(NS, 'feImage');
     fe.setAttribute('result', 'map');
     fe.setAttribute('href', map.url);
     fe.setAttribute('preserveAspectRatio', 'none');
+    fe.setAttribute('width', Math.round(rb.width)); fe.setAttribute('height', Math.round(rb.height));
     var dm = document.createElementNS(NS, 'feDisplacementMap');
     dm.setAttribute('in', 'SourceGraphic');
     dm.setAttribute('in2', 'map');
-    /* objectBoundingBox 下 scale 是相对包围盒的比例，不是像素：换算成
-       "refraction 像素 / 元素短边"，再交给配方表微调 */
-    dm.setAttribute('scale', (o.refraction / Math.min(rb.width, rb.height)).toFixed(4));
+    /* userSpaceOnUse 下 scale 即像素位移：refraction px（贴图通道满偏 127/255≈半程） */
+    dm.setAttribute('scale', o.refraction.toFixed(1));
     dm.setAttribute('xChannelSelector', 'R');
     dm.setAttribute('yChannelSelector', 'G');
     f.appendChild(fe); f.appendChild(dm);
