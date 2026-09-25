@@ -668,6 +668,10 @@ html.dark .appbar::before{
      （参考引擎规则：玻璃层要留形变空间）。子元素全都待在盒内（药丸 inset 4px、
      ::before 带 border-radius:inherit、tab 有内边距），当年这行没有可见职责；
      真机定稿若给 .glass-lens 加负 inset overscan，不会再被这里裁掉。 */
+  /* 2026-09-25 深夜恢复 overflow:hidden（用户拍到选中药丸越出栏外）：透镜贴图
+     已是 1:1 几何（无 overscan 需求），药丸挤压动画 + 弹簧过冲在首末位 tab
+     会越出栏的圆角端头——材质语言要求高光永远嵌在栏内，这里必须裁。 */
+  overflow: hidden;
 }
 .tabbar::before{
   /* edge-light，底部内圈高光 */
@@ -749,8 +753,8 @@ html.dark .appbar::before{
      的同心原则（developer.apple.com/documentation/technologyoverviews/
      adopting-liquid-glass：嵌套圆角 = 外层半径 − 内缩距）改为四边等距内缩、
      全胶囊圆角，选中高光永远以平行曲线嵌在栏内，不与外缘相切相撞。 */
-  left: 5px; top: 4px; bottom: calc(var(--sa-bottom, 0px) + 14px);
-  width: calc(var(--pill-w, 52px) - 10px);
+  left: 6px; top: 4px; bottom: calc(var(--sa-bottom, 0px) + 14px);
+  width: calc(var(--pill-w, 52px) - 12px);
   transform: translateX(var(--pill-x, 0px));
   border-radius: 999px;
   /* 从 .85/.75 的平涂白降到 .34/.26：用户真机反馈"选中时还有小白点"，那块 85% 的
@@ -779,8 +783,8 @@ html.dark .appbar::before{
 }
 @keyframes pill-squash{
   0%  { scale: 1 1; }
-  38% { scale: 1.16 .86; }
-  68% { scale: .95 1.06; }
+  38% { scale: 1.08 .9; }
+  68% { scale: .96 1.04; }
   100%{ scale: 1 1; }
 }
 html.dark .tabbar > .tab-pill{
