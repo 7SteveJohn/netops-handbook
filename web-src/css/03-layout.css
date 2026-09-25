@@ -350,6 +350,22 @@ html.dark body.glass-on .drawer {
 .drawer.is-dragging { transition: none; }
 .scrim.is-dragging  { transition: none; }
 
+/* 左缘统一手势的"返回指示条"（2026-09-25，Android 10+ 同款语言）：
+   跟手增长/增亮（32-boot 的 bindEdgeGestures 写 opacity/scaleY），松手淡出。
+   z-index 高于底栏 90 与 sheet 92，低于 toast 之外的全部浮层。 */
+.back-peek {
+  position: fixed;
+  left: 0; top: 50%;
+  width: 4px; height: 96px;
+  border-radius: 0 4px 4px 0;
+  background: var(--accent);
+  transform: translateY(-50%) scaleY(.4);
+  opacity: 0;
+  transition: opacity .18s var(--ease-out), transform .18s var(--ease-out);
+  z-index: 93;
+  pointer-events: none;
+}
+
 .drawer__head {
   padding: 16px 16px 12px;
   border-bottom: 1px solid var(--border);

@@ -139,6 +139,10 @@
     if (U.sheet.isOpen()) { U.sheet.close(); return true; }
     if (closeAnyCustomSheet()) { return true; } /* 关闭壁纸/玻璃自定义弹窗 */
     if (drawerCtl && drawerCtl.isOpen && drawerCtl.isOpen()) { drawerCtl.close(); return true; }
+    /* 展开卡片（二级菜单 DOM 展开，非 stack 导航）：所有返回路径统一先收卡片
+       （2026-09-25：此前只有左滑手势关卡片，物理返回键在展开卡片上第一下没反应） */
+    var oc = d.querySelector('.card.is-open');
+    if (oc) { oc.classList.remove('is-open'); return true; }
     if (!stack.length) {
       if (!isRoot(cur.r)) { goTab(META[cur.r] ? META[cur.r].tab : 'learn', true); return true; }
       return false;
@@ -2119,58 +2123,89 @@
      - 任何页面监听手势
      - 左滑(dx>TH)：目录开着→关目录；学习页根界面→呼出目录；其他(二级菜单/其他模块)→ back()
      - 右滑(dx<-TH)：目录开着→关目录（原行为保留） */
-  function bindLearnSwipeOpen(openFn) {
-    /* 2026-08-12 19:20：防重复绑定（WebView restoreState 后 boot 可能重复执行） */
+  /* ---------------- 左缘统一手势（2026-09-25 重做，替换 bindLearnSwipeOpen）----------------
+     旧版三宗罪（用户反馈"全局手势很别扭"）：
+     1. 松手才判定（90px 阈值）——全程零跟手反馈，滑短了毫无反应；
+     2. 与 bindDrawer 的边缘拖拽双系统叠加，同一次触摸两套逻辑都参与；
+     3. 抽屉开着时的关闭与窗口级判定互相打架。
+     现在：一次触摸只属一个系统、全程跟手——
+     - 起手 ≤26px、8px 锁方向（竖向主导 = 滚动，直接放手）；
+     - 有可退目标（弹窗/展开卡片/路由栈/非根页，保留 2026-08-12 语义：二级菜单
+       左滑=返回上一级）→ 左缘"返回指示条"跟手增长，松手 ≥90px 执行 back()；
+     - 无可退目标 → 抽屉实时 peek（跟手位移 + 松手 35% 阈值，松手有弹簧回位）；
+     - 抽屉开着 → 让位给 bindDrawer 的拖拽关（起手在抽屉内，窗口监听不参与）。 */
+  function bindEdgeGestures() {
     if (w.__swipeBound) return;
     w.__swipeBound = true;
-    /* 边缘手势（2026-09-24 重做）。用户真机反馈"稍微划一划屏幕就退出应用"，
-       旧写法有三处错：起手位置不限（屏幕中间也能触发）、阈值只有 55px、
-       判定发生在 touchmove 中途（用户还在滑就触发动作）。
-       现在：必须从左侧边缘区起手、位移阈值提到 90px、方向以水平为主，
-       并且**统一在松手时判定**。 */
-    var EDGE = 26, TH = 90;
-    var sx = 0, sy = 0, dx = 0, dy = 0, active = false, fired = false;
+    var EDGE = 26, LOCK = 8, TH = 90;
+    var sx = 0, sy = 0, dx = 0, dy = 0, active = false, locked = false, mode = null;
+    /* 返回指示条：Android 10+ 同款语言——左缘细条跟手增长、松手淡出 */
+    var peek = d.createElement('div');
+    peek.className = 'back-peek';
+    peek.setAttribute('aria-hidden', 'true');
+    d.body.appendChild(peek);
+    function peekAt(p) {
+      var k = Math.max(0, Math.min(1, p));
+      peek.style.opacity = String(k * .8);
+      peek.style.transform = 'translateY(-50%) scaleY(' + (0.4 + 0.6 * k) + ')';
+    }
+    function customSheetOpen() {
+      var wp = $('#wpSheet'), gl = $('#glassSheet');
+      return (wp && wp.classList.contains('is-open')) || (gl && gl.classList.contains('is-open'));
+    }
+    function canBack() {
+      if (U.sheet.isOpen()) return true;
+      if (customSheetOpen()) return true;
+      if (drawerCtl && drawerCtl.isOpen()) return true;
+      if (d.querySelector('.card.is-open')) return true;
+      if (stack.length) return true;
+      return !isRoot(cur.r);
+    }
     function start(e) {
       var t = e.touches ? e.touches[0] : e;
+      /* 抽屉开着：起手必然在抽屉内，拖拽关由 bindDrawer 负责（避免双系统） */
+      if (drawerCtl && drawerCtl.isOpen()) { active = false; return; }
       sx = t.clientX; sy = t.clientY;
-      dx = 0; dy = 0;
-      /* 只有从左侧边缘起手才算"返回/呼出目录"手势；其余横向拖动一律不当手势，
-         这样列表里的斜向滑动、拖拽都不会误触发 */
-      active = sx <= EDGE;
-      fired = false;
+      dx = 0; dy = 0; active = true; locked = false; mode = null;
     }
     function move(e) {
-      if (!active || fired) return;
+      if (!active) return;
       var t = e.touches ? e.touches[0] : e;
       if (!t) return;
       dx = t.clientX - sx; dy = t.clientY - sy;
-    }
-    function end() {
-      if (!active || fired) { active = false; return; }
-      active = false;
-      var opened = drawerCtl && drawerCtl.isOpen && drawerCtl.isOpen();
-      /* 水平为主且超过阈值才算；垂直占优（正常滚动）直接放过 */
-      if (Math.abs(dx) < TH || Math.abs(dy) * 1.4 > Math.abs(dx)) return;
-      fired = true;
-      if (dx > 0) {
-        if (opened) { openFn(); return; }
-        if (closeOpenCard()) return;
-        /* 关键改动：滑动**永不退出应用**。back() 自己会判断有没有可退的
-           （弹窗 / 抽屉 / 展开卡片 / 上一级页面），返回 false 才说明到了根界面 ——
-           这时呼出目录，而不是走 handleBackOrExit() 的二次确认退出。 */
-        if (!back()) openFn();
-      } else if (dx < 0 && opened) {
-        openFn();
+      if (!locked) {
+        if (Math.abs(dx) < LOCK && Math.abs(dy) < LOCK) return;
+        if (Math.abs(dy) > Math.abs(dx)) { active = false; return; }
+        locked = true;
+        mode = canBack() ? 'back' : 'drawer';
+        if (mode === 'drawer') {
+          drawer.classList.add('is-dragging'); scrim.classList.add('is-dragging');
+          if (!drawer.classList.contains('is-open')) { drawer.classList.add('is-open'); scrim.classList.add('is-open'); }
+        }
+      }
+      if (mode === 'drawer') {
+        var W = drawer.getBoundingClientRect().width || 300;
+        var pos = Math.max(-W, Math.min(0, -W + dx));
+        drawer.style.transform = 'translate3d(' + pos + 'px,0,0)';
+        scrim.style.opacity = String(1 + pos / W());
+      } else {
+        peekAt(dx / TH);
       }
     }
-    /* 当前页面是否有展开的折叠卡片（二级菜单为 DOM 展开，非 stack 导航） */
-    function closeOpenCard() {
-      var oc = d.querySelector('.card.is-open');
-      if (oc) { oc.classList.remove('is-open'); return true; }
-      return false;
+    function end() {
+      if (!active) return;
+      active = false;
+      if (!locked) return;
+      if (mode === 'drawer') {
+        drawer.classList.remove('is-dragging'); scrim.classList.remove('is-dragging');
+        drawer.style.transform = ''; scrim.style.opacity = '';
+        var W = drawer.getBoundingClientRect().width || 300;
+        if (dx > W * 0.35) drawerCtl.open(); else drawerCtl.close();
+      } else {
+        peekAt(0);
+        if (dx >= TH) back();   /* back() 自己会选：关弹窗/收卡片/弹路由/回根 tab */
+      }
     }
-    /* move 现在只记录坐标、不 preventDefault，所以三个监听都可以 passive，
-       滚动交回合成器处理；判定挪到 touchend */
     w.addEventListener('touchstart', start, { passive: true });
     w.addEventListener('touchmove', move, { passive: true });
     w.addEventListener('touchend', end, { passive: true });
@@ -2219,14 +2254,10 @@
       });
     } catch (e) {}
 
-    drawerCtl = U.bindDrawer(drawer, scrim, edge);
-    /* 2026-08-12:学习页任意位置左滑呼出目录（非边缘手势——
-       边缘手势与 Android 系统返回冲突，用户反馈易误触退出软件）。
-       对称手势：未开 → 左滑开；已开 → 右滑关（防止误触退出） */
-    bindLearnSwipeOpen(function () {
-      if (drawerCtl.isOpen()) drawerCtl.close();
-      else drawerCtl.open();
-    });
+    drawerCtl = U.bindDrawer(drawer, scrim);
+    /* 2026-08-12 的窗口级左滑判定（bindLearnSwipeOpen）已由 bindEdgeGestures 取代：
+       同样保留"二级菜单左滑=返回上一级"语义，但全程跟手（返回指示条/抽屉 peek）。 */
+    bindEdgeGestures();
     buildDrawer();
     bindGlobal();
     bindSearch();
