@@ -849,7 +849,8 @@
        形变弹簧：stretch = |速度|×系数（快走拉长、减速松开，sy=2−sx 体积近似守恒）
      果冻感 = 速度与形变的耦合，逐帧 60fps，没有关键帧。刚度/阻尼从配方表
      motion.spring 的过冲量反解（--gr-spring 仍是真源）。 */
-  var jelly = { x: -1, v: 0, sx: 1, sv: 0, w: 0, tx: 0, tw: 0, raf: 0, pill: null, K: 0.18, C: 0.3 };
+  var jelly = { x: -1, v: 0, sx: 1, sv: 0, w: 0, tx: 0, tw: 0, raf: 0, pill: null, K: 0.18, C: 0.3, lastT: 0 };
+  w.__jelly = jelly;                               /* 真机/本地探针读 */
   function jellyTune() {
     var m = (w.getComputedStyle(document.documentElement).getPropertyValue('--gr-spring') || '').match(/[\d.]+/g);
     if (m && m.length >= 4) {
@@ -862,30 +863,35 @@
     if (jelly.x < 0) { jelly.x = tx; jelly.w = tw; }   /* 首帧就位，不播开场 */
     jelly.tx = tx; jelly.tw = tw;
     jellyTune();
-    if (!jelly.raf) jelly.raf = requestAnimationFrame(jellyStep);
+    /* 无条件重启循环：页面隐藏时 rAF 被挂起、旧句柄残留会让药丸永久卡死 */
+    if (jelly.raf) { try { cancelAnimationFrame(jelly.raf); } catch (err) {} }
+    jelly.lastT = 0;
+    jelly.raf = requestAnimationFrame(jellyStep);
   }
-  function jellyStep() {
-    var settled = true;
-    /* 位置弹簧（每帧单位积分，60fps 下即真实时间） */
-    jelly.v += ((jelly.tx - jelly.x) * jelly.K - jelly.v * jelly.C);
-    jelly.x += jelly.v;
-    if (Math.abs(jelly.tx - jelly.x) > 0.4 || Math.abs(jelly.v) > 0.4) settled = false;
-    /* 形变弹簧：目标由速度驱动（速度越大拉越长） */
-    var stretch = Math.min(0.38, Math.abs(jelly.v) * 0.026);
-    jelly.sv += ((1 + stretch - jelly.sx) * 0.30 - jelly.sv * 0.26);
-    jelly.sx += jelly.sv;
-    if (Math.abs(jelly.sx - (1 + stretch)) > 0.006) settled = false;
-    jelly.w += (jelly.tw - jelly.w) * 0.22;
-    var p = jelly.pill;
-    if (p) {
-      p.style.transform = 'translateX(' + jelly.x.toFixed(2) + 'px) scaleX(' + jelly.sx.toFixed(3) + ') scaleY(' + (2 - jelly.sx).toFixed(3) + ')';
-      p.style.width = jelly.w.toFixed(1) + 'px';
-    }
-    if (settled) {
-      jelly.x = jelly.tx; jelly.sx = 1; jelly.w = jelly.tw; jelly.raf = 0;
-      if (p) { p.style.transform = 'translateX(' + jelly.tx + 'px)'; p.style.width = jelly.tw + 'px'; }
-      return;
-    }
+  function jellyStep(ts) {
+    try {
+      var dt = jelly.lastT ? Math.min(4, (ts - jelly.lastT) / 16.7) : 1;   /* 挂起后补算，上限 4 帧 */
+      jelly.lastT = ts;
+      var settled = true;
+      jelly.v += ((jelly.tx - jelly.x) * jelly.K - jelly.v * jelly.C) * dt;
+      jelly.x += jelly.v * dt;
+      if (Math.abs(jelly.tx - jelly.x) > 0.4 || Math.abs(jelly.v) > 0.4) settled = false;
+      var stretch = Math.min(0.38, Math.abs(jelly.v) * 0.026);
+      jelly.sv += ((1 + stretch - jelly.sx) * 0.30 - jelly.sv * 0.26) * dt;
+      jelly.sx += jelly.sv * dt;
+      jelly.w += (jelly.tw - jelly.w) * Math.min(1, 0.22 * dt);
+      var p = jelly.pill;
+      if (p) {
+        p.style.transform = 'translateX(' + jelly.x.toFixed(2) + 'px) scaleX(' + jelly.sx.toFixed(3) + ') scaleY(' + (2 - jelly.sx).toFixed(3) + ')';
+        p.style.width = jelly.w.toFixed(1) + 'px';
+      }
+      if (Math.abs(jelly.sx - (1 + stretch)) > 0.006) settled = false;
+      if (settled) {
+        jelly.x = jelly.tx; jelly.sx = 1; jelly.w = jelly.tw; jelly.raf = 0; jelly.lastT = 0;
+        if (p) { p.style.transform = 'translateX(' + jelly.tx + 'px)'; p.style.width = jelly.tw + 'px'; }
+        return;
+      }
+    } catch (e) { jelly.raf = 0; return; }
     jelly.raf = requestAnimationFrame(jellyStep);
   }
   /* ---------------- 药丸按住扭动（2026-09-26，用户定义的 Q弹场景）----------------

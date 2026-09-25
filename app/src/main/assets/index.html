@@ -2723,7 +2723,8 @@ function relLum(r, g, b) {
 var f = function (c) { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
 return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
 }
-var jelly = { x: -1, v: 0, sx: 1, sv: 0, w: 0, tx: 0, tw: 0, raf: 0, pill: null, K: 0.18, C: 0.3 };
+var jelly = { x: -1, v: 0, sx: 1, sv: 0, w: 0, tx: 0, tw: 0, raf: 0, pill: null, K: 0.18, C: 0.3, lastT: 0 };
+w.__jelly = jelly;                                
 function jellyTune() {
 var m = (w.getComputedStyle(document.documentElement).getPropertyValue('--gr-spring') || '').match(/[\d.]+/g);
 if (m && m.length >= 4) {
@@ -2736,28 +2737,34 @@ jelly.pill = pill;
 if (jelly.x < 0) { jelly.x = tx; jelly.w = tw; }    
 jelly.tx = tx; jelly.tw = tw;
 jellyTune();
-if (!jelly.raf) jelly.raf = requestAnimationFrame(jellyStep);
+if (jelly.raf) { try { cancelAnimationFrame(jelly.raf); } catch (err) {} }
+jelly.lastT = 0;
+jelly.raf = requestAnimationFrame(jellyStep);
 }
-function jellyStep() {
+function jellyStep(ts) {
+try {
+var dt = jelly.lastT ? Math.min(4, (ts - jelly.lastT) / 16.7) : 1;    
+jelly.lastT = ts;
 var settled = true;
-jelly.v += ((jelly.tx - jelly.x) * jelly.K - jelly.v * jelly.C);
-jelly.x += jelly.v;
+jelly.v += ((jelly.tx - jelly.x) * jelly.K - jelly.v * jelly.C) * dt;
+jelly.x += jelly.v * dt;
 if (Math.abs(jelly.tx - jelly.x) > 0.4 || Math.abs(jelly.v) > 0.4) settled = false;
 var stretch = Math.min(0.38, Math.abs(jelly.v) * 0.026);
-jelly.sv += ((1 + stretch - jelly.sx) * 0.30 - jelly.sv * 0.26);
-jelly.sx += jelly.sv;
-if (Math.abs(jelly.sx - (1 + stretch)) > 0.006) settled = false;
-jelly.w += (jelly.tw - jelly.w) * 0.22;
+jelly.sv += ((1 + stretch - jelly.sx) * 0.30 - jelly.sv * 0.26) * dt;
+jelly.sx += jelly.sv * dt;
+jelly.w += (jelly.tw - jelly.w) * Math.min(1, 0.22 * dt);
 var p = jelly.pill;
 if (p) {
 p.style.transform = 'translateX(' + jelly.x.toFixed(2) + 'px) scaleX(' + jelly.sx.toFixed(3) + ') scaleY(' + (2 - jelly.sx).toFixed(3) + ')';
 p.style.width = jelly.w.toFixed(1) + 'px';
 }
+if (Math.abs(jelly.sx - (1 + stretch)) > 0.006) settled = false;
 if (settled) {
-jelly.x = jelly.tx; jelly.sx = 1; jelly.w = jelly.tw; jelly.raf = 0;
+jelly.x = jelly.tx; jelly.sx = 1; jelly.w = jelly.tw; jelly.raf = 0; jelly.lastT = 0;
 if (p) { p.style.transform = 'translateX(' + jelly.tx + 'px)'; p.style.width = jelly.tw + 'px'; }
 return;
 }
+} catch (e) { jelly.raf = 0; return; }
 jelly.raf = requestAnimationFrame(jellyStep);
 }
 function bindTabbarJelly() {
