@@ -157,6 +157,12 @@ html.dark body.glass-on .searchbar {
 /* 浮动模式（2026-09-25 按 WWDC25 Liquid Glass 理念重构，用户供片）：
    底栏不再是悬浮胶囊，而是边到边玻璃板——底角与屏幕圆角同心（视频 0:27-0:31），
    占更多高度，折射发生在屏幕角落的大曲率处。 */
+/* 2026-09-25：导航 chrome 禁长按选择/系统复制菜单（用户反馈误唤出） */
+.tabbar, .appbar {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
 body:not(.tabbar-regular) .tabbar {
   left: 0; right: 0; bottom: 0;
   height: calc(56px + var(--sa-bottom, 0px) + 10px);

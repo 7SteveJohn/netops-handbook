@@ -852,11 +852,15 @@
     if (!rt.width) return;                       /* 尚未布局（隐藏/首帧），别写 0 宽 */
     pill.style.setProperty('--pill-x', (rt.left - rb.left).toFixed(1) + 'px');
     pill.style.setProperty('--pill-w', rt.width.toFixed(1) + 'px');
-    /* Q弹挤压（2026-09-25 用户反馈"不够q弹"）：每次换位重启形变动画——
-       中段沿运动方向拉伸、落位反向过冲，与位移弹簧叠加成"果冻感" */
-    pill.style.animation = 'none';
+    /* Q弹果冻（2026-09-25 用户反馈"硬邦邦"）：整段动作编排成一条动画——
+       起手压扁蓄力、途中沿运动方向拉伸、落位过冲、回弹收尾。
+       旧写法位移与形变两条动画各自为政，观感生硬。 */
+    var prevX = pill.style.getPropertyValue('--pill-x');
+    if (prevX && prevX !== pill.style.getPropertyValue('--pill-x')) return;
+    pill.style.setProperty('--pill-x-from', prevX || (rt.left - rb.left).toFixed(1) + 'px');
+    pill.classList.remove('is-jelly');
     void pill.offsetWidth;
-    pill.style.animation = '';
+    pill.classList.add('is-jelly');
   }
 
   function initWallpaper() {
