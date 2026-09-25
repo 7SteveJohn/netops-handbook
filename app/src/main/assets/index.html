@@ -2760,6 +2760,43 @@ return;
 }
 jelly.raf = requestAnimationFrame(jellyStep);
 }
+function bindTabbarJelly() {
+var bar = $('#tabbar');
+if (!bar || w.__tabJellyBound) return;
+w.__tabJellyBound = true;
+var grab = null;
+bar.addEventListener('pointerdown', function (e) {
+if (!e.target.closest || !e.target.closest('.tab')) return;
+grab = { x: e.clientX, y: e.clientY, id: e.pointerId, moved: false };
+try { bar.setPointerCapture(e.pointerId); } catch (err) {}
+});
+bar.addEventListener('pointermove', function (e) {
+if (!grab || e.pointerId !== grab.id) return;
+var dx = e.clientX - grab.x, dy = e.clientY - grab.y;
+if (!grab.moved) {
+if (Math.abs(dx) < 8) return;
+if (Math.abs(dy) > Math.abs(dx)) { grab = null; return; }
+grab.moved = true;
+}
+var rb = bar.getBoundingClientRect();
+var pw = jelly.tw || 60;
+jelly.tx = Math.max(6, Math.min(rb.width - 6 - pw, e.clientX - rb.left - pw / 2));
+if (!jelly.raf) jelly.raf = requestAnimationFrame(jellyStep);
+});
+function release(e) {
+if (!grab || (e.pointerId !== undefined && e.pointerId !== grab.id)) return;
+var wasMoved = grab.moved;
+grab = null;
+if (!wasMoved) return;                           
+var tabs = bar.querySelectorAll('.tab');
+var rb = bar.getBoundingClientRect();
+var idx = Math.min(tabs.length - 1, Math.max(0, Math.floor((e.clientX - rb.left) / (rb.width / tabs.length))));
+var target = tabs[idx];
+if (target && !target.classList.contains('is-active')) target.click();
+}
+bar.addEventListener('pointerup', release);
+bar.addEventListener('pointercancel', function (e) { grab = null; });
+}
 function positionTabPill() {
 var bar = $('#tabbar'), pill = $('#tabPill');
 if (!bar || !pill) return;
@@ -3845,6 +3882,7 @@ return !isRoot(cur.r);
 function start(e) {
 var t = e.touches ? e.touches[0] : e;
 if (drawerCtl && drawerCtl.isOpen()) { active = false; return; }
+if (t.target && t.target.closest && t.target.closest('.tabbar')) { active = false; return; }
 sx = t.clientX; sy = t.clientY;
 dx = 0; dy = 0; active = true; locked = false; mode = null;
 }
@@ -3920,6 +3958,7 @@ if (U.theme.get() === 'auto') { U.theme.apply(); applyGlass(getGlass() || glassD
 } catch (e) {}
 drawerCtl = U.bindDrawer(drawer, scrim);
 bindEdgeGestures();
+bindTabbarJelly();
 buildDrawer();
 bindGlobal();
 bindSearch();

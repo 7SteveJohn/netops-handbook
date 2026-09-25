@@ -888,6 +888,47 @@
     }
     jelly.raf = requestAnimationFrame(jellyStep);
   }
+  /* ---------------- 药丸按住扭动（2026-09-26，用户定义的 Q弹场景）----------------
+     按住 tab 横向拖动 → 果冻目标跟手（弹簧滞后追赶=扭动），形变由速度驱动；
+     松手 → 吸附到手指下的 tab 并切换（或弹回原位）。普通点击完全不受影响。 */
+  function bindTabbarJelly() {
+    var bar = $('#tabbar');
+    if (!bar || w.__tabJellyBound) return;
+    w.__tabJellyBound = true;
+    var grab = null;
+    bar.addEventListener('pointerdown', function (e) {
+      if (!e.target.closest || !e.target.closest('.tab')) return;
+      grab = { x: e.clientX, y: e.clientY, id: e.pointerId, moved: false };
+      try { bar.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    bar.addEventListener('pointermove', function (e) {
+      if (!grab || e.pointerId !== grab.id) return;
+      var dx = e.clientX - grab.x, dy = e.clientY - grab.y;
+      if (!grab.moved) {
+        if (Math.abs(dx) < 8) return;
+        if (Math.abs(dy) > Math.abs(dx)) { grab = null; return; }
+        grab.moved = true;
+      }
+      var rb = bar.getBoundingClientRect();
+      var pw = jelly.tw || 60;
+      jelly.tx = Math.max(6, Math.min(rb.width - 6 - pw, e.clientX - rb.left - pw / 2));
+      if (!jelly.raf) jelly.raf = requestAnimationFrame(jellyStep);
+    });
+    function release(e) {
+      if (!grab || (e.pointerId !== undefined && e.pointerId !== grab.id)) return;
+      var wasMoved = grab.moved;
+      grab = null;
+      if (!wasMoved) return;                          /* 普通点击走原有 click */
+      var tabs = bar.querySelectorAll('.tab');
+      var rb = bar.getBoundingClientRect();
+      var idx = Math.min(tabs.length - 1, Math.max(0, Math.floor((e.clientX - rb.left) / (rb.width / tabs.length))));
+      var target = tabs[idx];
+      if (target && !target.classList.contains('is-active')) target.click();
+    }
+    bar.addEventListener('pointerup', release);
+    bar.addEventListener('pointercancel', function (e) { grab = null; });
+  }
+
   function positionTabPill() {
     var bar = $('#tabbar'), pill = $('#tabPill');
     if (!bar || !pill) return;
@@ -2222,6 +2263,8 @@
       var t = e.touches ? e.touches[0] : e;
       /* 抽屉开着：起手必然在抽屉内，拖拽关由 bindDrawer 负责（避免双系统） */
       if (drawerCtl && drawerCtl.isOpen()) { active = false; return; }
+      /* 起手在底栏上：属于药丸果冻拖拽（bindTabbarJelly），左缘手势让位 */
+      if (t.target && t.target.closest && t.target.closest('.tabbar')) { active = false; return; }
       sx = t.clientX; sy = t.clientY;
       dx = 0; dy = 0; active = true; locked = false; mode = null;
     }
@@ -2315,6 +2358,7 @@
     /* 2026-08-12 的窗口级左滑判定（bindLearnSwipeOpen）已由 bindEdgeGestures 取代：
        同样保留"二级菜单左滑=返回上一级"语义，但全程跟手（返回指示条/抽屉 peek）。 */
     bindEdgeGestures();
+    bindTabbarJelly();
     buildDrawer();
     bindGlobal();
     bindSearch();
