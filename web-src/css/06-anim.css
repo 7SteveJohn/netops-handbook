@@ -774,19 +774,8 @@ html.dark .appbar::before{
     0 1px 3px rgba(15, 23, 42, .08);
   z-index: 0;
   pointer-events: none;
-  transition: width .3s var(--ease-out);
-  /* Q弹果冻：位移+形变+过冲编排进同一条动画（32-boot 每次换位重启） */
+  /* 果冻物理由 32-boot 的 rAF 弹簧逐帧驱动（transform/width 全部内联），CSS 只管静置 */
   will-change: transform;
-}
-.tabbar > .tab-pill.is-jelly{
-  animation: pill-jelly .58s var(--gr-spring, cubic-bezier(.32,1.25,.45,1));
-}
-@keyframes pill-jelly{
-  0%  { transform: translateX(var(--pill-x-from, 0px)) scale(.94, 1.08); }
-  30% { transform: translateX(calc(var(--pill-x-from, 0px)*.55 + var(--pill-x, 0px)*.45)) scale(1.24, .8); }
-  60% { transform: translateX(var(--pill-x, 0px)) scale(.9, 1.12); }
-  78% { transform: translateX(calc(var(--pill-x, 0px) + 5px)) scale(1.07, .95); }
-  100%{ transform: translateX(var(--pill-x, 0px)) scale(1, 1); }
 }
 html.dark .tabbar > .tab-pill{
   /* 2026-09-25 二轮：深灰 .85 药丸在玻璃栏上是一块"贴纸"（用户实测反馈）。

@@ -843,6 +843,51 @@
      用 getBoundingClientRect 而不是按 1/5 算宽度 —— 内边距、安全区、平板限宽
      （05-views.css 的 max-width:860px 与 justify-content:center）都会改变格宽，
      算出来的会和实际错位。 */
+  /* ---------------- 药丸果冻物理（2026-09-25 推倒重构，用户否决 CSS 关键帧版）----------------
+     CSS keyframe 之间是插值，不是物理——硬邦邦的根源。现在 rAF 逐帧积分：
+       位置弹簧：目标 = 激活 tab 的 x，欠阻尼 → 过冲回弹自然发生
+       形变弹簧：stretch = |速度|×系数（快走拉长、减速松开，sy=2−sx 体积近似守恒）
+     果冻感 = 速度与形变的耦合，逐帧 60fps，没有关键帧。刚度/阻尼从配方表
+     motion.spring 的过冲量反解（--gr-spring 仍是真源）。 */
+  var jelly = { x: -1, v: 0, sx: 1, sv: 0, w: 0, tx: 0, tw: 0, raf: 0, pill: null, K: 0.18, C: 0.3 };
+  function jellyTune() {
+    var m = (w.getComputedStyle(document.documentElement).getPropertyValue('--gr-spring') || '').match(/[\d.]+/g);
+    if (m && m.length >= 4) {
+      var overshoot = parseFloat(m[3]) / 1.25;         /* 相对默认过冲 1.25 的倍率 */
+      jelly.C = 0.3 / Math.max(0.6, overshoot);        /* 越弹阻尼越小 */
+    }
+  }
+  function jellyKick(tx, tw, pill) {
+    jelly.pill = pill;
+    if (jelly.x < 0) { jelly.x = tx; jelly.w = tw; }   /* 首帧就位，不播开场 */
+    jelly.tx = tx; jelly.tw = tw;
+    jellyTune();
+    if (!jelly.raf) jelly.raf = requestAnimationFrame(jellyStep);
+  }
+  function jellyStep() {
+    var settled = true;
+    /* 位置弹簧（每帧单位积分，60fps 下即真实时间） */
+    jelly.v += ((jelly.tx - jelly.x) * jelly.K - jelly.v * jelly.C);
+    jelly.x += jelly.v;
+    if (Math.abs(jelly.tx - jelly.x) > 0.4 || Math.abs(jelly.v) > 0.4) settled = false;
+    /* 形变弹簧：目标由速度驱动（速度越大拉越长） */
+    var stretch = Math.min(0.30, Math.abs(jelly.v) * 0.016);
+    jelly.sv += ((1 + stretch - jelly.sx) * 0.30 - jelly.sv * 0.26);
+    jelly.sx += jelly.sv;
+    if (Math.abs(jelly.sx - (1 + stretch)) > 0.006) settled = false;
+    jelly.w += (jelly.tw - jelly.w) * 0.22;
+    var p = jelly.pill;
+    if (p) {
+      p.style.transform = 'translateX(' + jelly.x.toFixed(2) + 'px) scaleX(' + jelly.sx.toFixed(3) + ') scaleY(' + (2 - jelly.sx).toFixed(3) + ')';
+      p.style.width = jelly.w.toFixed(1) + 'px';
+    }
+    if (settled) {
+      jelly.x = jelly.tx; jelly.sx = 1; jelly.w = jelly.tw; jelly.raf = 0;
+      if (p) { p.style.transform = 'translateX(' + jelly.tx + 'px)'; p.style.width = jelly.tw + 'px'; }
+      return;
+    }
+    jelly.raf = requestAnimationFrame(jellyStep);
+  }
   function positionTabPill() {
     var bar = $('#tabbar'), pill = $('#tabPill');
     if (!bar || !pill) return;
@@ -850,17 +895,7 @@
     if (!act) return;
     var rb = bar.getBoundingClientRect(), rt = act.getBoundingClientRect();
     if (!rt.width) return;                       /* 尚未布局（隐藏/首帧），别写 0 宽 */
-    pill.style.setProperty('--pill-x', (rt.left - rb.left).toFixed(1) + 'px');
-    pill.style.setProperty('--pill-w', rt.width.toFixed(1) + 'px');
-    /* Q弹果冻（2026-09-25 用户反馈"硬邦邦"）：整段动作编排成一条动画——
-       起手压扁蓄力、途中沿运动方向拉伸、落位过冲、回弹收尾。
-       旧写法位移与形变两条动画各自为政，观感生硬。 */
-    var prevX = pill.style.getPropertyValue('--pill-x');
-    if (prevX && prevX !== pill.style.getPropertyValue('--pill-x')) return;
-    pill.style.setProperty('--pill-x-from', prevX || (rt.left - rb.left).toFixed(1) + 'px');
-    pill.classList.remove('is-jelly');
-    void pill.offsetWidth;
-    pill.classList.add('is-jelly');
+    jellyKick(rt.left - rb.left + 6, rt.width - 12, pill);
   }
 
   function initWallpaper() {
