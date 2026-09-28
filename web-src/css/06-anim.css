@@ -1395,7 +1395,6 @@ html.dark body.glass-liquid .tabbar.is-scrolled::before {
    - frosted/gaussian 同样受益（半透明与省电不冲突）
    ============================================================ */
 body.has-wallpaper .card,
-body.has-wallpaper .sec,
 body.has-wallpaper .list,
 body.has-wallpaper .list__item,
 body.has-wallpaper .phase,
@@ -1425,14 +1424,15 @@ body.has-wallpaper .card__head {
     0 2px 10px rgba(15,23,42,.06) !important;
 }
 
-/* 2026-08-12 用户反馈：二级子段（.note / .answer / .qz__fb / .sec 标题行）在 has-wallpaper 下与主卡片同色，
+/* 2026-08-12 用户反馈：二级子段（.note / .answer / .qz__fb）在 has-wallpaper 下与主卡片同色，
    视觉上像"抠图没扣全"。改为全透明——融入主卡片背景，只靠 .answer 的 3px 强调条
    和文字本身区分层次。深色同理。
-   重要：本规则必须位于暗色共享规则（行 2025 左右）**之后**，
-   否则 CSS 源顺序会让暗色 .sec 的半透明白底覆盖回去。 */
+   2026-09-29 凌晨：.sec 从上面两条壁纸带选择器里移除——它带 !important 且
+   specificity 更高，会把 09-23 分节胶囊块（行 ~2050）的 background:none 打败，
+   导致标签药丸底下压着一条全宽矩形色带（用户实证截图）。.sec 的背景归属
+   统一收口到分节胶囊块：整行透明，玻璃只在标签药丸上。 */
 
 html.dark body.has-wallpaper .card,
-html.dark body.has-wallpaper .sec,
 html.dark body.has-wallpaper .list,
 html.dark body.has-wallpaper .list__item,
 html.dark body.has-wallpaper .phase,
@@ -1967,7 +1967,26 @@ html[data-motion="off"] .card__body { transition: none !important; }
    .sec 整行戴着玻璃板，却是零内边距零圆角 —— 深色壁纸上就是一条硬边色带，
    用户原话"太生硬割裂"。板子挪到标签本身，分隔线留在板外并渐隐收尾。
    ============================================================ */
-.sec { background: none !important; border-color: transparent !important; box-shadow: none !important; }
+/* 压轴收口（2026-09-29 凌晨）：.sec 背景必须为零。上面各壁纸/玻璃段
+   （glass-on liquid、gaussian、android-webview 设备变体）都把 .sec 拉进了
+   整行 tint 带，且 specificity 高于裸 .sec —— 用户实证：标签药丸底下压着
+   一条全宽矩形色带，重叠很丑。这里按同 specificity 逐条点名 + 更晚出现，
+   保证任何模式/任何设备类下 .sec 都是透明的，玻璃只存在于标签药丸上。 */
+.sec,
+body.has-wallpaper .sec,
+html.dark body.has-wallpaper .sec,
+body.glass-gaussian .sec,
+html.dark body.glass-gaussian .sec,
+body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .sec,
+html.dark body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .sec,
+.android-webview body.glass-on.glass-liquid.has-wallpaper .sec,
+.android-webview.dark body.glass-on.glass-liquid.has-wallpaper .sec {
+  background: none !important;
+  -webkit-backdrop-filter: none !important;
+          backdrop-filter: none !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
 .sec__t { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px 5px 8px; border-radius: var(--r-full); }
 .sec__line { background: linear-gradient(90deg, var(--border) 0%, transparent 92%); }
 body.glass-on.has-wallpaper .sec__t {
