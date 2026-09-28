@@ -1149,52 +1149,10 @@ grab.addEventListener('pointerup', end);
 grab.addEventListener('pointercancel', end);
 }
 function bindDrawer(drawer, scrim) {
-var W = function () { return drawer.getBoundingClientRect().width || 300; };
 function open() { drawer.classList.add('is-open'); scrim.classList.add('is-open'); drawer.style.transform = ''; scrim.style.opacity = ''; }
 function close() { drawer.classList.remove('is-open'); scrim.classList.remove('is-open'); drawer.style.transform = ''; scrim.style.opacity = ''; }
 function isOpen() { return drawer.classList.contains('is-open'); }
 scrim.addEventListener('click', close);
-var sx = 0, sy = 0, dx = 0, active = false, decided = false, dir = 0, openAtStart = false;
-function start(e) {
-sx = e.clientX; sy = e.clientY; dx = 0; active = true; decided = false; dir = 0; openAtStart = isOpen();
-drawer.classList.add('is-dragging'); scrim.classList.add('is-dragging');
-}
-function move(e) {
-if (!active) return;
-var mx = e.clientX - sx, my = e.clientY - sy;
-if (!decided) {
-if (Math.abs(mx) < 8 && Math.abs(my) < 8) return;
-decided = true;
-if (Math.abs(my) > Math.abs(mx)) { cancel(); return; }
-dir = mx > 0 ? 1 : -1;
-}
-dx = mx;
-var base = openAtStart ? 0 : -W();
-var pos = Math.max(-W(), Math.min(0, base + dx));
-drawer.style.transform = 'translate3d(' + pos + 'px,0,0)';
-scrim.style.opacity = String(1 + pos / W());
-}
-function cancel() {
-active = false; drawer.classList.remove('is-dragging'); scrim.classList.remove('is-dragging');
-drawer.style.transform = ''; scrim.style.opacity = '';
-if (!openAtStart) close();
-}
-function end() {
-if (!active) return;
-active = false;
-drawer.classList.remove('is-dragging'); scrim.classList.remove('is-dragging');
-drawer.style.transform = ''; scrim.style.opacity = '';
-var th = W() * 0.35;
-if (openAtStart) { if (dx < -th) close(); else open(); }
-else { if (dx > th) open(); else close(); }
-}
-drawer.addEventListener('pointerdown', function (e) {
-if (e.target.closest('.drawer__body') && e.target.closest('button')) return;
-start(e);
-});
-drawer.addEventListener('pointermove', move);
-drawer.addEventListener('pointerup', end);
-drawer.addEventListener('pointercancel', end);
 return { open: open, close: close, isOpen: isOpen };
 }
 UI.bindDrawer = bindDrawer;
@@ -3819,7 +3777,6 @@ return !isRoot(cur.r);
 }
 function start(e) {
 var t = e.touches ? e.touches[0] : e;
-if (drawerCtl && drawerCtl.isOpen()) { active = false; return; }
 if (t.target && t.target.closest && t.target.closest('.tabbar')) { active = false; return; }
 sx = t.clientX; sy = t.clientY;
 dx = 0; dy = 0; active = true; locked = false; mode = null;
@@ -3833,34 +3790,17 @@ if (!locked) {
 if (Math.abs(dx) < LOCK && Math.abs(dy) < LOCK) return;
 if (Math.abs(dy) > Math.abs(dx)) { active = false; return; }
 locked = true;
-mode = canBack() ? 'back' : 'drawer';
-if (mode === 'drawer') {
-drawer.classList.add('is-dragging'); scrim.classList.add('is-dragging');
-if (!drawer.classList.contains('is-open')) { drawer.classList.add('is-open'); scrim.classList.add('is-open'); }
+mode = canBack() ? 'back' : null;
+if (!mode) { active = false; return; }
 }
-}
-if (mode === 'drawer') {
-var W = drawer.getBoundingClientRect().width || 300;
-var pos = Math.max(-W, Math.min(0, -W + dx));
-drawer.style.transform = 'translate3d(' + pos + 'px,0,0)';
-scrim.style.opacity = String(1 + pos / W);
-} else {
 peekAt(dx / TH);
-}
 }
 function end() {
 if (!active) return;
 active = false;
 if (!locked) return;
-if (mode === 'drawer') {
-drawer.classList.remove('is-dragging'); scrim.classList.remove('is-dragging');
-drawer.style.transform = ''; scrim.style.opacity = '';
-var W = drawer.getBoundingClientRect().width || 300;
-if (dx > W * 0.35) drawerCtl.open(); else drawerCtl.close();
-} else {
 peekAt(0);
 if (dx >= TH) back();    
-}
 }
 w.addEventListener('touchstart', start, { passive: true });
 w.addEventListener('touchmove', move, { passive: true });

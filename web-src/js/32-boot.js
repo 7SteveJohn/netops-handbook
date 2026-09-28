@@ -2201,8 +2201,6 @@
     }
     function start(e) {
       var t = e.touches ? e.touches[0] : e;
-      /* 抽屉开着：起手必然在抽屉内，拖拽关由 bindDrawer 负责（避免双系统） */
-      if (drawerCtl && drawerCtl.isOpen()) { active = false; return; }
       /* 起手在底栏上：点按/横滑都是底栏自身语义，左缘手势让位 */
       if (t.target && t.target.closest && t.target.closest('.tabbar')) { active = false; return; }
       sx = t.clientX; sy = t.clientY;
@@ -2217,34 +2215,20 @@
         if (Math.abs(dx) < LOCK && Math.abs(dy) < LOCK) return;
         if (Math.abs(dy) > Math.abs(dx)) { active = false; return; }
         locked = true;
-        mode = canBack() ? 'back' : 'drawer';
-        if (mode === 'drawer') {
-          drawer.classList.add('is-dragging'); scrim.classList.add('is-dragging');
-          if (!drawer.classList.contains('is-open')) { drawer.classList.add('is-open'); scrim.classList.add('is-open'); }
-        }
+        /* 2026-09-29 凌晨（用户拍板「移除唤栏」）：左缘只做返回——同一手势
+           两种结果取决于看不见的栈状态，不可预测且与系统返回手势打架。
+           无可退目标时边缘滑动不做事（抽屉走左上角菜单按钮）。 */
+        mode = canBack() ? 'back' : null;
+        if (!mode) { active = false; return; }
       }
-      if (mode === 'drawer') {
-        var W = drawer.getBoundingClientRect().width || 300;
-        var pos = Math.max(-W, Math.min(0, -W + dx));
-        drawer.style.transform = 'translate3d(' + pos + 'px,0,0)';
-        scrim.style.opacity = String(1 + pos / W);
-      } else {
-        peekAt(dx / TH);
-      }
+      peekAt(dx / TH);
     }
     function end() {
       if (!active) return;
       active = false;
       if (!locked) return;
-      if (mode === 'drawer') {
-        drawer.classList.remove('is-dragging'); scrim.classList.remove('is-dragging');
-        drawer.style.transform = ''; scrim.style.opacity = '';
-        var W = drawer.getBoundingClientRect().width || 300;
-        if (dx > W * 0.35) drawerCtl.open(); else drawerCtl.close();
-      } else {
-        peekAt(0);
-        if (dx >= TH) back();   /* back() 自己会选：关弹窗/收卡片/弹路由/回根 tab */
-      }
+      peekAt(0);
+      if (dx >= TH) back();   /* back() 自己会选：关抽屉/关弹窗/收卡片/弹路由/回根 tab */
     }
     w.addEventListener('touchstart', start, { passive: true });
     w.addEventListener('touchmove', move, { passive: true });
@@ -2292,8 +2276,8 @@
     } catch (e) {}
 
     drawerCtl = U.bindDrawer(drawer, scrim);
-    /* 2026-08-12 的窗口级左滑判定（bindLearnSwipeOpen）已由 bindEdgeGestures 取代：
-       同样保留"二级菜单左滑=返回上一级"语义，但全程跟手（返回指示条/抽屉 peek）。 */
+    /* 2026-09-29 凌晨（用户拍板）：左缘 = 纯返回（跟手指示条），唤栏已移除。
+       抽屉打开走左上角菜单按钮；关闭走点遮罩/物理返回/左缘返回。 */
     bindEdgeGestures();
     buildDrawer();
     bindGlobal();

@@ -342,60 +342,17 @@
     grab.addEventListener('pointercancel', end);
   }
 
-  /* ---------------- 抽屉手势 ----------------
-     2026-09-25：edge 形参删除——.edge-catcher 是 pointer-events:none（让位给系统
-     返回手势的历史决策），挂在它身上的"边缘拖拽开抽屉"从未生效过；左缘统一手势
-     由 32-boot.js 的 bindEdgeGestures 负责（跟手 peek / 返回指示条），这里只管
-     抽屉开着时的拖拽关闭与 scrim 点击。 */
+  /* ---------------- 抽屉控制 ----------------
+     2026-09-29 凌晨（用户拍板「移除唤栏」）：左滑唤栏与其拖拽机随 bindEdgeGestures
+     的 drawer 分支一并删除——同一手势两种结果（返回/唤栏）取决于看不见的导航栈，
+     不可预测且与系统返回手势三方打架（HIG：手势必须有预期）。现在的路径：
+       打开 = 左上角菜单按钮（根页 #btnNav）
+       关闭 = 点遮罩 / 物理返回 / 左缘返回（canBack 含 drawer isOpen） */
   function bindDrawer(drawer, scrim) {
-    var W = function () { return drawer.getBoundingClientRect().width || 300; };
     function open() { drawer.classList.add('is-open'); scrim.classList.add('is-open'); drawer.style.transform = ''; scrim.style.opacity = ''; }
     function close() { drawer.classList.remove('is-open'); scrim.classList.remove('is-open'); drawer.style.transform = ''; scrim.style.opacity = ''; }
     function isOpen() { return drawer.classList.contains('is-open'); }
     scrim.addEventListener('click', close);
-
-    var sx = 0, sy = 0, dx = 0, active = false, decided = false, dir = 0, openAtStart = false;
-    function start(e) {
-      sx = e.clientX; sy = e.clientY; dx = 0; active = true; decided = false; dir = 0; openAtStart = isOpen();
-      drawer.classList.add('is-dragging'); scrim.classList.add('is-dragging');
-    }
-    function move(e) {
-      if (!active) return;
-      var mx = e.clientX - sx, my = e.clientY - sy;
-      if (!decided) {
-        if (Math.abs(mx) < 8 && Math.abs(my) < 8) return;
-        decided = true;
-        if (Math.abs(my) > Math.abs(mx)) { cancel(); return; }
-        dir = mx > 0 ? 1 : -1;
-      }
-      dx = mx;
-      var base = openAtStart ? 0 : -W();
-      var pos = Math.max(-W(), Math.min(0, base + dx));
-      drawer.style.transform = 'translate3d(' + pos + 'px,0,0)';
-      scrim.style.opacity = String(1 + pos / W());
-    }
-    function cancel() {
-      active = false; drawer.classList.remove('is-dragging'); scrim.classList.remove('is-dragging');
-      drawer.style.transform = ''; scrim.style.opacity = '';
-      if (!openAtStart) close();
-    }
-    function end() {
-      if (!active) return;
-      active = false;
-      drawer.classList.remove('is-dragging'); scrim.classList.remove('is-dragging');
-      drawer.style.transform = ''; scrim.style.opacity = '';
-      var th = W() * 0.35;
-      if (openAtStart) { if (dx < -th) close(); else open(); }
-      else { if (dx > th) open(); else close(); }
-    }
-    drawer.addEventListener('pointerdown', function (e) {
-      if (e.target.closest('.drawer__body') && e.target.closest('button')) return;
-      start(e);
-    });
-    drawer.addEventListener('pointermove', move);
-    drawer.addEventListener('pointerup', end);
-    drawer.addEventListener('pointercancel', end);
-
     return { open: open, close: close, isOpen: isOpen };
   }
   UI.bindDrawer = bindDrawer;
