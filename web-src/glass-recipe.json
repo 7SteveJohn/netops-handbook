@@ -150,11 +150,10 @@
       "darkAlpha": 0.34
     },
     "optics": {
-      "_note": "WWDC25 解析视频同款：边到边玻璃板，折射集中在屏幕角落大曲率处。band 固定 16px（33-apple.js），refraction 14px；真机定稿待验。",
-      "refraction": 14,
-      "bezel": 1,
-      "curvature": 2.5,
-      "ior": 1.6
+      "_note": "2026-09-28 重建模（lens-probe 四盒截图裁决，见 screenshots/lens-probe-abcd-2x）：band = bezel·min(hw,hh) 比例带（33-apple.js 下限 10px）+ smoothstep 剖面，替代旧固定 8px 窄带 + pow(ior)（边缘硬压缩条纹）。bezel=0.30 → 84px 栏 band≈13px、中央留 ~58px 平坦区不侵文字；refraction=16（feDisplacementMap scale，通道满偏≈半程 8px）。ior 已删（无消费者）。真机裁决前为离线定稿。",
+      "refraction": 16,
+      "bezel": 0.30,
+      "curvature": 2.5
     },
     "rim": "inset 0 0 0 .5px rgba(255,255,255,.55), inset 0 1px 1px rgba(255,255,255,.8), inset 0 -1px 1px rgba(0,0,0,.05)",
     "rimDark": "inset 0 0 0 .5px rgba(255,255,255,.24), inset 0 1px 1px rgba(255,255,255,.28), inset 0 -1px 1px rgba(0,0,0,.10)",

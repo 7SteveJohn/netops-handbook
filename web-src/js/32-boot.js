@@ -849,8 +849,39 @@
        形变弹簧：stretch = |速度|×系数（快走拉长、减速松开，sy=2−sx 体积近似守恒）
      果冻感 = 速度与形变的耦合，逐帧 60fps，没有关键帧。刚度/阻尼从配方表
      motion.spring 的过冲量反解（--gr-spring 仍是真源）。 */
+  /* 2026-09-29 Apple 路线（HIG：激活态无胶囊底）：药丸总开关 TAB_PILL 在
+     33-apple.js 顶部（window.TAB_PILL = false：药丸/果冻/透镜/挖孔整体停用，
+     停用保留）。这里必须读 window——32 拼接在 33 之前，局部 var 读不到；
+     全部读取点都在 DOMContentLoaded 之后，届时 33 的赋值已生效。 */
+  function tabPillOn() { return w.TAB_PILL === true; }
   var jelly = { x: -1, v: 0, sx: 1, sv: 0, w: 0, tx: 0, tw: 0, raf: 0, pill: null, K: 0.18, C: 0.3, lastT: 0 };
   w.__jelly = jelly;                               /* 真机/本地探针读 */
+  /* 2026-09-28 药丸独立透镜：.tabbar-blur 底板在药丸位置的挖孔（SVG mask 黑矩形
+     #pillHoleRect）与药丸同帧同步。孔几何 = 药丸几何（left:6 + translateX(jelly.x)，
+     宽 = jelly.w；squish 缩放的几像素偏差只在按压瞬间，可接受）。33-apple 建透镜
+     层时也调一次做首帧就位。 */
+  var holeRect = null;
+  function syncPillHole() {
+    if (!tabPillOn()) return;                      /* Apple 路线：挖孔随药丸一起停用 */
+    if (!holeRect || !holeRect.isConnected) holeRect = document.getElementById('pillHoleRect');
+    if (!holeRect) return;
+    var p = jelly.pill || document.querySelector('.tabbar > .tab-pill');
+    if (!p) return;
+    var x, wd;
+    if (jelly.x < 0) {                             /* 静置：读实际布局（果冻还没接管） */
+      var r = p.getBoundingClientRect();
+      var host = p.offsetParent || p.parentElement;
+      x = r.left - (host ? host.getBoundingClientRect().left : 0);
+      wd = r.width;
+    } else {
+      x = 6 + jelly.x; wd = jelly.w;
+    }
+    holeRect.style.x = x.toFixed(1) + 'px';
+    holeRect.style.width = Math.max(8, wd).toFixed(1) + 'px';
+    holeRect.style.y = '4px';
+    holeRect.style.height = p.offsetHeight + 'px';
+  }
+  w.__syncPillHole = syncPillHole;
   function jellyTune() {
     var m = (w.getComputedStyle(document.documentElement).getPropertyValue('--gr-spring') || '').match(/[\d.]+/g);
     if (m && m.length >= 4) {
@@ -859,6 +890,7 @@
     }
   }
   function jellyKick(tx, tw, pill) {
+    if (!tabPillOn()) return;                      /* Apple 路线：果冻循环不再启动 */
     jelly.pill = pill;
     if (jelly.x < 0) { jelly.x = tx; jelly.w = tw; }   /* 首帧就位，不播开场 */
     jelly.tx = tx; jelly.tw = tw;
@@ -869,6 +901,7 @@
     jelly.raf = requestAnimationFrame(jellyStep);
   }
   function jellyStep(ts) {
+    if (!tabPillOn()) { jelly.raf = 0; return; }   /* Apple 路线：药丸停用，循环立即收口 */
     try {
       var dt = jelly.lastT ? Math.min(4, (ts - jelly.lastT) / 16.7) : 1;   /* 挂起后补算，上限 4 帧 */
       jelly.lastT = ts;
@@ -884,11 +917,12 @@
       if (p) {
         p.style.transform = 'translateX(' + jelly.x.toFixed(2) + 'px) scaleX(' + jelly.sx.toFixed(3) + ') scaleY(' + (2 - jelly.sx).toFixed(3) + ')';
         p.style.width = jelly.w.toFixed(1) + 'px';
+        syncPillHole();
       }
       if (Math.abs(jelly.sx - (1 + stretch)) > 0.006) settled = false;
       if (settled) {
         jelly.x = jelly.tx; jelly.sx = 1; jelly.w = jelly.tw; jelly.raf = 0; jelly.lastT = 0;
-        if (p) { p.style.transform = 'translateX(' + jelly.tx + 'px)'; p.style.width = jelly.tw + 'px'; }
+        if (p) { p.style.transform = 'translateX(' + jelly.tx + 'px)'; p.style.width = jelly.tw + 'px'; syncPillHole(); }
         return;
       }
     } catch (e) { jelly.raf = 0; return; }
@@ -915,10 +949,12 @@
         if (Math.abs(dy) > Math.abs(dx)) { grab = null; return; }
         grab.moved = true;
       }
-      var rb = bar.getBoundingClientRect();
-      var pw = jelly.tw || 60;
-      jelly.tx = Math.max(6, Math.min(rb.width - 6 - pw, e.clientX - rb.left - pw / 2));
-      if (!jelly.raf) jelly.raf = requestAnimationFrame(jellyStep);
+      if (tabPillOn()) {                           /* Apple 路线：药丸停用时拖动只走释放吸附 */
+        var rb = bar.getBoundingClientRect();
+        var pw = jelly.tw || 60;
+        jelly.tx = Math.max(6, Math.min(rb.width - 6 - pw, e.clientX - rb.left - pw / 2));
+        if (!jelly.raf) jelly.raf = requestAnimationFrame(jellyStep);
+      }
     });
     function release(e) {
       if (!grab || (e.pointerId !== undefined && e.pointerId !== grab.id)) return;
@@ -947,6 +983,7 @@
   }
 
   function positionTabPill() {
+    if (!tabPillOn()) return;                      /* Apple 路线：药丸停用，无需平移 */
     var bar = $('#tabbar'), pill = $('#tabPill');
     if (!bar || !pill) return;
     var act = bar.querySelector('.tab.is-active');
@@ -2304,7 +2341,7 @@
         var W = drawer.getBoundingClientRect().width || 300;
         var pos = Math.max(-W, Math.min(0, -W + dx));
         drawer.style.transform = 'translate3d(' + pos + 'px,0,0)';
-        scrim.style.opacity = String(1 + pos / W());
+        scrim.style.opacity = String(1 + pos / W);
       } else {
         peekAt(dx / TH);
       }

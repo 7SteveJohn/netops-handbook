@@ -290,7 +290,9 @@ body{
                 backdrop-filter var(--t-morph, 360ms) cubic-bezier(.34,1.56,.64,1),
                 box-shadow var(--t-morph, 360ms) cubic-bezier(.34,1.56,.64,1),
                 border-color var(--t-morph, 360ms) cubic-bezier(.34,1.56,.64,1);
-    will-change: backdrop-filter;
+    /* 2026-09-28：will-change:backdrop-filter 已删——will-change 的属性会创建
+       backdrop 根边界，药丸透镜隔着它只能采到 tabbar 内部=糊；且 glass-on 时
+       本体已无 backdrop-filter 可预告。 */
     animation: tabbar-spring-in var(--t-enter, .72s) cubic-bezier(.34,1.56,.64,1) .15s both;
     }
 
@@ -716,9 +718,9 @@ html.dark .appbar::before{
    ------------------------------------------------------------
    浮层（tabbar-float，默认）模式以前画了**两套**选中指示器：每 tab 的玻璃胶囊
    （本处旧块，深色版 rgba(58,58,60,.85)+双重投影）叠在共享药丸上——用户真机反馈
-   "叠加元素太多了"。现在浮层一律只由共享药丸负责（见下方 .tabbar > .tab-pill），
-   本块整删；每 tab 的指示只剩 03-layout 的 5px 圆点（被浮层 content:none 关掉）
-   与常规贴底模式的顶部蓝线。 */
+   "叠加元素太多了"。本块整删；2026-09-29 Apple 路线后共享药丸也整体停用
+   （见下方 .tabbar > .tab-pill 的隐藏规则与 33-apple.js 的 TAB_PILL 开关），
+   每 tab 的指示 = 03-layout 的 5px 圆点（float）与常规贴底模式的顶部蓝线。 */
 
 /* ---- 边缘折射透镜层（方案 A）----
    独立一层而不是并进上面的曲线链：backdrop-filter 整条声明要么一起生效要么一起被
@@ -735,8 +737,11 @@ html.dark .appbar::before{
   -webkit-backdrop-filter: var(--lens-url);
   backdrop-filter: var(--lens-url);
   pointer-events: none;
-  /* 2026-09-25：LENS_SURFACES 已清空（真机裁决见 33-apple.js），此层不会再被创建；
-     规则保留给将来的调参恢复。 */
+  /* 2026-09-28 勘误：上一版注释说"LENS_SURFACES 已清空、此层不会再被创建"与代码
+     不符——33-apple.js 的 LENS_SURFACES 一直是 .tabbar + .tab-pill，此层真实在用。
+     以 JS 为准；建模与强度参数见配方表 lens.optics（真源 glass-recipe.json）。
+     2026-09-29 Apple 路线：TAB_PILL=false 时 LENS_SURFACES 短路为空数组，
+     此层不建；开关改回 true 即恢复。 */
 }
 
 /* ---- 共享选中态药丸（用户 2026-09-23 缺陷②：底栏动效生硬）----
@@ -760,14 +765,10 @@ html.dark .appbar::before{
   /* 从 .85/.75 的平涂白降到 .34/.26：用户真机反馈"选中时还有小白点"，那块 85% 的
      白正是它 —— 我一边在配方表注释里写"不要靠抬板厚换可读性"，一边给药丸涂了
      85% 的白。玻璃感来自背后的模糊透过来，不是来自涂白。 */
-  background: linear-gradient(180deg,
-    rgba(255, 255, 255, .34) 0%,
-    rgba(245, 245, 247, .26) 100%);
-  /* 掘金 7514618352829448244：切换态按钮 = 无模糊的高透玻璃——模糊只会糊掉
-     选中态的清晰感（板已在 .tabbar 上模糊过，药丸直接高透） */
+  /* 2026-09-28 药丸独立透镜：veil 渐变与内嵌高光移到 ::after（折射输出是不透明
+     内容弯折，画在本体 background/内阴影之上会把它盖掉；::after 是最后一个
+     子盒，天然压在透镜层之上）。本体只留外投影海拔。 */
   box-shadow:
-    inset 0 0 0 .5px rgba(255, 255, 255, .5),
-    inset 0 1px 0 rgba(255, 255, 255, .55),
     /* 浅色栏接近纯白，选中态靠这层软海拔从白底里"浮"出来（2026-09-25：
        深色那两层重投影已删，浅色这层是 iOS 材质标准海拔，克制单层） */
     0 2px 12px rgba(15, 23, 42, .12),
@@ -777,10 +778,22 @@ html.dark .appbar::before{
   /* 果冻物理由 32-boot 的 rAF 弹簧逐帧驱动（transform/width 全部内联），CSS 只管静置 */
   will-change: transform;
 }
-html.dark .tabbar > .tab-pill{
+.tabbar > .tab-pill::after{
+  content: ""; position: absolute; inset: 0;
+  border-radius: inherit; pointer-events: none;
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, .34) 0%,
+    rgba(245, 245, 247, .26) 100%);
+  /* 掘金 7514618352829448244：切换态按钮 = 无模糊的高透玻璃——模糊只会糊掉
+     选中态的清晰感（孔内直接透原始背景，药丸 veil 只留乳浊层） */
+  box-shadow:
+    inset 0 0 0 .5px rgba(255, 255, 255, .5),
+    inset 0 1px 0 rgba(255, 255, 255, .55);
+}
+html.dark .tabbar > .tab-pill::after{
   /* 2026-09-25 二轮：深灰 .85 药丸在玻璃栏上是一块"贴纸"（用户实测反馈）。
      原生液态玻璃的选中高光是"更亮一层玻璃"——极淡白色 veil + 选中项转白字
-     （未选中 60% 灰白，层级不变）。alpha 不能再高：白字 4.5:1 反向压着它。 */
+     （未选中 60% 灰白，层级不变）。2026-09-28 随 veil 上移到 ::after。 */
   background: linear-gradient(180deg,
     rgba(255, 255, 255, .08) 0%,
     rgba(255, 255, 255, .05) 100%);
@@ -788,10 +801,17 @@ html.dark .tabbar > .tab-pill{
     inset 0 0 0 .5px rgba(255, 255, 255, .16),
     inset 0 1px 0 rgba(255, 255, 255, .20);
 }
-/* 浮动模式下关掉旧的每-tab 药丸：两枚叠在一起就是第二层"假玻璃"。
-   常规（贴底满宽）模式不动，仍用原来那枚，所以这里把共享药丸藏起来。 */
-body.tabbar-float .tab.is-active::before{ content: none !important; }
+/* 2026-09-29 Apple 路线（HIG：激活态无胶囊底）：共享药丸整体停用（总开关
+   window.TAB_PILL，见 33-apple.js 顶部，恢复四步以该注释为准——这里只删
+   float 这条隐藏；下方 body:not(.tabbar-float) 那条是 regular 贴底模式的
+   历史正确隐藏，恢复时保留）。
+   float 模式激活态回归 = 强调色图标+文字 + 5px 小圆点（03-layout 的
+   .tab.is-active::before + tab-dot-pop；原来的 float 禁点覆盖
+   「body.tabbar-float .tab.is-active::before{ content: none !important; }」已删）。
+   常规模式本就没有共享药丸（隐藏保留），float 模式补同款隐藏做双保险
+   （JS 侧开关关时还会把 #tabPill 从 DOM 摘除，见 33-apple applyTabPillSwitch）。 */
 body:not(.tabbar-float) .tabbar > .tab-pill{ display: none; }
+body.tabbar-float .tabbar > .tab-pill{ display: none; }
 
 /* 4. Buttons：真正的按压缩放（Apple 设计，不是放大！） */
 .btn{
@@ -1865,8 +1885,11 @@ html.dark body.glass-on .tabbar {
   background: linear-gradient(180deg,
     rgba(var(--gr-tabbar-rgb-top), var(--tabbar-a, .55)) 0%,
     rgba(var(--gr-tabbar-rgb-bot), var(--tabbar-b, .45)) 100%) !important;
-  -webkit-backdrop-filter: var(--gr-tabbar-filter) var(--glass-cmp, var(--gr-cmp-52)) !important;
-  backdrop-filter: var(--gr-tabbar-filter) var(--glass-cmp, var(--gr-cmp-52)) !important;
+  /* 2026-09-28 药丸独立透镜：tabbar 本体不再吃 blur——blur+cmp 链移到下方
+     .tabbar-blur 底板（药丸位置挖孔，几何由果冻循环驱动）。引擎不支持 url()
+     时由 body.lens-unsupported 的回滚规则还原本体的 blur。 */
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
   /* 方向性边缘光：朝光一侧提亮、背光一侧压暗。口径来自参考实现逐像素取样
      （左缘亮带峰值比内外两侧都高 +58/255，顶缘反而低 54/255），方向按该帧的
      光源（左下）。--glass-spec / --glass-rim-dark 由运行时按"药丸背后条带"的
@@ -1876,6 +1899,41 @@ html.dark body.glass-on .tabbar {
     inset 2px 0 3px -1px var(--glass-spec, var(--gr-tabbar-specular)),
     inset 0 2px 3px -1px var(--glass-rim-dark, transparent),
     var(--gr-lens-rim), var(--gr-lens-glow), var(--gr-lens-aberration) !important;
+}
+
+/* ---- blur 底板（2026-09-28 药丸独立透镜）----
+   承接原 tabbar 的 blur+cmp 链；药丸位置由 SVG mask（#pillHoleMask，几何由
+   32-boot 果冻循环逐帧驱动）挖孔，孔内由药丸透镜直接折射原始背景。
+   材质等价：tint 在 blur 之下、blur 线性 ⇒ blur(tint+content) ≡ tint+blur(content)
+   （栏渐变竖向缓变，28px 核内近似常量）。z-index:-1：画在栏底色之上、
+   edge-light(::before) 与药丸之下（33-apple 创建，glass-off 摘除）。
+   降级链：mask 引用失败 → 无孔全模糊 = 旧观感；url() 不认 → 本体 blur 由
+   lens-unsupported 回滚规则还原，底板不建（33-apple 探测兜底）。 */
+body.glass-on .tabbar > .tabbar-blur,
+html.dark body.glass-on .tabbar > .tabbar-blur{
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  -webkit-backdrop-filter: var(--gr-tabbar-filter) var(--glass-cmp, var(--gr-cmp-52)) !important;
+  backdrop-filter: var(--gr-tabbar-filter) var(--glass-cmp, var(--gr-cmp-52)) !important;
+}
+/* 仅浮层模式挖孔（贴底模式没有共享药丸，孔无从谈起 → 全幅模糊）。
+   2026-09-29 Apple 路线：门控在 body.tab-pill-on（33-apple 仅在 TAB_PILL=true
+   时加类）之下 —— 药丸停用时 #pillHoleMask 不存在，mask 引用不存在的 SVG
+   mask 行为未定义，绝不能悬空；开关关时 .tabbar-blur 走 09-28 之前的全板模糊。 */
+body.tab-pill-on.tabbar-float.glass-on .tabbar > .tabbar-blur,
+html.dark body.tab-pill-on.tabbar-float.glass-on .tabbar > .tabbar-blur{
+  -webkit-mask: url(#pillHoleMask);
+          mask: url(#pillHoleMask);
+}
+/* 回滚：引擎不支持 backdrop url() 时（33-apple 加 body.lens-unsupported），
+   还原本体 blur，整个新架构退回 2026-09-26 前的形态 */
+body.lens-unsupported.glass-on .tabbar,
+html.dark body.lens-unsupported.glass-on .tabbar{
+  -webkit-backdrop-filter: var(--gr-tabbar-filter) var(--glass-cmp, var(--gr-cmp-52)) !important;
+  backdrop-filter: var(--gr-tabbar-filter) var(--glass-cmp, var(--gr-cmp-52)) !important;
 }
 body.glass-on .sheet,
 html.dark body.glass-on .sheet {

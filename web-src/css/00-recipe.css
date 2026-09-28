@@ -34,9 +34,8 @@
   --gr-lens-rim: inset 0 0 0 .5px rgba(255,255,255,.55), inset 0 1px 1px rgba(255,255,255,.8), inset 0 -1px 1px rgba(0,0,0,.05);
   --gr-lens-glow: inset 0 0 30px 1px rgba(255,255,255,.06);
   --gr-lens-aberration: inset 1px 0 0 rgba(120,170,255,.06), inset -1px 0 0 rgba(255,150,120,.05);
-  --gr-lens-refraction: 14px;
-  --gr-lens-bezel: 1;
-  --gr-lens-ior: 1.6;
+  --gr-lens-refraction: 16px;
+  --gr-lens-bezel: 0.3;
   --gr-spec-lift: 0.227;
   --gr-spec-sat: 0.53;
   --gr-spec-alpha: 0.85;

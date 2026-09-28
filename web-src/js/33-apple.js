@@ -8,6 +8,24 @@
 /* === APPLE ULTIMATE (mirrored from assets) === */
 
 /* ==================================================================
+ * 2026-09-29 Apple 路线（用户拍板）：HIG 激活态无胶囊底 —— .tab-pill 共享药丸、
+ * 果冻物理、药丸独立透镜、#pillHoleMask 挖孔整体停用（停用保留，不删除：
+ * 药丸/果冻/透镜代码是多轮投入，透镜真机终判后可能复评）。
+ * 恢复四步（缺一不可）：
+ *   ① 本开关改回 true；
+ *   ② 06-anim.css 删掉「body.tabbar-float .tabbar > .tab-pill{ display: none; }」
+ *     ——注意只删 float 这条；body:not(.tabbar-float) 那条是 regular 贴底模式
+ *     的历史正确隐藏（贴底本就没有共享药丸），恢复时保留；
+ *   ③ 06-anim.css 恢复被删的 float 禁点覆盖
+ *     「body.tabbar-float .tab.is-active::before{ content: none !important; }」；
+ *   ④ smoke.js 里 2026-09-29 的三条用例（float 无药丸 / 禁点覆盖已移除 /
+ *     blur 底板 mask 门控）同步回滚——它们断言的是"药丸停用"本身，恢复后必红。
+ * 挂 window 的原因：32-boot.js 拼接在本文件之前，它的药丸平移/果冻循环也读
+ * 这个开关；所有读取点都在 DOMContentLoaded 之后，此处赋值先生效。
+ * ================================================================== */
+window.TAB_PILL = false;
+
+/* ==================================================================
  * Apple Ultimate UI — Motion JS
  *  - 实时跟踪 scroll 让 appbar 进入 stuck 状态
  *  - 自动给所有可点击元素加 tap-target（毛玻璃 ripple）
@@ -171,19 +189,24 @@
    2026-09-26（用户指出选中态仍是平板，karpathy 准则：改眼睛看的东西）：
      把透镜装到**选中药丸本身**——参考实现全部是"透镜在交互元素上"，
      不是装在 390px 宽的栏周长上（一圈 8px 窄带肉眼不可见=等于没做）。 */
-  var LENS_SURFACES = [
-    { sel: '.tabbar', id: 'glass-lens-tabbar', cls: 'glass-lens--tabbar' },
-    { sel: '.tab-pill', id: 'glass-lens-pill', cls: 'glass-lens--pill' }
-  ];
+  /* 2026-09-28 药丸独立透镜（探针 G/H 盒验证，lens-probe-gh 截图）：
+     底栏本体在 glass-on 时不再吃 backdrop-filter（blur+cmp 链移到 .tabbar-blur
+     底板，药丸位置由 SVG mask 挖孔）——药丸透镜因此在孔内直接折射**原始背景**，
+     不再隔着一层 blur(28) 看糊的。旧的全宽 .tabbar 透镜删除：历史上对着 blur
+     输出位移就"等于没做"，新架构下更无意义。降级链：mask 不认→无孔全模糊
+     （=旧观感）；backdrop url() 不认→透镜层惰性（=旧观感），两条都无回归。 */
+  var LENS_SURFACES = window.TAB_PILL ? [
+    { sel: '.tabbar > .tab-pill', id: 'glass-lens-pill', cls: 'glass-lens--pill' }
+  ] : [];   /* 2026-09-29 Apple 路线：药丸停用 → 无透镜宿主，透镜层不建 */
 
   function lensOptics() {
     var cs = getComputedStyle(document.documentElement);
     var num = function (n, dflt) { var v = parseFloat(cs.getPropertyValue(n)); return isFinite(v) ? v : dflt; };
     return {
-      refraction: num('--gr-lens-refraction', 20),
-      bezel: num('--gr-lens-bezel', 0.5),
-      ior: num('--gr-lens-ior', 1.6)
-      /* curvature 故意不读：表里那个值还没接上真实建模，读回来只会是个装饰数字 */
+      refraction: num('--gr-lens-refraction', 16),
+      bezel: num('--gr-lens-bezel', 0.30)
+      /* 2026-09-28：ior 已从配方表删除（建模改 smoothstep，无消费者）。
+         curvature 故意不读：表里那个值还没接上真实建模，读回来只会是个装饰数字 */
     };
   }
 
@@ -210,10 +233,11 @@
     var img = ctx.createImageData(cw, ch), d = img.data;
     var hw = cw / 2, hh = ch / 2;
     var rr = Math.min(r, hw, hh);
-    /* 2026-09-25：形变带固定 8px（掘金 7514618352829448244 的做法：仅在边缘
-       5px 级别的窄带用置换滤镜，折射精度优先；旧 band=min(hw,hh)=整栏形变=圆斑），
-       只在边缘/角落弯折——WWDC25 解析视频同款：预采样位移贴图、放大边缘 */
-    var band = 8;
+    /* 2026-09-28 重建模（lens-probe 四盒截图裁决，screenshots/lens-probe-abcd-2x）：
+       旧固定 8px 窄带 + pow(ior) 位移梯度 ~0.9px/px，边缘呈杂乱硬压缩条纹；
+       改为 band = bezel·min(hw,hh) 比例带（下限 10px；bezel=0.30 → 84px 栏
+       band≈13px，中央留 ~58px 平坦区不侵文字）+ smoothstep 剖面 —— 边缘平滑弯折。 */
+    var band = Math.max(10, Math.round(Math.min(hw, hh) * o.bezel));
     for (var y = 0; y < ch; y++) {
       for (var x = 0; x < cw; x++) {
         var i = (y * cw + x) * 4;
@@ -221,7 +245,7 @@
         var k = 0;
         if (s.d >= 0 && s.d < band) {                /* 只在边缘环带内弯 */
           var t = 1 - s.d / band;                    /* 越靠边越强 */
-          k = Math.pow(t, o.ior);
+          k = t * t * (3 - 2 * t);                   /* smoothstep：带内沿 C¹ 归零 */
         }
         /* 128 = 零位移；法线取负是因为 feDisplacementMap 沿 +通道方向偏移采样点 */
         d[i] = 128 + Math.round(-s.nx * k * 127);
@@ -243,6 +267,30 @@
       svg.setAttribute('aria-hidden', 'true');
       svg.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden';
       document.body.appendChild(svg);
+    }
+    /* 药丸挖孔 mask（.tabbar-blur 底板引用）：白=保留模糊，黑=孔（孔内透镜吃原始
+       背景）。黑矩形几何由 32-boot 果冻循环逐帧写 style.x/width（SVG2 几何属性
+       接受 CSS），region 取超大值兼容任意栏宽。mask 引用失败时底板无孔=全模糊，
+       自然退回旧观感。 */
+    /* 2026-09-29 Apple 路线：TAB_PILL 关时挖孔 mask 不创建（.tabbar-blur 的
+       mask 引用也已由 body.tab-pill-on 门控，双保险） */
+    if (window.TAB_PILL && !svg.querySelector('#pillHoleMask')) {
+      var NS = 'http://www.w3.org/2000/svg';
+      var mask = document.createElementNS(NS, 'mask');
+      mask.setAttribute('id', 'pillHoleMask');
+      mask.setAttribute('maskUnits', 'userSpaceOnUse');
+      mask.setAttribute('x', '0'); mask.setAttribute('y', '0');
+      mask.setAttribute('width', '1200'); mask.setAttribute('height', '600');
+      var wRect = document.createElementNS(NS, 'rect');
+      wRect.setAttribute('width', '1200'); wRect.setAttribute('height', '600');
+      wRect.setAttribute('fill', '#fff');
+      var hole = document.createElementNS(NS, 'rect');
+      hole.setAttribute('id', 'pillHoleRect');
+      hole.setAttribute('rx', '999');
+      hole.setAttribute('fill', '#000');
+      hole.style.y = '4px';
+      mask.appendChild(wRect); mask.appendChild(hole);
+      svg.appendChild(mask);
     }
     return svg;
   }
@@ -303,13 +351,39 @@
     }
     layer.style.setProperty('--lens-url', 'url(#' + surf.id + ')');
     layer.dataset.lensW = Math.round(rb.width) + 'x' + Math.round(rb.height);
+    /* 挖孔首帧就位（接管前的兜底，否则黑矩形停在 0,0 把底板挖穿） */
+    if (window.__syncPillHole) { try { window.__syncPillHole(); } catch (e) {} }
+  }
+
+  /* blur 底板：glass-on 时承接原 tabbar 的 blur+cmp 链，药丸位置挖孔（药丸透镜
+     在孔内吃原始背景）。z-index:-1 → 画在栏底色之上、edge-light(::before) 与
+     药丸之下。非药丸区材质与旧 tabbar blur 数学等价（tint 在 blur 之下，线性
+     滤镜下 blur(tint+content) ≡ tint+blur(content)）。 */
+  function ensureBlurUnderlay(glassOn) {
+    var bar = document.querySelector('.tabbar');
+    if (!bar) return;
+    var u = bar.querySelector(':scope > .tabbar-blur');
+    if (glassOn && !u) {
+      u = document.createElement('i');
+      u.className = 'tabbar-blur';
+      u.setAttribute('aria-hidden', 'true');
+      bar.insertBefore(u, bar.firstChild);
+    } else if (!glassOn && u) {
+      u.remove();
+    }
   }
 
   function initGlassLens() {
-    if (!(window.CSS && CSS.supports && CSS.supports('backdrop-filter', 'url(#x)'))) return;
+    if (!(window.CSS && CSS.supports && CSS.supports('backdrop-filter', 'url(#x)'))) {
+      /* 引擎连 url() 声明都不认（WebKit 系）：底板方案整体不可用，加回滚类让
+         06-anim 还原 tabbar 本体 blur，材质退回 2026-09-26 前形态 */
+      document.body.classList.add('lens-unsupported');
+      return;
+    }
     var raf = 0;
     function run() {
       var glassOn = document.body.classList.contains('glass-on');
+      ensureBlurUnderlay(glassOn);
       LENS_SURFACES.forEach(function (s) {
         var host = document.querySelector(s.sel);
         if (!host) return;
@@ -341,6 +415,17 @@
     window.__glassLensRun = run;
   }
 
+  /* 2026-09-29 Apple 路线：开关关时把静态药丸（index.html 里的 #tabPill）从
+     DOM 摘除 = 不挂载；开时给 body 打 tab-pill-on 类，06-anim.css 里
+     .tabbar-blur 的挖孔 mask 只在这个类下生效 —— mask 引用不存在的 SVG mask
+     行为未定义，绝不能让它悬空。 */
+  function applyTabPillSwitch() {
+    var p = document.getElementById('tabPill');
+    if (window.TAB_PILL) { document.body.classList.add('tab-pill-on'); return; }
+    document.body.classList.remove('tab-pill-on');
+    if (p) p.remove();
+  }
+
   // ---- 5. init ----
   function init() {
     attachAppbarStuck();
@@ -348,6 +433,7 @@
     watchTapTargets();
     hookViewChange();
     attachTabbarScroll();
+    applyTabPillSwitch();
     initGlassLens();
     setTimeout(function () { countUp(); bindTapTargets(); initGlassLens(); }, 60);
   }

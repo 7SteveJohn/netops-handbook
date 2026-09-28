@@ -197,8 +197,10 @@ function tripletStops(css, re) {
 function numStops(css, re) {
   return [...css.matchAll(re)].map(m => +m[1]);
 }
-const pillStops = gradStops(animCss, '.tabbar > .tab-pill{');
-const pillStopsDark = gradStops(animCss, 'html.dark .tabbar > .tab-pill{');
+/* 2026-09-28 药丸独立透镜：veil 渐变从本体 background 移到 ::after（折射层之上），
+   门禁跟随实现改读 ::after 规则——stops 数值与叠层模型语义不变 */
+const pillStops = gradStops(animCss, '.tabbar > .tab-pill::after{');
+const pillStopsDark = gradStops(animCss, 'html.dark .tabbar > .tab-pill::after{');
 /* 2026-09-25：板改为滑杆驱动——真源 = RGB 分量 + alpha 上下限，运行时
    clamp(baseA(t))（32-boot 写 --tabbar-a/b）。门禁按同一公式逐档复算。 */
 const rgbTopAll = tripletStops(recCss, /--gr-tabbar-rgb-top:\s*([\d.]+),\s*([\d.]+),\s*([\d.]+)/g);

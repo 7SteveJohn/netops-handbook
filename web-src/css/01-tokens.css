@@ -273,7 +273,7 @@ html.dark {
   --accent:        #0a84ff;          /* 苹果深色模式蓝 */
   --accent-soft:   rgba(10,132,255,.16);
   --accent-muted:  #6aa8e8;          /* 深色模式选中降饱和蓝 */
-  --tab-inactive:  rgba(235,235,245,.60);  /* 深色未选中 tab（iOS 深色规范），壁纸模式实测 5.77:1 达标无需覆盖 */
+  --tab-inactive:  rgba(235,235,245,.60);  /* 深色未选中 tab（iOS 深色规范）。2026-09-28 曲线换 blur 实验中曾需 .70（contrast 0.5 抬黑场所致），实验已回滚；若再动曲线，此值要跟门禁走 */
   /* --accent-tint 已移除：深色同样仅描边方案 */
   --accent-border: rgba(10,132,255,.38);
   --accent-text:   #5ac8ff;

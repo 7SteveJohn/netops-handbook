@@ -75,7 +75,7 @@ function build() {
   const op = r.lens.optics;
   put('lens-refraction', op.refraction + 'px');
   put('lens-bezel', op.bezel);
-  put('lens-ior', op.ior);
+  /* ior 已删（2026-09-28）：建模改 smoothstep 剖面，该参数无消费者，留着就是空心配置 */
 
   /* 高光推导参数：有壁纸时运行时用它们把"背后的色相"变成亮带与暗肩的配色，
      没有壁纸时表面退回上面的静态 rim/specular 值。

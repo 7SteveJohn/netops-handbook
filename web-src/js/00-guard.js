@@ -33,7 +33,7 @@
     try {
       var d = document.createElement('div');
       d.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;' +
-        'display:flex;align-items:center;gap:10px;padding:10px 14px;' +
+        'display:flex;align-items:center;gap:10px;padding:calc(10px + var(--sa-top, 0px)) 14px 10px;' +
         'background:#b3261e;color:#fff;font:13px/1.4 sans-serif;';
       var t = document.createElement('span');
       t.style.cssText = 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
