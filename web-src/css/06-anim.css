@@ -744,50 +744,48 @@ html.dark .appbar::before{
      此层不建；开关改回 true 即恢复。 */
 }
 
-/* ---- 共享选中态药丸（用户 2026-09-23 缺陷②：底栏动效生硬）----
-   以前每个 tab 各画一枚 ::before，切换时是"旧的消失 + 新的原地弹出"，所以生硬。
-   现在只有一枚药丸在 5 个 tab 之间平移，位置由 32-boot.js 写 --pill-x / --pill-w。
-   运动曲线走配方表的 --gr-spring / --gr-squish-back：这两个 token 此前生成出来却没人读，
-   等于"曲线在表里、屏幕上用的是硬编码"。
-   层级：药丸是 .tabbar 的第一个子元素且 z-index:0，后面的 .tab 都是 position:relative，
-   按 DOM 顺序自然压在它上面 —— 不用 z-index:-1，那会掉到 .tabbar 自身背景之后。 */
+/* ---- 共享选中态药丸（2026-09-29 凌晨推倒重构：纯 CSS 滑动）----
+   旧 JS rAF 弹簧+测量定位是半个月卡顿的病根（滑一半冻结/卡两格中间/
+   底锚错位吊在图标行）——机制层不可修，整体换纯 CSS：
+     宽 = 一格（(100% - 20px)/5：.tabbar padding 0 10px + 5 个 flex:1 等宽格，
+     平板 860px 限宽下同样自适配）；translateX(calc(--pill-i × 100%)) 走整格；
+     spring 曲线自带过冲（Q弹）；零 JS 动画。垂直对称包住图标+文字
+     （--tabbar-h - 8px，top 4px 对齐 tab 行），不再引用 --sa-bottom。
+   材质：veil + rim 高光 + 软海拔（透明度由 audit-contrast 药丸门禁把关）。
+   层级：药丸是 .tabbar 的第一个子元素且 z-index:0，后面的 .tab 都是
+   position:relative，按 DOM 顺序自然压在它上面。 */
 .tabbar > .tab-pill{
   position: absolute;
-  /* 2026-09-25 三轮（用户拍到"方形不规则形状"）：旧几何 bottom:0 贴死栏底 +
-     6px 底角，矩形药丸撞上悬浮栏 32px 圆角端头，违和。按 Apple Liquid Glass
-     的同心原则（developer.apple.com/documentation/technologyoverviews/
-     adopting-liquid-glass：嵌套圆角 = 外层半径 − 内缩距）改为四边等距内缩、
-     全胶囊圆角，选中高光永远以平行曲线嵌在栏内，不与外缘相切相撞。 */
-  left: 6px; top: 4px; bottom: calc(var(--sa-bottom, 0px) + 14px);
-  width: calc(var(--pill-w, 52px) - 12px);
-  transform: translateX(var(--pill-x, 0px));
+  /* 水平：与 tab 行同源 —— left = 内容左缘（padding-box 内 var(--tabbar-pad-x)），
+     宽 = (100% - 2×pad-x)/5（100% = padding box；.tab flex:1 等分同一内容宽），
+     translateX(--pill-i × 100%) 每步恰一格，任何栏宽/平板限宽下精确落格。
+     垂直：top/bottom 与底栏 padding-y 同源，包住整个 tab 行（图标+文字）——
+     旧写法 bottom 引用 --sa-bottom 把药丸吊在图标行，就是"这么小一块"的根因。 */
+  left: var(--tabbar-pad-x, 8px);
+  top: var(--tabbar-pad-y, 6px);
+  bottom: var(--tabbar-pad-y, 6px);
+  width: calc((100% - 2 * var(--tabbar-pad-x, 8px)) / 5);
+  transform: translateX(calc(var(--pill-i, 0) * 100%));
+  transition: transform .55s var(--gr-spring);
   border-radius: 999px;
-  /* 从 .85/.75 的平涂白降到 .34/.26：用户真机反馈"选中时还有小白点"，那块 85% 的
-     白正是它 —— 我一边在配方表注释里写"不要靠抬板厚换可读性"，一边给药丸涂了
-     85% 的白。玻璃感来自背后的模糊透过来，不是来自涂白。 */
-  /* 2026-09-28 药丸独立透镜：veil 渐变与内嵌高光移到 ::after（折射输出是不透明
-     内容弯折，画在本体 background/内阴影之上会把它盖掉；::after 是最后一个
-     子盒，天然压在透镜层之上）。本体只留外投影海拔。 */
   box-shadow:
-    /* 浅色栏接近纯白，选中态靠这层软海拔从白底里"浮"出来（2026-09-25：
-       深色那两层重投影已删，浅色这层是 iOS 材质标准海拔，克制单层） */
+    /* 浅色栏接近纯白，选中态靠这层软海拔从白底里"浮"出来（iOS 材质标准海拔，克制单层） */
     0 2px 12px rgba(15, 23, 42, .12),
     0 1px 3px rgba(15, 23, 42, .08);
   z-index: 0;
   pointer-events: none;
-  /* 果冻物理由 32-boot 的 rAF 弹簧逐帧驱动（transform/width 全部内联），CSS 只管静置 */
   will-change: transform;
 }
 .tabbar > .tab-pill::after{
   content: ""; position: absolute; inset: 0;
   border-radius: inherit; pointer-events: none;
-  /* 2026-09-29 深夜「通透药丸」（用户参考荣耀相册拍板）：.34/.26 → .20/.13，
-     让孔内折射与 rim 高光当主角，白纱退后；下限由 audit-contrast 药丸 4.5:1 把门。 */
+  /* 2026-09-29 凌晨「通透药丸」：veil .20/.13（暗 .05/.03）——白纱退后，rim 当主角；
+     下限由 audit-contrast 药丸 4.5:1 把门（实测 4.88:1）。 */
   background: linear-gradient(180deg,
     rgba(255, 255, 255, .20) 0%,
     rgba(245, 245, 247, .13) 100%);
-  /* 掘金 7514618352829448244：切换态按钮 = 无模糊的高透玻璃——模糊只会糊掉
-     选中态的清晰感（孔内直接透原始背景，药丸 veil 只留乳浊层） */
+  /* rim 三件套（与 rdev/liquid-glass-react 的 inset 配方同构）：
+     0.5px 白 rim 勾边 + 顶部 1px 高光，是药丸与底板区分度的主要来源 */
   box-shadow:
     inset 0 0 0 .5px rgba(255, 255, 255, .5),
     inset 0 1px 0 rgba(255, 255, 255, .55);
@@ -804,10 +802,9 @@ html.dark .tabbar > .tab-pill::after{
     inset 0 0 0 .5px rgba(255, 255, 255, .16),
     inset 0 1px 0 rgba(255, 255, 255, .20);
 }
-/* 2026-09-29 深夜定案（用户看了真机后拍板，参考荣耀相册的悬浮胶囊）：
-   float 模式恢复共享药丸做选中态 = 通透玻璃药丸 + 果冻弹簧（33-apple.js
-   window.TAB_PILL = true，透镜管线已经 lens-probe 在目标 WebView 实证可渲染），
-   小圆点只在 regular 贴底模式使用（float 禁点覆盖恢复如下）。
+/* 2026-09-29 凌晨定案（用户拍板，参考荣耀相册的悬浮胶囊）：
+   float 模式选中态 = 全格宽清玻璃药丸 + 弹簧滑动（纯 CSS，机制见上方药丸主块
+   与 32-boot 顶注），小圆点只在 regular 贴底模式使用（float 禁点覆盖如下）。
    veil 透明度以 audit-contrast 第 5 节药丸 4.5:1 为下限往通透压。 */
 body.tabbar-float .tab.is-active::before{ content: none !important; }
 body:not(.tabbar-float) .tabbar > .tab-pill{ display: none; }
@@ -1182,10 +1179,15 @@ body:not(.tabbar-regular) .tabbar {
 }
 
 /* ===== 修复：底栏图标显示不全 + 文字掉底（用户 2026-08-11 追加）===== */
-/* 1. 胶囊底栏增加高度，避免 56px 太挤把文字顶出去 */
+/* 1. 胶囊底栏增加高度，避免 56px 太挤把文字顶出去。
+   2026-09-29 凌晨：内边距提成 --tabbar-pad-x/y 变量 —— 共享药丸的
+   left/width/top/bottom 与 tab 行消费同一组变量，构造性保证精确落格
+   （此前药丸公式按满宽+10px 假设写死，与真实 8px/边框几何差出 4px）。 */
 body.tabbar-float .tabbar {
+  --tabbar-pad-x: 8px;
+  --tabbar-pad-y: 6px;
   height: 64px !important;
-  padding: 6px 8px !important;
+  padding: var(--tabbar-pad-y) var(--tabbar-pad-x) !important;
 }
 
 /* 2. Tab 本身收紧上下间距，让整体内容往上移，不再贴底 */
@@ -1900,14 +1902,12 @@ html.dark body.glass-on .tabbar {
     var(--gr-lens-rim), var(--gr-lens-glow), var(--gr-lens-aberration) !important;
 }
 
-/* ---- blur 底板（2026-09-28 药丸独立透镜）----
-   承接原 tabbar 的 blur+cmp 链；药丸位置由 SVG mask（#pillHoleMask，几何由
-   32-boot 果冻循环逐帧驱动）挖孔，孔内由药丸透镜直接折射原始背景。
-   材质等价：tint 在 blur 之下、blur 线性 ⇒ blur(tint+content) ≡ tint+blur(content)
-   （栏渐变竖向缓变，28px 核内近似常量）。z-index:-1：画在栏底色之上、
-   edge-light(::before) 与药丸之下（33-apple 创建，glass-off 摘除）。
-   降级链：mask 引用失败 → 无孔全模糊 = 旧观感；url() 不认 → 本体 blur 由
-   lens-unsupported 回滚规则还原，底板不建（33-apple 探测兜底）。 */
+/* ---- blur 底板（2026-09-28 引入；2026-09-29 凌晨起为纯玻璃面板）----
+   承接 tabbar 的 blur+cmp 链。药丸挖孔（#pillHoleMask + 逐帧同步）已随
+   rAF 果冻引擎一并废除——孔必须逐帧跟随动画药丸，正是卡顿病灶的共谋；
+   药丸现以 veil+rim 在整幅模糊板上做"更亮一层玻璃"（与荣耀相册参考
+   一致：药丸内外的模糊量接近，区分度来自 rim 与亮度）。z-index:-1：
+   画在栏底色之上、edge-light(::before) 与药丸之下（33-apple 创建，glass-off 摘除）。 */
 body.glass-on .tabbar > .tabbar-blur,
 html.dark body.glass-on .tabbar > .tabbar-blur{
   position: absolute;
@@ -1918,15 +1918,9 @@ html.dark body.glass-on .tabbar > .tabbar-blur{
   -webkit-backdrop-filter: var(--gr-tabbar-filter) var(--glass-cmp, var(--gr-cmp-52)) !important;
   backdrop-filter: var(--gr-tabbar-filter) var(--glass-cmp, var(--gr-cmp-52)) !important;
 }
-/* 仅浮层模式挖孔（贴底模式没有共享药丸，孔无从谈起 → 全幅模糊）。
-   2026-09-29 Apple 路线：门控在 body.tab-pill-on（33-apple 仅在 TAB_PILL=true
-   时加类）之下 —— 药丸停用时 #pillHoleMask 不存在，mask 引用不存在的 SVG
-   mask 行为未定义，绝不能悬空；开关关时 .tabbar-blur 走 09-28 之前的全板模糊。 */
-body.tab-pill-on.tabbar-float.glass-on .tabbar > .tabbar-blur,
-html.dark body.tab-pill-on.tabbar-float.glass-on .tabbar > .tabbar-blur{
-  -webkit-mask: url(#pillHoleMask);
-          mask: url(#pillHoleMask);
-}
+/* 2026-09-29 凌晨：挖孔 mask 规则已删除（#pillHoleMask 不再存在，药丸改为
+   veil+rim 玻璃片）。lens-unsupported 回滚规则保留为无害 dormant（LENS_SURFACES
+   已空，该类不会再被加上）。 */
 /* 回滚：引擎不支持 backdrop url() 时（33-apple 加 body.lens-unsupported），
    还原本体 blur，整个新架构退回 2026-09-26 前的形态 */
 body.lens-unsupported.glass-on .tabbar,

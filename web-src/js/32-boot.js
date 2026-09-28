@@ -78,7 +78,7 @@
 
     /* 标签栏高亮 */
     $$('.tab').forEach(function (b) { b.classList.toggle('is-active', b.dataset.tab === m.tab); });
-    positionTabPill();
+    syncPillIndex();
     /* 导航按钮：一级用菜单，二级用返回 */
     navUse.setAttribute('href', (isRoot(st.r) && !stack.length) ? '#i-menu' : '#i-chev-left');
 
@@ -839,159 +839,45 @@
     return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
   }
 
-  /* 共享选中态药丸：把 .tab-pill 平移到当前 tab 上。
-     用 getBoundingClientRect 而不是按 1/5 算宽度 —— 内边距、安全区、平板限宽
-     （05-views.css 的 max-width:860px 与 justify-content:center）都会改变格宽，
-     算出来的会和实际错位。 */
-  /* ---------------- 药丸果冻物理（2026-09-25 推倒重构，用户否决 CSS 关键帧版）----------------
-     CSS keyframe 之间是插值，不是物理——硬邦邦的根源。现在 rAF 逐帧积分：
-       位置弹簧：目标 = 激活 tab 的 x，欠阻尼 → 过冲回弹自然发生
-       形变弹簧：stretch = |速度|×系数（快走拉长、减速松开，sy=2−sx 体积近似守恒）
-     果冻感 = 速度与形变的耦合，逐帧 60fps，没有关键帧。刚度/阻尼从配方表
-     motion.spring 的过冲量反解（--gr-spring 仍是真源）。 */
-  /* 2026-09-29 Apple 路线（HIG：激活态无胶囊底）：药丸总开关 TAB_PILL 在
-     33-apple.js 顶部（window.TAB_PILL = false：药丸/果冻/透镜/挖孔整体停用，
-     停用保留）。这里必须读 window——32 拼接在 33 之前，局部 var 读不到；
-     全部读取点都在 DOMContentLoaded 之后，届时 33 的赋值已生效。 */
+  /* ---------------- 共享选中态药丸（2026-09-29 凌晨推倒重构）----------------
+     半个月病灶复盘（用户："滑一半卡住 / 卡在两格中间 / 这么小一块"）：
+       ① rAF 弹簧逐帧积分 —— WebView 滚动/页面挂起时 rAF 停摆，弹簧冻在半路
+         （db56d8a 的"无条件重启"只在下一次 kick 生效，救不了飞行中冻结）；
+       ② 药丸 bottom 锚引用 --sa-bottom —— 悬浮栏几何改造后 tab 行在顶部，
+         药丸被底锚吊在图标行（"这么小一块"）；
+       ③ 宽度双真源（CSS var 与内联 style 互相覆盖）+ 测量定位对布局时序敏感。
+     结论：JS 逐帧动画驱动 UI 指示器 = 架构病，不可修只可换。
+     新机制（研究结果落地：iOS 26 激活态=无胶囊底纯 tint；M3 Expressive=
+     active indicator 药丸+弹簧滑动；荣耀相册参考=全格宽清玻璃药丸）：
+       纯 CSS —— 药丸宽度恒等于一格（(100%-20px)/5，.tab flex:1 等宽，平板
+       860px 限宽居中下同样自适配），translateX(calc(var(--pill-i) * 100%))
+       按整格数滑动，spring 曲线 cubic-bezier(.34,1.56,.64,1) 自带过冲（Q弹）。
+       零 JS 动画、零 rAF、零测量 —— 结构上不可能卡死、不可能错位。
+     JS 只负责一件事：激活 tab 变化时写 --pill-i（syncPillIndex）。
+     代价说明：按住横向拖动跟手扭动（128f70e）随 rAF 引擎一并移除——
+     它正是冻结病灶的载体；Q弹保留在每次切换的弹簧过冲里。 */
   function tabPillOn() { return w.TAB_PILL === true; }
-  var jelly = { x: -1, v: 0, sx: 1, sv: 0, w: 0, tx: 0, tw: 0, raf: 0, pill: null, K: 0.18, C: 0.3, lastT: 0 };
-  w.__jelly = jelly;                               /* 真机/本地探针读 */
-  /* 2026-09-28 药丸独立透镜：.tabbar-blur 底板在药丸位置的挖孔（SVG mask 黑矩形
-     #pillHoleRect）与药丸同帧同步。孔几何 = 药丸几何（left:6 + translateX(jelly.x)，
-     宽 = jelly.w；squish 缩放的几像素偏差只在按压瞬间，可接受）。33-apple 建透镜
-     层时也调一次做首帧就位。 */
-  var holeRect = null;
-  function syncPillHole() {
-    if (!tabPillOn()) return;                      /* Apple 路线：挖孔随药丸一起停用 */
-    if (!holeRect || !holeRect.isConnected) holeRect = document.getElementById('pillHoleRect');
-    if (!holeRect) return;
-    var p = jelly.pill || document.querySelector('.tabbar > .tab-pill');
-    if (!p) return;
-    var x, wd;
-    if (jelly.x < 0) {                             /* 静置：读实际布局（果冻还没接管） */
-      var r = p.getBoundingClientRect();
-      var host = p.offsetParent || p.parentElement;
-      x = r.left - (host ? host.getBoundingClientRect().left : 0);
-      wd = r.width;
-    } else {
-      x = 6 + jelly.x; wd = jelly.w;
-    }
-    holeRect.style.x = x.toFixed(1) + 'px';
-    holeRect.style.width = Math.max(8, wd).toFixed(1) + 'px';
-    holeRect.style.y = '4px';
-    holeRect.style.height = p.offsetHeight + 'px';
-  }
-  w.__syncPillHole = syncPillHole;
-  function jellyTune() {
-    var m = (w.getComputedStyle(document.documentElement).getPropertyValue('--gr-spring') || '').match(/[\d.]+/g);
-    if (m && m.length >= 4) {
-      var overshoot = parseFloat(m[3]) / 1.25;         /* 相对默认过冲 1.25 的倍率 */
-      jelly.C = 0.3 / Math.max(0.6, overshoot);        /* 越弹阻尼越小 */
-    }
-  }
-  function jellyKick(tx, tw, pill) {
-    if (!tabPillOn()) return;                      /* Apple 路线：果冻循环不再启动 */
-    jelly.pill = pill;
-    if (jelly.x < 0) { jelly.x = tx; jelly.w = tw; }   /* 首帧就位，不播开场 */
-    jelly.tx = tx; jelly.tw = tw;
-    jellyTune();
-    /* 无条件重启循环：页面隐藏时 rAF 被挂起、旧句柄残留会让药丸永久卡死 */
-    if (jelly.raf) { try { cancelAnimationFrame(jelly.raf); } catch (err) {} }
-    jelly.lastT = 0;
-    jelly.raf = requestAnimationFrame(jellyStep);
-  }
-  function jellyStep(ts) {
-    if (!tabPillOn()) { jelly.raf = 0; return; }   /* Apple 路线：药丸停用，循环立即收口 */
-    try {
-      var dt = jelly.lastT ? Math.min(4, (ts - jelly.lastT) / 16.7) : 1;   /* 挂起后补算，上限 4 帧 */
-      jelly.lastT = ts;
-      var settled = true;
-      jelly.v += ((jelly.tx - jelly.x) * jelly.K - jelly.v * jelly.C) * dt;
-      jelly.x += jelly.v * dt;
-      if (Math.abs(jelly.tx - jelly.x) > 0.4 || Math.abs(jelly.v) > 0.4) settled = false;
-      var stretch = Math.min(0.38, Math.abs(jelly.v) * 0.026);
-      jelly.sv += ((1 + stretch - jelly.sx) * 0.30 - jelly.sv * 0.26) * dt;
-      jelly.sx += jelly.sv * dt;
-      jelly.w += (jelly.tw - jelly.w) * Math.min(1, 0.22 * dt);
-      var p = jelly.pill;
-      if (p) {
-        p.style.transform = 'translateX(' + jelly.x.toFixed(2) + 'px) scaleX(' + jelly.sx.toFixed(3) + ') scaleY(' + (2 - jelly.sx).toFixed(3) + ')';
-        p.style.width = jelly.w.toFixed(1) + 'px';
-        syncPillHole();
-      }
-      if (Math.abs(jelly.sx - (1 + stretch)) > 0.006) settled = false;
-      if (settled) {
-        jelly.x = jelly.tx; jelly.sx = 1; jelly.w = jelly.tw; jelly.raf = 0; jelly.lastT = 0;
-        if (p) { p.style.transform = 'translateX(' + jelly.tx + 'px)'; p.style.width = jelly.tw + 'px'; syncPillHole(); }
-        return;
-      }
-    } catch (e) { jelly.raf = 0; return; }
-    jelly.raf = requestAnimationFrame(jellyStep);
-  }
-  /* ---------------- 药丸按住扭动（2026-09-26，用户定义的 Q弹场景）----------------
-     按住 tab 横向拖动 → 果冻目标跟手（弹簧滞后追赶=扭动），形变由速度驱动；
-     松手 → 吸附到手指下的 tab 并切换（或弹回原位）。普通点击完全不受影响。 */
-  function bindTabbarJelly() {
+  var pillPrimed = false;
+  function syncPillIndex() {
+    if (!tabPillOn()) return;
     var bar = $('#tabbar');
-    if (!bar || w.__tabJellyBound) return;
-    w.__tabJellyBound = true;
-    var grab = null;
-    bar.addEventListener('pointerdown', function (e) {
-      if (!e.target.closest || !e.target.closest('.tab')) return;
-      grab = { x: e.clientX, y: e.clientY, id: e.pointerId, moved: false };
-      try { bar.setPointerCapture(e.pointerId); } catch (err) {}
-    });
-    bar.addEventListener('pointermove', function (e) {
-      if (!grab || e.pointerId !== grab.id) return;
-      var dx = e.clientX - grab.x, dy = e.clientY - grab.y;
-      if (!grab.moved) {
-        if (Math.abs(dx) < 8) return;
-        if (Math.abs(dy) > Math.abs(dx)) { grab = null; return; }
-        grab.moved = true;
-      }
-      if (tabPillOn()) {                           /* Apple 路线：药丸停用时拖动只走释放吸附 */
-        var rb = bar.getBoundingClientRect();
-        var pw = jelly.tw || 60;
-        jelly.tx = Math.max(6, Math.min(rb.width - 6 - pw, e.clientX - rb.left - pw / 2));
-        if (!jelly.raf) jelly.raf = requestAnimationFrame(jellyStep);
-      }
-    });
-    function release(e) {
-      if (!grab || (e.pointerId !== undefined && e.pointerId !== grab.id)) return;
-      var wasMoved = grab.moved;
-      grab = null;
-      /* setPointerCapture 会把 click 重定向到 bar，tab 自己的点击监听收不到——
-         轻点的选中在这里接管（2026-09-26：捕获导致的点击选中失效回归） */
-      var tabs = bar.querySelectorAll('.tab');
-      var rb = bar.getBoundingClientRect();
-      var idx = Math.min(tabs.length - 1, Math.max(0, Math.floor((e.clientX - rb.left) / (rb.width / tabs.length))));
-      var target = tabs[idx];
-      if (wasMoved) {
-        if (target && !target.classList.contains('is-active')) { target.click(); return; }
-        /* 弹回当前激活格（带果冻过冲）——不允许停在两格之间 */
-        var act = bar.querySelector('.tab.is-active');
-        if (act) {
-          var rb2 = bar.getBoundingClientRect(), rt = act.getBoundingClientRect();
-          jellyKick(rt.left - rb2.left + 6, rt.width - 12, jelly.pill || document.getElementById('tabPill'));
-        }
-        return;
-      }
-      if (target && !target.classList.contains('is-active')) target.click();
-    }
-    bar.addEventListener('pointerup', release);
-    bar.addEventListener('pointercancel', function (e) { grab = null; });
-  }
-
-  function positionTabPill() {
-    if (!tabPillOn()) return;                      /* Apple 路线：药丸停用，无需平移 */
-    var bar = $('#tabbar'), pill = $('#tabPill');
-    if (!bar || !pill) return;
+    if (!bar) return;
     var act = bar.querySelector('.tab.is-active');
     if (!act) return;
-    var rb = bar.getBoundingClientRect(), rt = act.getBoundingClientRect();
-    if (!rt.width) return;                       /* 尚未布局（隐藏/首帧），别写 0 宽 */
-    jellyKick(rt.left - rb.left + 6, rt.width - 12, pill);
+    var idx = Array.prototype.indexOf.call(bar.querySelectorAll('.tab'), act);
+    if (idx < 0) return;
+    bar.style.setProperty('--pill-i', String(idx));
+    if (!pillPrimed) {                           /* 首帧直接就位，不播冷启动滑动 */
+      pillPrimed = true;
+      var pill = document.getElementById('tabPill');
+      if (pill) {
+        pill.style.transition = 'none';
+        void pill.offsetWidth;                   /* 强制 reflow 应用无过渡位置 */
+        pill.style.transition = '';
+      }
+    }
   }
+  w.__syncPillIndex = syncPillIndex;             /* 真机/本地探针读 */
 
   function initWallpaper() {
     var lbl = $('#wallpaperLbl');
@@ -1583,7 +1469,7 @@
     d.body.classList.toggle('tabbar-regular', mode === 'regular');
     d.body.classList.toggle('tabbar-float', mode !== 'regular');
     updateTabbarLabel(mode);
-    positionTabPill();
+    /* 药丸为纯 CSS 百分比定位（--pill-i × 自身宽度），模式切换/视口变化自适配，无需 JS */
   }
 
   function updateTabbarLabel(mode) {
@@ -2317,7 +2203,7 @@
       var t = e.touches ? e.touches[0] : e;
       /* 抽屉开着：起手必然在抽屉内，拖拽关由 bindDrawer 负责（避免双系统） */
       if (drawerCtl && drawerCtl.isOpen()) { active = false; return; }
-      /* 起手在底栏上：属于药丸果冻拖拽（bindTabbarJelly），左缘手势让位 */
+      /* 起手在底栏上：点按/横滑都是底栏自身语义，左缘手势让位 */
       if (t.target && t.target.closest && t.target.closest('.tabbar')) { active = false; return; }
       sx = t.clientX; sy = t.clientY;
       dx = 0; dy = 0; active = true; locked = false; mode = null;
@@ -2389,13 +2275,10 @@
       _sd.innerHTML = w.SHEET_MARKUP;
       while (_sd.firstChild) d.body.appendChild(_sd.firstChild);
     }
-    /* 恢复底栏模式 */
+    /* 恢复底栏模式（药丸纯 CSS 百分比定位，resize/模式切换自适配，无 JS 跟随） */
     var tbm = getTabbarMode();
     d.body.classList.toggle('tabbar-regular', tbm === 'regular');
     d.body.classList.toggle('tabbar-float', tbm !== 'regular');
-    /* 共享药丸要跟着视口重算：平板限宽 860px 会居中，格宽不等于五分之一 */
-    positionTabPill();
-    w.addEventListener('resize', positionTabPill);
     /* 液态玻璃：降级判定 + 立即应用。必须在这里跑——「我的」页是懒建的，
        原先只有进一次「我的」才会触发，导致冷启动时玻璃停在样式表默认值上。 */
     initGlass();
@@ -2412,7 +2295,6 @@
     /* 2026-08-12 的窗口级左滑判定（bindLearnSwipeOpen）已由 bindEdgeGestures 取代：
        同样保留"二级菜单左滑=返回上一级"语义，但全程跟手（返回指示条/抽屉 peek）。 */
     bindEdgeGestures();
-    bindTabbarJelly();
     buildDrawer();
     bindGlobal();
     bindSearch();

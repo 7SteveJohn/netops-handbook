@@ -8,15 +8,13 @@
 /* === APPLE ULTIMATE (mirrored from assets) === */
 
 /* ==================================================================
- * 2026-09-29 深夜定案（用户看了真机后拍板，取代同日早些的「Apple 路线撤药丸」）：
- * 参考荣耀相册的悬浮玻璃胶囊——选中态要「通透玻璃药丸 + Q 弹果冻」，不要小蓝点。
- * lens-probe 已在目标 WebView（Chrome 151 / 荣耀 AAP-AN00）实证透镜管线可渲染
- * （C/D 盒边缘平滑弯折、中央平坦，判读表第 3 行；A 盒旧建模硬条纹同现），
- * 药丸独立透镜恢复挂载。观感 = 低 veil（06-anim ::after）+ rim 高光 +
- * 孔内原始折射，veil 往「通透」压的下限是 audit-contrast 第 5 节药丸 4.5:1。
- * 若日后要再停用：改回 false + git 历史恢复 06-anim 的 float 隐藏 +
- * float 禁点覆盖删除 + smoke 的药丸/禁点两条用例。
- * 挂 window 的原因：32-boot.js 拼接在本文件之前，它的药丸平移/果冻循环也读
+ * 2026-09-29 凌晨定案（用户拍板，参考荣耀相册悬浮胶囊）：药丸回归 =
+ * 全格宽清玻璃药丸 + 纯 CSS 弹簧滑动（机制详见 32-boot.js 药丸区顶注与
+ * 06-anim 药丸主块——JS 只在激活 tab 变化时写 --pill-i，零 rAF）。
+ * 透镜/挖孔停用（LENS_SURFACES 恒空，见下方注释）；果冻 Q弹由 spring
+ * 曲线的过冲承担。若要再停用药丸：本开关改 false + 06-anim 恢复 float
+ * 隐藏 + 删 float 禁点覆盖 + smoke 药丸两条用例同步翻转。
+ * 挂 window 的原因：32-boot.js 拼接在本文件之前，它的 syncPillIndex 也读
  * 这个开关；所有读取点都在 DOMContentLoaded 之后，此处赋值先生效。
  * ================================================================== */
 window.TAB_PILL = true;
@@ -191,9 +189,13 @@ window.TAB_PILL = true;
      不再隔着一层 blur(28) 看糊的。旧的全宽 .tabbar 透镜删除：历史上对着 blur
      输出位移就"等于没做"，新架构下更无意义。降级链：mask 不认→无孔全模糊
      （=旧观感）；backdrop url() 不认→透镜层惰性（=旧观感），两条都无回归。 */
-  var LENS_SURFACES = window.TAB_PILL ? [
-    { sel: '.tabbar > .tab-pill', id: 'glass-lens-pill', cls: 'glass-lens--pill' }
-  ] : [];   /* 2026-09-29 Apple 路线：药丸停用 → 无透镜宿主，透镜层不建 */
+  /* 2026-09-29 凌晨：LENS_SURFACES 恒为空数组。药丸挖孔已随 rAF 果冻引擎
+     一并废除（纯 CSS 药丸无法逐帧同步孔几何——这正是半个月卡顿的共谋），
+     而透镜没有孔就隔着 blur(28) 位移输出，"等于没做"（561e8f0 的结论）。
+     药丸观感改为 veil+rim 玻璃片（06-anim），与荣耀相册参考一致：药丸内外
+     模糊量接近，区分度来自 rim 与亮度。透镜代码保留 dormant，将来若以
+     "静态药丸 + CSS transition 同步 mask"的思路复活挖孔，从这里接回。 */
+  var LENS_SURFACES = [];
 
   function lensOptics() {
     var cs = getComputedStyle(document.documentElement);
@@ -264,30 +266,9 @@ window.TAB_PILL = true;
       svg.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden';
       document.body.appendChild(svg);
     }
-    /* 药丸挖孔 mask（.tabbar-blur 底板引用）：白=保留模糊，黑=孔（孔内透镜吃原始
-       背景）。黑矩形几何由 32-boot 果冻循环逐帧写 style.x/width（SVG2 几何属性
-       接受 CSS），region 取超大值兼容任意栏宽。mask 引用失败时底板无孔=全模糊，
-       自然退回旧观感。 */
-    /* 2026-09-29 Apple 路线：TAB_PILL 关时挖孔 mask 不创建（.tabbar-blur 的
-       mask 引用也已由 body.tab-pill-on 门控，双保险） */
-    if (window.TAB_PILL && !svg.querySelector('#pillHoleMask')) {
-      var NS = 'http://www.w3.org/2000/svg';
-      var mask = document.createElementNS(NS, 'mask');
-      mask.setAttribute('id', 'pillHoleMask');
-      mask.setAttribute('maskUnits', 'userSpaceOnUse');
-      mask.setAttribute('x', '0'); mask.setAttribute('y', '0');
-      mask.setAttribute('width', '1200'); mask.setAttribute('height', '600');
-      var wRect = document.createElementNS(NS, 'rect');
-      wRect.setAttribute('width', '1200'); wRect.setAttribute('height', '600');
-      wRect.setAttribute('fill', '#fff');
-      var hole = document.createElementNS(NS, 'rect');
-      hole.setAttribute('id', 'pillHoleRect');
-      hole.setAttribute('rx', '999');
-      hole.setAttribute('fill', '#000');
-      hole.style.y = '4px';
-      mask.appendChild(wRect); mask.appendChild(hole);
-      svg.appendChild(mask);
-    }
+    /* 2026-09-29 凌晨：挖孔 mask（#pillHoleMask/#pillHoleRect）不再创建——
+       纯 CSS 药丸无法逐帧同步孔几何，mask 随 rAF 果冻引擎一并废除；
+       CSS 侧的 mask 引用规则也已删除（06-anim）。 */
     return svg;
   }
 
@@ -347,8 +328,6 @@ window.TAB_PILL = true;
     }
     layer.style.setProperty('--lens-url', 'url(#' + surf.id + ')');
     layer.dataset.lensW = Math.round(rb.width) + 'x' + Math.round(rb.height);
-    /* 挖孔首帧就位（接管前的兜底，否则黑矩形停在 0,0 把底板挖穿） */
-    if (window.__syncPillHole) { try { window.__syncPillHole(); } catch (e) {} }
   }
 
   /* blur 底板：glass-on 时承接原 tabbar 的 blur+cmp 链，药丸位置挖孔（药丸透镜
@@ -411,10 +390,9 @@ window.TAB_PILL = true;
     window.__glassLensRun = run;
   }
 
-  /* 2026-09-29 Apple 路线：开关关时把静态药丸（index.html 里的 #tabPill）从
-     DOM 摘除 = 不挂载；开时给 body 打 tab-pill-on 类，06-anim.css 里
-     .tabbar-blur 的挖孔 mask 只在这个类下生效 —— mask 引用不存在的 SVG mask
-     行为未定义，绝不能让它悬空。 */
+  /* 药丸存在开关（window.TAB_PILL）：false 时把静态药丸（index.html 里的
+     #tabPill）从 DOM 摘除 = 不挂载。tab-pill-on 类已无 CSS 消费方（挖孔 mask
+     废除），仅保留语义标记。 */ 
   function applyTabPillSwitch() {
     var p = document.getElementById('tabPill');
     if (window.TAB_PILL) { document.body.classList.add('tab-pill-on'); return; }
