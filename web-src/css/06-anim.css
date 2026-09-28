@@ -781,9 +781,11 @@ html.dark .appbar::before{
 .tabbar > .tab-pill::after{
   content: ""; position: absolute; inset: 0;
   border-radius: inherit; pointer-events: none;
+  /* 2026-09-29 深夜「通透药丸」（用户参考荣耀相册拍板）：.34/.26 → .20/.13，
+     让孔内折射与 rim 高光当主角，白纱退后；下限由 audit-contrast 药丸 4.5:1 把门。 */
   background: linear-gradient(180deg,
-    rgba(255, 255, 255, .34) 0%,
-    rgba(245, 245, 247, .26) 100%);
+    rgba(255, 255, 255, .20) 0%,
+    rgba(245, 245, 247, .13) 100%);
   /* 掘金 7514618352829448244：切换态按钮 = 无模糊的高透玻璃——模糊只会糊掉
      选中态的清晰感（孔内直接透原始背景，药丸 veil 只留乳浊层） */
   box-shadow:
@@ -793,25 +795,22 @@ html.dark .appbar::before{
 html.dark .tabbar > .tab-pill::after{
   /* 2026-09-25 二轮：深灰 .85 药丸在玻璃栏上是一块"贴纸"（用户实测反馈）。
      原生液态玻璃的选中高光是"更亮一层玻璃"——极淡白色 veil + 选中项转白字
-     （未选中 60% 灰白，层级不变）。2026-09-28 随 veil 上移到 ::after。 */
+     （未选中 60% 灰白，层级不变）。2026-09-28 随 veil 上移到 ::after。
+     2026-09-29 深夜「通透药丸」：.08/.05 → .05/.03，暗色白字对比度反而更宽裕。 */
   background: linear-gradient(180deg,
-    rgba(255, 255, 255, .08) 0%,
-    rgba(255, 255, 255, .05) 100%);
+    rgba(255, 255, 255, .05) 0%,
+    rgba(255, 255, 255, .03) 100%);
   box-shadow:
     inset 0 0 0 .5px rgba(255, 255, 255, .16),
     inset 0 1px 0 rgba(255, 255, 255, .20);
 }
-/* 2026-09-29 Apple 路线（HIG：激活态无胶囊底）：共享药丸整体停用（总开关
-   window.TAB_PILL，见 33-apple.js 顶部，恢复四步以该注释为准——这里只删
-   float 这条隐藏；下方 body:not(.tabbar-float) 那条是 regular 贴底模式的
-   历史正确隐藏，恢复时保留）。
-   float 模式激活态回归 = 强调色图标+文字 + 5px 小圆点（03-layout 的
-   .tab.is-active::before + tab-dot-pop；原来的 float 禁点覆盖
-   「body.tabbar-float .tab.is-active::before{ content: none !important; }」已删）。
-   常规模式本就没有共享药丸（隐藏保留），float 模式补同款隐藏做双保险
-   （JS 侧开关关时还会把 #tabPill 从 DOM 摘除，见 33-apple applyTabPillSwitch）。 */
+/* 2026-09-29 深夜定案（用户看了真机后拍板，参考荣耀相册的悬浮胶囊）：
+   float 模式恢复共享药丸做选中态 = 通透玻璃药丸 + 果冻弹簧（33-apple.js
+   window.TAB_PILL = true，透镜管线已经 lens-probe 在目标 WebView 实证可渲染），
+   小圆点只在 regular 贴底模式使用（float 禁点覆盖恢复如下）。
+   veil 透明度以 audit-contrast 第 5 节药丸 4.5:1 为下限往通透压。 */
+body.tabbar-float .tab.is-active::before{ content: none !important; }
 body:not(.tabbar-float) .tabbar > .tab-pill{ display: none; }
-body.tabbar-float .tabbar > .tab-pill{ display: none; }
 
 /* 4. Buttons：真正的按压缩放（Apple 设计，不是放大！） */
 .btn{

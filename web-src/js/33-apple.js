@@ -8,22 +8,18 @@
 /* === APPLE ULTIMATE (mirrored from assets) === */
 
 /* ==================================================================
- * 2026-09-29 Apple 路线（用户拍板）：HIG 激活态无胶囊底 —— .tab-pill 共享药丸、
- * 果冻物理、药丸独立透镜、#pillHoleMask 挖孔整体停用（停用保留，不删除：
- * 药丸/果冻/透镜代码是多轮投入，透镜真机终判后可能复评）。
- * 恢复四步（缺一不可）：
- *   ① 本开关改回 true；
- *   ② 06-anim.css 删掉「body.tabbar-float .tabbar > .tab-pill{ display: none; }」
- *     ——注意只删 float 这条；body:not(.tabbar-float) 那条是 regular 贴底模式
- *     的历史正确隐藏（贴底本就没有共享药丸），恢复时保留；
- *   ③ 06-anim.css 恢复被删的 float 禁点覆盖
- *     「body.tabbar-float .tab.is-active::before{ content: none !important; }」；
- *   ④ smoke.js 里 2026-09-29 的三条用例（float 无药丸 / 禁点覆盖已移除 /
- *     blur 底板 mask 门控）同步回滚——它们断言的是"药丸停用"本身，恢复后必红。
+ * 2026-09-29 深夜定案（用户看了真机后拍板，取代同日早些的「Apple 路线撤药丸」）：
+ * 参考荣耀相册的悬浮玻璃胶囊——选中态要「通透玻璃药丸 + Q 弹果冻」，不要小蓝点。
+ * lens-probe 已在目标 WebView（Chrome 151 / 荣耀 AAP-AN00）实证透镜管线可渲染
+ * （C/D 盒边缘平滑弯折、中央平坦，判读表第 3 行；A 盒旧建模硬条纹同现），
+ * 药丸独立透镜恢复挂载。观感 = 低 veil（06-anim ::after）+ rim 高光 +
+ * 孔内原始折射，veil 往「通透」压的下限是 audit-contrast 第 5 节药丸 4.5:1。
+ * 若日后要再停用：改回 false + git 历史恢复 06-anim 的 float 隐藏 +
+ * float 禁点覆盖删除 + smoke 的药丸/禁点两条用例。
  * 挂 window 的原因：32-boot.js 拼接在本文件之前，它的药丸平移/果冻循环也读
  * 这个开关；所有读取点都在 DOMContentLoaded 之后，此处赋值先生效。
  * ================================================================== */
-window.TAB_PILL = false;
+window.TAB_PILL = true;
 
 /* ==================================================================
  * Apple Ultimate UI — Motion JS
