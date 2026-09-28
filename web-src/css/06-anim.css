@@ -1980,12 +1980,33 @@ html.dark body.glass-gaussian .sec,
 body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .sec,
 html.dark body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .sec,
 .android-webview body.glass-on.glass-liquid.has-wallpaper .sec,
-.android-webview.dark body.glass-on.glass-liquid.has-wallpaper .sec {
+.android-webview.dark body.glass-on.glass-liquid.has-wallpaper .sec,
+/* 2026-09-29 凌晨第二轮：.chips 容器同理——筹码自带 --surf-2 底色，
+   容器再吃一层 tint 带 = 筹码行后面的全宽多余色块（面试页「未定/数通」
+   「与你相关」两行用户实证）。同法逐条点名收口。 */
+.chips,
+body.has-wallpaper .chips,
+html.dark body.has-wallpaper .chips,
+body.glass-frosted .chips,
+html.dark body.glass-frosted .chips,
+body.glass-gaussian .chips,
+html.dark body.glass-gaussian .chips,
+body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .chips,
+html.dark body.glass-on.has-wallpaper:not(.glass-frosted):not(.glass-gaussian) .chips,
+.android-webview body.glass-on.glass-liquid.has-wallpaper .chips,
+.android-webview.dark body.glass-on.glass-liquid.has-wallpaper .chips {
   background: none !important;
   -webkit-backdrop-filter: none !important;
           backdrop-filter: none !important;
   border-color: transparent !important;
   box-shadow: none !important;
+}
+/* 底栏双重色块（用户实证"整个导航栏双重色块"）：.tabbar::before 的
+   var(--surface) 不透明底把 .tabbar-blur 玻璃底板（blur+cmp 链）整个盖住
+   ——玻璃模式下面板层应该是透明的，blur/tint 由底板+栏自身 tint 提供，
+   ::before 只留 rim（边框+内高光）。glass-off 无底板，::before 底色保留。 */
+body.glass-on .tabbar::before{
+  background: transparent !important;
 }
 .sec__t { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px 5px 8px; border-radius: var(--r-full); }
 .sec__line { background: linear-gradient(90deg, var(--border) 0%, transparent 92%); }
