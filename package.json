@@ -1,0 +1,15 @@
+{
+  "name": "netops-offline-manual",
+  "version": "2.0.4",
+  "private": true,
+  "description": "NetOps 2.0 离线网络学习手册 — Web 构建与校验工具链（jsdom 仅冒烟测试使用）",
+  "scripts": {
+    "build": "node web-src/build.js",
+    "smoke": "node web-src/tools/smoke.js",
+    "smoke:settings": "node web-src/tools/smoke-settings.js",
+    "verify": "node web-src/tools/verify-apk.js"
+  },
+  "devDependencies": {
+    "jsdom": "30.0.1"
+  }
+}

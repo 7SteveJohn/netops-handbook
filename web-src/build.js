@@ -264,33 +264,59 @@ function build() {
     problems.push('内容一致性门禁无法运行: ' + e.message);
   }
 
+  /* ---------- 门禁执行器 ----------
+     默认用子进程跑门禁脚本（保持它们能单独执行、自带退出码与中文报告）。
+     某些受管控环境禁止 node 派生任何子进程（execFileSync 抛 EBUSY/EPERM，
+     错误上有 errno code 且无 status/stdout）——此时回退到同进程执行同一脚本：
+     捕获 console 输出、把脚本里的 process.exit 转成返回码，判定口径与子进程一致。
+     门禁自身失败（子进程非零退出，带 status/stdout）不触发回退，按原样判失败。 */
+  function runGateInProcess(file, entry) {
+    const logs = [];
+    const origLog = console.log, origErr = console.error, origExit = process.exit;
+    console.log = (...a) => logs.push(a.map(String).join(' '));
+    console.error = (...a) => logs.push(a.map(String).join(' '));
+    process.exit = code => { const x = new Error('gate exit ' + code); x.gateExit = code || 0; throw x; };
+    try {
+      delete require.cache[require.resolve(file)];
+      const mod = require(file);
+      /* 有的脚本被 require 时只导出函数不执行（require.main 守卫），需显式调入口 */
+      if (entry) {
+        const r = mod[entry]();
+        return { ok: !(r && r.errs && r.errs.length), msg: logs.join('\n').trim() };
+      }
+      return { ok: true, msg: logs.join('\n').trim() };
+    } catch (x) {
+      if (typeof x.gateExit === 'number') return { ok: x.gateExit === 0, msg: logs.join('\n').trim() };
+      return { ok: false, msg: logs.concat(['门禁脚本异常: ' + x.message]).join('\n').trim() };
+    } finally {
+      console.log = origLog; console.error = origErr; process.exit = origExit;
+    }
+  }
+
+  function runGate(file, entry) {
+    try {
+      const msg = require('child_process')
+        .execFileSync(process.execPath, [file], { encoding: 'utf8' })
+        .trim();
+      return { ok: true, msg };
+    } catch (e) {
+      /* 派生失败（无 status/stdout，带 errno code）→ 同进程回退；否则是门禁真失败 */
+      if (e.code && e.status == null && e.stdout === undefined) return runGateInProcess(file, entry);
+      return { ok: false, msg: String(e.stdout || e.stderr || e.message).trim() };
+    }
+  }
+
   /* ---------- 可读性门禁 ----------
      通透度 × 壁纸是用户自由组合，"字看不见"靠肉眼点检必漏（本项目真漏过：
      14 张内置壁纸 100% 面积不达 AA、最差 1.00:1）。这里把运行时的下限求解
      在构建期复算一遍。工具自带退出码与中文报告，用子进程跑，保持它能单独执行。 */
-  let contrastGate = { ok: true, msg: '' };
-  try {
-    contrastGate.msg = require('child_process')
-      .execFileSync(process.execPath, [path.join(__dirname, 'tools', 'audit-contrast.js')], { encoding: 'utf8' })
-      .trim();
-  } catch (e) {
-    contrastGate.ok = false;
-    contrastGate.msg = String(e.stdout || e.stderr || e.message).trim();
-  }
+  const contrastGate = runGate(path.join(__dirname, 'tools', 'audit-contrast.js'));
 
   /* ---------- 配方 token 消费门禁 ----------
      glass-recipe.json 自称"唯一参数来源"，但实测曾有 13 个 token 零消费者 —— 改它们
      屏幕上什么都不变。清完必须立闸，否则死参数会长回来。详见 tools/audit-recipe-consumers.js。 */
-  let tokensGate = { ok: true, msg: '' };
-  try {
-    tokensGate.msg = require('child_process')
-      .execFileSync(process.execPath, [path.join(__dirname, 'tools', 'audit-recipe-consumers.js')], { encoding: 'utf8' })
-      .trim();
-    tokensGate.ok = /全部有消费者/.test(tokensGate.msg);
-  } catch (e) {
-    tokensGate.ok = false;
-    tokensGate.msg = String(e.stdout || e.stderr || e.message).trim();
-  }
+  const tokensGate = runGate(path.join(__dirname, 'tools', 'audit-recipe-consumers.js'), 'gate');
+  tokensGate.ok = tokensGate.ok && /全部有消费者/.test(tokensGate.msg);
 
   /* ---------- 报告 ---------- */
   console.log('\n  NetOps 2.0 构建' + (MIN ? '（压缩）' : '（未压缩）'));

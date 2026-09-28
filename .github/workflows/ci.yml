@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  web:
+    name: Web 构建 + 门禁 + 冒烟
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # jsdom 装到独立目录，不污染仓库；smoke 脚本通过 NODE_PATH 解析
+      - name: Install jsdom (isolated)
+        run: npm install --prefix /tmp/ci-deps "jsdom@$(node -p "require('./package.json').devDependencies.jsdom")"
+
+      # 内联构建 + 4 道门禁(glass 覆盖/内容一致/对比度/recipe 消费方) + 离线校验
+      - name: Build (inline + audits)
+        run: node web-src/build.js
+
+      - name: Smoke test
+        run: node web-src/tools/smoke.js
+        env:
+          NODE_PATH: /tmp/ci-deps/node_modules
+
+      - name: Smoke settings test
+        run: node web-src/tools/smoke-settings.js
+        env:
+          NODE_PATH: /tmp/ci-deps/node_modules
+
+  android:
+    name: Android assembleDebug
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Grant gradlew execute permission
+        run: chmod +x gradlew
+
+      # debug 不需要签名密钥；gradlew 与 wrapper jar 已在仓库
+      - name: Assemble debug APK
+        run: ./gradlew assembleDebug --no-daemon
