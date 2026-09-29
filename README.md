@@ -4,9 +4,9 @@
 >
 > 先说清楚定位：它是**辅助工具**，得配着教材、网课和真机实验一起用，不是一门能独立走完的课。
 
-[![Platform](https://img.shields.io/badge/platform-Android%2024%2B-green.svg)](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.3)
+[![Platform](https://img.shields.io/badge/platform-Android%2024%2B-green.svg)](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.4)
 [![Offline](https://img.shields.io/badge/network-100%25%20offline-orange.svg)](#)
-[![Release](https://img.shields.io/badge/release-v2.0.3-blue.svg)](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.3)
+[![Release](https://img.shields.io/badge/release-v2.0.4-blue.svg)](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.4)
 
 > **🤖 AI 助手 / 维护者入口**：改代码前先读 [AGENTS.md](./AGENTS.md)（项目须知与硬约束）；
 > 液态玻璃效果的问题定位见 [液态玻璃问题复盘-2026-09-26.md](./液态玻璃问题复盘-2026-09-26.md)。
@@ -107,7 +107,7 @@ NetOps 2.0 是一个为零基础萌新做的 **Android 离线网络学习辅助 
 
 ## 使用方式
 
-1. **下载安装** → [Releases 页面](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.2) 下载 `app-release.apk`，允许「未知来源」安装即可
+1. **下载安装** → [Releases 页面](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.4) 下载 `app-release.apk`，允许「未知来源」安装即可
 2. **打开即用** → 底部五个 Tab 切换：**学习 / 排障 / 字典 / 面试 / 我的**
 3. **搜索** → 右上角 🔍 图标全局搜索任意关键词
 4. **深色模式** → 右上角 ☀️ 图标切换明暗主题
@@ -350,7 +350,7 @@ CLI 模拟器终于像样了。命令从原来 200 多条扩到 500 多条，前
 
 ## 下载
 
-📥 [**v2.0.3 Release（含 APK）**](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.3)
+📥 [**v2.0.4 Release（含 APK）**](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.4)
 
 ## 许可
 
