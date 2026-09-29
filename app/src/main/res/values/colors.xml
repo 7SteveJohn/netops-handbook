@@ -4,6 +4,8 @@
     <color name="app_bg">#F5F7FB</color>
     <color name="ic_bg_top">#1E293B</color>
     <color name="ic_bg_bottom">#0B1220</color>
+    <!-- 2026-09-29 新 IP 图标（小终端机器人）背景：与 D1 原图奶油底一致 -->
+    <color name="ic_launcher_background">#FDEFD7</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 </resources>
