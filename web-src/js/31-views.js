@@ -64,7 +64,7 @@
           '<div class="ring__lbl">已掌握</div></div></div>' +
         '<div class="grow" style="min-width:0">' +
           '<div class="t-sm bold">学习进度</div>' +
-          '<div class="t-xs t-mute" style="margin-top:2px">' + doneMods + ' / ' + A.MODS.length + ' 个模块 · 连续打卡 ' + A.S.streak.n + ' 天</div>' +
+          '<div class="t-xs t-mute" style="margin-top:2px">' + doneMods + ' / ' + A.MODS.length + ' 个模块 · 连续打卡 ' + A.streakNow() + ' 天</div>' +
           (next
             ? '<button class="btn btn--primary btn--sm" style="margin-top:9px" type="button" data-go="phase" data-arg="' + next.pid + '" data-focus="' + next.id + '">' +
                 icon('i-play', 'icon--sm') + '继续：' + esc(A.cleanTitle(next.t).slice(0, 12)) + '…</button>'
@@ -289,7 +289,7 @@
         '<div class="ring" style="--p:' + pct + ';width:112px;height:112px"><div class="ring__val">' +
           '<div class="ring__num">' + pct + '<span style="font-size:13px">%</span></div>' +
           '<div class="ring__lbl">总进度</div></div></div>' +
-        '<div class="t-xs t-mute" style="margin-top:10px">' + all + ' / ' + A.TOTAL + ' 项已完成 · 连续打卡 ' + A.S.streak.n + ' 天</div>' +
+        '<div class="t-xs t-mute" style="margin-top:10px">' + all + ' / ' + A.TOTAL + ' 项已完成 · 连续打卡 ' + A.streakNow() + ' 天</div>' +
       '</div></div></div>';
 
     h += '<div class="stat-grid" style="margin-top:11px">' +
@@ -351,7 +351,8 @@
     '</div>';
 
     h += '<div class="center t-xs t-mute" style="padding:22px 0 6px;line-height:1.7">' +
-      'NetOps 2.0 · 网络学习辅助手册<br>完全离线运行 · 无网络权限 · 无第三方依赖</div>';
+      'NetOps 2.0 · 网络学习辅助手册<br>完全离线运行 · 无网络权限 · 无第三方依赖<br>' +
+      '构建 ' + esc((w.__BUILD__ || '') || '本地源码（未经 build.js）') + '</div>';
     return page(h);
   };
 

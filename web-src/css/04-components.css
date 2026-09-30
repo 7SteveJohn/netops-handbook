@@ -1062,28 +1062,6 @@ body.glass-gaussian .cli {
 }
 .wp-chips .chip { height: 32px; padding: 0 14px; font-size: 12.5px; }
 
-/* ---------------- 学习页左滑引导提示(优化7) ---------------- */
-.swipe-tip {
-  position: fixed;
-  left: 50%;
-  bottom: calc(var(--tabbar-h, 56px) + var(--sa-bottom, 0px) + 96px);
-  transform: translateX(-50%);
-  z-index: 96;
-  padding: 9px 16px;
-  border-radius: 18px;
-  background: rgba(15, 23, 42, .82);
-  color: #fff;
-  font-size: 12.5px;
-  font-weight: 600;
-  letter-spacing: .01em;
-  pointer-events: none;
-  opacity: 1;
-  transition: opacity .4s var(--ease-out), transform .4s var(--ease-out);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, .25);
-  white-space: nowrap;
-}
-.swipe-tip.is-hide { opacity: 0; transform: translateX(-50%) translateY(8px); }
-
 /* ---------------- CLI 快速命令分组(优化4) ---------------- */
 .cli-qg {
   display: flex;

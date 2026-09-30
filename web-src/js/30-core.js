@@ -136,6 +136,18 @@
   }
   A.touchStreak = touchStreak;
 
+  /* 展示用（2026-09-30 排查）：断签（最后打卡既不是今天也不是昨天）后显示 0。
+     touchStreak 只在打卡时改写 n，视图若直接读 S.streak.n，隔了几天仍挂着旧数字。 */
+  A.streakNow = function () {
+    var s = S.streak;
+    if (!s || !s.last || !s.n) return 0;
+    var t = new Date(), k = t.getFullYear() + '-' + (t.getMonth() + 1) + '-' + t.getDate();
+    if (s.last === k) return s.n;
+    var y = new Date(t.getTime() - 864e5);
+    var yk = y.getFullYear() + '-' + (y.getMonth() + 1) + '-' + y.getDate();
+    return s.last === yk ? s.n : 0;
+  };
+
   /* ---------------- 通用片段 ---------------- */
   function sec(ico, text) {
     return '<div class="sec"><span class="sec__t">' + icon(ico, 'icon--xs') + esc(text) +

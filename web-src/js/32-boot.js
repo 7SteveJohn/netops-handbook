@@ -87,7 +87,8 @@
     /* 视图专属初始化 */
     if (st.r === 'cli') initCli();
     if (st.r === 'me') initSettings();
-    if (st.r === 'learn') showSwipeTipOnce();
+    /* 2026-09-30：移除 showSwipeTipOnce——「左滑呼出目录」的唤栏手势已随
+       「移除唤栏」决策删除，这条提示在教一个不存在的手势，只会加重误操作 */
 
     scroll.scrollTop = restore ? (scrollMem[keyOf(st)] || 0) : 0;
     onScroll();
@@ -105,6 +106,8 @@
     if (!META[r]) r = 'learn';
     var st = { r: r, a: a || null };
     if (st.r === cur.r && st.a === cur.a) { render(st, false); return; }
+    /* 从搜索结果点进内容：搜索态一并收掉（结果已消费，搜索栏留着只挡视线） */
+    if (cur.r === 'search' && st.r !== 'search') closeSearch();
     scrollMem[keyOf(cur)] = scroll.scrollTop;
     if (!replace) {
       stack.push(cur);
@@ -117,12 +120,17 @@
   A.go = go;
 
   function goTab(tab, restorePos) {
-    if (cur.r === tab) { scroll.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+    if (cur.r === tab) {
+      /* 同 tab 二次点击：搜索栏开着就顺手收起（视为「收拾干净」），否则回顶部 */
+      if (searchIsOpen()) { closeSearch(); return; }
+      scroll.scrollTo({ top: 0, behavior: 'smooth' }); return;
+    }
     /* 切主标签前关闭所有 sheet（避免 wpSheet / glassSheet DOM 被 V.*() innerHTML 覆盖后
        留下半开/错位状态——用户 2026-08-12 "我的页快速下滑触发 bug" 反馈的根因）。
        注意：不关闭 drawer（侧滑菜单）。 */
     try { if (U.sheet.isOpen && U.sheet.isOpen()) U.sheet.close(); } catch (e) {}
     closeAnyCustomSheet();
+    closeSearch(); /* 切 tab：搜索栏不残留到新栏目（2026-09-30） */
     scrollMem[keyOf(cur)] = scroll.scrollTop;
     /* 切主标签：回到根层级，清空返回栈，避免栈无限膨胀 */
     stack.length = 0;
@@ -143,12 +151,23 @@
        （2026-09-25：此前只有左滑手势关卡片，物理返回键在展开卡片上第一下没反应） */
     var oc = d.querySelector('.card.is-open');
     if (oc) { oc.classList.remove('is-open'); return true; }
+    /* 搜索栏开着：返回先收搜索（2026-09-30 用户反馈「点叉退不出搜索」）。
+       正停在搜索结果页时，收起后继续走下面的正常回退（pop 或回主 tab）。 */
+    if (searchIsOpen()) {
+      closeSearch();
+      if (cur.r !== 'search') return true;
+    }
     if (!stack.length) {
       if (!isRoot(cur.r)) { goTab(META[cur.r] ? META[cur.r].tab : 'learn', true); return true; }
       return false;
     }
     scrollMem[keyOf(cur)] = scroll.scrollTop;
     cur = stack.pop();
+    /* 栏已收起的 search 条目是「僵尸页」（W-3：点结果进内容时路由照常入栈、
+       搜索态却被 go() 收掉）——返回跳过它继续往栈底弹，落点必须是真实页面；
+       栈被跳穿时按根 tab 处理。 */
+    while (cur.r === 'search' && !searchIsOpen() && stack.length) cur = stack.pop();
+    if (cur.r === 'search' && !searchIsOpen()) { goTab(META[cur.r].tab, true); return true; }
     syncHash(cur);
     render(cur, true);
     return true;
@@ -417,6 +436,13 @@
     el.classList.toggle('is-done', on);
     var use = el.querySelector('use');
     if (use) use.setAttribute('href', on ? '#i-check-circle' : '#i-circle');
+    /* 分组头的 dn/total 只在 buildDrawer（冷启动/清空）时写入，会话内打卡后
+       要跟着刷新，否则抽屉里一直挂着旧计数（2026-09-30 排查） */
+    var grp = el.closest('.tree__group');
+    var pid = grp && grp.getAttribute('data-grp');
+    var p = pid && A.PH[pid];
+    var cnt = grp && grp.querySelector('.tree__cnt');
+    if (p && cnt) cnt.textContent = A.countDone(p.modules) + '/' + p.modules.length;
   }
 
   /* 跳到讲过它的卡片：知识模块回阶段页，排障/面试卡回各自列表页 */
@@ -1430,7 +1456,10 @@
   /* ---- 通用 Sheet 关闭增强（Fix 3: 遮罩点击 / 返回键 / 防重复打开） ---- */
   var openCustomSheet = null; /* 记录当前打开的自定义 sheet */
   function setupSheetBackdrop(sheet) {
-    if (!sheet) return;
+    /* sheet 是静态节点且本函数随「我的」页每次渲染重入：不设防的话
+       document capture 监听和 grab 监听会按访问次数无限累积（2026-09-30 排查） */
+    if (!sheet || sheet.__backdropBound) return;
+    sheet.__backdropBound = true;
     /* 点击弹窗外区域（view 容器）关闭 */
     function closeIfOpen(e) {
       if (!sheet.classList.contains('is-open')) return;
@@ -1634,16 +1663,36 @@
   }
 
   /* ---------------- 搜索 ---------------- */
+  /* 搜索栏开合的统一出口（2026-09-30）：此前只有放大镜能收起搜索栏——
+     叉只清空、返回键/切 tab/结果页跳转都不管它，用户「点叉退不出搜索」。
+     现在所有关闭路径都走 closeSearch，开合状态只从一个地方改。 */
+  function searchIsOpen() {
+    var wrap = $('#searchWrap');
+    return !!(wrap && wrap.classList.contains('is-open'));
+  }
+  function closeSearch() {
+    var wrap = $('#searchWrap'), input = $('#q'), bs = $('#btnSearch');
+    if (wrap) wrap.classList.remove('is-open');
+    if (bs) bs.classList.remove('is-on');
+    if (input) { input.value = ''; input.blur(); }
+  }
   function bindSearch() {
     var wrap = $('#searchWrap'), input = $('#q');
+    /* 无✕设计（2026-09-30 用户三轮反馈定论：叉号一律会被误读为「关闭搜索」）。
+       清空 = 退格键（清到空由 run() 的空查询分支退出搜索）；退出 = 框外「取消」。
+       放大镜开关保留。 */
     $('#btnSearch').addEventListener('click', function () {
-      var open = wrap.classList.toggle('is-open');
-      $('#btnSearch').classList.toggle('is-on', open);
-      if (open) setTimeout(function () { input.focus(); }, 220);
-      else { input.value = ''; if (cur.r === 'search') back(); }
+      if (wrap.classList.contains('is-open')) {
+        closeSearch();
+        if (cur.r === 'search') back();
+      } else {
+        wrap.classList.add('is-open');
+        $('#btnSearch').classList.add('is-on');
+        setTimeout(function () { input.focus(); }, 220);
+      }
     });
-    $('#btnClearQ').addEventListener('click', function () {
-      input.value = ''; input.focus();
+    $('#btnCancelQ').addEventListener('click', function () {
+      closeSearch();
       if (cur.r === 'search') back();
     });
     var run = U.debounce(function () {
@@ -1745,6 +1794,11 @@
     var act = btn.getAttribute('data-quiz');
     var box = $('#quizBox');
     if (act === 'wrongclear') {
+      /* 一键抹掉错题记录不可撤销，且按钮紧挨着「只练这 N 题」，必须拦一道（2026-09-30） */
+      if (!w.confirm('清空错题本？所有错题记录会被移除，且无法撤销。')) {
+        U.toast('已取消，错题本未改动', null);
+        return;
+      }
       A.S.wrong = {}; saveWrong(); go('quiz');
       U.toast('错题本已清空', 'ok');
       return;
@@ -2120,20 +2174,6 @@
   w.exportData = exportData;
   w.importData = importData;
 
-  /* ---------------- 学习页左滑引导(优化7):一次性提示 ---------------- */
-  var SWIPE_TIP_KEY = 'netops_swipe_tip';
-  function showSwipeTipOnce() {
-    try { if (localStorage.getItem(SWIPE_TIP_KEY)) return; localStorage.setItem(SWIPE_TIP_KEY, '1'); } catch (e) {}
-    var tip = d.createElement('div');
-    tip.className = 'swipe-tip';
-    tip.textContent = '左滑（从左侧向右滑）呼出目录';
-    d.body.appendChild(tip);
-    setTimeout(function () {
-      tip.classList.add('is-hide');
-      setTimeout(function () { try { tip.remove(); } catch (e) {} }, 450);
-    }, 3600);
-  }
-
   /* ---------------- 滚动联动 ---------------- */
   var lastTop = 0;
   function onScroll() {
@@ -2175,8 +2215,13 @@
   function bindEdgeGestures() {
     if (w.__swipeBound) return;
     w.__swipeBound = true;
-    var EDGE = 26, LOCK = 8, TH = 90;
-    var sx = 0, sy = 0, dx = 0, dy = 0, active = false, locked = false, mode = null;
+    /* EDGE=22：原生侧 applyGestureExclusion 已把左缘 18dp×200dp 从系统手势里排除，
+       网页手势是这条带的 owner——JS 判定带必须贴着它（比 18 略宽 4px 防死缝）。
+       2026-09-30 修复：EDGE 此前「定义了但从未使用」，屏幕任意位置右滑 90px 都会
+       触发返回，横向滑表格/随手右滑全被劫持成返回（用户反馈「用起来别扭」的元凶）。 */
+    var EDGE = 22, LOCK = 8, TH = 90, FLING_MIN = 48, FLING_VX = 0.55;
+    var sx = 0, sy = 0, dx = 0, dy = 0, lx = 0, lockT = 0;
+    var active = false, locked = false, mode = null, tTarget = null;
     /* 返回指示条：Android 10+ 同款语言——左缘细条跟手增长、松手淡出 */
     var peek = d.createElement('div');
     peek.className = 'back-peek';
@@ -2196,15 +2241,32 @@
       if (customSheetOpen()) return true;
       if (drawerCtl && drawerCtl.isOpen()) return true;
       if (d.querySelector('.card.is-open')) return true;
+      if (searchIsOpen()) return true; /* 搜索栏开着：左缘返回要先收它（2026-09-30） */
       if (stack.length) return true;
       return !isRoot(cur.r);
+    }
+    /* 起手点所在链上有横向可滚容器（表格/CLI 输出/代码块）时让位判定：
+       容器里还有没滚到头的左侧内容（scrollLeft>0），这次右滑归它滚动；
+       已在原点时右滑对容器是空操作，才轮到边缘返回。 */
+    function scrollableXUnder(el) {
+      for (var n = el; n && n !== d.body; n = n.parentElement) {
+        try {
+          if (n.scrollWidth > n.clientWidth + 2) {
+            var ov = getComputedStyle(n).overflowX;
+            if (ov === 'auto' || ov === 'scroll') return n;
+          }
+        } catch (e) {}
+      }
+      return null;
     }
     function start(e) {
       var t = e.touches ? e.touches[0] : e;
       /* 起手在底栏上：点按/横滑都是底栏自身语义，左缘手势让位 */
       if (t.target && t.target.closest && t.target.closest('.tabbar')) { active = false; return; }
-      sx = t.clientX; sy = t.clientY;
+      sx = t.clientX; sy = t.clientY; lx = sx;
+      lockT = e.timeStamp || Date.now();
       dx = 0; dy = 0; active = true; locked = false; mode = null;
+      tTarget = t.target;
     }
     function move(e) {
       if (!active) return;
@@ -2218,22 +2280,38 @@
         /* 2026-09-29 凌晨（用户拍板「移除唤栏」）：左缘只做返回——同一手势
            两种结果取决于看不见的栈状态，不可预测且与系统返回手势打架。
            无可退目标时边缘滑动不做事（抽屉走左上角菜单按钮）。 */
+        if (sx > EDGE) { active = false; return; }                 /* 不在左缘起手带 */
+        var sc = scrollableXUnder(tTarget);
+        if (sc && sc.scrollLeft > 0) { active = false; return; }   /* 横向滚动优先 */
         mode = canBack() ? 'back' : null;
         if (!mode) { active = false; return; }
+        lockT = e.timeStamp || Date.now();
       }
+      lx = t.clientX;
       peekAt(dx / TH);
     }
-    function end() {
+    function end(e) {
       if (!active) return;
       active = false;
       if (!locked) return;
       peekAt(0);
-      if (dx >= TH) back();   /* back() 自己会选：关抽屉/关弹窗/收卡片/弹路由/回根 tab */
+      /* 距离阈值，或锁定后快速短甩（平均速度保守估算）——短促轻甩不用拖满 90px */
+      var now = (e && e.timeStamp) || Date.now();
+      var vx = now > lockT ? (lx - sx) / (now - lockT) : 0;
+      if (dx >= TH || (dx >= FLING_MIN && vx >= FLING_VX)) {
+        U.buzz(6);  /* 网页手势自己触发的返回补一记轻触感，对齐系统返回手感 */
+        back();     /* back() 自己会选：关抽屉/关弹窗/收卡片/弹路由/回根 tab */
+      }
+    }
+    /* 系统接管/来电等打断：只复位，绝不当成完成——否则系统返回 + 网页返回连击两层 */
+    function cancel() {
+      active = false; locked = false; mode = null;
+      peekAt(0);
     }
     w.addEventListener('touchstart', start, { passive: true });
     w.addEventListener('touchmove', move, { passive: true });
     w.addEventListener('touchend', end, { passive: true });
-    w.addEventListener('touchcancel', end, { passive: true });
+    w.addEventListener('touchcancel', cancel, { passive: true });
   }
 
   /* ---------------- 启动 ---------------- */

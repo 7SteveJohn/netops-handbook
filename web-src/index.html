@@ -71,9 +71,11 @@
         <svg class="icon icon--sm t-mute" aria-hidden="true"><use href="#i-search"/></svg>
         <input id="q" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off"
                spellcheck="false" placeholder="搜模块 / 命令 / 故障 / 面试题…">
-        <button class="ibtn" id="btnClearQ" type="button" aria-label="清空" style="width:32px;height:32px">
-          <svg class="icon icon--sm" aria-hidden="true"><use href="#i-x"/></svg>
-        </button>
+        <!-- 清空✕按用户决策整体移除（2026-09-30 三轮反馈定论：叉号一律会被
+             误读为「关闭搜索」，图形本身教不会）。清空 = 退格键，清到空 = 退出
+             搜索；退出 = 框外「取消」。桌面 Chrome 的 type=search 原生✕由 CSS
+             隐藏，别让歧义从后门回来。 -->
+        <button class="searchbar__cancel" id="btnCancelQ" type="button">取消</button>
       </div>
     </div>
 

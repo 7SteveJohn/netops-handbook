@@ -199,6 +199,13 @@ function build() {
     js += '\n;/* ===== ' + path.basename(f) + ' ===== */\n' + raw;
     report.push(['JS  ' + path.basename(f), raw]);
   });
+  /* 构建水印（2026-09-30）：装机后在「我的」页脚核对是哪一刻构建的，
+     消灭「装的是不是新版」这类来回——水印跟着实际运行的 HTML 走，
+     无论是旧 APK 还是 devpage 顶替，页脚一看便知。 */
+  const now = new Date();
+  const p2 = n => String(n).padStart(2, '0');
+  js += "\n;window.__BUILD__='" + now.getFullYear() + p2(now.getMonth() + 1) + p2(now.getDate()) +
+        '-' + p2(now.getHours()) + p2(now.getMinutes()) + "';";
   const jsOut = MIN ? minJs(js) : js;
 
   const spriteRaw = read('html/sprite.svg');

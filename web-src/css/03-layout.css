@@ -124,6 +124,20 @@ html.dark body.glass-on .searchbar {
   background: linear-gradient(160deg, var(--glass-tint-top) 0%, var(--glass-tint-bot) 100%);
 }
 .searchbar input { flex: 1; min-width: 0; font-size: 15px; }
+/* 桌面 Chrome 会给 type=search 画原生 ✕（叉号会被误读为关闭搜索），隐藏 */
+.searchbar input::-webkit-search-cancel-button { -webkit-appearance: none; display: none; }
+
+/* 取消按钮：住在搜索框外，整体退出搜索模式 */
+.searchbar__cancel {
+  flex: none;
+  border: 0; background: none;
+  padding: 6px 10px 6px 4px;
+  font-size: 14px; font-weight: 700;
+  color: var(--accent);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.searchbar__cancel:active { opacity: .6; }
 
 /* ---------------- 主滚动区 ---------------- */
 .scroll {
