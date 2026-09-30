@@ -21,3 +21,11 @@ keystore.properties
 .jdk17_extract/
 /背景图/
 /背景图/
+
+# 私有调研（用户不开源：液态玻璃 / Apple 设计文档与探针证据，本地保留）
+/Apple页面设计要点*.md
+/液态玻璃*.md
+/本地视觉闭环-验证手册.md
+/screenshots/
+/web-src/tools/lens-probe.html
+/tools/data/wallprobe-result.png

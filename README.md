@@ -4,12 +4,11 @@
 >
 > 先说清楚定位：它是**辅助工具**，得配着教材、网课和真机实验一起用，不是一门能独立走完的课。
 
-[![Platform](https://img.shields.io/badge/platform-Android%2024%2B-green.svg)](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.4)
+[![Platform](https://img.shields.io/badge/platform-Android%2024%2B-green.svg)](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.5)
 [![Offline](https://img.shields.io/badge/network-100%25%20offline-orange.svg)](#)
-[![Release](https://img.shields.io/badge/release-v2.0.4-blue.svg)](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.4)
+[![Release](https://img.shields.io/badge/release-v2.0.5-blue.svg)](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.5)
 
-> **🤖 AI 助手 / 维护者入口**：改代码前先读 [AGENTS.md](./AGENTS.md)（项目须知与硬约束）；
-> 液态玻璃效果的问题定位见 [液态玻璃问题复盘-2026-09-26.md](./液态玻璃问题复盘-2026-09-26.md)。
+> **🤖 AI 助手 / 维护者入口**：改代码前先读 [AGENTS.md](./AGENTS.md)（项目须知与硬约束）。
 
 ---
 
@@ -107,11 +106,11 @@ NetOps 2.0 是一个为零基础萌新做的 **Android 离线网络学习辅助 
 
 ## 使用方式
 
-1. **下载安装** → [Releases 页面](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.4) 下载 `app-release.apk`，允许「未知来源」安装即可
+1. **下载安装** → [Releases 页面](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.5) 下载 `app-release.apk`，允许「未知来源」安装即可
 2. **打开即用** → 底部五个 Tab 切换：**学习 / 排障 / 字典 / 面试 / 我的**
 3. **搜索** → 右上角 🔍 图标全局搜索任意关键词
 4. **深色模式** → 右上角 ☀️ 图标切换明暗主题
-5. **学习页左滑** → 任意位置向左滑呼出目录，再向右滑关闭（其他页面不受影响）
+5. **左缘右滑** → 屏幕左缘向右滑即返回上一层（等同返回键，页面内横向滚动不受影响）
 6. **返回导航** → Android 物理返回键逐层回退，到根页可退出
 
 > **注意**：本应用**不申请任何权限**——没有网络，没有存储，没有震动。首次安装时系统可能提示「未知的开发者」，这是正常的安全提示，选择「仍然安装」即可。
@@ -136,6 +135,29 @@ NetOps 2.0 是一个为零基础萌新做的 **Android 离线网络学习辅助 
 - **开源协议**：MIT License
 
 ## 更新日志
+
+### v2.0.5 · 返回键稳态 + 搜索交互收拢 + 构建水印
+
+> 本轮核心：Android 返回链路三处竞态/错挂修复、搜索栏 ✕ 退场与搜索态三路收拢、
+> 装机构建水印、smoke 回归扩至 95 条全绿。
+
+**返回键稳态（Android 壳）**
+- `enableOnBackInvokedCallback` 此前误挂在 `<activity>` 上被系统整体忽略，App 一直跑旧版返回派发；现挂到 `<application>`，Android 13+ 走系统统一派发，返回行为不变。
+- 修「第一次打开就弹退出提示、之后确认机制消失」：冷启动网页未就绪时 500ms 超时按根页面处理，连按两下被误判成确认退出；现在应答窗口内的连按直接忽略。
+- 二次返回退出改走 `finishAndRemoveTask`：不再依赖 androidx 兜底回退链，残留任务不会再让下次进入的退出确认错乱。
+- 渲染进程被回收重建时，先按契约回掉挂起的文件选择器（恰好一次 null），选择结果不再喂给已销毁的 WebView；载入重试守卫捕获失败实例本身，防止过期重试命中新实例。
+- 导出写盘、图片解码压缩等重 I/O 移到专用后台线程，主线程只留 Toast。
+
+**搜索：叉号退场，状态不残留**
+- 清空 ✕ 整体移除（三轮反馈定论：叉号一律会被误读为「关闭搜索」）。清空 = 退格键，清到空 = 退出搜索；退出 = 框外「取消」；桌面 Chrome 原生 ✕ 一并隐藏。
+- 搜索态三路收拢：切 tab、同 tab 二次点击、点结果进内容，搜索栏都自动收起。
+- 返回键先收搜索再走正常回退；收起态的搜索路由条目（僵尸页）被跳过，返回落点必是真实页面。
+- 连续打卡断签归零：最后打卡既不是今天也不是昨天时显示 0（此前一直挂旧数字）。
+- 打卡后抽屉分组计数即时刷新；移除「左滑呼出目录」残留提示（该手势 v2.0.4 已删，提示在教一个不存在的手势）。
+
+**构建可核验**
+- 「我的」页脚新增构建水印：装机一看便知跑的是哪一刻构建的包，旧 APK 与 devpage 顶替无所遁形。
+- smoke 回归扩至 95 条全绿：返回键分支、搜索收拢三路、僵尸页跳穿、手势边界、断签归零、抽屉计数、错题本确认拦截。
 
 ### v2.0.4 · 玻璃扣干净 + 内容扩充与勘误 + 稳定性
 
@@ -352,7 +374,7 @@ CLI 模拟器终于像样了。命令从原来 200 多条扩到 500 多条，前
 
 ## 下载
 
-📥 [**v2.0.4 Release（含 APK）**](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.4)
+📥 [**v2.0.5 Release（含 APK）**](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.5)
 
 ## 许可
 
