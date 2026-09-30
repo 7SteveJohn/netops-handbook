@@ -29,3 +29,20 @@ keystore.properties
 /screenshots/
 /web-src/tools/lens-probe.html
 /tools/data/wallprobe-result.png
+
+# 测试与开发工具链（用户不开源：只公开程序源码，本地保留）
+/app/src/test/
+/app/src/androidTest/
+/tools/
+/web-src/tools/smoke*.js
+/web-src/tools/resolve-jsdom.js
+/web-src/tools/serve-lum.js
+/web-src/tools/lum-*.html
+/web-src/tools/gen-wall-lum.js
+/web-src/tools/gen-data.js
+/web-src/tools/gen-icon.js
+/web-src/tools/gen-wallpapers.py
+/web-src/tools/scan-terms.py
+/web-src/tools/remove-content-glass.py
+/web-src/tools/fix-*.py
+/web-src/tools/verify-apk.js

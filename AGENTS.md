@@ -5,11 +5,18 @@
 
 ## 私有边界（先读这个）
 
-液态玻璃与 Apple 设计的**调研文档、参数手册、问题复盘、验证手册、探针页与截图证据**
-（`液态玻璃*.md`、`Apple页面设计要点*.md`、`本地视觉闭环-验证手册.md`、
-`web-src/tools/lens-probe.html`、`screenshots/`）为用户私有，**刻意不入库**
-（.gitignore 已挡，勿提交、勿在公开渠道引用其内容）。需要改玻璃/视觉相关代码时，
-向用户索要上述本地文档；现行透镜参数真源在 `web-src/glass-recipe.json`（随源码开源）。
+以下内容为用户私有，**刻意不入库**（.gitignore 已挡，勿提交、勿在公开渠道引用）：
+
+1. 液态玻璃与 Apple 设计的调研/手册/复盘/验证文档与探针证据
+   （`液态玻璃*.md`、`Apple页面设计要点*.md`、`本地视觉闭环-验证手册.md`、
+   `web-src/tools/lens-probe.html`、`screenshots/`）——需要时向用户索要本地文档。
+2. 测试与开发工具链（`web-src/tools/smoke*.js`、`serve-lum.js`、`lum-*.html`、
+   `gen-*.js/py`、`fix-*.py`、`verify-apk.js`、`resolve-jsdom.js`、`tools/`、
+   `app/src/test|androidTest`）——公开仓库只含程序源码与构建必需文件。
+
+**留在公开仓库的工具只有构建依赖**：`web-src/build.js`、`web-src/tools/gen-glass-recipe.js`、
+四个 `audit-*.js` 门禁及其 `web-src/tools/data/*.json` 数据——删任何一个公开构建即失败。
+现行透镜参数真源在 `web-src/glass-recipe.json`（随源码开源）。
 
 ## 工作约定（用户明确反馈过的）
 

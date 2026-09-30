@@ -8,7 +8,7 @@ on:
 
 jobs:
   web:
-    name: Web 构建 + 门禁 + 冒烟
+    name: Web 构建 + 门禁
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,23 +17,9 @@ jobs:
         with:
           node-version: 22
 
-      # jsdom 装到独立目录，不污染仓库；smoke 脚本通过 NODE_PATH 解析
-      - name: Install jsdom (isolated)
-        run: npm install --prefix /tmp/ci-deps "jsdom@$(node -p "require('./package.json').devDependencies.jsdom")"
-
-      # 内联构建 + 4 道门禁(glass 覆盖/内容一致/对比度/recipe 消费方) + 离线校验
+      # 内联构建 + 4 道门禁(glass 覆盖/内容一致/对比度/recipe 消费方)
       - name: Build (inline + audits)
         run: node web-src/build.js
-
-      - name: Smoke test
-        run: node web-src/tools/smoke.js
-        env:
-          NODE_PATH: /tmp/ci-deps/node_modules
-
-      - name: Smoke settings test
-        run: node web-src/tools/smoke-settings.js
-        env:
-          NODE_PATH: /tmp/ci-deps/node_modules
 
   android:
     name: Android assembleDebug
