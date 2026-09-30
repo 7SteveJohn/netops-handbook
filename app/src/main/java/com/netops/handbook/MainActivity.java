@@ -6,7 +6,6 @@ import android.content.ContentValues;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
-import android.graphics.Rect;
 import android.graphics.drawable.ColorDrawable;
 import android.net.Uri;
 import android.os.Build;
@@ -40,8 +39,6 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
 import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -94,11 +91,6 @@ public class MainActivity extends AppCompatActivity {
 
     private static final int BG_DARK = 0xFF0B1220;
     private static final int BG_LIGHT = 0xFFF5F7FB;
-
-    /** 与 css/03-layout.css 中 .edge-catcher 的宽度保持一致。 */
-    private static final int EDGE_DP = 18;
-    /** 系统对单侧手势排除区的高度上限（超出部分会被系统忽略）。 */
-    private static final int EXCLUSION_MAX_DP = 200;
 
     /** 询问网页是否消费了本次返回；返回字符串 "true" / "false"。 */
     private static final String JS_BACK =
@@ -161,7 +153,6 @@ public class MainActivity extends AppCompatActivity {
 
         applyBarAppearance(dark);
         bindInsets();
-        bindGestureExclusion();
         bindBackKey();
 
         createWebView(bg, savedInstanceState);
@@ -341,12 +332,13 @@ public class MainActivity extends AppCompatActivity {
             s.setSafeBrowsingEnabled(false);   // 无网络，避免多余的初始化开销
         }
 
-        /* 玻璃核心：让 backdrop-filter 模糊/色散在安卓 WebView 可靠渲染。
-           offscreenPreRaster 预栅格化离屏缓冲；LAYER_TYPE_HARDWARE 强制 WebView
-           走硬件合成层，否则中低端机 blur 会失效（纯透明/平涂）。 */
+        /* 玻璃核心：offscreenPreRaster 预栅格化离屏缓冲，保障 backdrop-filter
+           模糊/色散渲染。2026-09-29 定案：WebView 已升 Chromium 151（lens-probe
+           实证 blur 无需硬件层），LAYER_TYPE_HARDWARE 反而令超长页 fling 时
+           栅格被驱逐而整页丢内容 —— 回归 LAYER_TYPE_NONE 走默认合成。 */
         s.setOffscreenPreRaster(true);
         preRasterDropped = false;
-        webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+        webView.setLayerType(View.LAYER_TYPE_NONE, null);
 
         if ((getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
             WebView.setWebContentsDebuggingEnabled(true);
@@ -518,34 +510,6 @@ public class MainActivity extends AppCompatActivity {
         webView.post(() -> {
             if (webView != null) webView.evaluateJavascript(js, null);
         });
-    }
-
-    // ------------------------------------------------------------------ 手势冲突
-
-    /**
-     * Android 10+ 的系统返回手势会吃掉屏幕左缘的横滑，而网页左缘恰好是抽屉的拉出热区，
-     * 两者叠在一起时抽屉几乎拉不出来。把这条竖条声明为手势排除区即可让网页优先响应。
-     * 系统对每侧的排除高度上限为 200dp，因此只保留拇指最容易够到的中段。
-     */
-    private void bindGestureExclusion() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return;
-        root.addOnLayoutChangeListener(
-                (v, l, t, r, b, ol, ot, orr, ob) -> applyGestureExclusion());
-        applyGestureExclusion();
-    }
-
-    private void applyGestureExclusion() {
-        if (root == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return;
-        float dp = getResources().getDisplayMetrics().density;
-        if (dp <= 0) dp = 1f;
-        int w = Math.round(EDGE_DP * dp);
-        int h = root.getHeight();
-        if (w <= 0 || h <= 0) return;
-        int band = Math.min(h, Math.round(EXCLUSION_MAX_DP * dp));
-        int top = Math.max(0, (h - band) / 2);
-        List<Rect> rects = new ArrayList<>();
-        rects.add(new Rect(0, top, w, top + band));
-        ViewCompat.setSystemGestureExclusionRects(root, rects);
     }
 
     // ------------------------------------------------------------------ 主题
@@ -889,7 +853,6 @@ public class MainActivity extends AppCompatActivity {
         applyBarAppearance(resolvedDark());
         if (root != null) {
             ViewCompat.requestApplyInsets(root);
-            applyGestureExclusion();
         }
     }
 }
