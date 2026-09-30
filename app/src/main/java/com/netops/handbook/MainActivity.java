@@ -122,6 +122,11 @@ public class MainActivity extends AppCompatActivity {
     private static final int BACK_EXIT_INTERVAL_MS = 2000;
     /** 等网页应答返回键的时限：超时按「已在根页面」处理，防止 JS 卡死导致返回键失灵。 */
     private static final int BACK_ACK_TIMEOUT_MS = 500;
+    /** 已有一发返回键在等网页应答：应答窗口内的连按直接忽略。 */
+    private boolean backAckPending = false;
+    /** 重 I/O（导出写盘/图片解码压缩）专用单线程执行器：这类活严禁在主线程做（N-1）。 */
+    private final java.util.concurrent.ExecutorService ioPool =
+            java.util.concurrent.Executors.newSingleThreadExecutor();
     /** 相册选图的请求码。 */
     private static final int REQ_PICK_IMAGE = 9001;
     /** 文件导入（<input type=file> 选择器）请求码。 */
@@ -189,6 +194,13 @@ public class MainActivity extends AppCompatActivity {
     /** 渲染进程没了 / 反复载入失败后的自我了断式重建。 */
     private void rebuildWebView() {
         runOnUiThread(() -> {
+            /* 渲染进程被回收时系统文件选择器可能还开着：先按契约回掉挂起的
+               <input type=file>（恰好一次 null），否则 onActivityResult 会把
+               选择结果喂给已销毁的 WebView（N-3 状态迁移未闭环） */
+            if (uploadMessage != null) {
+                try { uploadMessage.onReceiveValue(null); } catch (Exception ignored) { }
+                uploadMessage = null;
+            }
             try {
                 if (webView != null) {
                     root.removeView(webView);
@@ -211,9 +223,12 @@ public class MainActivity extends AppCompatActivity {
     private void handleLoadFailure(String why) {
         if (webView == null || rendererGone) return;
         if (reloadTries++ < 2) {
+            final WebView failed = webView;
             Log.w(TAG, "首页载入失败，第 " + reloadTries + " 次自动重试：" + why);
-            webView.postDelayed(() -> {
-                if (webView != null && !rendererGone) webView.loadUrl(page());
+            failed.postDelayed(() -> {
+                /* 实例身份比对（N-2）：重试窗口内渲染进程被回收重建时，守卫若读
+                   字段当前值会放过期重试命中新实例（双启动）。捕获失败实例本身。 */
+                if (failed == webView && !rendererGone) failed.loadUrl(page());
             }, 600L * reloadTries);
             return;
         }
@@ -289,6 +304,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        ioPool.shutdownNow();
         if (webView != null) {
             webView.removeJavascriptInterface("NetBridge");
             root.removeView(webView);
@@ -577,31 +593,39 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void handleOnBackPressed() {
                 if (webView == null) { setEnabled(false); getOnBackPressedDispatcher().onBackPressed(); return; }
-                final OnBackPressedCallback self = this;
-                /* 网页侧只回答「这一页我消费了吗」。退出确认只由本类负责，
-                   避免同一键叠两个 Toast，也避免网页逻辑卡住时返回键彻底失灵。 */
+                /* 应答窗口内的第二次返回直接忽略：冷启动网页未就绪时 500ms 超时
+                   会按「在根页面」处理，连按两下会被误判成确认退出（2026-09-30
+                   用户反馈「第一次打开就弹退出提示、之后确认机制消失」的竞态根源）。 */
+                if (backAckPending) return;
+                backAckPending = true;
                 final AtomicBoolean answered = new AtomicBoolean(false);
                 webView.evaluateJavascript(JS_BACK, value -> {
-                    if (answered.compareAndSet(false, true)) onBackConsumed("true".equals(value), self);
+                    if (answered.compareAndSet(false, true)) {
+                        backAckPending = false;
+                        onBackConsumed("true".equals(value));
+                    }
                 });
                 webView.postDelayed(() -> {
                     if (answered.compareAndSet(false, true)) {
+                        backAckPending = false;
                         Log.w(TAG, "网页未在时限内应答返回键，按根页面处理");
-                        onBackConsumed(false, self);
+                        onBackConsumed(false);
                     }
                 }, BACK_ACK_TIMEOUT_MS);
             }
         });
     }
 
-    /** 返回键归属：网页消费则什么都不做；处于根页面走「再按一次退出」防误触。 */
-    private void onBackConsumed(boolean consumed, OnBackPressedCallback self) {
+    /** 返回键归属：网页消费则什么都不做；处于根页面走「再按一次退出」防误触。
+        窗口期内直接 finishAndRemoveTask——不走 dispatcher 回退链（setEnabled(false)
+        后的回退行为依赖 androidx 兜底实现，存在不 finish 的陷阱；残留的任务还会让
+        下次进入时的退出确认错乱）。 */
+    private void onBackConsumed(boolean consumed) {
         if (consumed) return;
         long now = System.currentTimeMillis();
         if (now - lastBackPressMs < BACK_EXIT_INTERVAL_MS) {
             lastBackPressMs = 0;
-            self.setEnabled(false);
-            getOnBackPressedDispatcher().onBackPressed();
+            finishAndRemoveTask();
         } else {
             lastBackPressMs = now;
             Toast.makeText(MainActivity.this, "再按一次退出应用", Toast.LENGTH_SHORT).show();
@@ -654,7 +678,8 @@ public class MainActivity extends AppCompatActivity {
         public void saveFile(String name, String text) {
             final String fileName = safeName(name);
             final String body = text == null ? "" : text;
-            runOnUiThread(() -> {
+            /* 写盘/MediaStore 是阻塞 I/O，放后台执行器（N-1）；完成后回主线程只做 Toast */
+            ioPool.execute(() -> {
                 String where;
                 try {
                     where = writeDocument(fileName, body);
@@ -662,9 +687,8 @@ public class MainActivity extends AppCompatActivity {
                     Log.w(TAG, "导出失败", e);
                     where = null;
                 }
-                Toast.makeText(MainActivity.this,
-                        where != null ? ("已导出到 " + where) : "导出失败",
-                        Toast.LENGTH_LONG).show();
+                final String msg = where != null ? ("已导出到 " + where) : "导出失败";
+                runOnUiThread(() -> Toast.makeText(MainActivity.this, msg, Toast.LENGTH_LONG).show());
             });
         }
 
@@ -790,15 +814,19 @@ public class MainActivity extends AppCompatActivity {
             if (uri == null) return;
             /* 旧实现两处硬伤：available() 不保证等于全长度（内容流常返回 0），
                以及把 JPEG 从中间截成 2MB —— 得到的是一张必坏图，还谎报「壁纸已设置」。
-               现在按界内缩放重压缩，控制在网页侧 localStorage 能吃下的量级。 */
-            String dataUrl = null;
-            try { dataUrl = readImageAsDataUrl(uri); } catch (Exception e) { Log.w(TAG, "解码选图失败", e); }
-            if (dataUrl == null) {
-                Toast.makeText(this, "读取图片失败，换一张或改用内置壁纸", Toast.LENGTH_LONG).show();
-                return;
-            }
-            final String js = "if(window.NetOpsOnWallpaper) NetOpsOnWallpaper('" + dataUrl + "');";
-            if (webView != null) webView.post(() -> { if (webView != null) webView.evaluateJavascript(js, null); });
+               现在按界内缩放重压缩，控制在网页侧 localStorage 能吃下的量级。
+               解码+多轮压缩是重活，放后台执行器（N-1）；结果回主线程才能碰 WebView。 */
+            ioPool.execute(() -> {
+                String dataUrl = null;
+                try { dataUrl = readImageAsDataUrl(uri); } catch (Exception e) { Log.w(TAG, "解码选图失败", e); }
+                if (dataUrl == null) {
+                    runOnUiThread(() -> Toast.makeText(MainActivity.this,
+                            "读取图片失败，换一张或改用内置壁纸", Toast.LENGTH_LONG).show());
+                    return;
+                }
+                final String js = "if(window.NetOpsOnWallpaper) NetOpsOnWallpaper('" + dataUrl + "');";
+                if (webView != null) webView.post(() -> { if (webView != null) webView.evaluateJavascript(js, null); });
+            });
         }
     }
 

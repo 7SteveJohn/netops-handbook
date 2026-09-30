@@ -14,6 +14,7 @@
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
+        android:enableOnBackInvokedCallback="true"
         android:fullBackupContent="@xml/backup_rules"
         android:hardwareAccelerated="true"
         android:icon="@mipmap/ic_launcher"
@@ -22,12 +23,15 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.NetOps"
         tools:targetApi="31">
+        <!-- enableOnBackInvokedCallback 只在 <application> 上生效（此前误挂在
+             <activity> 上被系统整体忽略，App 一直跑在旧版返回派发模式）。
+             接入后 Android 13+ 返回事件走系统统一派发，androidx 1.8 的
+             OnBackPressedDispatcher 自动桥接，bindBackKey 行为不变。 -->
 
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|uiMode|density|fontScale"
-            android:enableOnBackInvokedCallback="true"
             android:launchMode="singleTop"
             android:windowSoftInputMode="adjustResize">
             <!--
