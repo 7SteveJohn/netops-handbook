@@ -8,8 +8,6 @@
 [![Offline](https://img.shields.io/badge/network-100%25%20offline-orange.svg)](#)
 [![Release](https://img.shields.io/badge/release-v2.0.5-blue.svg)](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.5)
 
-> **🤖 AI 助手 / 维护者入口**：改代码前先读 [AGENTS.md](./AGENTS.md)（项目须知与硬约束）。
-
 ---
 
 ## 它是什么

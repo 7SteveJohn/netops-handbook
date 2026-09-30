@@ -46,3 +46,7 @@ keystore.properties
 /web-src/tools/remove-content-glass.py
 /web-src/tools/fix-*.py
 /web-src/tools/verify-apk.js
+
+# AI 助手协作文件：仅本地使用，不入公开仓库
+/AGENTS.md
+/CLAUDE.md
