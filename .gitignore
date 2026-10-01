@@ -54,3 +54,16 @@ keystore.properties
 # AI 助手协作文件：仅本地使用，不入公开仓库
 /AGENTS.md
 /CLAUDE.md
+
+# 本地调试残留：探针截图 / 临时构建日志 / 工具缓存目录
+# （这些是本机视觉调试过程的产物，可能带真实状态栏信息，一律不入库）
+/.probe-*.png
+/.tabbar-*.png
+/.now-*.png
+/.app-final.png
+/.playwright-cli/
+/.mimosa/
+/web-src/.mimosa/
+/.zcodeignore
+/javac-out.txt
+/nul
