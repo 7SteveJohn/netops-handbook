@@ -26,7 +26,9 @@ keystore.properties
 /Apple页面设计要点*.md
 /液态玻璃*.md
 /本地视觉闭环-验证手册.md
-/screenshots/
+# 截图：README 用的成品图（*.jpg）入库，探针/调试图（*.png）不入库
+/screenshots/*
+!/screenshots/*.jpg
 /web-src/tools/lens-probe.html
 /tools/data/wallprobe-result.png
 
@@ -42,6 +44,8 @@ keystore.properties
 /web-src/tools/gen-data.js
 /web-src/tools/gen-icon.js
 /web-src/tools/gen-wallpapers.py
+/web-src/tools/gen-demo-page.js
+/web-src/tools/gen-readme-shots.py
 /web-src/tools/scan-terms.py
 /web-src/tools/remove-content-glass.py
 /web-src/tools/fix-*.py

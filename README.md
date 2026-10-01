@@ -2,6 +2,9 @@
 
 > 从零基础数通到云原生架构，把网络知识体系装进口袋随身查。**完全离线，无需任何网络连接。**
 >
+> 68 个知识模块、35 个排障案例、58 条多厂商命令对照、431 条 CLI 模拟器命令、53 道面试真题 ——
+> 全装在一个安装包里，打开即用，不联网、不注册、不看广告。
+>
 > 先说清楚定位：它是**辅助工具**，得配着教材、网课和真机实验一起用，不是一门能独立走完的课。
 
 [![Platform](https://img.shields.io/badge/platform-Android%2024%2B-green.svg)](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.5)
@@ -14,7 +17,7 @@
 
 NetOps 2.0 是一个为零基础萌新做的 **Android 离线网络学习辅助 App**。
 
-打开即用，不联网、不注册、不看广告。所有内容——68 个知识模块、35 个排障案例、58 条多厂商命令对照、53 道面试真题、431 条 CLI 模拟器命令、14 张内置壁纸——全部打包在安装包里，断网也能查。
+所有内容——知识模块、排障案例、命令字典、面试题库、CLI 模拟器、14 张内置壁纸——都打包在安装包里，装机即用，断网也能查。
 
 适合这些场景：
 
@@ -26,13 +29,46 @@ NetOps 2.0 是一个为零基础萌新做的 **Android 离线网络学习辅助 
 
 不适合：指望只翻它就把网络学会。系统学习还得靠教材、课程和真机练习。
 
-## 一图看懂
+## 界面一览
 
-| | |
-|---|---|
-| **首页 — 学习路径与进度总览** | <img src="screenshots/home.jpg" width="280" alt="首页截图" /> |
-| **学习路线图 — 0-12 月成长节奏** | <img src="screenshots/roadmap.jpg" width="280" alt="学习路线图截图" /> |
-| **我的 — 进度 / 收藏 / 资源入口** | <img src="screenshots/profile.jpg" width="280" alt="我的页面截图" /> |
+<table>
+  <tr>
+    <td align="center" width="25%">
+      <img src="screenshots/01-home.jpg" width="100%" alt="首页" /><br />
+      <sub><b>首页</b> — 学习进度、四阶段路径与工具箱</sub>
+    </td>
+    <td align="center" width="25%">
+      <img src="screenshots/02-roadmap.jpg" width="100%" alt="学习路线图" /><br />
+      <sub><b>学习路线图</b> — 成长节奏与各阶段该达到什么水平</sub>
+    </td>
+    <td align="center" width="25%">
+      <img src="screenshots/03-module.jpg" width="100%" alt="知识模块" /><br />
+      <sub><b>知识模块</b> — 原理正文 + 拓扑示意 + 分步操作</sub>
+    </td>
+    <td align="center" width="25%">
+      <img src="screenshots/04-faults.jpg" width="100%" alt="排障案例" /><br />
+      <sub><b>排障案例</b> — 「现象 → 分析 → 命令」三段式</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="25%">
+      <img src="screenshots/05-dict.jpg" width="100%" alt="命令字典" /><br />
+      <sub><b>命令字典</b> — 华为 / Cisco / 中兴 / Linux 并排对照</sub>
+    </td>
+    <td align="center" width="25%">
+      <img src="screenshots/06-cli.jpg" width="100%" alt="CLI 模拟器" /><br />
+      <sub><b>CLI 模拟器</b> — 离线命令沙盒，431 条命令真实回显</sub>
+    </td>
+    <td align="center" width="25%">
+      <img src="screenshots/07-interview.jpg" width="100%" alt="面试真题" /><br />
+      <sub><b>面试真题</b> — 53 题带 STAR 拆解，可按目标岗位筛选</sub>
+    </td>
+    <td align="center" width="25%">
+      <img src="screenshots/08-profile.jpg" width="100%" alt="我的" /><br />
+      <sub><b>我的</b> — 总进度、分项统计、错题本与数据备份</sub>
+    </td>
+  </tr>
+</table>
 
 ## 五大功能
 
@@ -40,8 +76,8 @@ NetOps 2.0 是一个为零基础萌新做的 **Android 离线网络学习辅助 
 
 按阶段组织的学习路径，从 OSI 七层模型一路走到云原生 SRE：
 
-1. **零基础入门与基础设施**（12 模块）— OSI/TCP 分层、IPv4/掩码与网关、ARP、ICMP 与 ping/tracert、TCP/UDP 与三次握手、DHCP、华为 VRP 视图与配置管理
-2. **园区网核心与高可用**（11 模块）— 静态路由与最长匹配、VLAN / Trunk / SVI、STP / RSTP 端口角色、OSPF 多区域与 LSA、BGP 属性选路、MSTP / VRRP / iStack / Eth-Trunk
+1. **零基础入门与基础设施**（13 模块）— OSI/TCP 分层、IPv4/掩码与网关、ARP、ICMP 与 ping/tracert、TCP/UDP 与三次握手、DHCP、华为 VRP 视图与配置管理
+2. **园区网核心与高可用**（12 模块）— 静态路由与最长匹配、VLAN / Trunk / SVI、STP / RSTP 端口角色、OSPF 多区域与 LSA、BGP 属性选路、MSTP / VRRP / iStack / Eth-Trunk
 3. **广域网、安全与自动化**（17 模块）— NAT / PPPoE / MPLS L3VPN、ACL 与防火墙 Zone、IPsec、802.1X、无线 AC-AP 与 802.11r 漫游、Netmiko / Ansible / Git / GitOps
 4. **云原生与 SRE**（26 模块）— VXLAN / EVPN、IPv6、BGP unnumbered（v4 走 v6 下一跳）、SNMP 与 gNMI/YANG 流式遥测、Prometheus / Syslog、K8s CNI / Calico / NetworkPolicy / Ingress 选型 / Gateway API / CoreDNS、eBPF、混沌工程、SLI / SLO / 错误预算
 
@@ -108,7 +144,7 @@ NetOps 2.0 是一个为零基础萌新做的 **Android 离线网络学习辅助 
 2. **打开即用** → 底部五个 Tab 切换：**学习 / 排障 / 字典 / 面试 / 我的**
 3. **搜索** → 右上角 🔍 图标全局搜索任意关键词
 4. **深色模式** → 右上角 ☀️ 图标切换明暗主题
-5. **左缘右滑** → 屏幕左缘向右滑即返回上一层（等同返回键，页面内横向滚动不受影响）
+5. **边缘滑动返回** → 屏幕左缘或右缘向内滑即返回上一层（等同返回键，页面内横向滚动不受影响）
 6. **返回导航** → Android 物理返回键逐层回退，到根页可退出
 
 > **注意**：本应用**不申请任何权限**——没有网络，没有存储，没有震动。首次安装时系统可能提示「未知的开发者」，这是正常的安全提示，选择「仍然安装」即可。
@@ -128,7 +164,7 @@ NetOps 2.0 是一个为零基础萌新做的 **Android 离线网络学习辅助 
 ## 技术细节
 
 - **纯离线**：零权限声明，零外部请求，所有内容与美术资源（SVG/CSS）内联打包
-- **移动优化**：安全区域适配（刘海屏/挖孔屏）、边到边沉浸界面、输入法弹出时标签栏自动让位、左缘抽屉手势与系统返回手势互不打架、冷启动不闪白
+- **移动优化**：安全区域适配（刘海屏/挖孔屏）、边到边沉浸界面、输入法弹出时标签栏自动让位、左右边缘滑动返回与页面内横向滚动互不干扰、冷启动不闪白
 - **单文件 SPA**：全部前端代码打包为一个 `index.html`，通过 Android WebView 加载
 - **开源协议**：MIT License
 
