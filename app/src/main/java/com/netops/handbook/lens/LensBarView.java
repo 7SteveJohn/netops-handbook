@@ -371,4 +371,361 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         invalidate();
     }
 
+    public LensBarView(Context context, WebView webView) {
+        super(context);
+        this.webView = webView;
+        this.density = context.getResources().getDisplayMetrics().density;
+        setWillNotDraw(false);
+        rimPaint.setStyle(Paint.Style.STROKE);
+        rimPaint.setStrokeWidth(1f * density);
+        rimPaint.setColor(Color.argb(90, 255, 255, 255));
+        if (Build.VERSION.SDK_INT >= 33) {
+            shader = new RuntimeShader(AGSL);
+            glassPaint.setShader(shader);
+        }
+        initIcons();
+        statStartNs = System.nanoTime();
+        ensureTicking();
+    }
+
+    /** 帧回调自眠/唤醒：有弹簧或按压才逐帧，静止完全停摆（省电）。
+     *  唤醒点只有两处——构造与任何触摸事件；其余启动动画的路径必须先过触摸。 */
+    private void ensureTicking() {
+        if (detached || ticking) return;
+        ticking = true;
+        Choreographer.getInstance().postFrameCallback(this);
+    }
+
+    private static double nowSec() {
+        return System.nanoTime() / 1e9;
+    }
+
+    /**
+     * JS 侧量好几何后上报（CSS px → 内部转物理 px）。
+     * 格宽、药丸尺寸、首格中心全部由 CSS 给出，原生层不做推导 —— 推导必错
+     * （栏有左右边距、药丸比一格宽 8px、还有 safe-area）。
+     */
+    @SuppressWarnings("unused")
+    public void setLensGeometry(float slotPx, float pillWPx, float pillHPx,
+                                float firstCxPx, float pillCyScreen, int tabCount,
+                                float viewportHPx) {
+        this.count = Math.max(1, tabCount);
+        /* 上报的已经是物理像素（页面按 devicePixelRatio 换算过），这里不要再乘 density */
+        this.slot = slotPx;
+        this.pillW = pillWPx;
+        this.pillH = pillHPx;
+        this.firstCx = firstCxPx;
+        /* y 的夹取基准 = 页面视口物理高（WebView 边到边，视口顶 = 屏幕顶）。
+           不能用 heightPixels：它返回挖掉手势条后的"安全高"（本机 2587），
+           比真实窗口（2800）矮 213px，拿它夹 y 会把药丸整体推高约 100px
+           —— 2026-10-26 真机药丸悬空错位的根因之一。 */
+        if (viewportHPx > pillHPx) {
+            this.pillCyPx = Math.max(pillHPx / 2f + 2f,
+                    Math.min(pillCyScreen, viewportHPx - pillHPx / 2f - 2f));
+        } else {
+            this.pillCyPx = pillCyScreen;
+        }
+        this.viewportH = viewportHPx;
+        Log.i(TAG, String.format(
+                "几何已同步 一格%.1f 药丸%.1f×%.1f 首格中心(%.1f,%.1f→%.1f) 共%d格 视口高%.0f",
+                slotPx, pillWPx, pillHPx, firstCxPx, pillCyScreen, this.pillCyPx,
+                tabCount, viewportHPx));
+    }
+
+    private final Runnable sliderCatchUp = new Runnable() {
+        @Override public void run() {
+            if (detached || pressed) return;
+            pos.springTo(selectedIndex, TRAVEL, nowSec());
+            ensureTicking();
+        }
+    };
+
+    /** JS 侧切页后同步选中项，避免两边选中态不一致。 */
+    @SuppressWarnings("unused")
+    public void setSelectedIndex(int index) {
+        int i = Math.max(0, Math.min(count - 1, index));
+        selectedIndex = i;
+        if (!pressed) {
+            /* 滑块弹簧错峰 200ms：切页瞬间 WebView 正做重渲染（冷启动首开
+               JIT 冷下更重），滑块动画每帧 invalidate 与之争抢 —— 实测
+               阶段页入场动画 legacy janky 8.65%（关原生底栏 1.01%）。
+               滑块停原格 200ms，页面转场首帧落地后再弹向新格（iOS 指示器惯例）。 */
+            removeCallbacks(sliderCatchUp);
+            postDelayed(sliderCatchUp, 250);
+        }
+    }
+
+    /** 深浅色主题（透镜亮度 1.33 + 底栏配色整套），由 Activity 主题变化时推送。 */
+    public void setDark(boolean d) {
+        if (dark == d) return;
+        dark = d;
+        applyDockColors();
+        chromeDark = -1;   // 强制重建缓存（含 per-tab sprites）
+        java.util.Arrays.fill(tabSprites, null);
+        invalidate();
+    }
+
+    /**
+     * 主动向页面索取底栏几何 —— **原生驱动，可重复调用，每次全量重测**。
+     *
+     * 为什么索取制：上报一旦在 JS 里抛异常就完全静默，成功/失败在 Logcat 里一目了然。
+     * 为什么每次重测、不再缓存 window.__lg：ready() 那一刻 safe-area 往往还没生效
+     * （Bridge.ready 自己才触发 insets 应用），量到的是瞬态布局 —— 2026-10-26 实测
+     * 首帧量到 药丸中心 804 CSS / 首格 195.9，而稳定值是 737 / 219，错值一旦缓存
+     * 就被永久复用。真源改为**永远存在、永不 display:none 的栏矩形**：
+     * 药丸在栏内上下对称各 6px 挂靠，栏中心 == 药丸中心；药丸宽高在它可见时量自身
+     * （首索取必然发生在隐藏之前），隐藏后回退到"一格+8 / tab 行高"的同源推导。
+     * 本方法在 ready、insets 应用后、attach 后 1.5s/3s 各调一次，以最后一次为准。
+     */
+    public void requestGeometry() {
+        if (webView == null || detached) return;
+        /* 用页面自己的 devicePixelRatio 换成**物理像素**再上报，别让原生拿 density 换算：
+           wm density 是 560(3.5)，但 WebView 的 CSS 缩放未必等于它。 */
+        String js = "(function(){try{"
+                + "var dpr=window.devicePixelRatio||1;"
+                + "var t=document.querySelectorAll('.tab');"
+                + "if(!t.length)return;"
+                + "var bar=document.querySelector('.tabbar');"
+                + "if(!bar)return;"
+                + "var r0=t[0].getBoundingClientRect();"
+                + "var rb=bar.getBoundingClientRect();"
+                /* 格宽 = 前两个 tab 中心的间距（而非 tab 自身宽）：≥600px 媒体查询给
+                   .tab 加了 max-width+justify-self:center，宽屏下 tab 收缩成内容宽
+                   居中在格子里（横屏实测 tab 52px、格距 140.8px）——拿 tab 宽当格宽
+                   会让拖动映射整体错位（2026-10-26 横屏"划不动"根因）。中心间距
+                   对限宽/居中/聚拢布局全部免疫。 */
+                + "var c0=r0.left+r0.width/2;"
+                + "var pitch=r0.width;"
+                + "if(t.length>1){var r1=t[1].getBoundingClientRect();"
+                + "pitch=Math.abs(r1.left+r1.width/2-c0);}"
+                + "var p=document.querySelector('.tabbar > .tab-pill');"
+                + "var rp=p?p.getBoundingClientRect():null;"
+                + "var ok=rp&&rp.width>1&&rp.height>1;"       /* display:none 后全 0，作废 */
+                + "if(window.NetBridge&&NetBridge.lensDiag){try{NetBridge.lensDiag("
+                + "'tabs='+t.length+' pitch='+pitch.toFixed(1)+' rpw='+(rp?rp.width.toFixed(1):'x')"
+                + "+' barW='+rb.width.toFixed(1)+' ih='+window.innerHeight);}catch(e){}}"
+                + "if(ok&&Math.abs(rp.width-(pitch+8))>20)return;"
+                /* ↑ 一致性护栏：药丸宽恒=格距+8px；偏差大说明布局还在过渡中
+                   （旋转/收起动画半途），矩形不可信 —— 拒收本次，原生保留上一份
+                   好几何，等过渡结束后的重测覆盖。 */
+                + "var pillW=ok?rp.width:(pitch+8);"
+                + "var pillH=ok?rp.height:r0.height;"
+                + "var cy=rb.top+rb.height/2;"                 /* 栏中心=药丸中心（上下对称 6px） */
+                + "document.body.classList.add('native-lens-on');"
+                + "if(window.NetBridge&&NetBridge.setLensBarRect){"
+                + "NetBridge.setLensBarRect(rb.left*dpr,rb.top*dpr,rb.width*dpr,rb.height*dpr);}"
+                + "if(window.NetBridge&&NetBridge.setLensGeometry){"
+                + "NetBridge.setLensGeometry(pitch*dpr,pillW*dpr,pillH*dpr,"
+                + "c0*dpr,cy*dpr,t.length,window.innerHeight*dpr);}"
+                + "}catch(e){}})()";
+        try {
+            webView.evaluateJavascript(js, null);
+        } catch (Throwable t) {
+            Log.w(TAG, "索取几何的 JS 注入失败", t);
+        }
+    }
+
+    /** 预热：先抓一张背景，把首次光栅化的开销摊在用户碰底栏之前。 */
+    public void warmUp() {
+        post(LensBarView.this::captureBackdrop);
+    }
+
+
+    @Override
+    protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+        super.onSizeChanged(w, h, oldw, oldh);
+        bandW = w;
+        bandH = h;
+        /* 只补 JS 还没上报的项：CSS 才是几何真源，这里只是兜底 */
+        if (slot <= 0) {
+            slot = w / (float) Math.max(1, count);
+            firstCx = slot * 0.5f;
+        }
+        if (pillH <= 0) pillH = 56f * density;
+        if (pillW <= 0) pillW = slot + 8f * density;   // 药丸比一格宽 8dp，与 CSS 同
+    }
+
+    /** 药丸中心 y（本 View 坐标）。JS 上报的是屏幕物理 px，减去本 View 的屏幕顶边即得；
+     *  再向带内夹一次 —— 上报值无论多离谱都不允许画出 PopupWindow 边界。 */
+    /** 复用的屏幕坐标缓冲：pillCy() 每帧被多次调用（绘制+重建门），
+     *  原先每调一次 new int[2]，120Hz 下是纯 GC 垃圾。 */
+    private final int[] locTmp = new int[2];
+    private float pillCy() {
+        if (pillCyPx > 0) {
+            getLocationOnScreen(locTmp);
+            float local = pillCyPx - locTmp[1];
+            float hh = pillH / 2f;
+            float lo = hh + 1f, hi = bandH - hh - 1f;
+            if (hi > lo) local = Math.max(lo, Math.min(hi, local));
+            return local;
+        }
+        return bandH - pillH / 2f - 22f * density;
+    }
+
+    /* ================= 运动：照搬 FlClash ================= */
+
+    /**
+     * 果冻形变：速度快则拉伸，刹车则压缩，两项相减后交给欠阻尼弹簧跟随。
+     * target = 0.20·tanh(|v|/3) − 0.15·tanh(braking/25)，v 单位"格/秒"。
+     */
+    private void wobble(double now) {
+        double v = pos.velocity();
+        double acc = pos.acceleration();
+        double braking = Math.max(0.0, -acc * Math.signum(v));
+        double target = 0.20 * Math.tanh(Math.abs(v) / 3.0)
+                - 0.15 * Math.tanh(braking / 25.0);
+        if (Math.abs(target - jelly.target()) > 1e-4) {
+            jelly.springTo(target, JELLY_S, now);
+        }
+    }
+
+    /** UIKit 行为：升到位 + 移动到格，两个条件都满足才允许回落。 */
+    private void dropLift(double now) {
+        if (!dropping || pressed) return;
+        if (lift.value() < LIFT_SNAP) return;
+        if (Math.abs(pos.target() - pos.value()) > LIFT_RELEASE) return;
+        dropping = false;
+        lift.springTo(0, LIFT_S, now);
+    }
+
+    private void tick() {
+        double now = nowSec();
+        pos.advance(now);
+        wobble(now);
+        jelly.advance(now);
+        lift.advance(now);
+        dropLift(now);
+    }
+
+    private boolean animating() {
+        return pos.active() || jelly.active() || lift.active();
+    }
+
+    @Override
+    public void doFrame(long frameTimeNanos) {
+        if (detached) {
+            ticking = false;
+            return;
+        }
+        tick();
+        boolean lensing = pressed || lift.value() > 0.005f || lift.active();
+        boolean act = lensing || animating();
+        /* 滑块-only 动画隔帧上屏：弹簧照常每帧推进，上屏 60fps —— 切页转场期
+           WebView 每帧都在主线程排版，滑块 invalidate 的合成成本减半
+           （冷启动首开阶段页实测 legacy janky 8.65% vs 关原生 1.01%）。 */
+        if (act && !lensing) frameSkip++;
+        if (act && !lensing && (frameSkip & 1) == 1) {
+            Choreographer.getInstance().postFrameCallback(this);
+            return;
+        }
+        if (act) {
+            /* 透镜行为（广播 --lens-pos 调色 + 交互期重抓）只在「透镜在场」时做。
+               nativeDock 后切页滑块也走弹簧动画（0.55s×120fps），若照旧每帧
+               evaluateJavascript，就是打开卡片掉帧的元凶（2026-10-27 实测
+               90th 16→24ms）—— HTML 底栏已隐藏，页面调色路径整体失效，
+               nativeDock 时广播/调色/藏药丸全部跳过，滑块动画只剩 invalidate。 */
+            float p = (float) pos.value();
+            if (lensing && !nativeDock && Math.abs(p - lastSentPos) > 0.05f) {
+                lastSentPos = p;
+                callLensPos(p);
+            }
+            if (lensing && System.currentTimeMillis() - lastCaptureMs >= ACTIVE_CAPTURE_MS) {
+                captureBackdrop();
+            }
+            /* 脏区重合成：滑块+蓝格移动区域（玻璃期仍整层——折射面大）。
+               全窗 invalidate 的合成面积 3040×440；收窄后入场动画期的
+               每帧 GPU 合成大幅下降（滑块动画 legacy janky 的最后一块）。 */
+            if (nativeDock && !lensing) {
+                float cx2 = firstCx + slot * (float) pos.value();
+                float cy2 = pillCy();
+                float pad2 = 40f * density;
+                invalidate((int) Math.max(0, cx2 - pillW / 2f - pad2),
+                        (int) Math.max(0, cy2 - pillH / 2f - pad2),
+                        (int) Math.min(bandW, cx2 + pillW / 2f + pad2),
+                        (int) Math.min(bandH, cy2 + pillH / 2f + pad2));
+            } else {
+                invalidate();
+            }
+            wasActive = true;
+        } else if (wasActive) {
+            /* 弹簧刚落定：补一帧空画把玻璃擦掉。同帧结束连续调色（摘 lens-live、
+               把 is-active 归位到提交格 —— 取消路径不提交，这里兜底归位），
+               并把按压期藏掉的 HTML 药丸还回来，随后帧回调自眠。 */
+            invalidate();
+            wasActive = false;
+            if (!nativeDock) {
+                callLensEnd(selectedIndex);
+                setPressClass(false);
+            }
+            lastSentPos = Float.MIN_VALUE;   // 下次按压必发初始位置（否则原格重按不触发广播）
+        }
+        if (act || wasActive) {
+            Choreographer.getInstance().postFrameCallback(this);
+        } else {
+            ticking = false;
+            frameSkip = 0;
+        }
+    }
+    private int frameSkip = 0;
+
+    /** 透镜浮点位置 → 页面 --lens-pos（旧页面没有此函数则静默跳过）。 */
+    private void callLensPos(float p) {
+        if (webView == null) return;
+        String js = "(function(){try{if(typeof NetOpsLensPos==='function'){"
+                + "NetOpsLensPos(" + String.format(java.util.Locale.US, "%.3f", p) + ");}}catch(e){}})()";
+        try {
+            webView.evaluateJavascript(js, null);
+        } catch (Throwable t) {
+            Log.w(TAG, "透镜位置广播失败", t);
+        }
+    }
+
+    /** 交互结束：摘 lens-live、--lens-pos，is-active 归位到提交格。 */
+    private void callLensEnd(int index) {
+        if (webView == null) return;
+        String js = "(function(){try{if(typeof NetOpsLensEnd==='function'){"
+                + "NetOpsLensEnd(" + index + ");}}catch(e){}})()";
+        try {
+            webView.evaluateJavascript(js, null);
+        } catch (Throwable t) {
+            Log.w(TAG, "透镜调色收尾失败", t);
+        }
+    }
+
+    /** 按压期间藏起 HTML 药丸（body.native-lens-press），松手落定后还回来。 */
+    private void setPressClass(boolean on) {
+        if (webView == null) return;
+        String js = "(function(){try{document.body.classList."
+                + (on ? "add" : "remove") + "('native-lens-press');}catch(e){}})()";
+        try {
+            webView.evaluateJavascript(js, null);
+        } catch (Throwable t) {
+            Log.w(TAG, "同步按压态到页面失败", t);
+        }
+    }
+
+    /**
+     * 抓 WebView 在本 View 覆盖区域内的真实像素。
+     *
+     * 为什么不用 PixelCopy：它只有 SurfaceView / Surface / Window 三个重载
+     * （API 37 也没有 View 版），而 Window 版抓的是整窗合成结果，会把本层自己
+     * 画的玻璃一起抓进来 → 反馈循环。webView.draw(离屏 Canvas) 只画 WebView
+     * 这棵子树，天然不含本层，也没有 API 门槛。代价是 software 光栅化，
+     * 耗时正是本探针要测的量。
+     */
+    private void captureBackdrop() {
+        if (detached || bandW <= 0 || bandH <= 0 || copyBusy) return;
+        copyBusy = true;   /* bitmap 由各条路径按自己的尺寸建（整条带 / 药丸小块） */
+        long t0 = System.nanoTime();
+        if (window != null && Build.VERSION.SDK_INT >= 26) {
+            captureByPixelCopy(t0);
+        } else {
+            captureByDraw(t0);
+        }
+    }
+
+    /**
+     * 首选：PixelCopy 直接回读合成结果（GPU 侧），不触发整页软件光栅化。
+     * 抓的是**主窗口**，本层活在 PopupWindow 的独立 Window 里，所以不会抓到自己。
+     */
 }
