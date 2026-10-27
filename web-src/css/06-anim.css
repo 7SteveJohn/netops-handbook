@@ -54,11 +54,10 @@
   100% { transform: scale(1); }                    /* 稳定 */
 }
 
-/* 卡片展开动画（苹果风格：自然展开 + 柔和弹性） */
+/* 卡片展开（2026-10-26：行数直切零布局动画，柔感交给 __inner 淡入） */
 .card__body {
   display: grid;
   grid-template-rows: 0fr;
-  transition: grid-template-rows .46s var(--ease-apple-smooth);
 }
 .card.is-open .card__body { grid-template-rows: 1fr; }
 .card__body > div { overflow: hidden; min-height: 0; }
@@ -210,7 +209,11 @@
   100%{ transform: translateX(250%) skewX(-20deg); }
 }
 @keyframes view-spring-in{
-  0%{ opacity: 0; transform: translate3d(0, 16px, 0) scale(.985); }
+  /* opacity 快速到位：0.52s 弹簧里前 200ms 页面是半透明残影=切页「粘手感」
+     （2026-10-27 用户反馈「从右到左粘手」）；起点提到 .45、30% 处全显，
+     弹簧感留给位移（16px 上移 + 过冲）。 */
+  0%{ opacity: .85; transform: translate3d(0, 16px, 0) scale(.985); }
+  15%{ opacity: 1; }
   50%{ opacity: 1; transform: translate3d(0, -2px, 0) scale(1.005); }
   100%{ opacity: 1; transform: none; }
 }
@@ -233,6 +236,20 @@
   overflow: visible;
   pointer-events: auto;
   isolation: isolate;
+  /* 滚动变实的材质过渡：变白保留（帮助定位底栏），只把瞬切改平滑。
+     background-color/box-shadow/border 均可插值；backdrop-filter 与 filter
+     在 Chromium 上也可过渡。滚动中内容位移带来的观感变化不归这里管。 */
+  transition: background-color .34s var(--ease-apple-smooth),
+              box-shadow .34s var(--ease-apple-smooth),
+              border-color .34s var(--ease-apple-smooth),
+              -webkit-backdrop-filter .34s var(--ease-apple-smooth),
+              backdrop-filter .34s var(--ease-apple-smooth),
+              filter .34s var(--ease-apple-smooth);
+}
+.tabbar::before,
+.tabbar::after{
+  transition: filter .34s var(--ease-apple-smooth),
+              opacity .34s var(--ease-apple-smooth);
 }
 
 /* ===== TabBar 常规全宽（Apple Liquid Glass — 真正贴边长方形，无任何圆角） ===== */
@@ -302,26 +319,10 @@ body{
     100% { opacity: 1; transform: translateY(0) scale(1); }
   }
 
-  /* 滚动变实：仅改表面层（背景不透明 + blur↓ + 阴影减淡），
-     几何完全继承静止态（left/right/bottom/padding/border-radius 不变）——
-     2026-08-11 用户反馈"胶囊随滑动晃"：原 left/right 24→39px 收窄 +
-     padding 8→6 + radius 32→28，配合 360ms 弹簧曲线（cubic-bezier
-     1.56 过冲）在快速滚动中反复触发 transition，造成视觉上的左右/大小
-     晃动。改为纯变实（iOS Safari 工具栏行为：滚动变实、几何不变），
-     彻底避免任何几何过渡，is-scrolled 仅剩 background/blur/border/box-shadow
-     颜色过渡。 */
-  body.tabbar-float .tabbar.is-scrolled{
-    /* 不改 left/right/bottom/padding/border-radius —— 继承静止态 */
-    background: rgba(255, 255, 255, .22) !important;
-    -webkit-backdrop-filter: saturate(1.4) blur(24px) !important;
-    backdrop-filter: saturate(1.4) blur(24px) !important;
-    border-color: rgba(255, 255, 255, .28) !important;
-    box-shadow:
-      0 3px 10px rgba(0, 0, 0, .05),
-      0 1px 3px rgba(0, 0, 0, .04),
-      inset 0 -1px 2px rgba(255, 255, 255, .06),
-      inset 0 1px 0 rgba(255, 255, 255, .25) !important;
-  }
+  /* 滚动不再变实（2026-10-26 用户拍板）：「要么全透明要么白，过渡太生硬很割裂」
+     —— 悬浮底栏滚动与否保持同一材质，滚动定位交给内容侧（卡片滚过底栏自然可辨）。
+     历史：2026-08-11 曾做纯变实（iOS Safari 工具栏行为），2026-10-26 移除。
+     几何本就全程不变。 */
 
 /* 暗色适配（iOS 26 Liquid Glass 暗色变体） */
 @media (prefers-color-scheme: dark){
@@ -333,15 +334,6 @@ body{
       0 2px 6px rgba(0, 0, 0, .12),
       inset 0 -2px 4px rgba(255, 255, 255, .05),
       inset 0 1px 0 rgba(255, 255, 255, .10) !important;
-  }
-  body.tabbar-float .tabbar.is-scrolled{
-    background: rgba(30, 30, 35, .15) !important;
-    border-color: rgba(255, 255, 255, .12) !important;
-    box-shadow:
-      0 3px 10px rgba(0, 0, 0, .12),
-      0 1px 3px rgba(0, 0, 0, .08),
-      inset 0 -1px 2px rgba(255, 255, 255, .03),
-      inset 0 1px 0 rgba(255, 255, 255, .06) !important;
   }
   body.tabbar-regular .tabbar{
     background: #1C1C1E !important;
@@ -372,16 +364,6 @@ body.dark body.tabbar-float .tabbar{
     inset 0 -2px 4px rgba(255, 255, 255, .05),
     inset 0 1px 0 rgba(255, 255, 255, .10) !important;
 }
-html.dark body.tabbar-float .tabbar.is-scrolled,
-body.dark body.tabbar-float .tabbar.is-scrolled{
-  background: rgba(30, 30, 35, .15) !important;
-  border-color: rgba(255, 255, 255, .12) !important;
-  box-shadow:
-    0 3px 10px rgba(0, 0, 0, .12),
-    0 1px 3px rgba(0, 0, 0, .08),
-    inset 0 -1px 2px rgba(255, 255, 255, .03),
-    inset 0 1px 0 rgba(255, 255, 255, .06) !important;
-}
 html.dark body.tabbar-regular .tabbar,
 body.dark body.tabbar-regular .tabbar{
   background: #1C1C1E !important;
@@ -408,7 +390,9 @@ body.dark .tab{ color: var(--tab-inactive, rgba(235, 235, 245, .60)); }
   .tabbar{ animation: none !important; opacity: 1 !important; transform: none !important; }
   .tabbar > .tab.is-active::before{ animation: none !important; }
   /* 共享药丸：平移本身是位移型动效，减动效下直接瞬移，不做弹簧 */
-  .tabbar > .tab-pill{ transition: none !important; }
+  .tabbar > .tab-pill{ transition: none !important; animation: none !important; }
+  .tabbar.is-pill-press > .tab-pill,
+  .tabbar.is-pill-release > .tab-pill{ animation: none !important; }
   .tab, .tab .tab__icon{ transition: none !important; }
   .tab:active{ transform: none !important; }
 }
@@ -513,7 +497,6 @@ body.glass-on .btn--primary::before {
 .appbar{ transition:box-shadow .35s var(--ease-out), background-color .35s var(--ease-out); }
 body.is-scrolled .appbar{ box-shadow:var(--sh-sm); }
 body.glass-on.is-scrolled .appbar{ box-shadow:var(--glass-shadow); }
-body.is-scrolled .tabbar::before{ filter:brightness(1.05); }
 
 /* 8) Hero 入场光泽扫过 */
 .hero{ position:relative; overflow:hidden; }
@@ -761,12 +744,22 @@ html.dark .appbar::before{
      translateX(--pill-i × 100%) 每步恰一格，任何栏宽/平板限宽下精确落格。
      垂直：top/bottom 与底栏 padding-y 同源，包住整个 tab 行（图标+文字）——
      旧写法 bottom 引用 --sa-bottom 把药丸吊在图标行，就是"这么小一块"的根因。 */
-  left: var(--tabbar-pad-x, 8px);
+  /* 2026-10-22（真机实测 FlClash 后修正）：药丸 = 一格 + 8dp，左右各溢出 4dp。
+     FlClash 实测格宽 76.3dp、药丸 84dp —— 它是一块压在格子上的浮片，
+     不是"被格子切出来的高亮"。我们原来是严格一格宽，这正是"看着不够像"的根源。
+     代价：translate 的百分比基准是自身宽（一格+8），所以步距要用 (100% - 8px) 才是精确一格。 */
+  left: calc(var(--tabbar-pad-x, 8px) - 4px);
   top: var(--tabbar-pad-y, 6px);
   bottom: var(--tabbar-pad-y, 6px);
-  width: calc((100% - 2 * var(--tabbar-pad-x, 8px)) / 5);
-  transform: translateX(calc(var(--pill-i, 0) * 100%));
-  transition: transform .55s var(--gr-spring);
+  width: calc((100% - 2 * var(--tabbar-pad-x, 8px)) / 5 + 8px);
+  /* 2026-10-22：transform → 独立 translate / scale。
+     拖动时要「translate 零延迟跟手、变形另走一条曲线」，挤在一个 transform 里
+     只能给一条 transition，会把拉伸也拖成 .55s，果冻就变成果冻味的橡皮筋了。
+     静止位置仍是 --pill-i 单一真源，--pill-drag-i 只在 .is-pill-drag 期间覆盖。 */
+  transform: none;
+  translate: calc(var(--pill-i, 0) * (100% - 8px)) 0;
+  scale: var(--pill-sx, 1) var(--pill-sy, 1);
+  transition: translate .55s var(--gr-spring), scale .3s var(--gr-spring);
   border-radius: 999px;
   box-shadow:
     /* 浅色栏接近纯白，选中态靠这层软海拔从白底里"浮"出来（iOS 材质标准海拔，克制单层） */
@@ -774,21 +767,94 @@ html.dark .appbar::before{
     0 1px 3px rgba(15, 23, 42, .08);
   z-index: 0;
   pointer-events: none;
-  will-change: transform;
+  will-change: translate, scale;
 }
+/* ---- 药丸拖拽（果冻跟手）2026-10-22 ----
+   手指在 .tabbar 上按下 → 横向移动超过 8px 才算拖动（不到 8px 原样放行 click）。
+   拖动期 JS 只写两个变量：
+     --pill-drag-i  小数格索引（与静止态同一单位 %，松手过渡必平滑，不会跳单位）
+     --pill-sx/sy   横向拉伸 / 纵向压缩，由指针速度换算
+   动画仍全在 CSS：拖动期 translate 零过渡跟手，松手交给上面那条 .55s 弹簧。
+   ⚠️ 这不是 2026-09 被废除的 rAF 引擎：没有循环、没有逐帧测量（几何只在
+   pointerdown 量一次，药丸 absolute 定位不参与布局所以不会失效）。
+   touch-action:pan-y 让浏览器别把横向手势判成滚动、纵向滚动照常。 */
+.tabbar{ touch-action: pan-y; }
+.tabbar.is-pill-drag > .tab-pill{
+  translate: calc(var(--pill-drag-i, 0) * (100% - 8px)) 0;
+  transition: translate 0s linear, scale .18s var(--ease-out);
+}
+.tabbar.is-pill-drag .tab:active{ transform: none; }
+/* 2026-10-22：药丸在场时，按压反馈归药丸（它会抬起/颤动），tab 自己不再缩。
+   否则快速连按时 .tab:active 的 scale(.97) 反复进入退出，
+   选中项的图标和文字会跟着"抽搐"——用户看到的就是"学习二字来回抖"。 */
+/* 必须带 !important：502 行那条 `.btn:active,.tab:active,…{transform:scale(.965)!important}`
+   优先级低但挂了 important，不加的话这条覆盖不了 —— 这就是"字还在抖"的真因。 */
+body.tabbar-float .tab:active{ transform: none !important; filter: none !important; transition-duration: .18s !important; }
+body.tabbar-float .tab:active .tab__icon{ transform: none !important; }
+
+/* ---- 按下态（T2：按下即滑到该格 + 抬起放大 + 来回 Q 弹）2026-10-22 ----
+   按下：JS 立刻把 --pill-i 写成按住的那一格（预览滑动，.28s 比静止切换的 .55s 更快，
+         读作"手指一落药丸就跟过去"），并挂 .is-pill-press。
+         药丸播放 pillJellyPress：横向拉伸 / 纵向压缩交替三次（**反相**，一胖一瘦来回颤），
+         最后收在 1.16 × 1.16 —— 均匀抬起，不留静止的扁形变。
+         （2026-10-22 真机量完 FlClash 改的：它的透镜按下是"抬起"——等比放大 + 阴影下沉，
+           不是被压扁。静止的扁形变看久了像"歪了"，不像"被按住"。）
+   松开：换 .is-pill-release → pillJellyRelease 反向收束回 1×1，animationend 摘类
+         （终点与静止值一致，摘类不会跳）。
+   拖动：animation 关掉，改由 33-apple 写 --pill-sx/--pill-sy 实时变形。
+   顺序要紧：.is-pill-drag 必须在 .is-pill-press 之后，同 specificity 靠源序取胜。 */
+.tabbar.is-pill-press > .tab-pill{
+  transition: translate .28s var(--gr-spring), scale .3s var(--gr-spring);
+  animation: pillJellyPress .52s var(--ease-out) forwards;
+}
+.tabbar.is-pill-release > .tab-pill{
+  animation: pillJellyRelease .44s var(--ease-out) forwards;
+}
+.tabbar.is-pill-drag > .tab-pill{ animation: none; }
+@keyframes pillJellyPress{
+  0%   { scale: 1     1     }
+  18%  { scale: 1.22  1.11  }
+  40%  { scale: 1.11  1.22  }
+  62%  { scale: 1.19  1.13  }
+  82%  { scale: 1.135 1.185 }
+  100% { scale: 1.16  1.16  }
+}
+@keyframes pillJellyRelease{
+  0%   { scale: 1.16  1.16  }
+  26%  { scale: .95    1.06  }
+  52%  { scale: 1.045  .965 }
+  76%  { scale: .985   1.015 }
+  100% { scale: 1      1     }
+}
+/* 动画开关关掉时不要留一个静止的扁药丸：整段撤掉，回到 1×1 */
+html[data-motion="off"] .tabbar.is-pill-press > .tab-pill,
+html[data-motion="off"] .tabbar.is-pill-release > .tab-pill{ animation: none !important; }
 .tabbar > .tab-pill::after{
   content: ""; position: absolute; inset: 0;
   border-radius: inherit; pointer-events: none;
-  /* 2026-09-29 凌晨「通透药丸」：veil .20/.13（暗 .05/.03）——白纱退后，rim 当主角；
-     下限由 audit-contrast 药丸 4.5:1 把门（实测 4.88:1）。 */
+  /* 2026-10-22「真通透」：veil .20/.13 → .10/.06，白纱减半，玻璃感交给边缘。
+     下限仍是 audit-contrast 药丸 4.5:1（实测 4.69:1，余量 0.19，别再往下压）。 */
+  /* 2026-10-22：纯白药丸压在纯白栏上 = 看不出边界（用户："药丸都到哪里去了"）。
+     试过学 FlClash 给淡蓝紫调（它的透镜是 secondary tone 90），但蓝字压在蓝底上
+     对比度掉到 4.37（门禁 4.5），行不通 → 改成**不加色、只靠边缘明暗划边界**：
+     白纱降到 .12/.07 让底透出来，边界交给下面的外暗内亮两条窄带。 */
   background: linear-gradient(180deg,
-    rgba(255, 255, 255, .20) 0%,
-    rgba(245, 245, 247, .13) 100%);
-  /* rim 三件套（与 rdev/liquid-glass-react 的 inset 配方同构）：
-     0.5px 白 rim 勾边 + 顶部 1px 高光，是药丸与底板区分度的主要来源 */
+    rgba(255, 255, 255, .12) 0%,
+    rgba(245, 245, 247, .07) 100%);
+  /* 2026-10-22「真玻璃边缘」（对着 FlClash 真机逐帧+实测改）：
+     iOS/FlClash 的玻璃边缘是**外黑内白**两条窄带 —— 外侧一圈极细暗线（侧边最重），
+     内侧 1.2px 白高光，多出来的光只泄 4.5px 就停。
+     原来我们只有"一圈白 inset"，白压在白栏上等于没有边界，药丸读起来是"更白的一块"，
+     不是"一片有厚度的玻璃"。 */
   box-shadow:
-    inset 0 0 0 .5px rgba(255, 255, 255, .5),
-    inset 0 1px 0 rgba(255, 255, 255, .55);
+    inset 0 0 0 .5px rgba(0, 0, 0, .14),
+    inset .5px 0 0 rgba(0, 0, 0, .22),
+    inset -.5px 0 0 rgba(0, 0, 0, .22),
+    inset 0 .5px 0 rgba(0, 0, 0, .10),
+    inset 0 1.2px 0 rgba(255, 255, 255, .55),
+    inset 0 4.5px 5px -2px rgba(255, 255, 255, .18),
+    inset 0 -1.2px 0 rgba(255, 255, 255, .16),
+    inset 0 -4px 6px -3px rgba(0, 0, 0, .10);
 }
 html.dark .tabbar > .tab-pill::after{
   /* 2026-09-25 二轮：深灰 .85 药丸在玻璃栏上是一块"贴纸"（用户实测反馈）。
@@ -930,7 +996,7 @@ html.dark .card{
   transform-origin: center;
 }
 .phase:active{ transform: scale(.99); }
-.list__item:active{ transform: scale(.992); filter: brightness(.98); }
+.list__item:active{ filter: brightness(.98); } /* 贴边行禁缩放（2026-10-27） */
 
 /* 9. Drawer：可全屏的浮层 liquid glass */
 .drawer{
@@ -1053,7 +1119,7 @@ html.dark input[type="search"]{
 
 /* 15. View 切换：apple 弹簧 + 缩放动画 */
 .view.is-active{
-  animation: view-spring-in var(--t-view, .52s) var(--ease-apple-spring-gentle);
+  animation: view-spring-in var(--t-view, .4s) var(--ease-apple-spring-gentle);
 }
 @keyframes view-spring-in{
   0%{ opacity: 0; transform: translate3d(0, 16px, 0) scale(.985); }
@@ -1072,10 +1138,12 @@ html.dark input[type="search"]{
   transition: opacity .18s var(--ease-apple-smooth);
   pointer-events: none;
 }
-.tap-target:active::after{ opacity: 1; }
+/* 按下立即显示（0s enter），松手走默认渐出 —— 按压高亮渐入 180ms 是
+   「粘手感」来源之一（2026-10-27 用户反馈；iOS 惯例=按下即反馈）。 */
+.tap-target:active::after{ opacity: 1; transition-duration: 0s; }
 html.dark .tap-target::after{
   background: radial-gradient(circle at center,
-    rgba(255, 255, 255, .12) 0%,
+    rgba(255, 255, 255, .10) 0%,
     rgba(255, 255, 255, 0) 70%);
 }
 
@@ -1110,12 +1178,40 @@ html.dark .tap-target::after{
   .skel, .pulse::after, .hero::after{ animation: none !important; }
 }
 
-/* ===== 卡片手风琴展开：grid-template-rows 0fr→1fr（双向 100% 可靠） ===== */
+/* ===== R1 原生底栏接管（2026-10-27）=====
+   native-dock-on：底栏外观由 LensBarView（PopupWindow 原生层）绘制。
+   用 visibility 而非 display:none —— 保留布局，requestGeometry 依旧能量到
+   几何真源；回退 = 去掉 body 类，HTML 底栏原样回来。 */
+body.native-dock-on .tabbar { visibility: hidden !important; }
+/* ---- R2 原生顶栏（2026-10-27）：同 R1 的分工 ----
+   整条 .appbar 由顶部锚定的 AppBarView（独立 PopupWindow）绘制，含 searchwrap
+   一起藏 —— 不是多藏了：原生窗不透明虽然盖得住，但 PixelCopy 抓主窗口做顶栏
+   玻璃的模糊背景时会把没藏的 HTML 顶栏抓进去（自反馈），必须从渲染树上摘掉。
+   退位时机（body 组合类由 pushAppBarState 维护，原生同步收窗）：
+   - is-appbar-q     搜索展开期：输入框/键盘链路整体还回 HTML；
+   - is-appbar-overlay 抽屉在场期：抽屉 z 序在 HTML 顶栏之上，原生窗却永远在
+     最上层 —— 不退位的话抽屉会从顶栏底下穿过（R1 的 sheet 教训同源）。 */
+body.native-appbar-on .appbar { visibility: hidden !important; }
+body.native-appbar-on.is-appbar-q .appbar,
+body.native-appbar-on.is-appbar-overlay .appbar { visibility: visible !important; }
+/* 内容不滚入栏后（FlClash 结构）：胶囊栏时代内容允许穿到栏后，靠 HTML 玻璃
+   的 blur 垫着；原生接管后容器近实色、透镜直接折射栏后像素 —— 正文透出/
+   被放大进透镜是「吓人」观感的根源（2026-10-27 用户反馈）。多留 30px 呼吸。 */
+body.native-dock-on .scroll {
+  /* 内容区收短（FlClash 结构）：float 栏 64dp 高悬浮，margin 让 .scroll 底边
+     上移到栏顶 —— 内容滚动全程都不进入栏后，栏后=WebView 背景壁纸层，
+     透镜折射到的永远是干净的壁纸/背景色（padding 方案只管滚到底，管不了途中）。 */
+  padding-bottom: calc(var(--sa-bottom) + 8px);
+  margin-bottom: calc(64px + var(--sa-bottom) + 10px);
+}
+
+/* ===== 卡片手风琴展开：grid-template-rows 0fr→1fr（双向 100% 可靠） =====
+   2026-10-26 用户报「展开很卡」：spring 过冲跑在**布局动画**上 = 每帧重排
+   整卡与其下全部内容，还附赠过冲二次重排。改为瞬时展开（行数直切）+
+   内容自身淡入下滑（transform/opacity 走合成器，零布局动画）。 */
 .card > .card__body{
   display: grid !important;
   grid-template-rows: 0fr !important;
-  transition: grid-template-rows var(--t-pill, .42s) var(--ease-apple-spring, cubic-bezier(.34,1.56,.64,1)),
-              margin-top var(--t-pill, .42s) var(--ease-apple-spring, cubic-bezier(.34,1.56,.64,1));
   margin-top: 0 !important;
 }
 .card > .card__body > div{ overflow: hidden; min-height: 0; }
@@ -1124,7 +1220,7 @@ html.dark .tap-target::after{
   padding-top: 0;
   opacity: 0;
   transform: translateY(-4px);
-  transition: opacity .28s ease .04s, transform .34s var(--ease-apple-spring, cubic-bezier(.34,1.56,.64,1)) .04s, padding-top .28s ease .04s;
+  transition: opacity .22s ease .02s, transform .3s var(--ease-apple-spring, cubic-bezier(.34,1.56,.64,1)) .02s, padding-top .22s ease .02s;
 }
 .card.is-open > .card__body{
   grid-template-rows: 1fr !important;
@@ -1139,20 +1235,8 @@ html.dark .tap-target::after{
 .card.is-open .card__arrow{ transform: rotate(180deg); }
 @media (prefers-reduced-motion: reduce){
   .card > .card__body, .card > .card__body > div > .card__inner, .card__arrow{ transition: none !important; }
-/* 滚动后：变实 + 边缘更明显 */
-.tabbar.is-scrolled{
-  background: linear-gradient(180deg,
-    rgba(255, 255, 255, .84) 0%,
-    rgba(245, 245, 247, .72) 100%) !important;
-  border-color: rgba(255, 255, 255, .85) !important;
-  box-shadow:
-    inset 0 1px 1px rgba(255, 255, 255, .92),
-    inset 0 -.5px 0 rgba(0, 0, 0, .06),
-    0 .5px 1px rgba(0, 0, 0, .07),
-    0 4px 14px rgba(0, 0, 0, .12),
-    0 18px 44px rgba(0, 0, 0, .12) !important;
-}
-
+  /* 底栏滚动变实已于 2026-10-26 整体移除（用户拍板：滚动与否同一材质），
+     此处历史上的 .tabbar.is-scrolled 白底一并删除 */
   .card.is-open > .card__body{ grid-template-rows: 1fr !important; }
   .card:not(.is-open) > .card__body{ grid-template-rows: 0fr !important; }
 }
@@ -1190,11 +1274,14 @@ body.tabbar-float .tabbar {
   padding: var(--tabbar-pad-y) var(--tabbar-pad-x) !important;
 }
 
-/* 2. Tab 本身收紧上下间距，让整体内容往上移，不再贴底 */
-.tab {
-  min-width: 52px !important;   /* 防止 Grid 压窄导致图标溢出 */
+/* 2. Tab 本身收紧上下间距，让整体内容往上移，不再贴底
+   （.tab__tint 克隆层必须与 .tab 消费同一份覆盖值，否则交互期蓝字错位成重影） */
+.tab, .tab__tint {
   padding: 2px 2px !important;  /* 上下从 4px 减到 2px，底部留出呼吸空间 */
   gap: 2px !important;            /* 图标与文字间距从 4px 减到 2px */
+}
+.tab {
+  min-width: 52px !important;   /* 防止 Grid 压窄导致图标溢出 */
   overflow: visible !important;
 }
 
@@ -1365,22 +1452,8 @@ html.dark body.glass-liquid .toast {
   background: linear-gradient(160deg, rgba(44,44,46,.52) 0%, rgba(32,32,36,.40) 100%) !important;
   border-color: rgba(255,255,255,.14) !important;
 }
-/* 悬浮胶囊滚动"变实"在液态玻璃下必须被覆盖：
-   .tabbar.is-scrolled 特异性(0,3,0)高于本块(0,2,0)，滚动时会切回
-   rgba(.22)+blur 实底 → "时而通透时而模糊"。这里用更高特异性压回
-   liquid 通透背景(跟随 --glass-tint-top/bot 通透度)，仅保留阴影变化。 */
-body.glass-liquid .tabbar.is-scrolled,
-body.glass-liquid .tabbar.is-scrolled::before {
-  background: linear-gradient(160deg, var(--glass-tint-top, rgba(255,255,255,.55)) 0%, var(--glass-tint-bot, rgba(250,250,252,.42)) 100%) !important;
-  -webkit-backdrop-filter: none !important;
-  backdrop-filter: none !important;
-  border-color: rgba(255,255,255,.28) !important;
-}
-html.dark body.glass-liquid .tabbar.is-scrolled,
-html.dark body.glass-liquid .tabbar.is-scrolled::before {
-  background: linear-gradient(160deg, rgba(44,44,46,.52) 0%, rgba(32,32,36,.40) 100%) !important;
-  border-color: rgba(255,255,255,.14) !important;
-}
+/* 悬浮胶囊滚动"变实"覆盖块已随 2026-10-26「滚动不变实」决策删除：
+   is-scrolled 材质覆盖全部移除后本块无对手，保持液态玻璃 tint 恒定。 */
 
 /* ============================================================
    壁纸模式：内容层半透明玻璃（用户 2026-08-11 23:44 反馈：
@@ -1460,16 +1533,23 @@ html.dark body.has-wallpaper .card__head {
     0 2px 10px rgba(0,0,0,.28) !important;
 }
 /* 按压态跟随半透明（避免 active 闪回实色） */
+/* 2026-10-27：贴边行（list/dict）与 quiz 选项按压改半透——94% 实色块盖在
+   半透明玻璃容器上是「矩形色块跟底面背景不一致」的主凶（用户实证）；
+   phase/stat 是独立浮卡，按压实色发生在自身圆角内，保留原反馈。 */
 body.has-wallpaper .list__item:active,
 body.has-wallpaper .dict__row:active,
-body.has-wallpaper .qz__opt:active,
+body.has-wallpaper .qz__opt:active {
+  background: rgba(255,255,255,.22) !important;
+}
+html.dark body.has-wallpaper .list__item:active,
+html.dark body.has-wallpaper .dict__row:active,
+html.dark body.has-wallpaper .qz__opt:active {
+  background: rgba(255,255,255,.10) !important;
+}
 body.has-wallpaper .phase:active,
 body.has-wallpaper .stat:active {
   background: rgba(255,255,255,.94) !important;
 }
-html.dark body.has-wallpaper .list__item:active,
-html.dark body.has-wallpaper .dict__row:active,
-html.dark body.has-wallpaper .qz__opt:active,
 html.dark body.has-wallpaper .phase:active,
 html.dark body.has-wallpaper .stat:active {
   background: rgba(64,64,70,.92) !important;
@@ -1701,9 +1781,12 @@ body.is-scrolling.glass-gaussian .list__item {
   backdrop-filter: blur(var(--glass-blur)) !important;
   will-change: auto;
 }
+/* 2026-10-27：贴边元素（列表行/卡片头）禁按压缩放——缩放使直角背景与圆角容器
+   错位露底色（用户实证「矩形色块跟底面背景不一致」）。反馈保留背景变灰 +
+   tap-target 径向晕（iOS 列表惯例：行只变色，不离位）。 */
 .list__item:active,
 .card__head:active {
-  transform: scale(.994) !important;
+  transform: none !important;
   filter: none !important;
   background: rgba(120, 130, 150, 0.08) !important;
 }
@@ -2020,6 +2103,94 @@ body.has-wallpaper:not(.glass-on) .sec__t { background: rgba(255,255,255,.72); }
 html.dark body.has-wallpaper:not(.glass-on) .sec__t { background: rgba(44,44,46,.72); }
 
 /* ============================================================
+   壁纸直铺显示（2026-10-26，用户参照平板 QQ 主题点名实现）
+   ------------------------------------------------------------
+   壁纸开启即直铺：内容不套浮板直接坐在壁纸上；dock 栏用恒定玻璃面
+   保可辨（无 is-scrolled 翻转）。
+   「双层感」根治（2026-10-26 二轮）：直铺后壁纸的线条细节从文字缝里
+   透出 = 字与线叠成两层。解法不是加白雾（用户嫌雾蒙蒙），而是给
+   .wall 上**轻度模糊**：线条糊成色块、颜色场景保留。模糊在固定层上
+   只栅格一次、零滚动成本——.wall 层本来就是为"blur 一次"设计的。
+   白纱相应减到 .16 只做提亮。
+   ============================================================ */
+body.wp-qq.has-wallpaper .card,
+body.wp-qq.has-wallpaper .list,
+body.wp-qq.has-wallpaper .list__item,
+body.wp-qq.has-wallpaper .phase,
+body.wp-qq.has-wallpaper .stat {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+body.wp-qq.has-wallpaper .wall{
+  /* --bg-blur 同时驱动 .wall 的 inset 出血（02-base 公式），糊多少就自动多铺
+     3σ，避免屏幕四周出现透明窄边。糊化与洗白跟随通透度（JS 写 --wp-blur/
+     --wp-wash）：2026-10-27 用户「壁纸不通透」——此前两者固定，滑杆无效。 */
+  --bg-blur: var(--wp-blur, 8px);
+  filter: blur(var(--bg-blur)) saturate(.92) brightness(1.04) !important;
+}
+/* 轻纱挂在 .wall 内部：z 序天然在壁纸之上、内容之下，不参与点击。 */
+body.wp-qq.has-wallpaper .wall::after{
+  content: "";
+  position: absolute; inset: 0;
+  background: rgba(255,255,255,var(--wp-wash, .10));
+}
+html.dark body.wp-qq.has-wallpaper .wall::after,
+body.dark body.wp-qq.has-wallpaper .wall::after{
+  background: rgba(16,18,24,calc(var(--wp-wash, .10) + .06));
+}
+/* 顶栏退场（用户只点名 dock） */
+body.wp-qq.has-wallpaper .appbar{
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+body.wp-qq.has-wallpaper .appbar.is-scrolled{ box-shadow: none !important; }
+body.wp-qq.has-wallpaper .appbar::after{ display: none; }
+/* dock 栏：恒定近实色玻璃面（看得清、且滚动与否一个样，无 is-scrolled 翻转）。
+   ⚠ 不用 backdrop-filter：滚动中内容从条下经过时每帧触发整条重算重栅格，
+   是滑动掉帧的元凶。
+   2026-10-26 三轮：tint .58/.82 时页面文字仍从条下透上来与 tab 混排（实拍
+   实锤「双层」观感）；且液态玻璃架构只预模糊壁纸层、内容层 0 blur——
+   tabbar 浮在**未模糊内容**上方，任何通透都必透字。故液态玻璃档统一近实色
+   （.96，有无壁纸一致），白/暗双主题各自适配。 */
+body.glass-on.glass-liquid .tabbar{
+  background: rgba(255,255,255,.96) !important;
+  border-color: rgba(255,255,255,.55) !important;
+  box-shadow:
+    0 4px 16px rgba(0,0,0,.08),
+    inset 0 1px 0 rgba(255,255,255,.5) !important;
+}
+html.dark body.glass-on.glass-liquid .tabbar,
+body.dark body.glass-on.glass-liquid .tabbar{
+  background: rgba(24,26,32,.96) !important;
+  border-color: rgba(255,255,255,.14) !important;
+  box-shadow:
+    0 4px 16px rgba(0,0,0,.2),
+    inset 0 1px 0 rgba(255,255,255,.12) !important;
+}
+body.wp-qq.has-wallpaper .tabbar::before{ display: none; }
+body.wp-qq.has-wallpaper .tabbar-blur{ display: none !important; }
+/* 抽屉/面板升级为「default glass」（近实色，Apple modal 口径）：
+   liquid 架构只预模糊了壁纸层，抽屉/面板下方是**未模糊的主页面内容**，
+   轻透表面必然文字混排（2026-10-26 用户报「侧栏滑出后看不清内容」）。
+   modal 级表面以可读优先：近实色 + 轻透 + 投影，瞬时通透让位。 */
+body.wp-qq.has-wallpaper .drawer,
+body.wp-qq.has-wallpaper .sheet {
+  background: rgba(255,255,255,.94) !important;
+  border-color: rgba(255,255,255,.6) !important;
+  box-shadow: 0 12px 40px rgba(0,0,0,.18) !important;
+}
+html.dark body.wp-qq.has-wallpaper .drawer,
+body.dark body.wp-qq.has-wallpaper .drawer,
+html.dark body.wp-qq.has-wallpaper .sheet,
+body.dark body.wp-qq.has-wallpaper .sheet {
+  background: rgba(28,30,36,.94) !important;
+  border-color: rgba(255,255,255,.1) !important;
+  box-shadow: 0 12px 40px rgba(0,0,0,.45) !important;
+}
+
+/* ============================================================
    按压形变（液态玻璃的"QQ弹弹、按住能拉扯"）
    厂商那套手感的核心不是模糊，是跟手形变：按住 → 朝手指方向位移 + 沿拖动方向
    拉伸，松手 → 弹簧过冲回位。只做 transform（合成层，不触发布局）。
@@ -2029,5 +2200,68 @@ html.dark body.has-wallpaper:not(.glass-on) .sec__t { background: rgba(44,44,46,
 .sq-live, .sq-back {
   transform: translate3d(var(--sqx, 0px), var(--sqy, 0px), 0) scale(var(--sqsx, 1), var(--sqsy, 1)) !important;
 }
-.sq-live { transition: none !important; }
+.sq-live {
+  transition: none !important;
+  /* will-change 已撤（2026-10-26）：半透明圆角元素提升合成层后，transform 缩放
+     会把文字栅格一起 GPU 拉伸，观感 = 用户报的「双层结构、上下层割裂」。
+     直铺模式下形变已在 squishBlocked() 整体关闭；卡片浮层模式保留原行为。 */
+}
 .sq-back { transition: transform var(--sq-back, .46s) var(--ease-apple-spring) !important; }
+
+/* ==========================================================================
+ * 原生透镜层分工（B 路线，2026-10-26 修订）
+ * 静止选中态由 HTML 药丸承担（它 z 序在图标之下——原生层在 WebView 之上，
+ * 画实心药丸必然盖住图标文字，这是架构上限）。原生透镜只负责 FlClash
+ * _GlassLens 的部分：按压时随 lift 长出的玻璃（真折射 + 镜内放大 16%）。
+ * 因此这里只在**按压期间**把 HTML 药丸藏起，避免玻璃下面叠第二个框；
+ * 松手落定后原生会移除该类，药丸原样回归。
+ * 仅当原生层存在时 JS 才会挂 .native-lens-press，旧包/无原生层永不生效。
+ * ========================================================================== */
+/* display:none 而不是 opacity:0 —— 只设 opacity 它照样参与绘制与位移动画，
+   于是原生透镜和 HTML 药丸两套动画重叠，看起来就是"两个框在跑"。 */
+body.native-lens-press .tabbar > .tab-pill{
+  display: none !important;
+}
+/* ---- 透镜实时调色（几何剖切版 = FlClash 同构）----
+   FlClash _LensTint 源码注释："cut to the lens's own shape so a destination
+   it passes over turns part by part" —— 它的无极不是颜色渐变，而是**镜片边缘
+   这条硬边在内容上扫过**：边内全 primary 色、边外原色，边界随镜片逐像素移动。
+   等价实现：每个 tab 内放一份蓝色克隆层（.tab__tint，JS 一次性克隆），用
+   clip-path 按镜片矩形（带胶囊圆角）裁剪：
+     左内缩 = max(0, (dx+0.5)·slot − half)   dx = --lens-pos − --i
+     右内缩 = max(0, (0.5−dx)·slot − half)   half = 药丸半宽
+   交互期（body.lens-live）：底色一律未选中灰，蓝色只活在剖切出的镜片足迹里；
+   原选中态图标微移在 live 期归零，保证灰/蓝两份像素级对齐；选中圆点隐藏。
+   lens-live 不存在时（静止/旧包）整块不生效，颜色仍由 is-active 驱动。 */
+.tab__tint{
+  position: absolute;
+  inset: 0;
+  display: none;              /* 默认不画：只在交互期存在（省合成） */
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;                   /* ⚠ 必须与 .tab 的 !important 覆盖值同源（下方 1279 块） */
+  padding: 2px;               /* ⚠ 同上 —— 03-layout 的 8/0/6 已被 .tab 块 !important 覆盖，
+                                 克隆层不同步就会垂直错位 ~6px：玻璃一放大就是「两个学习」
+                                 （2026-10-26 手机真机，探针实测 baseSvg y713.9 / tintSvg y719.9） */
+  font: inherit;              /* ⚠ .tab 自身是 font: inherit（06-anim 698，源序压过 03-layout 的
+                                 10px/1.2）→ 底栏文字实际渲染 body 的 15px/24px；克隆层写死 10px
+                                 会比基础小一号且行盒矮 12px，剖切蓝字与灰字错位成重影 */
+  color: var(--accent-muted);
+  pointer-events: none;
+}
+body.lens-live .tab__tint{
+  display: flex;
+  --dx: calc(var(--lens-pos, -9) - var(--i, 0));
+  clip-path: inset(0
+      max(0px, calc((0.5 - var(--dx)) * var(--slot-w, 0px) - var(--lens-half, 0px)))
+      0
+      max(0px, calc((var(--dx) + 0.5) * var(--slot-w, 0px) - var(--lens-half, 0px)))
+      round var(--lens-r, 25px));
+}
+body.lens-live .tab__tint .tab__icon{ stroke: currentColor; }
+body.lens-live .tab{ color: var(--tab-inactive, #8E8E93); }
+body.lens-live .tab .tab__icon{ stroke: currentColor; }
+body.lens-live .tab.is-active{ color: var(--tab-inactive, #8E8E93); }
+body.lens-live .tab.is-active .tab__icon{ stroke: currentColor; transform: none; }
+body.lens-live .tab.is-active::before{ opacity: 0; }
