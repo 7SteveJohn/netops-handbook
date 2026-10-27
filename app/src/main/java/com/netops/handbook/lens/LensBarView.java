@@ -1078,4 +1078,362 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         chromeRect.set(bar);
         chromePillCy = pillCy();
         Canvas c1 = new Canvas(chromeB1);
+        float r = bar.height() / 2f;
+        c1.drawRoundRect(0, 0, W, H, r, r, barFillP);
+        barStrokeP.setStrokeWidth(density);
+        c1.drawRoundRect(0, 0, W, H, r, r, barStrokeP);
+        /* per-tab 灰态小图：sprite 原点 = 格左缘/栏顶。宽度取格宽（文字仅 2 字不会溢出）。 */
+        for (int i = 0; i < count && i < 5; i++) {
+            float gx = firstCx + slot * i - slot / 2f;
+            Bitmap sp = Bitmap.createBitmap(Math.max(4, (int) (slot + 20 * density)),
+                    Math.max(4, (int) bar.height()), Bitmap.Config.ARGB_8888);
+            drawTabsOn(new Canvas(sp), -gx, -bar.top, i, inactiveColor, true);
+            tabSprites[i] = sp;
+        }
+
+        /* 软件 → HARDWARE 位图：blit 走 GPU 常驻纹理，免去每帧 ~7MB 的上传
+           （120Hz 滑块动画期间这是与 WebView 争 GPU 的隐形大头）。失败回退软件位图。 */
+        try {
+            if (Build.VERSION.SDK_INT >= 26) {
+                Bitmap h1 = chromeB1.copy(Bitmap.Config.HARDWARE, false);
+                Bitmap h3 = sliderBmp.copy(Bitmap.Config.HARDWARE, false);
+                if (h1 != null) chromeB1 = h1;
+                if (h3 != null) sliderBmp = h3;
+            }
+        } catch (Throwable t) {
+            Log.w(TAG, "HARDWARE 位图转换失败，保持软件位图", t);
+        }
+
+        /* 滑块缓存：阴影 + 白药丸本体一次画好（透明底）。
+           尺寸按最大态（含 LIFT 增量 + 阴影边距），blit 时按中心对齐。 */
+        int sw = (int) ((pillW + LIFT_GROWTH * density) / 2f * 2f + 24f * density);
+        int sh = (int) ((pillH + LIFT_GROWTH * density) / 2f * 2f + 24f * density);
+        sliderBmp = Bitmap.createBitmap(Math.max(4, sw), Math.max(4, sh), Bitmap.Config.ARGB_8888);
+        Canvas c3 = new Canvas(sliderBmp);
+        float bw = pillW / 2f, bh = pillH / 2f;
+        RectF sr3 = new RectF(sw / 2f - bw, sh / 2f - bh, sw / 2f + bw, sh / 2f + bh);
+        float rr = Math.min(bw, bh);
+        Paint shadowP = new Paint(Paint.ANTI_ALIAS_FLAG);
+        shadowP.setColor(Color.argb(38, 15, 23, 42));
+        c3.drawRoundRect(sr3.left, sr3.top + density, sr3.right, sr3.bottom + 2f * density, rr, rr, shadowP);
+        c3.drawRoundRect(sr3, rr, rr, sliderFillP);
+        sliderStrokeP.setStrokeWidth(density);
+        c3.drawRoundRect(sr3, rr, rr, sliderStrokeP);
+    }
+
+    /** 原生底栏：容器/灰图标（缓存 blit）+滑块。
+     *  lensing（透镜在场）走实时绘制（含果冻形变+saveLayer 阴影）；
+     *  滑块-only 动画（切页弹簧）走 blit —— 每帧 saveLayer 的离屏分配是
+     *  打开卡片期间与 WebView 渲染争抢的大头（2026-10-27 实测 90th 16→24ms）。 */
+    private void drawDockChrome(Canvas canvas, boolean lensing) {
+        RectF bar = dockRect();
+        /* 重建门必须含**位置**：只比尺寸的话，栏整体上下移动（insets 变化/横竖屏/
+           抽屉开关后的重报）不会触发重建，缓存里还是旧 bar.top 的偏移 ——
+           图标被画到胶囊底缘、文字整行被裁掉（2026-10-27 真机「文字没了」）。 */
+        if (chromeB1 == null || sliderBmp == null || chromeDark != (dark ? 1 : 0)
+                || Math.abs(chromeRect.width() - bar.width()) > 1
+                || Math.abs(chromeRect.height() - bar.height()) > 1
+                || Math.abs(chromeRect.left - bar.left) > 0.5f
+                || Math.abs(chromeRect.top - bar.top) > 0.5f
+                || Math.abs(chromePillCy - pillCy()) > 0.5f) {
+            rebuildChrome();
+        }
+        canvas.drawBitmap(chromeB1, bar.left, bar.top, null);
+
+        /* 滑块先画（在图标之下）：拖到两格中间时滑块从图标后面滑过，
+           图标始终完整可见（HTML tab-pill 的 z 序，2026-10-27 用户反馈「遮挡其中一个」）。 */
+        float cx = firstCx + slot * (float) pos.value();
+        float cy = pillCy();
+        float s = (float) jelly.value();
+        float g = LIFT_GROWTH * density * (float) lift.value();
+        float hw = (pillW + g) / 2f * (1f + s);
+        float hh = (pillH + g) / 2f * (1f - s * 1.4f);
+        if (!lensing && sliderBmp != null) {
+            /* 滑块-only 动画：形变量（jelly/lift）微小，直接 blit 固定尺寸缓存 */
+            canvas.drawBitmap(sliderBmp, cx - sliderBmp.getWidth() / 2f,
+                    cy - sliderBmp.getHeight() / 2f, blitP);
+        } else {
+            tmpRect.set(cx - hw, cy - hh, cx + hw, cy + hh);
+            float sr = Math.min(hw, hh);
+            int sv = canvas.save();
+            canvas.saveLayer(tmpRect.left - 6f * density, tmpRect.top - 6f * density,
+                    tmpRect.right + 6f * density, tmpRect.bottom + 6f * density, null);
+            Paint sp = new Paint(Paint.ANTI_ALIAS_FLAG);
+            sp.setColor(Color.argb(38, 15, 23, 42));
+            canvas.drawRoundRect(tmpRect.left, tmpRect.top + density, tmpRect.right,
+                    tmpRect.bottom + 2f * density, sr, sr, sp);
+            canvas.restoreToCount(sv);
+            canvas.drawRoundRect(tmpRect, sr, sr, sliderFillP);
+            sliderStrokeP.setStrokeWidth(density);
+            canvas.drawRoundRect(tmpRect, sr, sr, sliderStrokeP);
+        }
+
+        /* 灰态图标+文字：per-tab blit（跳过选中格——选中格由 drawLensTabs 以蓝态画在玻璃上） */
+        RectF bar2 = dockRect();
+        float act = pressed ? (float) pos.value() : selectedIndex;
+        int actIdx = Math.max(0, Math.min(count - 1, Math.round(act)));
+        for (int i = 0; i < count && i < 5; i++) {
+            if (tabSprites[i] == null || i == actIdx) continue;
+            canvas.drawBitmap(tabSprites[i], firstCx + slot * i - slot / 2f, bar2.top, blitP);
+        }
+    }
+
+    private final RectF barFallback = new RectF();
+
+    /** 栏矩形：JS 上报优先；未上报时以药丸行推导（上下各外扩 6dp，左右满宽）。
+     *  fallback 用独立 RectF —— 共享 tmpRect 会被滑块绘制覆盖，引用混乱。 */
+    private RectF dockRect() {
+        if (barRect.width() > 4 && barRect.height() > 4) return barRect;
+        float cy = pillCy();
+        float top = cy - pillH / 2f - 6f * density;
+        barFallback.set(0, top, bandW, top + pillH + 12f * density);
+        return barFallback;
+    }
+
+    /** 图标+文字绘制核心。dx/dy = 画布偏移；onlyIdx >= 0 时只画该格（蓝态），
+     *  = -1 画全部（进缓存，须配 forceOff=true 强制灰态，否则 rebuild 时刻的
+     *  activeIdx 蓝色会被烤进缓存 —— 滑块滑走后蓝字残留在错误格，
+     *  2026-10-27 真机 cache-drag 实证）。 */
+    private void drawTabsOn(Canvas canvas, float dx, float dy, int onlyIdx, int offColor,
+                            boolean forceOff) {
+        /* 与 drawLensTabs 同一套位置判定（玻璃在场跟 pos，离场回 selectedIndex）：
+           两处不一致的话，滑行段蓝态会跟错格。 */
+        boolean lensing = pressed || (float) lift.value() > 0.005f;
+        float active = lensing ? (float) pos.value() : selectedIndex;
+        int activeIdx = Math.max(0, Math.min(count - 1, Math.round(active)));
+        float contentH = 22f * density + 2f * density + 12f * density;  // 图标22 + gap2 + 文字行高12
+        float cy = pillCy();
+        float iconTop = cy - contentH / 2f + dy;
+        Paint.FontMetrics fm = textP.getFontMetrics();
+        float textBaseline = iconTop + 22f * density + 2f * density - fm.ascent;
+
+        for (int i = 0; i < count && i < 5; i++) {
+            if (onlyIdx >= 0 && i != onlyIdx) continue;
+            float cx = firstCx + slot * i + dx;
+            boolean on = !forceOff && i == activeIdx;
+            int color = on ? activeColor() : offColor;
+            Path[] subs = iconPaths[i];
+            if (subs != null) {
+                canvas.save();
+                canvas.translate(cx - 11f * density, iconTop);
+                iconP.setColor(color);
+                iconP.setAlpha(255);
+                for (int k = 0; k < subs.length; k++) {
+                    /* layers（第 0 图标）第三笔在 SVG 里 opacity=".5"，与 CSS 渲染对齐 */
+                    boolean half = (i == 0 && k == subs.length - 1);
+                    iconP.setAlpha(half ? 128 : 255);
+                    canvas.drawPath(subs[k], iconP);
+                }
+                canvas.restore();
+            }
+            textP.setColor(color);
+            textP.setTextAlign(Paint.Align.CENTER);
+            canvas.drawText(TAB_LABELS[i], cx, textBaseline, textP);
+        }
+    }
+
+    /** 玻璃之上的图标重绘（FlClash _LensContent）：透镜跨两格时两格都要可见——
+     *  round(pos) 一格蓝、另一格灰。屏幕画布 = 本层坐标，dx/dy 必须为 0
+     *  （复用缓存变换会把图标画到栏外，2026-10-27 真机「孤立蓝字」实证）。
+     *  位置判定含松手后的滑行段（玻璃未离场就跟着 pos 走）：滑行期玻璃
+     *  不透明，只按 selectedIndex 重绘会让途经格整块消失在玻璃下
+     *  （2026-10-27 真机「滑到中间遮挡文字」）。 */
+    private void drawLensTabs(Canvas canvas) {
+        boolean lensing = pressed || (float) lift.value() > 0.005f;
+        float active = lensing ? (float) pos.value() : selectedIndex;
+        int blue = Math.max(0, Math.min(count - 1, Math.round(active)));
+        drawTabsOn(canvas, 0, 0, blue, 0, false);
+        if (active != blue) {                      // 透镜跨两格：另一格灰态也重绘（否则被不透明玻璃盖住）
+            int other = Math.max(0, Math.min(count - 1, (int) Math.floor(active)));
+            if (other == blue) other = Math.max(0, Math.min(count - 1, (int) Math.ceil(active)));
+            if (other != blue) drawTabsOn(canvas, 0, 0, other, iconP.getColor(), true);
+        }
+    }
+
+    /** 按压透镜玻璃（原 onDraw 的 shader 段抽出，几何/降级逻辑原样）。 */
+    private void drawGlass(Canvas canvas, float liftV) {
+        float g = LIFT_GROWTH * density * liftV;
+        float s = (float) jelly.value();
+        float hw = (pillW + g) / 2f * (1f + s);
+        float hh = (pillH + g) / 2f * (1f - s * 1.4f);
+        float cx = firstCx + slot * (float) pos.value();
+        float cy = pillCy();
+
+        pillRect.set(cx - hw, cy - hh, cx + hw, cy + hh);
+        float r = Math.min(hw, hh);
+
+        if (shader != null && backdrop != null && Build.VERSION.SDK_INT >= 33) {
+            updateShaderUniforms(cx, hw, hh);
+            /* 玻璃随 lift 淡入（0.4 就到全显，压住淡出期的空档）。
+               HTML 底栏模式透明度封顶 50%：本层活在独立 Window、永远盖在
+               WebView 之上，全显的不透明玻璃会把栏内图标文字整块吃掉
+               （2026-10-27 真机「滑到中间遮挡文字」）。镜内 1:1 之后，透过
+               玻璃的实况内容与折射采样逐像素对齐，透镜只贡献霜边/折射/色散。 */
+            float alphaK = Math.min(1f, liftV * 2.5f);
+            if (!nativeDock) alphaK = Math.min(alphaK, 0.5f);
+            glassPaint.setAlpha((int) (255f * alphaK));
+            rimPaint.setAlpha((int) (90f * alphaK));
+            int save = canvas.save();
+            canvas.clipRect(0, 0, bandW, bandH);
+            canvas.drawRoundRect(pillRect, r, r, glassPaint);
+            canvas.drawRoundRect(pillRect, r, r, rimPaint);
+            canvas.restoreToCount(save);
+        } else {
+            /* 背景未就绪时的按压降级：半透明药丸，保证按下有反馈 */
+            fallbackPaint.setColor(Color.argb(60, 255, 255, 255));
+            canvas.drawRoundRect(pillRect, r, r, fallbackPaint);
+        }
+    }
+
+    /**
+     * 挂到 Activity：本层活在 **PopupWindow 的独立 Window** 里。
+     *
+     * 为什么不再 addView 到主布局：PixelCopy 抓的是主窗口的合成结果，本层若在主窗口里，
+     * 就会把自己画的玻璃一起抓进去 → 反馈循环。独立 Window 不参与主窗口合成，天然免疫。
+     */
+    public static LensBarView attach(Activity act, ViewGroup root, WebView webView) {
+        LensBarView v = new LensBarView(act, webView);
+        v.window = act.getWindow();
+        v.anchor = root;
+        int h = (int) (120 * act.getResources().getDisplayMetrics().density);
+        v.popup = new PopupWindow(v, ViewGroup.LayoutParams.MATCH_PARENT, h, false);
+        v.popup.setClippingEnabled(false);
+        v.popup.setBackgroundDrawable(null);
+        /* 保底预热：即使几何上报这条路失败，也要先有一张背景，
+           否则药丸永远不会画出来（noBg 降级只是半透明，没有折射内容）。 */
+        v.postDelayed(v::captureBackdrop, 1200);
+        /* 滑块绘制路径预热（nativeDock）：冷启动后首次切页的滑块弹簧动画要付
+           onDraw/blit 路径的 JIT 全额成本（实测首次切页 legacy janky 8.65% vs
+           热态 3%）—— 几何同步后滑块无声地动 3% 再弹回，把路径跑热，
+           用户第一次真实点击就是热路径。肉眼几乎不可见（一格的 3%）。 */
+        v.postDelayed(() -> {
+            if (v.detached || !v.nativeDock) return;
+            v.pos.springTo(0.03, TRAVEL, nowSec());
+            v.ensureTicking();
+            v.postDelayed(() -> {
+                if (v.detached || v.pressed) return;
+                v.pos.springTo(0, TRAVEL, nowSec());
+                v.ensureTicking();
+            }, 150);
+        }, 3000);
+        /* 几何补测：ready 时刻 safe-area 尚未生效（Bridge.ready 才触发 insets 应用），
+           首次量到的是瞬态布局。1.5s / 3s 各补量一次，稳定值覆盖瞬态值。 */
+        v.postDelayed(v::requestGeometry, 1500);
+        v.postDelayed(v::requestGeometry, 3000);
+        v.showPopup();
+        return v;
+    }
+
+    /** 显示透镜窗（幂等）。window token 未就绪时有界重试（200ms×25）——
+     *  快速重启/键盘收起路径不保证 token 已在。 */
+    /** 旋转后弹窗宽度不跟随：PopupWindow 的 MATCH_PARENT 在 showAtLocation 时定格，
+     *  横屏 3040 宽的窗口转竖屏后仍按 3040 布局 —— 可见区域里只有前几格可点
+     *  （2026-10-27 竖屏实测「我的」点不到）。宽度变了就 dismiss 重 show。 */
+    private int lastPopupWidth;
+
+    public void reflow() {
+        if (popup == null || detached || anchor == null) return;
+        int screenW = anchor.getResources().getDisplayMetrics().widthPixels;
+        if (lastPopupWidth == screenW && popup.isShowing()) return;
+        lastPopupWidth = screenW;
+        if (popup.isShowing()) {
+            try { popup.dismiss(); } catch (Throwable ignored) { }
+        }
+        showPopup();
+    }
+
+    private void showPopup() {
+        if (popup == null || popup.isShowing() || detached || anchor == null) return;
+        anchor.post(new Runnable() {
+            int tries = 0;
+            @Override public void run() {
+                if (detached || popup.isShowing()) return;
+                if (anchor.getWindowToken() != null) {
+                    try {
+                        popup.showAtLocation(anchor, Gravity.BOTTOM | Gravity.START, 0, 0);
+                    } catch (Throwable t) {
+                        Log.w(TAG, "PopupWindow 显示失败", t);
+                    }
+                    return;
+                }
+                if (++tries <= 25) anchor.postDelayed(this, 200);
+                else Log.w(TAG, "PopupWindow 等待窗口 token 超时，未显示");
+            }
+        });
+    }
+
+    /** 键盘弹出时收起透镜窗：adjustResize 下它会悬停在键盘上沿，药丸拦截带
+     *  正好压住页面底部内容；网页侧底栏此时已由 data-kb 隐藏，原生同步收起。
+     *  收起时若正拖着，按取消处理弹回选中格。 */
+    public void setImeVisible(boolean shown) {
+        if (imeShown == shown || popup == null || detached) return;
+        imeShown = shown;
+        updatePopupVisibility();
+    }
+
+    /** 页面有底部弹层（sheet/抽屉）盖住底栏时收起透镜窗。弹窗是独立窗口永远
+     *  置顶，药丸触摸带会吃掉 sheet 底部控件（全局质感的玻璃开关）的点击，甚至
+     *  被当成切 tab 处理（切页还会顺带关 sheet）—— 2026-10-26 用户报障。
+     *  页面经 NetBridge.setSheetOpen 推送开合状态。 */
+    public void setOverlaid(boolean overlaid) {
+        if (this.overlaid == overlaid || popup == null || detached) return;
+        this.overlaid = overlaid;
+        updatePopupVisibility();
+    }
+
+    /** 透镜窗显隐唯一入口：IME 或页面弹层任一在场就收窗。收窗时玻璃必须归零
+     *  并让帧循环跑完落定分支——原实现漏了 lift 与页面类：若键盘/弹层在按压或
+     *  抬起落定窗口内出现，lift 冻在半空、dropping 已取消、wasActive 被清 →
+     *  帧循环休眠，无人再把玻璃送回 0；重显弹窗后 onDraw 看到 liftV>0 照画
+     *  —— 玻璃药丸永久悬停在最上层，页面侧 lens-live/native-lens-press 残留
+     *  让 HTML 药丸消失、tab 全灰（2026-10-26 用户报「药丸悬停所有页面关不掉」）。 */
+    private void updatePopupVisibility() {
+        boolean hide = imeShown || overlaid;
+        if (hide) {
+            boolean wasPressed = pressed;
+            if (pressed) {
+                pressed = false;
+                dragging = false;
+                dropping = false;
+                pos.springTo(selectedIndex, TRAVEL, nowSec());
+            }
+            if (wasPressed || lift.value() > 0.005f || lift.active()) {
+                dropping = false;
+                lift.springTo(0, LIFT_S, nowSec());
+                ensureTicking();
+                wasActive = true;   // 交给 doFrame 的落定分支：callLensEnd + setPressClass(false)
+            } else {
+                wasActive = false;
+            }
+            if (popup.isShowing()) {
+                try {
+                    popup.dismiss();
+                } catch (Throwable ignored) {
+                    // 收起失败无后果
+                }
+            }
+        } else {
+            showPopup();
+        }
+    }
+
+    /** Activity 销毁时收掉：帧回调、延迟任务、弹窗一次清干净，否则会 window leak
+     *  且旧实例在 Choreographer 上永久空转（旋转重建场景会逐次累积）。 */
+    public void detach() {
+        detached = true;
+        ticking = false;
+        removeCallbacks(null);   // 预热/几何补测的 postDelayed 一并撤掉（detached 后本就是空操作）
+        Choreographer.getInstance().removeFrameCallback(this);
+        pressed = false;
+        dragging = false;
+        dropping = false;
+        setPressClass(false);
+        if (popup != null && popup.isShowing()) {
+            try {
+                popup.dismiss();
+            } catch (Throwable ignored) {
+                // 销毁期异常无意义
+            }
+        }
+    }
 }
