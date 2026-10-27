@@ -1003,6 +1003,294 @@ public class MainActivity extends AppCompatActivity {
         }
 
         /**
+         * 页面量好底栏几何后上报（CSS px）。几何真源仍在 CSS，原生层不做推导
+         * （栏有边距、药丸比一格宽 8px、还有 safe-area，推导必错）。
+         * 走到这里就说明 JS 侧代码真的执行了 —— 这条日志本身就是"接管是否成功"的判据。
+         */
+        @JavascriptInterface
+        public void setLensGeometry(float slot, float pillW, float pillH,
+                                    float firstCx, float pillCy, int count, float viewportH) {
+            if (lensBar == null) return;
+            runOnUiThread(() -> {
+                lensBar.setLensGeometry(slot, pillW, pillH, firstCx, pillCy, count, viewportH);
+                Log.i("LensBar", String.format(
+                        "几何已同步 一格%.1f 药丸%.1f×%.1f 首格中心(%.1f,%.1f) 共%d格",
+                        slot, pillW, pillH, firstCx, pillCy, count));
+                lensBar.warmUp();
+            });
+        }
+
+        /** 页面自己切了 tab（例如深链/返回）时回传，避免两边选中态不一致。 */
+        @JavascriptInterface
+        public void setSelectedIndex(int index) {
+            if (lensBar == null) return;
+            runOnUiThread(() -> lensBar.setSelectedIndex(index));
+        }
+
+        /** 阶段页全量数据走 assets/native-data.json（loadNativeData 解析后直接喂给视图），
+         *  页面层只需把旧 localStorage 状态并进来做迁移。 */
+        @JavascriptInterface
+        public void setLegacyState(String doneJson, String favJson) {
+            if (nativePhase == null) return;
+            runOnUiThread(() -> nativePhase.mergeLegacyState(doneJson, favJson));
+        }
+
+        /** 页面层（旧 WebView 视图）改了掌握/收藏：同步给原生，避免两边口径分叉。 */
+        @JavascriptInterface
+        public void setNativeState(String id, String kind, boolean on) {
+            if (nativePhase == null) return;
+            runOnUiThread(() -> nativePhase.setState(id, kind, on));
+        }
+
+        /** 直铺模式（有壁纸）：原生页透明底 + 半透明卡，与 Web 层观感一致。 */
+        /** 抽屉开关：抽屉是 WebView 画的一层，原生页在它之上 → 打开抽屉时必须
+         *  把所有原生页收起，关闭后由页面层按当前路由重新 show（无记忆状态）。 */
+        @JavascriptInterface
+        public void setDrawerOpen(boolean open) {
+            if (!open) return;
+            runOnUiThread(() -> {
+                if (nativePhase != null) nativePhase.hide();
+                if (nativeFault != null) nativeFault.hide();
+                if (nativeIv != null) nativeIv.hide();
+                if (nativeDict != null) nativeDict.hide();
+                if (nativeRefs != null) nativeRefs.hide();
+                if (nativeGlossary != null) nativeGlossary.hide();
+                if (nativeRoadmap != null) nativeRoadmap.hide();
+                if (nativeQuiz != null) nativeQuiz.hide();
+                if (nativeHome != null) nativeHome.hide();
+            });
+        }
+
+        @JavascriptInterface
+        public void setNativePageMode(boolean direct) {
+            applyNativePageMode(direct, "", 8f);
+        }
+
+        /** 带壁纸文件的版本：玻璃件（LiquidGlassView）用它采样原生壁纸层。 */
+        @JavascriptInterface
+        public void setNativePageMode2(boolean direct, String wpFile, float blurDp) {
+            applyNativePageMode(direct, wpFile, blurDp);
+        }
+
+        private void applyNativePageMode(boolean direct, String wpFile, float blurDp) {
+            runOnUiThread(() -> {
+                if (nativeBackdrop != null) nativeBackdrop.setWallpaper(direct ? wpFile : "", blurDp);
+                if (nativePhase != null) nativePhase.setDirectMode(direct);
+                if (nativeFault != null) nativeFault.setDirectMode(direct);
+                if (nativeIv != null) nativeIv.setDirectMode(direct);
+                if (nativeDict != null) nativeDict.setDirectMode(direct);
+                if (nativeRefs != null) nativeRefs.setDirectMode(direct);
+                if (nativeGlossary != null) nativeGlossary.setDirectMode(direct);
+                if (nativeRoadmap != null) nativeRoadmap.setDirectMode(direct);
+                if (nativeQuiz != null) nativeQuiz.setDirectMode(direct);
+                if (nativeHome != null) nativeHome.setDirectMode(direct);
+                if (nativeSearch != null) nativeSearch.setDirectMode(direct);
+                if (nativeFav != null) nativeFav.setDirectMode(direct);
+                if (nativeMe != null) nativeMe.setDirectMode(direct);
+            });
+        }
+
+        @JavascriptInterface
+        public void showNativeFault() {
+            if (nativeFault == null) return;
+            runOnUiThread(() -> { hideNativePagesExcept("fault"); nativeFault.show(); });
+        }
+
+        @JavascriptInterface
+        public void hideNativeFault() {
+            if (nativeFault == null) return;
+            runOnUiThread(() -> nativeFault.hide());
+        }
+
+        @JavascriptInterface
+        public void showNativeDict() {
+            if (nativeDict == null) return;
+            runOnUiThread(() -> { hideNativePagesExcept("dict"); nativeDict.show(); });
+        }
+
+        @JavascriptInterface
+        public void hideNativeDict() {
+            if (nativeDict == null) return;
+            runOnUiThread(() -> nativeDict.hide());
+        }
+
+        @JavascriptInterface
+        public void showNativeRefs() { if (nativeRefs != null) runOnUiThread(() -> { hideNativePagesExcept("refs"); nativeRefs.show(); }); }
+
+        @JavascriptInterface
+        public void hideNativeRefs() { if (nativeRefs != null) runOnUiThread(() -> nativeRefs.hide()); }
+
+        @JavascriptInterface
+        public void showNativeGlossary() { if (nativeGlossary != null) runOnUiThread(() -> { hideNativePagesExcept("glossary"); nativeGlossary.show(); }); }
+
+        @JavascriptInterface
+        public void hideNativeGlossary() { if (nativeGlossary != null) runOnUiThread(() -> nativeGlossary.hide()); }
+
+        @JavascriptInterface
+        public void showNativeRoadmap() { if (nativeRoadmap != null) runOnUiThread(() -> { hideNativePagesExcept("roadmap"); nativeRoadmap.show(); }); }
+
+        @JavascriptInterface
+        public void hideNativeRoadmap() { if (nativeRoadmap != null) runOnUiThread(() -> nativeRoadmap.hide()); }
+
+        @JavascriptInterface
+        public void showNativeFav() {
+            if (nativeFav == null) return;
+            runOnUiThread(() -> { hideNativePagesExcept("fav"); nativeFav.show(); });
+        }
+
+        @JavascriptInterface
+        public void hideNativeFav() { if (nativeFav != null) runOnUiThread(() -> nativeFav.hide()); }
+
+        @JavascriptInterface
+        public void showNativeDrawer() {
+            if (nativeDrawer == null) return;
+            runOnUiThread(() -> {
+                nativeDrawer.open();
+                if (lensBar != null) lensBar.setOverlaid(true);
+            });
+        }
+
+        @JavascriptInterface
+        public void hideNativeDrawer() {
+            if (nativeDrawer == null) return;
+            runOnUiThread(() -> nativeDrawer.close());
+        }
+
+        @JavascriptInterface
+        public void hideAllNativePages() {
+            runOnUiThread(() -> hideNativePagesExcept(null));
+        }
+
+        @JavascriptInterface
+        public void showNativeMe() {
+            if (nativeMe == null) return;
+            runOnUiThread(() -> { hideNativePagesExcept("me"); nativeMe.show(); });
+        }
+
+        @JavascriptInterface
+        public void hideNativeMe() { if (nativeMe != null) runOnUiThread(() -> nativeMe.hide()); }
+
+        /** 设置面板打开时，页面层把当前状态推回来。 */
+        @JavascriptInterface
+        public void setSettingsState(String theme, String wallpaper, String glassJson) {
+            if (settingsPanel == null) return;
+            try {
+                org.json.JSONObject g = new org.json.JSONObject(glassJson);
+                boolean dk = resolvedDark();
+                runOnUiThread(() -> {
+                    settingsPanel.setDark(dk);
+                    settingsPanel.updateState(theme, wallpaper, g);
+                });
+            } catch (Throwable ignored) { }
+        }
+
+        @JavascriptInterface
+        public void showNativeSearch() {
+            if (nativeSearch == null) return;
+            runOnUiThread(() -> { hideNativePagesExcept("search"); nativeSearch.show(); });
+        }
+
+        @JavascriptInterface
+        public void hideNativeSearch() { if (nativeSearch != null) runOnUiThread(() -> nativeSearch.hide()); }
+
+        @JavascriptInterface
+        public void showNativeHome() { if (nativeHome != null) runOnUiThread(() -> { hideNativePagesExcept("home"); nativeHome.show(); }); }
+
+        @JavascriptInterface
+        public void hideNativeHome() { if (nativeHome != null) runOnUiThread(() -> nativeHome.hide()); }
+
+        @JavascriptInterface
+        public void showNativeQuiz() { if (nativeQuiz != null) runOnUiThread(() -> { hideNativePagesExcept("quiz"); nativeQuiz.show(); }); }
+
+        @JavascriptInterface
+        public void hideNativeQuiz() { if (nativeQuiz != null) runOnUiThread(() -> nativeQuiz.hide()); }
+
+        @JavascriptInterface
+        public void showNativeIv() {
+            if (nativeIv == null) return;
+            runOnUiThread(() -> { hideNativePagesExcept("iv"); nativeIv.show(); });
+        }
+
+        @JavascriptInterface
+        public void hideNativeIv() {
+            if (nativeIv == null) return;
+            runOnUiThread(() -> nativeIv.hide());
+        }
+
+        /** 原生阶段详情页显示（N1 起这就是阶段页本体，不再是渲染代理）。 */
+        @JavascriptInterface
+        public void showNativePhase(String pid) {
+            if (nativePhase == null) return;
+            runOnUiThread(() -> { hideNativePagesExcept("phase"); nativePhase.show(pid); });
+        }
+
+        /** 「继续学习」/收藏跳转：直接展开目标模块卡并滚到它。 */
+        @JavascriptInterface
+        public void showNativePhaseFocus(String pid, String mid) {
+            if (nativePhase == null) return;
+            runOnUiThread(() -> { hideNativePagesExcept("phase"); nativePhase.show(pid, mid); });
+        }
+
+        @JavascriptInterface
+        public void hideNativePhase() {
+            if (nativePhase == null) return;
+            runOnUiThread(() -> nativePhase.hide());
+        }
+
+        /** 原生底栏开关（页面 boot 读 localStorage netops_native_dock 上报）。
+         *  开 = LensBarView 画全部底栏外观、HTML 底栏 visibility:hidden；关 = 回退 HTML。 */
+        @JavascriptInterface
+        public void setNativeDock(boolean on) {
+            if (lensBar == null) return;
+            runOnUiThread(() -> lensBar.setNativeDock(on));
+        }
+
+        /* ---- R2 原生顶栏桥 ---- */
+
+        /** 原生顶栏开关（页面 boot 读 localStorage netops_native_appbar 上报，默认开）。
+         *  开 = AppBarView 画全部顶栏外观、HTML 顶栏 visibility:hidden；关 = 回退 HTML。 */
+        @JavascriptInterface
+        public void setNativeAppbar(boolean on) {
+            if (appbarBar == null) return;
+            runOnUiThread(() -> appbarBar.setNativeBar(on));
+        }
+
+        /** 顶栏状态推送（标题/导航键/主题键/滚动/搜索/抽屉/玻璃/壁纸版本）。
+         *  32-boot 的 MutationObserver 合并 30ms 后调用，JSON 很小，UI 线程直接解析。 */
+        @JavascriptInterface
+        public void setAppBarState(String json) {
+            if (appbarBar == null) return;
+            runOnUiThread(() -> appbarBar.setState(json));
+        }
+
+        /** 顶栏几何上报（原生索取制应答）：bar/title/nav/search/theme 五个矩形，
+         *  屏幕物理 px（CSS×devicePixelRatio）。落地后预抓一次背景。 */
+        @JavascriptInterface
+        public void setAppBarGeometry(String json) {
+            if (appbarBar == null) return;
+            runOnUiThread(() -> {
+                appbarBar.setGeometry(json);
+                appbarBar.warmUp();
+            });
+        }
+
+        /** 栏矩形上报（CSS×dpr 物理像素）——原生底栏容器/触摸判定的几何真源。 */
+        @JavascriptInterface
+        public void setLensBarRect(float l, float t, float w, float h) {
+            if (lensBar == null) return;
+            runOnUiThread(() -> lensBar.setLensBarRect(l, t, w, h));
+        }
+
+        /** 页面底部弹层（壁纸/全局质感 sheet）开合推送：弹层在场时收起透镜窗，
+         *  否则药丸触摸带（独立窗口永远置顶）会吃掉 sheet 底部控件（玻璃开关）的
+         *  点击。旧页面没有此方法时静默忽略。 */
+        @JavascriptInterface
+        public void setSheetOpen(boolean open) {
+            if (lensBar == null) return;
+            runOnUiThread(() -> lensBar.setOverlaid(open));
+        }
+
+        /**
          * 触感反馈。用 View.performHapticFeedback 而非 Vibrator：
          * 尊重系统「触感反馈」开关、不需要 VIBRATE 权限，力度也和原生控件一致。
          */
@@ -1010,9 +1298,12 @@ public class MainActivity extends AppCompatActivity {
         public void haptic(int ms) {
             runOnUiThread(() -> {
                 if (webView == null) return;
+                /* ms <= 0：选中态轻点。用 CLOCK_TICK 对齐 FlClash/iOS 的分段选择反馈
+                   （2026-10-22 真机抓 logcat：performHapticFeedback constant=4，约 15ms）。 */
                 int effect = ms >= 16
                         ? HapticFeedbackConstants.LONG_PRESS
-                        : HapticFeedbackConstants.VIRTUAL_KEY;
+                        : (ms <= 0 ? HapticFeedbackConstants.CLOCK_TICK
+                                   : HapticFeedbackConstants.VIRTUAL_KEY);
                 try {
                     webView.performHapticFeedback(effect);
                 } catch (Exception e) {
@@ -1235,8 +1526,28 @@ public class MainActivity extends AppCompatActivity {
         super.onConfigurationChanged(newConfig);
         // 系统深浅色切换时同步系统栏；网页侧 auto 模式由 CSS media query 自行响应
         applyBarAppearance(resolvedDark());
+        if (lensBar != null) { lensBar.setDark(resolvedDark()); lensBar.reflow(); }   // 旋转后弹窗宽度重算
+        if (nativePhase != null) nativePhase.setDark(resolvedDark());
+        if (nativeFault != null) nativeFault.setDark(resolvedDark());
+        if (nativeIv != null) nativeIv.setDark(resolvedDark());
+        if (nativeDict != null) nativeDict.setDark(resolvedDark());
+        if (nativeRefs != null) nativeRefs.setDark(resolvedDark());
+        if (nativeGlossary != null) nativeGlossary.setDark(resolvedDark());
+        if (nativeRoadmap != null) nativeRoadmap.setDark(resolvedDark());
+        if (nativeQuiz != null) nativeQuiz.setDark(resolvedDark());
+        if (nativeHome != null) nativeHome.setDark(resolvedDark());
+        if (nativeSearch != null) nativeSearch.setDark(resolvedDark());
+        if (nativeFav != null) nativeFav.setDark(resolvedDark());
+        if (nativeMe != null) nativeMe.setDark(resolvedDark());
+        if (appbarBar != null) {
+            appbarBar.setDark(resolvedDark());
+            appbarBar.requestGeometry();   // 旋转后顶栏矩形无条件补测（R1 同款教训）
+        }
         if (root != null) {
             ViewCompat.requestApplyInsets(root);
         }
+        /* 旋转后透镜几何无条件补测：insets 签名在横竖屏间可能不变（见
+           remeasureLensSoon 注释），不能指望 insets 分发顺带重测 */
+        remeasureLensSoon();
     }
 }
