@@ -1,21 +1,46 @@
-MIT License
+# 使用许可（NetOps Handbook）
 
 Copyright (c) 2026 Seven John
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+## 一、许可范围
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+本项目**仅供学习、研究与个人交流使用**，具体授权如下：
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+**允许**：
+
+- 下载、阅读、编译、运行本项目，用于个人学习与技术研究；
+- 在教学、技术分享、非商业性的课堂或社群中展示、演示本项目；
+- 在不发布衍生版本的前提下，基于本项目进行个人练习性质的修改与试验；
+- 转载本项目的内容摘要或截图，需注明来源。
+
+**禁止**：
+
+- **任何形式的商业使用**，包括但不限于：销售本项目或其衍生版本、内置到付费产品中、
+  作为商业服务或培训的配套材料、用于引流变现、企业内训等以营利为目的的使用；
+- 将本项目或其衍生版本发布到应用商店、软件下载站或任何付费/带广告的分发渠道；
+- 去除或修改本许可声明、作者署名与来源信息后再分发；
+- 以本项目名义提供商业服务、招揽业务或背书。
+
+**如需商业授权，须事先取得著作权人的书面许可。**
+
+## 二、第三方组件例外
+
+本项目包含第三方开源组件，其版权与许可声明见
+[`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md)。
+
+这些组件**仍按其原有许可证**（如 MIT）提供，其授权范围不受本文件限制——
+即：对于这些组件本身，其原许可证所授予的权利依然有效，本文件不得、也无法
+收窄这些权利。本文件的「禁止商用」等限制，仅适用于本项目作者原创的部分。
+
+## 三、免责声明
+
+本项目按「现状」提供，不附带任何明示或默示的担保。因使用本项目产生的任何直接或
+间接损失，作者不承担责任。
+
+本项目为**辅助教学**材料，内容可能存在错误或过时；涉及生产环境的网络配置与变更，
+请以厂商官方文档与现场验证为准。
+
+## 四、内容来源
+
+项目内的知识内容为作者整理编写，用于帮助初学者建立网络运维的知识框架；
+引用他人观点或资料处已尽量注明。若认为内容侵犯了你的权利，请联系作者处理。

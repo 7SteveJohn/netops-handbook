@@ -61,6 +61,7 @@ android {
 
 dependencies {
     implementation(libs.appcompat)
+    implementation("androidx.dynamicanimation:dynamicanimation:1.0.0")
 
     testImplementation(libs.junit)
 

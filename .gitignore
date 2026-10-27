@@ -67,3 +67,12 @@ keystore.properties
 /.zcodeignore
 /javac-out.txt
 /nul
+dist/
+/规划-*.md
+
+# 过程交接与调研快照（本地保留，不入公开仓库）
+/HANDOFF-*.md
+/FlClash*.md
+/.cache-flclash/
+/vw.png
+/web-src/tools/glass-tier-demo.html
