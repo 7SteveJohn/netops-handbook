@@ -223,4 +223,238 @@ public class LiquidGlassView extends ViewGroup {
      *
      * @param alpha float (0f-1f)
      */
+    public void setTintAlpha(float alpha) {
+        this.tintAlpha = alpha;
+        updateConfig();
+    }
+
+    /**
+     * Set dispersion
+     *
+     * @param dispersion float (0f-1f)
+     */
+    public void setDispersion(float dispersion) {
+        this.dispersion = Math.max(0f, Math.min(1f, dispersion));
+        updateConfig();
+    }
+
+    /**
+     * Set the blur radius
+     *
+     * @param radius float
+     */
+    public void setBlurRadius(float radius) {
+        this.blurRadius = Math.max(0.01f, Math.min(50, radius));
+        updateConfig();
+    }
+
+    /**
+     * Set whether the View is draggable or not
+     *
+     * @param enabled boolean
+     */
+    public void setDraggableEnabled(boolean enabled) {
+        this.draggableEnabled = enabled;
+        if (!enabled) {
+            liquidTracker.recycle();
+        }
+    }
+
+    /**
+     * Set whether elastic effect is needed or not
+     * @param enabled boolean
+     */
+    public void setElasticEnabled(boolean enabled) {
+        this.elasticEnabled = enabled;
+        if (!enabled) {
+            liquidTracker.recycle();
+        }
+    }
+
+    /**
+     * Set whether the touch effect (iOS style press animation) is enabled
+     * @param enabled boolean
+     */
+    public void setTouchEffectEnabled(boolean enabled) {
+        this.touchEffectEnabled = enabled;
+    }
+
+    private void updateConfig() {
+        if (glass == null) {
+            rebuild();
+            return;
+        }
+
+        int w = getWidth();
+        int h = getHeight();
+        if (w <= 0) w = Utils.getDeviceWidthPx(context);
+        if (h <= 0) h = getResources().getDisplayMetrics().heightPixels;
+
+        config.CORNER_RADIUS_PX = cornerRadius;
+        config.REFRACTION_HEIGHT = refractionHeight;
+        config.REFRACTION_OFFSET = refractionOffset;
+        config.BLUR_RADIUS = blurRadius;
+        config.WIDTH = w;
+        config.HEIGHT = h;
+        config.DISPERSION = dispersion;
+        config.TINT_ALPHA = tintAlpha;
+        config.TINT_COLOR_BLUE = tintColorBlue;
+        config.TINT_COLOR_GREEN = tintColorGreen;
+        config.TINT_COLOR_RED = tintColorRed;
+
+        glass.post(() -> glass.updateParameters());
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        post(this::ensureGlass);
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        removeGlass();
+        super.onDetachedFromWindow();
+    }
+
+    @Override
+    protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+        super.onSizeChanged(w, h, oldw, oldh);
+        if (w != oldw || h != oldh) {
+            if (w > 0 && h > 0) {
+                float maxPx = h / 2f;
+                if (cornerRadius > maxPx) {
+                    cornerRadius = maxPx;
+                }
+                rebuild();
+            }
+        }
+    }
+
+    private void rebuild() {
+        removeGlass();
+        post(this::ensureGlass);
+    }
+
+    private void ensureGlass() {
+        if (glass != null) return;
+
+        int w = getWidth();
+        int h = getHeight();
+        if (w <= 0) w = Utils.getDeviceWidthPx(context);
+        if (h <= 0) h = getResources().getDisplayMetrics().heightPixels;
+
+        config = new Config();
+        config.configure(new Config.Overrides()
+                .noFilter()
+                .contrast(0f)
+                .whitePoint(0f)
+                .chromaMultiplier(1f)
+                .blurRadius(blurRadius)
+                .cornerRadius(cornerRadius)
+                .refractionHeight(refractionHeight)
+                .refractionOffset(refractionOffset)
+                .tintAlpha(tintAlpha)
+                .tintColorRed(tintColorRed)
+                .tintColorGreen(tintColorGreen)
+                .tintColorBlue(tintColorBlue)
+                .dispersion(dispersion)
+                .size(w, h)
+        );
+
+        glass = new LiquidGlass(getContext(), config);
+
+        LayoutParams lp = new LayoutParams(
+                LayoutParams.MATCH_PARENT,
+                LayoutParams.MATCH_PARENT
+        );
+        addView(glass, 0, lp);
+
+        ViewGroup source = customSource;
+        if (source == null && getParent() instanceof ViewGroup) {
+            return;
+        }
+        glass.init(source);
+    }
+
+    private void removeGlass() {
+        if (glass != null) {
+            removeView(glass);
+            glass = null;
+        }
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    @Override
+    public boolean onTouchEvent(android.view.MotionEvent e) {
+        if (!draggableEnabled && !touchEffectEnabled) return super.onTouchEvent(e);
+        if (elasticEnabled) liquidTracker.applyMovement(e);
+
+        switch (e.getActionMasked()) {
+            case android.view.MotionEvent.ACTION_DOWN:
+                if (touchEffectEnabled) {
+                    isTouching = true;
+                    liquidTracker.animateScale(1.02f);
+
+                    glowX = e.getX();
+                    glowY = e.getY();
+                    invalidate();
+                }
+
+                if (draggableEnabled) {
+                    downX = e.getRawX();
+                    downY = e.getRawY();
+                    startTx = getTranslationX();
+                    startTy = getTranslationY();
+                    return true;
+                }
+                break;
+            case android.view.MotionEvent.ACTION_MOVE: {
+                if (touchEffectEnabled) {
+                    glowX = e.getX();
+                    glowY = e.getY();
+                    invalidate();
+                }
+
+                if (draggableEnabled) {
+                    float dx = e.getRawX() - downX;
+                    float dy = e.getRawY() - downY;
+                    float tx = startTx + dx;
+                    float ty = startTy + dy;
+
+                    ViewGroup parent = (ViewGroup) getParent();
+                    if (parent != null) {
+                        int pw = parent.getWidth(), ph = parent.getHeight();
+                        int w = getWidth(), h = getHeight();
+                        if (pw > 0 && ph > 0 && w > 0 && h > 0) {
+                            float minX = -getLeft();
+                            float maxX = pw - getLeft() - w;
+                            float minY = -getTop();
+                            float maxY = ph - getTop() - h;
+                            if (tx < minX) tx = minX;
+                            if (tx > maxX) tx = maxX;
+                            if (ty < minY) ty = minY;
+                            if (ty > maxY) ty = maxY;
+                        }
+                    }
+                    setTranslationX(tx);
+                    setTranslationY(ty);
+                    return true;
+                }
+                break;
+            }
+            case android.view.MotionEvent.ACTION_UP:
+            case android.view.MotionEvent.ACTION_CANCEL:
+                if (touchEffectEnabled) {
+                    isTouching = false;
+                    liquidTracker.animateScale(1f);
+                    invalidate();
+                }
+                if (draggableEnabled) return true;
+                break;
+        }
+
+        boolean superResult = super.onTouchEvent(e);
+        return touchEffectEnabled || superResult;
+    }
 }
