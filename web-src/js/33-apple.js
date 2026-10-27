@@ -400,6 +400,237 @@ window.TAB_PILL = true;
     if (p) p.remove();
   }
 
+  /* ==================================================================
+   * 药丸拖拽（果冻跟手）—— 2026-10-22 新增
+   * ------------------------------------------------------------------
+   * 与 2026-09 被废除的 rAF 果冻引擎的区别（这是能不能做的前提）：
+   *   旧：rAF 循环逐帧积分弹簧 + 每帧 getBoundingClientRect 定位
+   *       → 页面挂起即冻结、宽度双真源、对布局时序敏感（三项病根）。
+   *   新：事件驱动。只在 pointermove 里写两个 CSS 变量，动画全部交给 CSS
+   *       transition；几何只在 pointerdown 量一次（药丸 absolute 定位，
+   *       拖它不改布局，缓存的数字不会失效）。没有循环，就没有"冻在半路"。
+   * 单一真源不破：静止位置仍是 --pill-i（32-boot 的 syncPillIndex 独占），
+   * 本函数只写 --pill-drag-i 与 --pill-sx/--pill-sy，且拖拽结束后立刻归还。
+   * ================================================================== */
+  function initPillDrag() {
+    if (!window.TAB_PILL) return;
+    var bar = document.getElementById('tabbar');
+    if (!bar || bar.__pillDragBound) return;
+    var pill = document.getElementById('tabPill');
+    if (!pill) return;
+    bar.__pillDragBound = true;
+
+    var SLOP = 8;            /* 横向超过 8px 才接手，不到就放行原生 click */
+    var FULL_SPEED = 1.2;    /* px/ms：拖到这个速度变形拉满 */
+    var MAX_STRETCH = 0.14;  /* 横向最大拉伸（按下态抬起到 1.16×1.16，见 06-anim 关键帧） */
+    var SQUASH = 1.15;       /* 纵向反向压缩倍率：近似体积守恒，才像果冻不像橡皮 */
+    var LIFT = 1.16;         /* 抓住时的整体放大，与按下态关键帧的终点量级一致 */
+    /* 与 32-boot 返回手势的起手带（EDGE=22）保持一致：边缘起手让给返回，
+       否则两套手势会同时认领同一次横拖。多留 2px 冗余避免边界抖动。 */
+    var EDGE = 24;
+
+    var tabs = [], dragIndex = 0, dragging = false, pending = false;
+    var pid = null, startX = 0, startY = 0, lastX = 0, lastT = 0;
+    var geom = null, lastSlot = 0;
+    var originIndex = 0;
+    var draggedRecently = false, clearDragTimer = 0;
+
+
+    function count() {
+      tabs = Array.prototype.slice.call(bar.querySelectorAll('.tab'));
+      return tabs.length;
+    }
+    function readIndex() {
+      var v = parseFloat(getComputedStyle(bar).getPropertyValue('--pill-i'));
+      return isFinite(v) ? v : 0;
+    }
+    /* 只在按下时量一次。不能用药丸自己的 getBoundingClientRect —— 它带 scale，
+       拖拽/回弹途中会读到被拉伸后的宽度，格宽就漂了。改从栏宽推算，
+       与 CSS 的 width:calc((100% - 2*pad)/5) 同源，且不受任何 transform 影响。
+       display:none（regular 贴底模式）时 offsetWidth 为 0 → 直接不启动。 */
+    function measure() {
+      var n = count();
+      if (!n || !pill.offsetWidth) return false;
+      var br = bar.getBoundingClientRect();
+      var pad = pill.offsetLeft;
+      var step = (br.width - 2 * pad) / n;
+      if (!(step > 0)) return false;
+      geom = { left: br.left, step: step, pad: pad, n: n };
+      return true;
+    }
+    function setVar(k, v) { bar.style.setProperty(k, v); }
+    function restScale() { setVar('--pill-sx', '1'); setVar('--pill-sy', '1'); }
+
+    /* 把一次手势的全部状态清干净。任何"漏接 up"的路径最后都要落到这里。 */
+    function resetGesture() {
+      pid = null; pending = false; dragging = false;
+      bar.classList.remove('is-pill-press', 'is-pill-drag');
+      bar.style.removeProperty('--pill-drag-i');
+      restScale();
+    }
+
+    /* 松手回弹：走 06-anim 的 pillJellyRelease 关键帧。
+       同一帧内 remove→add 不会重启同名动画，中间插一次强制重排才重播。 */
+    function playRelease() {
+      if (motionOff()) { bar.classList.remove('is-pill-release'); return; }
+      bar.classList.remove('is-pill-release');
+      void pill.offsetWidth;
+      bar.classList.add('is-pill-release');
+    }
+
+    /* 手指位置 → 小数格索引。两端走橡皮筋，拖不出去。 */
+    function indexAt(clientX) {
+      var i = (clientX - geom.left - geom.pad - geom.step / 2) / geom.step;
+      var last = geom.n - 1;
+      /* 硬夹住，不做橡皮筋：药丸是 absolute 且父级 overflow 放开，
+         一旦允许越界（旧写法 last + (i-last)*0.35），快甩时整块会跑到栏外面去。 */
+      if (i < 0) return 0;
+      return i > last ? last : i;
+    }
+
+    function onDown(e) {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      if (pid !== null) resetGesture();        /* 上一条手势没收尾：强制回收，别让药丸永久失效 */
+      /* 屏幕边缘起手 = 返回手势的地盘（见 EDGE 注释） */
+      if (e.clientX <= EDGE || e.clientX >= window.innerWidth - EDGE) return;
+      if (!measure()) return;
+      pid = e.pointerId;
+      pending = true;
+      dragging = false;
+      startX = lastX = e.clientX;
+      startY = e.clientY;
+      lastT = window.performance.now();
+      originIndex = Math.round(readIndex());
+
+      /* 按下即滑到该格（T2）：先把 --pill-i 写到按住那一格做**预览**滑动，
+         松手时原生 click 再提交真正的选中。拖动则从这一格接着跟手。
+         没提交成（竖滑放弃 / pointercancel）会把 --pill-i 撤回 originIndex。 */
+      var pressed = Math.round(indexAt(e.clientX));
+      pressed = Math.max(0, Math.min(geom.n - 1, pressed));
+      dragIndex = lastSlot = pressed;
+      setVar('--pill-drag-i', String(pressed));
+      setVar('--pill-i', String(pressed));
+      bar.classList.remove('is-pill-release');
+      bar.classList.add('is-pill-press');       /* 来回 Q 弹 + 停在扁形变 */
+    }
+
+    function onMove(e) {
+      if (e.pointerId !== pid) return;
+      if (pending && !dragging) {
+        var dx = e.clientX - startX, dy = e.clientY - startY;
+        if (Math.abs(dx) < SLOP) return;
+        /* 竖向多于横向 = 用户想滚页面，放弃预览并交还 */
+        if (Math.abs(dy) > Math.abs(dx)) {
+          pid = null; pending = false;
+          bar.classList.remove('is-pill-press');
+          setVar('--pill-i', String(originIndex));
+          restScale();
+          playRelease();
+          return;
+        }
+        dragging = true;
+        pending = false;
+        bar.classList.remove('is-pill-press');  /* 交给 JS 实时变形 */
+        bar.classList.add('is-pill-drag');
+        try { bar.setPointerCapture(pid); } catch (err) {}
+      }
+      if (!dragging) return;
+
+      dragIndex = indexAt(e.clientX);
+      setVar('--pill-drag-i', dragIndex.toFixed(4));
+
+      var now = window.performance.now();
+      var dt = now - lastT;
+      if (dt > 0 && !motionOff()) {
+        var v = Math.min(1, Math.abs(e.clientX - lastX) / dt / FULL_SPEED);
+        var s = v * MAX_STRETCH;
+        setVar('--pill-sx', (LIFT + s).toFixed(4));
+        setVar('--pill-sy', (LIFT - s * SQUASH).toFixed(4));
+      }
+      lastT = now;
+      lastX = e.clientX;
+
+      var slot = Math.round(dragIndex);
+      if (slot !== lastSlot) {                  /* 每跨一格震一下，照 iOS */
+        lastSlot = slot;
+        /* 2026-10-22 实测 FlClash：跨格用 CLOCK_TICK（constant=4），约 15ms 极短轻点；
+           传 0 让原生桥走 CLOCK_TICK 分支（见 MainActivity.haptic）。 */
+        if (window.NetUI && window.NetUI.buzz) window.NetUI.buzz(0);
+      }
+      if (e.cancelable) e.preventDefault();
+    }
+
+    /* force=true：只在 window 兜底监听里用。浏览器偶尔不把我们那条指针的
+       pointerup 送回（被父级拦住 / 换了 pointerId），一旦漏接，pid 就永久卡住，
+       之后所有按下都被 skip-busy 挡掉 —— 药丸"死掉"就是这么来的。 */
+    function finish(e, commit, force) {
+      if (pid === null) return;
+      if (!force && e.pointerId !== pid) return;
+      var wasDragging = dragging;
+      pid = null; pending = false; dragging = false;
+      try {
+        if (bar.hasPointerCapture && bar.hasPointerCapture(e.pointerId)) bar.releasePointerCapture(e.pointerId);
+      } catch (err) {}
+      restScale();
+      bar.classList.remove('is-pill-press');
+
+      if (!wasDragging) {                       /* 只是点了一下：交还原生 click */
+        bar.classList.remove('is-pill-drag');
+        bar.style.removeProperty('--pill-drag-i');
+        playRelease();                          /* --pill-i 保持按下格，等 click 提交 */
+        return;
+      }
+      if (!commit) {                            /* 手势被系统收走：预览撤回原位 */
+        bar.classList.remove('is-pill-drag');
+        bar.style.removeProperty('--pill-drag-i');
+        setVar('--pill-i', String(originIndex));
+        playRelease();
+        return;
+      }
+      var target = Math.round(indexAt(e.clientX));
+      target = Math.max(0, Math.min(count() - 1, target));
+      /* 先落位、再摘 class：同一帧内合并成一次样式变更，
+         transition 从「拖动位置」起跑，所以是弹过去而不是瞬移过去。 */
+      setVar('--pill-i', String(target));
+      bar.classList.remove('is-pill-drag');
+      bar.style.removeProperty('--pill-drag-i');
+      playRelease();
+
+      if (tabs[target] && !tabs[target].classList.contains('is-active')) {
+        /* 拖完浏览器还会补一个 click 到手指下方那个 tab 上，压掉它，避免选两次。
+           只压 isTrusted 的（本函数自己的 .click() 必须放行）。 */
+        draggedRecently = true;
+        if (clearDragTimer) clearTimeout(clearDragTimer);
+        clearDragTimer = setTimeout(function () { draggedRecently = false; }, 400);
+        tabs[target].click();
+      }
+    }
+
+    bar.addEventListener('pointerdown', onDown, { passive: true });
+    /* 长按别弹选择/上下文菜单：它会让浏览器发 pointercancel，按下态被当场撤掉
+       （2026-10-22 真机踩到：按住不动 ~0.6s 药丸自己跳回原位）。 */
+    bar.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    /* 回弹动画跑完就摘类，别让 forwards 把药丸永久钉在关键帧终点 */
+    pill.addEventListener('animationend', function (e) {
+      if (e.animationName === 'pillJellyRelease') bar.classList.remove('is-pill-release');
+    });
+    bar.addEventListener('pointermove', onMove, { passive: false });
+    bar.addEventListener('pointerup', function (e) { finish(e, true); }, { passive: true });
+    bar.addEventListener('pointercancel', function (e) { finish(e, false); }, { passive: true });
+    /* 兜底：手势在栏外结束、或 pointerup 没回到我们这里时，也能收尾。
+       捕获阶段监听 window，事件一定会经过。 */
+    window.addEventListener('pointerup', function (e) { finish(e, true, true); }, true);
+    window.addEventListener('pointercancel', function (e) { finish(e, false, true); }, true);
+    window.addEventListener('blur', resetGesture);
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) resetGesture();
+    });
+    bar.addEventListener('click', function (e) {
+      if (draggedRecently && e.isTrusted) { e.stopPropagation(); e.preventDefault(); }
+    }, true);
+    window.__pillDragReady = true;              /* 真机/本地探针读 */
+  }
+
   // ---- 5. init ----
   function init() {
     attachAppbarStuck();
@@ -409,6 +640,7 @@ window.TAB_PILL = true;
     attachTabbarScroll();
     applyTabPillSwitch();
     initGlassLens();
+    initPillDrag();
     setTimeout(function () { countUp(); bindTapTargets(); initGlassLens(); }, 60);
   }
 

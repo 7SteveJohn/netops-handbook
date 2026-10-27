@@ -351,7 +351,12 @@ body.tabbar-regular .tab.is-active .tab__icon {
   border-right: 1px solid var(--border);
   box-shadow: var(--sh-xl);
   transform: translate3d(-102%, 0, 0);
-  transition: transform var(--t-base) var(--ease-out);
+  /* 关闭态 visibility:hidden：translate3d 只是把层挪出屏幕，backdrop-filter 的
+     模糊中间纹理仍常驻显存（真机 meminfo Graphics 138MB 的大户之一）。
+     藏起 = 不画 = 纹理释放；延迟到滑出动画结束再藏，开启时立即显。 */
+  visibility: hidden;
+  transition: transform var(--t-base) var(--ease-out),
+              visibility 0s linear var(--t-base);
   padding-top: var(--sa-top);
   padding-bottom: var(--sa-bottom);
   padding-left: var(--sa-left);
@@ -367,9 +372,14 @@ body.glass-on .drawer {
 html.dark body.glass-on .drawer {
   background: linear-gradient(180deg, var(--glass-tint-top) 0%, var(--glass-tint-bot) 100%);
 }
-.drawer.is-open { transform: translate3d(0,0,0); }
-/* 手势拖拽期间关闭过渡，保证跟手 */
-.drawer.is-dragging { transition: none; }
+.drawer.is-open {
+  transform: translate3d(0,0,0);
+  visibility: visible;
+  /* 开启时 visibility 立即翻转（基础规则的延迟版只该作用于关闭方向） */
+  transition: transform var(--t-base) var(--ease-out), visibility 0s;
+}
+/* 手势拖拽期间关闭过渡，保证跟手；拖拽中（含关闭方向）保持可见 */
+.drawer.is-dragging { transition: none; visibility: visible; }
 .scrim.is-dragging  { transition: none; }
 
 /* 左缘统一手势的"返回指示条"（2026-09-25，Android 10+ 同款语言）：

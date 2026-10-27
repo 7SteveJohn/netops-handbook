@@ -273,7 +273,7 @@ html.dark .topo { opacity: .96; }
 }
 /* 列表项玻璃：设置页/字典页的核心元素 */
 .list__item:last-child { border-bottom: 0; }
-.list__item:active { transform: scale(.993); filter: none; background: rgba(120,130,150,.08); }
+.list__item:active { background: rgba(120,130,150,.08); transition-duration: 0s; } /* 贴边行禁缩放；按压反馈立即 */
 .list__ico {
   width: 32px; height: 32px;
   flex: 0 0 auto;
@@ -440,8 +440,10 @@ html.dark .topo { opacity: .96; }
   /* 格子里的 tab 原本贴左（max-width 使 stretch 退化为 start），
      导致整组中心比视口中心偏左约半格；显式居中 */
   .tab { max-width: 130px; justify-self: center; }
-  /* 中文正文行长压到可读区间（13px 下约 42 字/行）；终端与拓扑保持满宽 */
-  .note { max-width: 42em; }
+  /* 中文正文行长压到可读区间（13px 下约 42 字/行）；终端与拓扑保持满宽。
+     2026-10-27：.note 不再限宽——它是带圆角背景的盒子，宽容器下盒子 546px
+     拓扑 795px，同卡两种宽度交替像「两层纸没对齐」（用户实证观感差）；
+     列表项是纯文字无背景，保留 42em 只控行长不产生断层。 */
   .bullets li, .steps li { max-width: 42em; }
 }
 @media (min-width: 900px) {
@@ -451,6 +453,15 @@ html.dark .topo { opacity: .96; }
   .searchbar { max-width: 840px; }
   body:not(.tabbar-regular) .tabbar { max-width: 860px; }
   .card__inner { padding-left: 16px; padding-right: 16px; }
+}
+/* 长卡片流渲染门控（content-visibility）：阶段/排障/面试页一进页就挂十几张卡，
+   真机实测（小米 Pad 8 Pro，WebView 155）屏外卡的 layout/paint/栅格把打开过程
+   拖成 ~4fps、重帧 95th 450ms——JS 切片预热只摊平了脚本时间，渲染管线没摊平。
+   CV 让浏览器直接跳过视口外卡片的渲染，实测重帧 450ms → 18ms。
+   auto 前缀记住真实渲染高度，首次滚动校准后定位/滚动条不再跳。 */
+.plist > .anim-in {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 140px;
 }
 /* ≥1200（大横屏平板 / 桌面 / DeX）：卡片流改两栏。
    此前只有一列 860，1600 宽时两侧各空 370px 纯浪费。

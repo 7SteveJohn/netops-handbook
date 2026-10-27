@@ -51,7 +51,7 @@
   overflow: hidden;
   min-height: var(--tap-min);
 }
-.card__head:active { transform: scale(.994); filter: none; background: rgba(120,130,150,.08); }
+.card__head:active { filter: none; background: rgba(120,130,150,.08); transition-duration: 0s; } /* 贴边禁缩放；按压反馈立即（防粘手） */
 
 .card__chip {
   flex: 0 0 auto;
@@ -87,11 +87,11 @@
 }
 .card.is-open .card__arrow { transform: rotate(180deg); }
 
-/* 折叠体：用 grid 1fr 动画，可自适应任意高度且性能优于 max-height */
+/* 折叠体：grid 1fr 结构（2026-10-26 起行数直切，不做布局动画——spring 跑在
+   布局上 = 每帧重排整卡+下方全部内容，用户报展开很卡；柔感由 __inner 淡入承担） */
 .card__body {
   display: grid;
   grid-template-rows: 0fr;
-  transition: grid-template-rows var(--t-base) var(--ease-out);
 }
 .card.is-open .card__body { grid-template-rows: 1fr; }
 .card__body > div { overflow: hidden; min-height: 0; }
@@ -398,7 +398,11 @@ table.tbl tr:active td { background: var(--surf-2); }
   border-top: 1px solid var(--border);
   box-shadow: var(--sh-xl);
   transform: translate3d(0, 102%, 0);
-  transition: transform var(--t-base) var(--ease-out);
+  /* 关闭态 visibility:hidden：sheet 常驻 DOM（懒创建后复用），blur(40px) 的
+     中间纹理在关闭态仍常驻显存；藏起 = 不画 = 释放。延迟到滑出动画结束再藏。 */
+  visibility: hidden;
+  transition: transform var(--t-base) var(--ease-out),
+              visibility 0s linear var(--t-base);
   padding-bottom: var(--sa-bottom);
 }
 /* 弹窗玻璃（更强折射 + 边缘光描边）。底色默认值来自配方表；
@@ -419,8 +423,13 @@ body.glass-on .sheet::after {
   background: linear-gradient(90deg, transparent, rgba(255,255,255,.9) 50%, transparent);
   pointer-events: none;
 }
-.sheet.is-open { transform: translate3d(0,0,0); }
-.sheet.is-dragging { transition: none; }
+.sheet.is-open {
+  transform: translate3d(0,0,0);
+  visibility: visible;
+  /* 开启时 visibility 立即翻转（基础规则的延迟版只该作用于关闭方向） */
+  transition: transform var(--t-base) var(--ease-out), visibility 0s;
+}
+.sheet.is-dragging { transition: none; visibility: visible; }
 .sheet__grab {
   flex: 0 0 auto;
   padding: 9px 0 5px;
@@ -618,7 +627,6 @@ html.dark mark.hl { background: var(--c-amber-500); color: #000; }
 .tree__items {
   display: grid;
   grid-template-rows: 0fr;
-  transition: grid-template-rows var(--t-base) var(--ease-out);
 }
 .tree__group.is-open .tree__items { grid-template-rows: 1fr; }
 .tree__items > div { overflow: hidden; min-height: 0; }
@@ -977,7 +985,23 @@ html.dark body.glass-gaussian .qz__fb {
 
 /* 实色按钮（ok/danger）：保持品牌色，仅加动态高光 + 胶囊圆角（同 btn--primary 模式） */
 
-/* 悬浮按钮：半透明玻璃圆钮 + 动态高光（保持 absolute 定位，仅改玻璃表面） */
+/* 悬浮按钮：半透明玻璃圆钮 + 动态高光（保持 absolute 定位，仅改玻璃表面）
+   —— 2026-10-26 用户报「快速回顶的小按钮没有液态玻璃效果」：liquid 档此前
+   只有注释没有规则（frosted/gaussian 有补全，liquid 漏了），FAB 一直是实色。 */
+body.glass-liquid .fab {
+  /* 不用 backdrop-filter：FAB 悬浮在滚动内容上，实时模糊每帧重算；
+     提高 tint 不透明度替代磨砂（直铺白纱底上观感一致）。 */
+  background: linear-gradient(165deg, rgba(255,255,255,.78) 0%, rgba(250,250,252,.62) 100%) !important;
+  border-color: rgba(255,255,255,.5) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.5),
+    inset 0 -.5px 0 rgba(0,0,0,.05),
+    var(--glass-shadow, 0 2px 12px rgba(15,23,42,.12)) !important;
+}
+html.dark body.glass-liquid .fab {
+  background: linear-gradient(165deg, rgba(48,50,58,.72) 0%, rgba(36,38,44,.58) 100%) !important;
+  border-color: rgba(255,255,255,.16) !important;
+}
 
 /* 代码块 / CLI：深色玻璃（保持深色代码阅读感，浅色页面下透出暗色磨砂） */
 body.glass-on .term__bar {

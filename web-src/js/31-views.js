@@ -334,6 +334,14 @@
       '<div class="list__item" data-noripple id="tabbarModeRow"><span class="list__ico" style="background:linear-gradient(135deg,#fef3e0 0%,#fff8e1 100%);color:var(--warn)">' + icon('i-activity', 'icon--sm') + '</span>' +
         '<span class="grow"><span class="list__t">底栏状态</span><span class="list__d" id="tabbarModeLbl">悬浮胶囊</span></span>' +
         '<span class="switch' + (A.getTabbarMode() === 'float' ? ' is-on' : '') + '" id="swTabbar"></span></div>' +
+      /* R1 原生底栏开关：关 = 回退 HTML 底栏（透镜不变，仍原生） */
+      '<div class="list__item" data-toggle-nativedock><span class="list__ico" style="background:linear-gradient(135deg,#e0e7ff 0%,#dbeafe 100%);color:var(--c-indigo-600,#4f46e5)">' + icon('i-layers', 'icon--sm') + '</span>' +
+        '<span class="grow"><span class="list__t">原生底栏</span><span class="list__d">原生层绘制底栏外观；关闭回退网页渲染</span></span>' +
+        '<span class="switch' + (A.nativeDockOn() ? ' is-on' : '') + '" id="swNativeDock"></span></div>' +
+      /* R2 原生顶栏开关：关 = 回退 HTML 顶栏；搜索/抽屉期间两模式都让位 HTML */
+      '<div class="list__item" data-toggle-nativeappbar><span class="list__ico" style="background:linear-gradient(135deg,#f3e8ff 0%,#e9d5ff 100%);color:var(--c-violet-600,#7c3aed)">' + icon('i-menu', 'icon--sm') + '</span>' +
+        '<span class="grow"><span class="list__t">原生顶栏</span><span class="list__d">原生层绘制顶栏外观；关闭回退网页渲染</span></span>' +
+        '<span class="switch' + (A.nativeAppbarOn() ? ' is-on' : '') + '" id="swNativeAppbar"></span></div>' +
       '<button class="list__item" type="button" data-export="all"><span class="list__ico" style="background:linear-gradient(135deg,#e8f0fe 0%,#dbeafe 100%);color:var(--c-blue-600)">' + icon('i-download', 'icon--sm') + '</span>' +
         '<span class="grow"><span class="list__t">导出全部笔记</span><span class="list__d">生成 Markdown 文件</span></span>' +
         '<svg class="icon icon--sm t-mute" aria-hidden="true"><use href="#i-chev-right"/></svg></button>' +

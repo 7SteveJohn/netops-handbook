@@ -32,11 +32,13 @@
      优先走原生桥：performHapticFeedback 会尊重系统「触感反馈」开关，
      力度也和系统控件一致；浏览器里退回 navigator.vibrate。 */
   function buzz(ms) {
-    var d0 = ms || 8;
+    /* 0 是合法值：原生桥用它表示「选中轻点」（CLOCK_TICK）。
+       早先写 ms || 8，0 被吞成 8，于是跨格震动永远走 VIRTUAL_KEY —— 2026-10-22 真机抓 logcat 才发现。 */
+    var d0 = (ms == null) ? 8 : ms;
     try {
       if (w.NetBridge && w.NetBridge.haptic) { w.NetBridge.haptic(d0); return; }
     } catch (e) {}
-    try { if (w.navigator && navigator.vibrate) navigator.vibrate(d0); } catch (e) {}
+    try { if (w.navigator && navigator.vibrate) navigator.vibrate(d0 || 8); } catch (e) {}
   }
   UI.buzz = buzz;
 
