@@ -2672,18 +2672,278 @@
     bindSearch();
 
     $('#btnNav').addEventListener('click', function () {
+      /* 原生抽屉接管（HTML 抽屉会被原生页盖死） */
+      if (nativeDrawerOn() && w.NetBridge && w.NetBridge.showNativeDrawer) {
+        try { w.NetBridge.showNativeDrawer(); } catch (e) { }
+        return;
+      }
       if (isRoot(cur.r) && !stack.length) drawerCtl.open();
       else back();
     });
     $('#btnTheme').addEventListener('click', function () {
-      var order = ['auto', 'light', 'dark'];
-      var next = order[(order.indexOf(U.theme.get()) + 1) % 3];
-      setTheme(next);
+      /* 快捷键只做「有效主题」二态翻转（2026-10-26 用户报：三态循环在浅色系统
+         下 auto→light 是隐形点按）。按当前实际渲染色取反，每次点按必有可见变化；
+         「跟随系统」的显式选择留在「我的」页设置段（含当前状态标注）。 */
+      setTheme(U.theme.isDark() ? 'light' : 'dark');
     });
+    /* ---- 原生透镜层（B 路线）：选中同步 ----
+       几何改成**由原生主动索取**（Bridge.ready 里 evaluateJavascript 拉），不再从 JS 上报：
+       上报一旦抛异常就完全静默，真机上药丸没隐藏却查不出原因，就是栽在这里。
+       这里只保留选中态回传与供原生调用的切页入口。 */
+    var LENS = !!(w.NetBridge && w.NetBridge.setSelectedIndex);
+    function lensSync(i) {
+      if (!LENS || i < 0) return;
+      try { w.NetBridge.setSelectedIndex(i); } catch (e) { }
+    }
+    /* ---- R1 原生底栏（2026-10-27）：开关上报 ----
+       开（默认）= body.native-dock-on（HTML 底栏 visibility:hidden，保留布局供
+       requestGeometry 量几何）+ NetBridge.setNativeDock(true)，底栏外观由
+       LensBarView 绘制；关 = HTML 底栏原样（回退路径）。设置页「我的→原生底栏」。 */
+    /* ---- 冷启动预热（2026-10-27）：阶段页是「点阶段条/继续」的第一落点，
+       首次真实点击要付 JIT 编译 + 字形首栅格的全额成本（体感「点条子变卡」）。
+       启动 2s 后空跑一次 V.phase 渲染（只产字符串不挂载，~35-100ms 后台一次），
+       把热路径编译掉；真实点击只剩 innerHTML+布局。 ---- */
+    setTimeout(function () {
+      try {
+        if (d.hidden) return;
+        var pid = A.PH && Object.keys(A.PH)[0] || 'p-1';
+        var probe = d.createElement('div');
+        /* 真实栅格化预热：visibility:hidden 不参与栅格——点击后的首帧
+           WebViewFunctor::drawVk 要同步等 renderer 重栅格化整个视口
+           （真机 trace 实测 359ms = 点上去「粘死」的冻结期）。probe 用
+           1% 不透明度真实入层（translateZ 提层防优化），把 renderer 的
+           管线/字形 atlas/排版路径全部跑热，预热后移除。 */
+        probe.style.cssText = 'position:absolute;left:0;top:0;opacity:0.01;'
+            + 'z-index:-1;pointer-events:none;transform:translateZ(0);will-change:transform;';
+        probe.innerHTML = V.phase(pid);
+        d.body.appendChild(probe);
+        void probe.offsetWidth;              /* 强制 layout */
+        setTimeout(function () {
+          try { if (probe.parentNode) probe.parentNode.removeChild(probe); } catch (e) { }
+        }, 400);                              /* 留 400ms 给 renderer 完成栅格 */
+      } catch (e) { }
+    }, 1500);
+    /* ---- 原生阶段详情页（全量原生化 N1，2026-10-27）----
+       阶段页从此由原生渲染（数据 = assets/native-data.json，构建期生成）；
+       本层只做三件事：路由开关、把旧 localStorage 状态并进去、接收状态回调。
+       之前「渲染代理 + 250ms 交接」的机制随代理一起废弃——页面本身就是原生的，
+       不存在渲染冻结期，也不需要遮。 */
+    function pushLegacyState() {
+      try {
+        if (!(w.NetBridge && w.NetBridge.setLegacyState)) return;
+        w.NetBridge.setLegacyState(
+          JSON.stringify(Object.keys(A.S.done || {})),
+          JSON.stringify(Object.keys(A.S.fav || {})));
+      } catch (e) { }
+    }
+    function nativePhaseShow(pid) {
+      try {
+        if (!nativePhaseOn()) return false;
+        return w.NetBridge.showNativePhase(pid);
+      } catch (e) { console.log('[NativePhase] show err ' + e); return false; }
+    }
+    function nativePhaseHide() {
+      if (!nativePhaseOn()) return;
+      try { if (w.NetBridge && w.NetBridge.hideNativePhase) w.NetBridge.hideNativePhase(); } catch (e) { }
+    }
+    /* 原生侧状态变更回调（标记掌握 / 收藏）：同步进页面状态，其它视图口径一致 */
+    /* 原生页导航统一收口：所有原生页只上报意图，路由/标题/返回栈都归本层。
+       phase-focus = go 到阶段路由后，再让原生展开并滚动到目标模块卡。 */
+    w.NetOpsNativeGo = function (route, arg) {
+      if (route === 'phase-focus') {
+        var parts = String(arg || '').split('|');
+        go('phase', parts[0]);
+        if (parts[1]) {
+          try { w.NetBridge.showNativePhaseFocus(parts[0], parts[1]); } catch (e) { }
+        }
+        return;
+      }
+      go(route, arg);
+    };
+    /* 原生设置面板回写：真源仍在本层（存 localStorage → apply） */
+    w.NetOpsNativeSet = function (kind, value) {
+      try {
+        if (kind === 'theme') setTheme(value);
+        else if (kind === 'wallpaper') applyWallpaper(value, 'wp');
+        else if (kind === 'glass') {
+          var g = JSON.parse(value);
+          saveGlass(g); applyGlass(g);
+        }
+      } catch (e) { }
+    };
+    w.NetOpsNativePushSettings = function () {
+      try {
+        var g = getGlass() || glassDefaults;
+        w.NetBridge.setSettingsState(U.theme.get(), lsGet(WP_KEY) || 'none', JSON.stringify(g));
+      } catch (e) { }
+    };
+    w.NetOpsNativeState = function (id, kind, on) {
+      if (kind === 'done') {
+        if (on) A.S.done[id] = 1; else delete A.S.done[id];
+        A.saveDone(); updateProgress();
+      } else if (kind === 'fav') {
+        if (on) A.S.fav[id] = 1; else delete A.S.fav[id];
+        A.saveFav();
+      }
+    };
+    A.refreshPhaseData = pushLegacyState;   /* 完成态/收藏变更时由数据层调用 */
+    /* 挂 window：click 委托在 IIFE 前段，直接调后段函数名会 ReferenceError */
+    w.NetOpsNativePhaseShow = nativePhaseShow;
+    w.NetOpsNativePhaseHide = nativePhaseHide;
+    pushLegacyState();                     /* 启动即把旧状态并入原生 */
+    var NATIVE_DOCK_KEY = 'netops_native_dock';
+    function nativeDockOn() {
+      try { return localStorage.getItem(NATIVE_DOCK_KEY) !== '0'; } catch (e) { return true; }
+    }
+    function applyNativeDock(on) {
+      /* 门控在桥存在性上：本地浏览器闭环 / jsdom 没有 NetBridge，原生层不会
+         存在 —— 类照加就会把底栏藏成空气。真机壳内桥恒在，此门控恒真。 */
+      var hasBridge = !!(w.NetBridge && w.NetBridge.setNativeDock);
+      d.body.classList.toggle('native-dock-on', !!on && hasBridge);
+      try { if (hasBridge) w.NetBridge.setNativeDock(!!on); } catch (e) { }
+    }
+    applyNativeDock(nativeDockOn());
+    w.NetOpsSetNativeDock = function (on) {
+      try { localStorage.setItem(NATIVE_DOCK_KEY, on ? '1' : '0'); } catch (e) { }
+      applyNativeDock(on);
+    };
+    w.NetOpsNativeDockOn = nativeDockOn;
+    A.nativeDockOn = nativeDockOn;
+    A.setNativeDock = w.NetOpsSetNativeDock;
+    /* ---- R2 原生顶栏（2026-10-27）：开关上报 + 状态推送 ----
+       开（默认）= body.native-appbar-on（HTML 顶栏 visibility:hidden，保留布局供
+       原生索取几何），外观/触摸由 AppBarView 接管；搜索展开、抽屉打开时原生整窗
+       退位、HTML 顶栏显形（body 上 is-appbar-q / is-appbar-overlay 组合类 + 原生
+       同步收窗）。状态同步用 MutationObserver（appbar 子树的标题文本/图标 href/
+       类切换 + body 级类变化 → 30ms 合并推送），调用点零侵入；几何由原生主动
+       索取（Bridge.ready / insets / 旋转补测时注入量测 JS），这里只做应答。 */
+    var NATIVE_APPBAR_KEY = 'netops_native_appbar';
+    function nativeAppbarOn() {
+      try { return localStorage.getItem(NATIVE_APPBAR_KEY) !== '0'; } catch (e) { return true; }
+    }
+    function pushAppBarState() {
+      try {
+        if (!(w.NetBridge && w.NetBridge.setAppBarState)) return;
+        var app = $('#appbar');
+        if (!app) return;
+        var sw = $('#searchWrap');
+        var searchOpen = !!(sw && sw.classList.contains('is-open'));
+        var overlaid = !!d.querySelector('.drawer.is-open');
+        d.body.classList.toggle('is-appbar-q', searchOpen);
+        d.body.classList.toggle('is-appbar-overlay', overlaid);
+        w.NetBridge.setAppBarState(JSON.stringify({
+          name: barName ? barName.textContent : '',
+          sub: barSub ? barSub.textContent : '',
+          navBack: !!(navUse && navUse.getAttribute('href') === '#i-chev-left'),
+          themeMoon: !!(themeUse && themeUse.getAttribute('href') === '#i-moon'),
+          scrolled: app.classList.contains('is-scrolled'),
+          search: searchOpen,
+          overlaid: overlaid,
+          glass: d.body.classList.contains('glass-on'),
+          dark: U.theme.isDark(),
+          bgrev: APPBAR_BG_REV
+        }));
+      } catch (e) { }
+    }
+    function applyNativeAppbar(on) {
+      /* 门控在桥存在性上（R1 applyNativeDock 同款）：无 NetBridge 的环境
+         （本地浏览器闭环 / jsdom）原生层不存在，类照加会把顶栏藏成空气。 */
+      var hasBridge = !!(w.NetBridge && w.NetBridge.setNativeAppbar);
+      d.body.classList.toggle('native-appbar-on', !!on && hasBridge);
+      try { if (hasBridge) w.NetBridge.setNativeAppbar(!!on); } catch (e) { }
+      pushAppBarState();
+    }
+    applyNativeAppbar(nativeAppbarOn());
+    w.NetOpsSetNativeAppbar = function (on) {
+      try { localStorage.setItem(NATIVE_APPBAR_KEY, on ? '1' : '0'); } catch (e) { }
+      applyNativeAppbar(on);
+    };
+    A.nativeAppbarOn = nativeAppbarOn;
+    A.setNativeAppbar = w.NetOpsSetNativeAppbar;
+    w.NetOpsPushAppBar = pushAppBarState;   /* 壁纸切换（paintWallpaper，模块层）用 */
+    (function watchAppbarState() {
+      var app = $('#appbar');
+      if (!app || !w.MutationObserver) { pushAppBarState(); return; }
+      var t = 0;
+      function schedule() {
+        if (t) return;
+        t = setTimeout(function () { t = 0; pushAppBarState(); }, 30);
+      }
+      /* appbar 子树：标题文本、navUse/themeUse 的 href、is-scrolled/is-open 类 */
+      new MutationObserver(schedule).observe(app, {
+        subtree: true, childList: true, attributes: true, characterData: true
+      });
+      /* body 级类（抽屉 is-open、glass-on 开关、has-wallpaper）不在 appbar 子树里 */
+      new MutationObserver(schedule).observe(d.body, {
+        subtree: true, attributes: true, attributeFilter: ['class'], childList: true
+      });
+      pushAppBarState();
+    })();
+    w.NetOpsLensSelect = function (i) {
+      var tabs = $$('.tab');
+      if (!tabs[i]) return;
+      goTab(tabs[i].dataset.tab);
+      lensSync(i);
+    };
+    /* 原生透镜实时调色（几何剖切版，FlClash _LensTint 同构）：
+       每个 tab 克隆一份蓝色层 .tab__tint，CSS 用 clip-path 按镜片矩形剖切——
+       蓝色不是渐变，是镜片边缘扫出来的（part by part）。原生把透镜浮点位置
+       写入 .tabbar 的 --lens-pos；--slot-w/--lens-half/--lens-r 是一次性几何量，
+       首次交互时量（那时布局必已稳定），交互结束时重量一次（旋转/分屏自愈）。 */
+    $$('.tab').forEach(function (b, idx) {
+      b.style.setProperty('--i', idx);
+      var tint = d.createElement('div');
+      tint.className = 'tab__tint';
+      tint.setAttribute('aria-hidden', 'true');
+      tint.innerHTML = b.innerHTML;
+      b.appendChild(tint);
+    });
+    function lensMetrics() {
+      var bar = document.querySelector('.tabbar');
+      var tabs = bar ? bar.querySelectorAll('.tab') : [];
+      if (!bar || !tabs.length) return;
+      var r0 = tabs[0].getBoundingClientRect();
+      /* 格宽用前两个 tab 中心的间距：宽屏媒体查询下 tab 自身收缩居中
+         （横屏实测 tab 52px、格距 140.8px），自身宽不能当格宽 */
+      var pitch = r0.width;
+      if (tabs.length > 1) {
+        var r1 = tabs[1].getBoundingClientRect();
+        pitch = Math.abs(r1.left + r1.width / 2 - (r0.left + r0.width / 2));
+      }
+      if (!pitch) return;
+      bar.style.setProperty('--slot-w', pitch + 'px');
+      bar.style.setProperty('--lens-half', (pitch / 2 + 4) + 'px');  /* 药丸=一格+8 */
+      bar.style.setProperty('--lens-r', (r0.height / 2) + 'px');
+      metricsFresh = true;
+    }
+    /* 读布局（getBoundingClientRect）会强制同步 layout——按压期间每次广播都读，
+       在平板 WebView 上疑似诱发合成层错位鬼影（2026-10-26 平板重影的候选成因），
+       也白费。改为：每次交互会话只在首帧读一次；resize（旋转/分屏）与落定时失效重读。 */
+    var metricsFresh = false;
+    w.addEventListener('resize', function () { metricsFresh = false; });
+    w.NetOpsLensPos = function (p) {
+      var bar = document.querySelector('.tabbar');
+      if (!bar) return;
+      if (!metricsFresh) lensMetrics();   /* 会话首帧量一次；旋转由 resize 监听失效 */
+      document.body.classList.add('lens-live');
+      bar.style.setProperty('--lens-pos', (+p).toFixed(3));
+    };
+    w.NetOpsLensEnd = function (i) {
+      document.body.classList.remove('lens-live');
+      var bar = document.querySelector('.tabbar');
+      if (bar) bar.style.removeProperty('--lens-pos');
+      metricsFresh = false;               /* 下次按压前重读（横竖屏切换兜底） */
+      lensMetrics();
+      var tabs = $$('.tab');
+      tabs.forEach(function (t, idx) { t.classList.toggle('is-active', idx === i); });
+    };
     $$('.tab').forEach(function (b) {
       /* 阻止点击时按钮抢焦点引发的“焦点自动滚动”（底部栏被顶起 / 内容下移） */
       b.addEventListener('mousedown', function (e) { e.preventDefault(); });
-      b.addEventListener('click', function () { goTab(b.dataset.tab); });
+      b.addEventListener('click', function () {
+        goTab(b.dataset.tab);
+        lensSync(Array.prototype.indexOf.call($$('.tab'), b));
+      });
     });
     fab.addEventListener('click', function () { scroll.scrollTo({ top: 0, behavior: 'smooth' }); });
     scroll.addEventListener('scroll', function () { U.raf(onScroll); }, { passive: true });
