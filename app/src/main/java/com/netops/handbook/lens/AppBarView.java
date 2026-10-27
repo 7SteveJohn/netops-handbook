@@ -346,4 +346,346 @@ public class AppBarView extends View {
     /* ================= 背景（PixelCopy + 下采样模糊） ================= */
 
     /** 预热：几何同步后先抓一张，把首次成本摊在用户看见之前。 */
+    public void warmUp() {
+        post(this::captureBackdrop);
+    }
+
+    private boolean copyBusy = false;     /* PixelCopy 在途标志：onDraw 兜底路径没有它
+                                              会每帧发一次抓图请求（抓图风暴） */
+
+    private void captureBackdrop() {
+        if (detached || copyBusy || !glassOn || !hasGeometry || backdropRev == bgRev) return;
+        if (Build.VERSION.SDK_INT < 26) return;   // PixelCopy.Window 需 26+；低版本走实色降级
+        Activity act = (getContext() instanceof Activity) ? (Activity) getContext() : null;
+        if (act == null || act.getWindow() == null) return;
+        int[] vl = new int[2];
+        getLocationOnScreen(vl);
+        int l = Math.max(0, (int) barRect.left + vl[0]);
+        int top = Math.max(0, (int) barRect.top + vl[1]);
+        int sw = getResources().getDisplayMetrics().widthPixels;
+        int r = Math.min(sw, l + (int) barRect.width() + 1);
+        int bot = top + (int) barRect.height() + 1;
+        int w = Math.max(4, r - l), h = Math.max(4, bot - top);
+        try {
+            Bitmap out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+            copyBusy = true;
+            PixelCopy.request(act.getWindow(), new Rect(l, top, l + w, top + h), out,
+                    result -> {
+                        copyBusy = false;
+                        if (detached) return;
+                        if (result == PixelCopy.SUCCESS) {
+                            backdrop = out;
+                            buildBlurChain();
+                            backdropRev = bgRev;
+                            invalidate();
+                        } else {
+                            Log.w(TAG, "PixelCopy 失败 result=" + result + "，顶栏退回实色");
+                        }
+                    }, new Handler(Looper.getMainLooper()));
+        } catch (Throwable t) {
+            copyBusy = false;
+            Log.w(TAG, "抓背景异常", t);
+        }
+    }
+
+    /** ÷2 四连下采样（每次双线性 ≈ 2×2 均值），blit 上采样时再补一层双线性
+     *  —— 合成低通对齐 --glass-blur 20px 的观感（AGSL 高斯留作打磨项）。 */
+    private void buildBlurChain() {
+        try {
+            Bitmap cur = backdrop;
+            for (int i = 0; i < 4 && cur.getWidth() > 8 && cur.getHeight() > 4; i++) {
+                Bitmap half = Bitmap.createBitmap(Math.max(1, cur.getWidth() / 2),
+                        Math.max(1, cur.getHeight() / 2), Bitmap.Config.ARGB_8888);
+                Canvas c = new Canvas(half);
+                Matrix m = new Matrix();
+                m.setScale(0.5f, 0.5f);
+                c.drawBitmap(cur, m, new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG));
+                if (cur != backdrop) cur.recycle();
+                cur = half;
+            }
+            if (blurred != null && blurred != cur) blurred.recycle();
+            blurred = cur;
+        } catch (Throwable t) {
+            Log.w(TAG, "模糊链构建失败", t);
+            blurred = null;
+        }
+    }
+
+    /* ================= 配色与图标 ================= */
+
+    /** 亮/暗两套，逐值对齐 01-tokens.css（--glass-tint-* / --hairline / --border）。 */
+    private void applyColors() {
+        if (dark) {
+            cSurface = Color.argb(255, 28, 28, 30);          // --surface #1c1c1e
+            cTintTop = Color.argb(77, 58, 58, 64);           // --glass-tint-top rgba(58,58,64,.30)
+            cTintBot = Color.argb(56, 32, 32, 36);           // --glass-tint-bot rgba(32,32,36,.22)
+            cText = Color.argb(255, 245, 245, 247);          // --text #f5f5f7
+            cText2 = Color.argb(255, 199, 199, 204);         // --text-2 #c7c7cc
+            cText3 = Color.argb(255, 142, 142, 147);         // --text-3 #8e8e93
+            cHairline = Color.argb(26, 255, 255, 255);       // --hairline rgba(255,255,255,.10)
+            cBorder = Color.argb(255, 56, 56, 58);           // --border #38383a
+            cShadowBase = Color.argb(97, 0, 0, 0);           // --glass-shadow rgba(0,0,0,.38) 首 stop
+        } else {
+            cSurface = Color.WHITE;                          // --surface #ffffff
+            cTintTop = Color.argb(51, 255, 255, 255);        // --glass-tint-top rgba(255,255,255,.20)
+            cTintBot = Color.argb(36, 250, 250, 252);        // --glass-tint-bot rgba(250,250,252,.14)
+            cText = Color.argb(255, 29, 29, 31);             // --text #1d1d1f
+            cText2 = Color.argb(255, 81, 81, 84);            // --text-2 #515154
+            cText3 = Color.argb(255, 134, 134, 139);         // --text-3 #86868b
+            cHairline = Color.argb(18, 0, 0, 0);             // --hairline rgba(0,0,0,.07)
+            cBorder = Color.argb(255, 227, 227, 232);        // --border #e3e3e8
+            cShadowBase = Color.argb(26, 15, 23, 42);        // rgba(15,23,42,.10)
+        }
+        iconP.setColor(cText2);
+        nameP.setColor(cText);
+        subP.setColor(cText3);
+        hairlineP.setColor(cHairline);
+        borderP.setColor(cBorder);
+        pressP.setColor(dark ? Color.argb(23, 255, 255, 255) : Color.argb(13, 0, 0, 0));
+        fallbackP.setColor(cSurface);
+        nameP.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));   // CSS 800 → Roboto 700 就近
+        nameP.setTextSize(15.5f * density);
+        subP.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+        subP.setTextSize(10.5f * density);
+    }
+
+    /** 图标 Path 初始化：androidx PathParser 吃 sprite.svg 的 d 原文（R1 同法）。 */
+    private void initIcons() {
+        float s = 22f * density / 24f;   // viewBox 24 → 22dp（.icon 22×22）
+        for (int i = 0; i < ICON_PATHS.length; i++) {
+            Path[] subs = new Path[ICON_PATHS[i].length];
+            for (int k = 0; k < ICON_PATHS[i].length; k++) {
+                String seg = ICON_PATHS[i][k];
+                Path p = new Path();
+                if (seg.startsWith("C")) {               // C cx,cy,r → 圆
+                    String[] v = seg.substring(1).split(",");
+                    p.addCircle(Float.parseFloat(v[0]), Float.parseFloat(v[1]),
+                            Float.parseFloat(v[2]), Path.Direction.CW);
+                } else {
+                    try {
+                        Path parsed = androidx.core.graphics.PathParser.createPathFromPathData(seg);
+                        if (parsed != null) p.set(parsed);
+                    } catch (Throwable t) {
+                        Log.w(TAG, "图标 path 解析失败 " + i, t);
+                    }
+                }
+                Matrix m = new Matrix();
+                m.setScale(s, s);
+                p.transform(m);
+                subs[k] = p;
+            }
+            iconPaths[i] = subs;
+        }
+        iconP.setStyle(Paint.Style.STROKE);
+        iconP.setStrokeCap(Paint.Cap.ROUND);
+        iconP.setStrokeJoin(Paint.Join.ROUND);
+        iconP.setStrokeWidth(1.7f * s);                  // SVG stroke-width 1.7（24 系）
+    }
+
+    /* ================= 触摸 ================= */
+
+    private static final float HIT_SLOP_DP = 4f;
+
+    /** 命中测试：三个按钮（外扩 4dp 容差）。返回 -1 = 非按钮区。 */
+    private int hitButton(float x, float y) {
+        if (!hasGeometry) return -1;
+        for (int i = 0; i < 3; i++) {
+            RectF r = btnRects[i];
+            if (r == null) continue;
+            if (x >= r.left - HIT_SLOP_DP * density && x <= r.right + HIT_SLOP_DP * density
+                    && y >= r.top - HIT_SLOP_DP * density && y <= r.bottom + HIT_SLOP_DP * density) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private void forwardToWebView(MotionEvent e) {
+        if (webView == null) return;
+        int[] wl = new int[2];
+        int[] vl = new int[2];
+        webView.getLocationOnScreen(wl);
+        this.getLocationOnScreen(vl);
+        MotionEvent e2 = MotionEvent.obtain(e);
+        e2.offsetLocation(vl[0] - wl[0], vl[1] - wl[1]);
+        try {
+            webView.dispatchTouchEvent(e2);
+        } catch (Throwable t) {
+            Log.w(TAG, "转发触摸到 WebView 失败", t);
+        } finally {
+            e2.recycle();
+        }
+    }
+
+    /** 按钮动作 = 触发对应 HTML 按钮的 click()：抽屉/返回/搜索/主题的全部既有
+     *  逻辑留在页面侧，原生只接管观感。visibility:hidden 的元素收不到真触摸，
+     *  必须程序化 click（事件处理器照常执行）。 */
+    private void fire(int idx) {
+        if (webView == null) return;
+        String id = idx == 0 ? "btnNav" : (idx == 1 ? "btnSearch" : "btnTheme");
+        String js = "(function(){try{var b=document.getElementById('" + id + "');"
+                + "if(b)b.click();}catch(e){}})()";
+        try {
+            webView.evaluateJavascript(js, null);
+        } catch (Throwable t) {
+            Log.w(TAG, "触发按钮失败", t);
+        }
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    @Override
+    public boolean onTouchEvent(MotionEvent e) {
+        if (searchOpen || overlaid || nativeBar == 0) {
+            /* 理论上退位期整窗已 dismiss；万一事件仍进来（时序窗），按透传处理 */
+            forwardToWebView(e);
+            return true;
+        }
+        switch (e.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN: {
+                int idx = hitButton(e.getX(), e.getY());
+                if (idx < 0) {
+                    /* 非按钮区（标题/留白）：HTML 顶栏无任何可点目标，原样转发，
+                       语义与「顶栏不存在」一致 */
+                    forwardToWebView(e);
+                    return true;
+                }
+                pressedBtn = idx;
+                invalidate();
+                return true;
+            }
+            case MotionEvent.ACTION_MOVE: {
+                if (pressedBtn >= 0) {
+                    if (hitButton(e.getX(), e.getY()) != pressedBtn) {
+                        pressedBtn = -1;   // 滑出取消
+                        invalidate();
+                    }
+                    return true;
+                }
+                return false;
+            }
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL: {
+                int idx = pressedBtn;
+                pressedBtn = -1;
+                invalidate();
+                if (idx >= 0 && e.getActionMasked() == MotionEvent.ACTION_UP
+                        && hitButton(e.getX(), e.getY()) == idx) {
+                    fire(idx);
+                }
+                return idx >= 0;
+            }
+        }
+        return false;
+    }
+
+    /* ================= 绘制 ================= */
+
+    @Override
+    protected void onDraw(Canvas canvas) {
+        super.onDraw(canvas);
+        if (nativeBar == 0 || searchOpen || overlaid) return;   // 退位期整层不画
+        if (!hasGeometry) return;                                // 几何未到：全透明等待
+        long t0 = System.nanoTime();
+
+        /* 1. 背景：模糊壁纸 + tint 渐变（玻璃开）；实色 surface（玻璃关）。
+              背景静态（内容不滚进顶栏底下），只按 bgRev/主题/几何重抓。 */
+        if (glassOn) {
+            if (blurred != null) {
+                canvas.drawBitmap(blurred, null, barRect, blurP);
+            } else {
+                captureBackdrop();   // 首帧未就绪：实色垫底 + 异步补抓
+                canvas.drawRect(barRect, fallbackP);
+            }
+            ensureGradient();
+            canvas.drawRect(barRect, tintP);
+            ensureSpecular();
+            canvas.drawRect(barRect, specularP);
+            /* 玻璃海拔阴影：栏底向下的长影（glass-shadow 0 8px 28px 的顶栏份） */
+            float shH = 28f * density;
+            ensureShadow(shH);
+            canvas.drawRect(barRect.left, barRect.bottom, barRect.right,
+                    barRect.bottom + shH, shadowP);
+        } else {
+            canvas.drawRect(barRect, fallbackP);
+            canvas.drawRect(barRect.left, barRect.bottom - density,
+                    barRect.right, barRect.bottom, borderP);
+        }
+        if (scrolled) {
+            /* is-scrolled：栏底发丝线（apple 风格：滚动后才出现） */
+            canvas.drawRect(barRect.left, barRect.bottom - density,
+                    barRect.right, barRect.bottom, hairlineP);
+        }
+
+        /* 2. 内容：导航键 / 标题两行 / 搜索键 / 主题键 */
+        drawButton(canvas, 0, navBack ? 1 : 0);
+        drawButton(canvas, 1, 2);
+        drawButton(canvas, 2, themeMoon ? 4 : 3);
+        drawTitle(canvas);
+
+        long ms = (System.nanoTime() - t0) / 1_000_000L;
+        if (ms > 8) Log.i(TAG, "onDraw " + ms + "ms");   // 正常 <2ms；异常留痕
+    }
+
+    private void ensureGradient() {
+        if (gradTint == null) {
+            gradTint = new LinearGradient(0, barRect.top, 0, barRect.bottom,
+                    cTintTop, cTintBot, Shader.TileMode.CLAMP);
+            tintP.setShader(gradTint);
+        }
+    }
+
+    /** 镜面高光（静态版）：radial 高光压在 tint 上，对齐 ::after 的存在感。
+     *  动态跟随 --mx/--my 是打磨项，v1 不追。 */
+    private void ensureSpecular() {
+        if (gradSpec == null) {
+            gradSpec = new RadialGradient(barRect.width() * 0.30f, barRect.top,
+                    barRect.height() * 1.6f,
+                    Color.argb(26, 255, 255, 255), Color.argb(0, 255, 255, 255),
+                    Shader.TileMode.CLAMP);
+            specularP.setShader(gradSpec);
+        }
+    }
+
+    private void ensureShadow(float h) {
+        if (gradShadow == null) {
+            gradShadow = new LinearGradient(0, barRect.bottom, 0, barRect.bottom + h,
+                    cShadowBase, Color.TRANSPARENT, Shader.TileMode.CLAMP);
+            shadowP.setShader(gradShadow);
+        }
+    }
+
+    /** 画一个按钮：图标居中于命中区；按压态 = 圆角底 + 图标缩放 .86
+     *  （对齐 .ibtn:active 的 scale(.86)+surf-2）。 */
+    private void drawButton(Canvas canvas, int idx, int iconIdx) {
+        RectF r = btnRects[idx];
+        if (r == null) return;
+        if (pressedBtn == idx) {
+            float pad = 2f * density;
+            canvas.drawRoundRect(r.left + pad, r.top + pad, r.right - pad, r.bottom - pad,
+                    14f * density, 14f * density, pressP);
+        }
+        Path[] subs = iconPaths[iconIdx];
+        if (subs == null) return;
+        canvas.save();
+        canvas.translate(r.centerX(), r.centerY());
+        float k = pressedBtn == idx ? 0.86f : 1f;
+        canvas.scale(k, k);
+        canvas.translate(-11f * density, -11f * density);   // 22dp 盒左上角
+        for (Path p : subs) canvas.drawPath(p, iconP);
+        canvas.restore();
+    }
+
+    /** 标题两行：name 15.5/800 + sub 10.5/400，块在 titleRect 内垂直居中
+     *  （CSS flex column + justify-content:center 同构）。 */
+    private void drawTitle(Canvas canvas) {
+        if (titleRect.isEmpty()) return;
+        Paint.FontMetrics fn = nameP.getFontMetrics();
+        Paint.FontMetrics fs = subP.getFontMetrics();
+        float nameH = fn.descent - fn.ascent;
+        float subH = fs.descent - fs.ascent;
+        float top = titleRect.centerY() - (nameH + subH) / 2f;
+        float x = titleRect.left;
+        canvas.drawText(name, x, top - fn.ascent, nameP);
+        canvas.drawText(sub, x, top + nameH - fs.ascent, subP);
+    }
 }
