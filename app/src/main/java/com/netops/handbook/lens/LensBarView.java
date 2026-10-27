@@ -280,27 +280,26 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
      *  必须纳入重建判定，否则栏没动、药丸动了 → 小图内容仍是旧偏移（文字被裁）。 */
     private float chromePillCy = -1f;
 
-    /* ---- 栏体玻璃（AndroidLiquidGlassView 同款材质，2026-10-28）----
+    /* ---- 栏体玻璃（AndroidLiquidGlassView 库 AGSL + FlClash 底栏配方，2026-10-28）----
        R1a 曾把容器画成近实色：当时 WebView 内容会滚进 dock 区，半透=正文透出。
-       内容区收短（margin-bottom）后栏后只剩干净壁纸，具备了上真玻璃的前提；
-       页面头卡已用 vendored 库（QmDeve）玻璃化，栏体跟进统一材质语言。
-       管线：整栏矩形 PixelCopy 一次（每代：壁纸/主题/几何变化）→ 库 AGSL
-       （R.raw.liquidglass_effect，与页面头卡同一份）录进 RenderNode 显示列表
-       （录制画布硬件加速，RuntimeShader 可用；Bitmap.Config.HARDWARE 不可直接
-       createMutable——真机实测 IllegalArgumentException），每帧 drawRenderNode
-       重放，代价同 blit。抓图未就绪/低版本/渲染失败回退实色。
+       内容区收短（margin-bottom）后栏后只剩干净壁纸，具备了上真玻璃的前提。
+       管线：整栏矩形（±pad 余量，折射向外采样）PixelCopy 每代一次（壁纸/主题/
+       几何变化；floorBands 壁纸解码信号触发重抓——抓早了是 backdrop 底色且
+       stale 永假）→ 库 AGSL 直接画在 onDraw 画布上。
+       **不走 RenderNode 缓存**：录制一次长期重放的用法在真机 popup 窗里
+       inputShader 采样失效（输出 alpha=0 全透明=壁纸透出，用户报「滑动轨迹
+       透明」；页面头卡能用是因为库把 shader 挂在 RenderEffect 上且每帧重录）。
+       透镜的 RuntimeShader 直画在此 view 久经验证，栏体同款直画，代价=每帧
+       一次小面积 shader。抓图未就绪/低版本/失败回退实色（chromeB1）。
        交互透镜（drawGlass）不受影响，玻璃栏上再叠放大透镜=iOS 26 分层玻璃。 */
     private Bitmap barBackdrop;                     // 整栏背景抓图（栏矩形+pad，折射向外采样用）
     private BitmapShader barBackdropShader;
     private int barCapOffX, barCapOffY;             // 栏左上在背景位图内的偏移（pad 对齐）
-    private RenderNode glassBarNode;                // 玻璃条显示列表（含描边）
     private RuntimeShader barGlassShader;
     private final Paint barGlassP = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Rect srcBarRect = new Rect();
     private final RectF lastCapturedBar = new RectF();
     private int lastCapturedDark = -1;
-    private int barCaptureGen;                      // 抓图代数：成功一次 +1
-    private int barBakedGen;                        // 已尝试渲染的代数（成败都不再试，防每帧重试）
     private boolean barCopyBusy;
     private static String barAgsl;                  // AGSL 源码（进程内缓存一份）
     /** 首次拿到真实栏几何后是否已淡入（冷启动防「由大变小」见 onDraw）。 */
@@ -1123,7 +1122,6 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                 || barBackdrop.getHeight() != cb - ct) {
             barBackdrop = Bitmap.createBitmap(cr - cl, cb - ct, Bitmap.Config.ARGB_8888);
             barBackdropShader = new BitmapShader(barBackdrop, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
-            glassBarNode = null;
         }
         srcBarRect.set(cl, ct, cr, cb);
         barCopyBusy = true;
@@ -1148,10 +1146,9 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                         mm.setTranslate(barCapOffX, barCapOffY);
                         barBackdropShader.setLocalMatrix(mm);
                     }
-                    barCaptureGen++;         // 新底 → 玻璃显示列表重录
-                    invalidate();
+                    invalidate();   // 新底落位 → 之后的直画用新采样
                 }
-                /* 失败不重试本代：stale 判定仍是 false，等壁纸/主题/几何换代再来 */
+                /* 失败不重试：stale 判定仍是 false，等壁纸/主题/几何换代再来 */
             }, new Handler(Looper.getMainLooper()));
         } catch (Throwable t2) {
             barCopyBusy = false;
@@ -1159,18 +1156,16 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         }
     }
 
-    /** 玻璃条显示列表重录（换代时）：库 AGSL + 描边。
-     *  录制画布硬件加速，RuntimeShader 可用；每帧 drawRenderNode 重放=一次 GPU
-     *  绘制，代价与 blit 同级。任何失败 → glassBarNode=null 回退实色，
-     *  本代不再重试（barBakedGen 记账，防每帧异常刷屏）。 */
-    private void ensureGlassBar(RectF bar, float r) {
+    /** 栏体玻璃就绪判定 + uniforms 组装（每帧调用；未换代时仅重复设值，开销可忽略）。
+     *  返回 false = 抓图未就绪/低版本/组装失败 → 回退实色。
+     *  **直画不走 RenderNode**：录制一次长期重放的用法在真机 popup 窗里
+     *  inputShader 采样失效（输出 alpha=0 全透明）；透镜的直画模式在此 view
+     *  久经验证，栏体同款。 */
+    private boolean ensureBarGlass(RectF bar, float r) {
+        if (Build.VERSION.SDK_INT < 33 || !nativeDock) return false;
+        if (barBackdrop == null || barBackdropShader == null) return false;
         int W = (int) bar.width(), H = (int) bar.height();
-        if (barBakedGen == barCaptureGen) return;          // 本代已处理（成败均不再试）
-        if (Build.VERSION.SDK_INT < 33 || !nativeDock) return;
-        if (barCaptureGen == 0 || barBackdrop == null || barBackdropShader == null) {
-            return;                                        // 等抓图落定（帧路径驱动）
-        }
-        barBakedGen = barCaptureGen;
+        if (barBackdrop.getWidth() < W + 2 || barBackdrop.getHeight() < H + 2) return false;
         try {
             if (barGlassShader == null) {
                 barGlassShader = new RuntimeShader(loadBarAgsl(getResources()));
@@ -1202,17 +1197,11 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             }
             barGlassShader.setInputShader("content", barBackdropShader);
             barGlassP.setShader(barGlassShader);
-            RenderNode node = new RenderNode("dockGlassBar");
-            node.setPosition(0, 0, W, H);
-            Canvas gc = node.beginRecording();
-            gc.drawRoundRect(0, 0, W, H, r, r, barGlassP);
-            barStrokeP.setStrokeWidth(density);
-            gc.drawRoundRect(0, 0, W, H, r, r, barStrokeP);
-            node.endRecording();
-            glassBarNode = node;
+            return true;
         } catch (Throwable t) {
-            Log.w(TAG, "栏体玻璃渲染失败，回退实色", t);
-            glassBarNode = null;
+            Log.w(TAG, "栏体玻璃组装失败，回退实色", t);
+            barGlassP.setShader(null);
+            return false;
         }
     }
 
@@ -1321,14 +1310,17 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                 || Math.abs(chromePillCy - pillCy()) > 0.5f) {
             rebuildChrome();
         }
-        /* 栏体玻璃：每帧补抓+重录（代判定在内部，未变即零成本跳过），
-           玻璃显示列表就绪则顶替实色 blit */
+        /* 栏体玻璃：每帧补抓+组装（代判定在内部，未变即零成本跳过），
+           玻璃就绪则直画（库 AGSL，透镜同款模式），否则实色 blit */
         maybeCaptureBarBackdrop();
-        ensureGlassBar(bar, bar.height() / 2f);
-        if (glassBarNode != null) {
+        if (ensureBarGlass(bar, bar.height() / 2f)) {
             int sv = canvas.save();
             canvas.translate(bar.left, bar.top);
-            canvas.drawRenderNode(glassBarNode);
+            float rr2 = bar.height() / 2f;
+            float bw2 = bar.width(), bh2 = bar.height();
+            canvas.drawRoundRect(0, 0, bw2, bh2, rr2, rr2, barGlassP);
+            barStrokeP.setStrokeWidth(density);
+            canvas.drawRoundRect(0, 0, bw2, bh2, rr2, rr2, barStrokeP);
             canvas.restoreToCount(sv);
         } else {
             canvas.drawBitmap(chromeB1, bar.left, bar.top, null);
