@@ -43,21 +43,62 @@
   /* ---------------- 渲染 ---------------- */
   function keyOf(st) { return st.r + ':' + (st.a || ''); }
 
+  /* 原生页开关门控在桥存在性上（与 applyNativeDock 同口径）：真机壳内桥恒在、
+     flag 决定接管；本地视觉闭环 / jsdom 没有桥、原生层也不存在——只看 flag
+     会把 WebView 页渲染成空串（smoke 逐视图全红、serve-lum 白屏）。 */
+  function hasNativeBridge() {
+    return !!(w.NetBridge && w.NetBridge.hideAllNativePages);
+  }
+  /* 原生阶段页开关（顶层：render() 与 boot() 内的桥都要用；定义在 boot 里
+     曾导致 render 抛 ReferenceError → 进阶段页整页不动 + 顶部红错条）。 */
+  function nativePhaseOn() {
+    if (!hasNativeBridge()) return false;
+    try { return localStorage.getItem('netops_native_phase') !== '0'; } catch (e) { return true; }
+  }
+  /* 原生排障页开关（N4 第一段） */
+  function nativeFaultOn() {
+    if (!hasNativeBridge()) return false;
+    try { return localStorage.getItem('netops_native_fault') !== '0'; } catch (e) { return true; }
+  }
+  /* 原生面试页开关（N4 第二段） */
+  function nativeIvOn() {
+    if (!hasNativeBridge()) return false;
+    try { return localStorage.getItem('netops_native_iv') !== '0'; } catch (e) { return true; }
+  }
+  /* 原生命令字典页开关（N4 第三段） */
+  function nativeDictOn() {
+    if (!hasNativeBridge()) return false;
+    try { return localStorage.getItem('netops_native_dict') !== '0'; } catch (e) { return true; }
+  }
+  function flagOn(key) {
+    if (!hasNativeBridge()) return false;
+    try { return localStorage.getItem(key) !== '0'; } catch (e) { return true; }
+  }
+  function nativeRefsOn() { return flagOn('netops_native_refs'); }
+  function nativeQuizOn() { return flagOn('netops_native_quiz'); }
+  function nativeHomeOn() { return flagOn('netops_native_home'); }
+  function nativeSearchOn() { return flagOn('netops_native_search'); }
+  function nativeMeOn() { return flagOn('netops_native_me'); }
+  function nativeFavOn() { return flagOn('netops_native_fav'); }
+  function nativeDrawerOn() { return flagOn('netops_native_drawer'); }
+  function nativeGlossaryOn() { return flagOn('netops_native_glossary'); }
+  function nativeRoadmapOn() { return flagOn('netops_native_roadmap'); }
+
   function render(st, restore) {
     var html = '';
     switch (st.r) {
-      case 'learn':    html = V.learn(); break;
-      case 'phase':    html = V.phase(st.a); break;
-      case 'fault':    html = V.fault({ cat: filters.faultCat }); break;
-      case 'dict':     html = V.dict({ cat: filters.dictCat }); break;
-      case 'iv':       html = V.iv({ cat: filters.ivCat }); break;
-      case 'me':       html = V.me(); break;
+      case 'learn':    html = nativeHomeOn() ? '' : V.learn(); break;
+      case 'phase':    html = nativePhaseOn() ? '' : V.phase(st.a); break;
+      case 'fault':    html = nativeFaultOn() ? '' : V.fault({ cat: filters.faultCat }); break;
+      case 'dict':     html = nativeDictOn() ? '' : V.dict({ cat: filters.dictCat }); break;
+      case 'iv':       html = nativeIvOn() ? '' : V.iv({ cat: filters.ivCat }); break;
+      case 'me':       html = nativeMeOn() ? '' : V.me(); break;
       case 'fav':      html = V.fav(); break;
-      case 'refs':     html = V.refs(); break;
+      case 'refs':     html = nativeRefsOn() ? '' : V.refs(); break;
       case 'ref':      html = V.ref(st.a); break;
-      case 'glossary': html = V.glossary(); break;
-      case 'roadmap':  html = V.roadmap(); break;
-      case 'quiz':     html = V.quiz(); break;
+      case 'glossary': html = nativeGlossaryOn() ? '' : V.glossary(); break;
+      case 'roadmap':  html = nativeRoadmapOn() ? '' : V.roadmap(); break;
+      case 'quiz':     html = nativeQuizOn() ? '' : V.quiz(); break;
       case 'cli':      html = V.cli(); break;
       case 'search':   html = V.search(lastQuery, A.searchAll(lastQuery)); break;
       default:         html = V.learn();
@@ -71,7 +112,7 @@
     var title = m.t, sub = m.s;
     if (st.r === 'phase' && A.PH[st.a]) { title = A.PH[st.a].short; sub = A.PH[st.a].title; }
     if (st.r === 'ref') { EXT.refs.forEach(function (x) { if (x.id === st.a) { title = x.t; sub = x.d; } }); }
-    if (st.r === 'search') { sub = '关键词：' + lastQuery; }
+    if (st.r === 'search') { sub = lastQuery ? ('关键词：' + lastQuery) : ''; }
     barName.textContent = title;
     barSub.textContent = sub;
     d.documentElement.setAttribute('data-accent', (st.r === 'phase' && A.PH[st.a]) ? A.PH[st.a].color : m.accent);
@@ -92,6 +133,124 @@
 
     scroll.scrollTop = restore ? (scrollMem[keyOf(st)] || 0) : 0;
     onScroll();
+    warmFirstCardNow();
+    /* 原生阶段页：进入该路由即显示；离开即收起（N1 起这是页面本体，不是交接代理） */
+    if (st.r === 'phase' && nativePhaseOn()) {
+      if (w.NetOpsNativePhaseShow) w.NetOpsNativePhaseShow(st.a);
+    } else if (w.NetOpsNativePhaseHide) {
+      w.NetOpsNativePhaseHide();
+    }
+    if (st.r === 'fault' && nativeFaultOn()) {
+      try { if (w.NetBridge && w.NetBridge.showNativeFault) w.NetBridge.showNativeFault(); } catch (e) { }
+    } else {
+      try { if (w.NetBridge && w.NetBridge.hideNativeFault) w.NetBridge.hideNativeFault(); } catch (e) { }
+    }
+    if (st.r === 'iv' && nativeIvOn()) {
+      try { if (w.NetBridge && w.NetBridge.showNativeIv) w.NetBridge.showNativeIv(); } catch (e) { }
+    } else {
+      try { if (w.NetBridge && w.NetBridge.hideNativeIv) w.NetBridge.hideNativeIv(); } catch (e) { }
+    }
+    if (st.r === 'dict' && nativeDictOn()) {
+      try { if (w.NetBridge && w.NetBridge.showNativeDict) w.NetBridge.showNativeDict(); } catch (e) { }
+    } else {
+      try { if (w.NetBridge && w.NetBridge.hideNativeDict) w.NetBridge.hideNativeDict(); } catch (e) { }
+    }
+    /* 三个轻量页：显式调用，不用桥对象的下标取方法（Java 注入对象的动态属性
+       取值在部分 WebView 版本不可靠，曾整页空白） */
+    /* 原生页显隐收口：目标路由有原生页且开关开 → 显式 show；
+       没有（cli/fav 等）或开关关 → 全收，否则旧原生页会盖住 WebView 内容
+       （2026-10-27 实测 CLI 页空白）。注意：桥方法一律显式调用，
+       下标动态取值在真机 WebView 取到 undefined（同日已踩过）。 */
+    try {
+      var np = w.NetBridge;
+      if (np) {
+        var on = {
+          learn: nativeHomeOn(), phase: nativePhaseOn(), fault: nativeFaultOn(),
+          iv: nativeIvOn(), dict: nativeDictOn(), refs: nativeRefsOn(),
+          glossary: nativeGlossaryOn(), roadmap: nativeRoadmapOn(),
+          quiz: nativeQuizOn(), me: nativeMeOn(), search: nativeSearchOn(),
+          fav: nativeFavOn()
+        }[st.r];
+        if (on) {
+          if (st.r === 'learn') np.showNativeHome();
+          else if (st.r === 'phase') np.showNativePhase(st.a);
+          else if (st.r === 'fault') np.showNativeFault();
+          else if (st.r === 'iv') np.showNativeIv();
+          else if (st.r === 'dict') np.showNativeDict();
+          else if (st.r === 'refs') np.showNativeRefs();
+          else if (st.r === 'glossary') np.showNativeGlossary();
+          else if (st.r === 'roadmap') np.showNativeRoadmap();
+          else if (st.r === 'quiz') np.showNativeQuiz();
+          else if (st.r === 'me') np.showNativeMe();
+          else if (st.r === 'search') np.showNativeSearch();
+          else if (st.r === 'fav') np.showNativeFav();
+        } else {
+          np.hideAllNativePages();
+        }
+      }
+    } catch (e) { }
+    try {
+      if (st.r === 'refs' && nativeRefsOn()) w.NetBridge.showNativeRefs();
+      else w.NetBridge.hideNativeRefs();
+    } catch (e) { }
+    try {
+      if (st.r === 'glossary' && nativeGlossaryOn()) w.NetBridge.showNativeGlossary();
+      else w.NetBridge.hideNativeGlossary();
+    } catch (e) { }
+    try {
+      if (st.r === 'roadmap' && nativeRoadmapOn()) w.NetBridge.showNativeRoadmap();
+      else w.NetBridge.hideNativeRoadmap();
+    } catch (e) { }
+  }
+
+  /* ---- 卡片体预热（2026-10-26 三版，CDP 实测后定型）----
+     CDP 长任务实测：进阶段页渲染 210ms、首次展开 89ms——两处都是冷启动卡点。
+     二版「渲染当帧全量构建」把成本全塞进入场动画窗口，动画被 210ms 主线程
+     阻塞拖成顿挫（用户「展开很卡」的真身是进页那一下）。
+     三版分工：
+       ① 渲染帧内只同步构建**第一张卡**（绝大多数点击目标，~15ms 不伤动画）；
+       ② 其余卡体在入场动画结束后，每 80ms 空闲切片逐个构建（摊平，点前必就绪）。
+     点击路径的懒构建保留作兜底。 */
+  function warmFirstCardNow() {
+    var el = scroll.querySelector('[data-lazy="1"]');
+    if (el) buildOneBody(el);
+    scheduleRestWarmup();
+  }
+  function buildOneBody(el) {
+    var card = el.closest('.card');
+    var item = card && card.dataset.id ? A.BY_ID[card.dataset.id] : null;
+    if (item) {
+      el.innerHTML = A.bodyOf(item);
+      /* 拓扑 SVG 延迟注入（2026-10-27）：展开卡的一次性栅格曾达 386ms
+         （trace 实测），大头是拓扑大图（竖屏可达 3.4k px 高的矢量纹理）。
+         文字立即出，SVG 节点 180ms 后放回并淡入——把最后一次大冻结
+         拆出「点上去粘死」的关键帧。 */
+      var topo = el.querySelector('.topo');
+      if (topo && topo.firstChild) {
+        var svg = topo.firstChild;
+        topo.removeChild(svg);
+        setTimeout(function () {
+          if (!topo.parentNode) return;
+          topo.appendChild(svg);
+          topo.style.opacity = '0';
+          topo.style.transition = 'opacity .25s var(--ease-out)';
+          requestAnimationFrame(function () { topo.style.opacity = '1'; });
+        }, 180);
+      }
+    }
+    el.dataset.lazy = '0';
+  }
+  var warmTimer = 0;
+  function scheduleRestWarmup() {
+    clearTimeout(warmTimer);
+    warmTimer = setTimeout(restWarmStep, 900);   /* 入场动画 .72s 之后再动 */
+  }
+  function restWarmStep() {
+    if (d.hidden) return;
+    var el = scroll.querySelector('[data-lazy="1"]');
+    if (!el) return;
+    buildOneBody(el);
+    warmTimer = setTimeout(restWarmStep, 80);
   }
 
   /* 仅同步地址栏，不产生历史条目；file:// 源下 replaceState 会抛错，静默跳过。 */
@@ -308,6 +467,7 @@
         else { A.S.done[id] = 1; A.touchStreak(); U.buzz(12); }
         A.saveDone();
         var on = !!A.S.done[id];
+        try { if (w.NetBridge && w.NetBridge.setNativeState) w.NetBridge.setNativeState(id, 'done', on); } catch (e) { }
         dn.className = 'btn ' + (on ? 'btn--ok' : 'btn--soft') + ' btn--sm grow';
         dn.innerHTML = icon(on ? 'i-check-circle' : 'i-circle', 'icon--sm') +
           (on ? '已掌握' : '标记掌握');
@@ -325,6 +485,7 @@
         if (A.S.fav[fid]) delete A.S.fav[fid]; else { A.S.fav[fid] = 1; U.buzz(10); }
         A.saveFav();
         var f = !!A.S.fav[fid];
+        try { if (w.NetBridge && w.NetBridge.setNativeState) w.NetBridge.setNativeState(fid, 'fav', f); } catch (e) { }
         fv.style.color = f ? 'var(--warn)' : '';
         fv.innerHTML = '<svg class="icon icon--sm' + (f ? ' icon--fill' : '') +
           '" aria-hidden="true"><use href="#i-star"/></svg>' + (f ? '已收藏' : '收藏');
@@ -339,7 +500,14 @@
         var focus = g.getAttribute('data-focus');
         if (drawerCtl.isOpen()) drawerCtl.close();
         go(r, a);
-        if (focus) focusCard(focus);
+        /* 原生阶段页：focus 卡片由原生展开+滚动（WebView 里没有卡片可聚焦） */
+        if (focus) {
+          if (r === 'phase' && nativePhaseOn() && w.NetBridge && w.NetBridge.showNativePhaseFocus) {
+            try { w.NetBridge.showNativePhaseFocus(a, focus); } catch (e) { }
+          } else {
+            focusCard(focus);
+          }
+        }
         return;
       }
 
@@ -410,6 +578,28 @@
       /* 重置 */
       if (t.closest('[data-reset]')) { confirmReset(); return; }
 
+      /* 原生底栏开关（R1）：切换即重画，无需刷新 */
+      var nd = t.closest('[data-toggle-nativedock]');
+      if (nd) {
+        var ndOn = !w.NetOpsNativeDockOn();
+        w.NetOpsSetNativeDock(ndOn);
+        var sw = $('#swNativeDock');
+        if (sw) sw.classList.toggle('is-on', ndOn);
+        U.toast(ndOn ? '原生底栏已开启' : '已回退网页底栏', 'ok');
+        return;
+      }
+
+      /* 原生顶栏开关（R2）：同上 */
+      var na = t.closest('[data-toggle-nativeappbar]');
+      if (na) {
+        var naOn = !A.nativeAppbarOn();
+        w.NetOpsSetNativeAppbar(naOn);
+        var swa = $('#swNativeAppbar');
+        if (swa) swa.classList.toggle('is-on', naOn);
+        U.toast(naOn ? '原生顶栏已开启' : '已回退网页顶栏', 'ok');
+        return;
+      }
+
       /* 动画开关 */
       var tm = t.closest('[data-toggle-motion]');
       if (tm) {
@@ -461,13 +651,17 @@
       var el = view.querySelector('.card[data-id="' + id + '"]');
       if (!el) return;
       var head = el.querySelector('[data-toggle]');
-      if (head && !el.classList.contains('is-open')) head.click();
+      var doOpen = head && !el.classList.contains('is-open');
       setTimeout(function () {
         var r = el.getBoundingClientRect(), sr = scroll.getBoundingClientRect();
         scroll.scrollTop += r.top - sr.top - 10;
+        /* 展开挪出首帧（2026-10-27）：进页首帧要栅格化「整张展开卡」（拓扑 SVG
+           + 长文本），WebViewFunctor::drawVk 同步等待曾达 421ms = 点上去「粘死」。
+           首帧只出摘要（轻栅格），300ms 后再展开——冻结期被拆出关键路径。 */
+        if (doOpen) head.click();
         el.classList.add('anim-pop');
         setTimeout(function () { el.classList.remove('anim-pop'); }, 700);
-      }, 60);
+      }, 300);
     }, 60);
   }
 
@@ -521,7 +715,10 @@
      只碰 transform；浏览器一旦接管滚动会发 pointercancel，我们顺势回位，绝不和滚动抢。
      幅度/时长是手感参数，只能真机上手调，所以做成可实时改的 store 值：
      长按「全局质感」弹窗标题 0.6 秒开调参面板（隐藏入口，不占正式界面）。 */
-  var SQUISH_SEL = '.tab, .chip, .btn, .ibtn, .list__item, .phase, .stat, .card__head, #fab';
+  /* 2026-10-27：.list__item / .card__head 退出形变——它们贴着容器边，按下缩放/拖拽位移
+   会让直角按压背景与圆角容器错位露底色（用户实证「矩形色块跟底面背景不一致」，
+   与 2026-10-26 直铺模式关形变同根）。独立浮动的按钮/筹码/卡片保留手感。 */
+  var SQUISH_SEL = '.tab, .chip, .btn, .ibtn, .phase, .stat, #fab';
   /* 形变默认值取自玻璃配方表（motion.squish → --gr-squish-*），不再在这里抄第二份。
      以前 SQT_DEF 和表里是同一组数字各存一份，改表其实不改行为。
      单位换算：max 生成的是 px、back 是 s，而面板按 px 数值与 ms 用。
@@ -561,6 +758,10 @@
   }
   function squishBlocked() {
     try {
+      /* 直铺模式关形变（2026-10-26 用户报「每栏双层、点开上下层割裂」）：
+         行是透明的，形变让文字单独位移缩放，视觉上像从壁纸上剥出一层。
+         无壁纸的卡片浮层模式不受影响，照常形变。 */
+      if (d.body.classList.contains('wp-qq') && d.body.classList.contains('has-wallpaper')) return true;
       if (U.motion.get() !== 'on') return true;
       if (deviceDegraded || batteryDegraded) return true;
       if (w.matchMedia && w.matchMedia('(prefers-reduced-motion: reduce)').matches) return true;
@@ -571,8 +772,9 @@
     if (w.__netopsSquish) return;
     w.__netopsSquish = true;
     applySqt();
-    var el = null, id = -1, x0 = 0, y0 = 0, nx = 0, ny = 0, timer = 0;
+    var el = null, id = -1, x0 = 0, y0 = 0, nx = 0, ny = 0, timer = 0, raf = 0;
     function paint() {
+      raf = 0;
       if (!el) return;
       var s = Math.min(1, Math.sqrt(nx * nx + ny * ny) / Math.max(1, SQT.max));
       var a = SQT.press + s * SQT.stretch, b = SQT.press - s * SQT.squash;
@@ -588,9 +790,12 @@
       var dx = e.clientX - x0, dy = e.clientY - y0, m = Math.sqrt(dx * dx + dy * dy);
       if (m > SQT.max) { dx *= SQT.max / m; dy *= SQT.max / m; }
       nx = dx; ny = dy; x0 = e.clientX; y0 = e.clientY;
-      paint();   /* 只改一个元素的 transform，直接写比 rAF 更跟手 */
+      /* rAF 合帧：高刷触屏 move 事件 120Hz+，逐事件直写会压垮主线程
+         （按住列表项滚动掉帧的用户报障）。合到每帧一次，跟手性无感差异。 */
+      if (!raf) raf = requestAnimationFrame(paint);
     }
     function release() {
+      if (raf) { cancelAnimationFrame(raf); raf = 0; }
       if (!el) return;
       var e0 = el;
       el = null; id = -1; nx = ny = 0;
@@ -642,6 +847,14 @@
       if (U.motion.get() !== 'on') return;
       if (w.matchMedia && w.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
       if (!d.body.classList.contains('glass-on')) return;
+      /* 触屏滚动期不更新高光：--mx/--my 写在根节点，滚动中每帧都令 appbar/dock
+         玻璃面整片重算重绘 = 掉帧大头。touchmove 的 target 停留在手势起始元素，
+         起始在内容上 = 正在滚动页面 → 跳过；起始在 chrome 上（按 dock/顶栏）→
+         保留高光跟随的设计手感。 */
+      if (e.type === 'touchmove' || e.pointerType === 'touch') {
+        var tg = e.target;
+        if (!(tg && tg.closest && tg.closest('.tabbar, .appbar, .drawer, .sheet'))) return;
+      }
       var t = e.touches ? e.touches[0] : e;
       if (!t || typeof t.clientX !== 'number') return;
       lx = Math.max(0, Math.min(100, (t.clientX / window.innerWidth) * 100));
@@ -667,6 +880,10 @@
 
   /* ---------------- 背景壁纸（内置 7 类 x 2 张 + 相册自定义） ---------------- */
   var WP_KEY = 'netops_wallpaper';
+  /* 壁纸版本号（R2 原生顶栏用）：paintWallpaper（模块层）每次落笔自增，
+     顶栏的静态模糊背景只认这个号，变了才重抓。boot 内的 pushAppBarState
+     通过 window.NetOpsPushAppBar 触发。 */
+  var APPBAR_BG_REV = 0;
   /* 相册自选图是 dataURL（可达数 MB），单独占一个键；
      WP_KEY 只存选择（'custom' / 'wp-x-y' / 'none'），不再被大图挤掉。 */
   var WP_CUSTOM_KEY = 'netops_wp_custom';
@@ -693,15 +910,37 @@
   /* 壁纸只写 --wallpaper 一个真源，由 .wall 层负责铺与模糊。
      以前这里还会往 body 上写一份 inline background（四处各写一遍，
      其中一份还漏了内置壁纸分支），现在统一收口到一个函数。 */
+  /* 原生阶段页跟随直铺：有壁纸 = 透明底（壁纸透出、卡片半透明），
+     否则用不透明页底。放在 paintWallpaper 隔壁，壁纸一变就同步。 */
+  function syncNativePageMode() {
+    try {
+      var direct = d.body.classList.contains('has-wallpaper');
+      var wp = findWp(lsGet(WP_KEY) || '');
+      var file = wp ? wp.file : '';
+      /* 与 --wp-blur 同一公式（不读 CSS 变量：boot 期可能尚未写入，读到空值就退回 8px，
+         真机上表现为「原生页底图明显比网页糊」）。 */
+      var g0 = (typeof getGlass === 'function' && getGlass()) || {};
+      var t = Math.max(10, Math.min(95, g0.tint || 55));
+      var blur = 2 + (t - 10) * 0.15;
+      if (w.NetBridge && w.NetBridge.setNativePageMode2) w.NetBridge.setNativePageMode2(direct, file, blur);
+      else if (w.NetBridge && w.NetBridge.setNativePageMode) w.NetBridge.setNativePageMode(direct);
+    } catch (e) { }
+  }
+
   function paintWallpaper(cssUrl) {
     var root = document.documentElement;
     if (!cssUrl || cssUrl === 'none') {
+      /* 清壁纸无图可等：立即失效顶栏静态背景 */
+      APPBAR_BG_REV++;
+      try { if (w.NetOpsPushAppBar) w.NetOpsPushAppBar(); } catch (e) { }
       root.style.setProperty('--wallpaper', 'none');
       d.body.classList.remove('has-wallpaper');
+      syncNativePageMode();
       return;
     }
     root.style.setProperty('--wallpaper', cssUrl);
     d.body.classList.add('has-wallpaper');
+    syncNativePageMode();
     measureWallFloor(cssUrl);
   }
   /* 按当前壁纸算玻璃板的最小不透明度 —— 但用的是**穿过滤镜链之后**的亮度带。
@@ -827,7 +1066,15 @@
     return wf.bands[theme].strip || null;
   }
   function measureWallFloor(cssUrl) {
-    floorBands(cssUrl, function (bands) { buildWallFloor(bands); applyGlass(getGlass() || glassDefaults); });
+    /* R2 顶栏背景失效信号挂在这里：floorBands 回调 = 壁纸图已解码、玻璃已按新
+       壁纸重算 —— 此刻之后原生 PixelCopy 才能抓到新壁纸（抓早了是旧画面，
+       且 rev 被钉死不再重抓）。清壁纸的 immediate 分支在 paintWallpaper。 */
+    floorBands(cssUrl, function (bands) {
+      buildWallFloor(bands);
+      applyGlass(getGlass() || glassDefaults);
+      APPBAR_BG_REV++;
+      try { if (w.NetOpsPushAppBar) w.NetOpsPushAppBar(); } catch (e) { }
+    });
   }
   /* 取滤镜结果底部条带的平均色并转成 HSL。
      底栏贴在屏幕底部，所以这条带就是它背后大致是什么颜色 —— 高光据此取色相，
@@ -1023,6 +1270,12 @@
     lbl.textContent = '已设置';
   }
 
+  /* ---- 壁纸直铺显示（2026-10-26，用户拍板：不搞模式选择器）----
+     壁纸开启即直铺：内容不套卡片浮层直接坐在壁纸上，全局轻雾（.wall::after）
+     统一底色，dock 栏用恒定玻璃面保可辨。CSS 规则都以 .has-wallpaper 作用域
+     收口，无壁纸时零影响；body.wp-qq 常驻，不再有开关与存储。 */
+  d.body.classList.add('wp-qq');
+
   /* 页面启动时恢复已保存的壁纸 */
   (function restoreWallpaper() {
     var saved = lsGet(WP_KEY);
@@ -1188,6 +1441,17 @@
     /* 暗色模式专用：纯 alpha 变量（暗色 CSS 用 rgba(44,44,46,var(--glass-tint-top-a)) 形式） */
     root.style.setProperty('--glass-tint-top-a', a.toFixed(3));
     root.style.setProperty('--glass-tint-bot-a', b.toFixed(3));
+    /* 直铺壁纸处理跟随通透度（2026-10-27 用户「壁纸不通透」）。
+       ⚠ 语义：通透度 = 浮层不透明度，**越低越透**——t=10 壁纸最清晰，
+       t=95 壁纸最被盖住。所以糊化/洗白随 t 递增：t=10 → 2px/.02（近原图），
+       t=55 → 8.8px/.165，t=95 → 14.8px/.30。此前固定值+方向反了。 */
+    var wpBlur = 2 + (t - 10) * 0.15;
+    var wpWash = 0.02 + (t - 10) * 0.0033;
+    root.style.setProperty('--wp-blur', wpBlur.toFixed(1) + 'px');
+    root.style.setProperty('--wp-wash', wpWash.toFixed(3));
+    /* 通透度一变，原生壁纸层跟着改（boot 期 paintWallpaper 早于本函数，
+       早同步会拿到默认值 → 原生页底图比网页糊，2026-10-27 实测 8.75 vs 2）。 */
+    if (typeof syncNativePageMode === 'function') syncNativePageMode();
     /* 滚动区域"实色蒙版"alpha（frosted/gaussian 主卡/子段用，跟随 px 滑块，范围 .72-.92） */
     var maskA = Math.min(0.92, Math.max(0.72, 0.60 + (g.blur - 8) / 12 * 0.30));
     root.style.setProperty('--glass-mask-a', maskA.toFixed(3));
@@ -1487,6 +1751,25 @@
     return false;
   }
 
+  /* ---- 底部弹层开合 → 原生透镜窗收起（2026-10-26）----
+     原生透镜窗是独立窗口永远置顶，药丸触摸带会吃掉 sheet 底部控件（全局质感
+     的玻璃开关）的点击。sheet 开合时推送给 NetBridge.setSheetOpen，原生收起/
+     还原透镜窗。桌面浏览器 / 旧包无此方法则静默跳过。
+     ⚠ wpSheet/glassSheet 是「我的」页渲染时 innerHTML 动态注入的（31-views），
+     boot 时还不存在、且每次切页会被重建 —— 必须 document 级 subtree 观察，
+     单点覆盖创建与所有开合来源（遮罩/grab/返回键/切页都只动 is-open 类）。 */
+  (function watchSheetForLens() {
+    if (!(w.NetBridge && typeof w.NetBridge.setSheetOpen === 'function')) return;
+    var last = null;
+    var obs = new MutationObserver(function () {
+      var open = !!d.querySelector('.sheet.is-open');
+      if (open === last) return;
+      last = open;
+      try { w.NetBridge.setSheetOpen(open); } catch (e) { }
+    });
+    obs.observe(d.body, { subtree: true, attributes: true, attributeFilter: ['class'], childList: true });
+  })();
+
   /* ---- 悬浮底栏模式（floating vs regular） ---- */
   var TABBAR_KEY = 'netops_tabbar';
 
@@ -1681,7 +1964,16 @@
     /* 无✕设计（2026-09-30 用户三轮反馈定论：叉号一律会被误读为「关闭搜索」）。
        清空 = 退格键（清到空由 run() 的空查询分支退出搜索）；退出 = 框外「取消」。
        放大镜开关保留。 */
-    $('#btnSearch').addEventListener('click', function () {
+    $('#btnSearch').addEventListener('click', function (ev) {
+      /* 原生搜索接管：不再展开 HTML 搜索条（输入框/高亮/键盘都在原生侧处理）。
+         收口走 go('search')：标题/返回栈/render 尾部 showNativeSearch 统一处理——
+         直调 showNativeSearch 会绕过标题同步（顶栏残留旧页标题，2026-10-27 实测）。 */
+      if (nativeSearchOn() && w.NetBridge && w.NetBridge.showNativeSearch) {
+        if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+        closeSearch();
+        go('search', null);
+        return;
+      }
       if (wrap.classList.contains('is-open')) {
         closeSearch();
         if (cur.r === 'search') back();
@@ -2354,6 +2646,24 @@
     } catch (e) {}
 
     drawerCtl = U.bindDrawer(drawer, scrim);
+    /* 原生页盖在 WebView 之上 → 抽屉打开时先把原生页收起，关闭后按当前路由重新出。 */
+    (function () {
+      var rawOpen = drawerCtl.open, rawClose = drawerCtl.close;
+      function notify(open) {
+        try { if (w.NetBridge && w.NetBridge.setDrawerOpen) w.NetBridge.setDrawerOpen(open); } catch (e) { }
+      }
+      drawerCtl.open = function () {
+        notify(true);
+        rawOpen();
+      };
+      drawerCtl.close = function () {
+        rawClose();
+        notify(false);
+        setTimeout(function () {   /* 抽屉关闭动画后再让原生页回来，避免盖在抽屉上 */
+          try { if (cur && cur.r && d.body.classList.contains('has-wallpaper')) render(cur, true); } catch (e) { }
+        }, 260);
+      };
+    })();
     /* 2026-09-29 凌晨（用户拍板）：左缘 = 纯返回（跟手指示条），唤栏已移除。
        抽屉打开走左上角菜单按钮；关闭走点遮罩/物理返回/左缘返回。 */
     bindEdgeGestures();
