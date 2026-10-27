@@ -830,6 +830,7 @@ public class MainActivity extends AppCompatActivity {
                         if (nativeSearch != null) nativeSearch.setSafeArea(t2, b2);
                         if (nativeMe != null) nativeMe.setSafeArea(t2, b2);
                         if (nativeFav != null) nativeFav.setSafeArea(t2, b2);
+                        if (settingsPanel != null) settingsPanel.setSafeArea(t2, b2);
                     });
                 }
             }

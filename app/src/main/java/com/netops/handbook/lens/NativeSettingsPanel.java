@@ -35,6 +35,8 @@ public class NativeSettingsPanel extends FrameLayout {
     private final LinearLayout sheet;
     private NativeBlocks.Palette pal;
     private final Set setter;
+    private ScrollView sc;
+    private int safeTop, safeBottom;
 
     /* 当前状态（JS 推进来） */
     private String theme = "auto";
@@ -52,13 +54,16 @@ public class NativeSettingsPanel extends FrameLayout {
         setOnClickListener(v -> hide());                     /* 点空白收起 */
 
         ScrollView sc = new ScrollView(c);
+        this.sc = sc;
         sc.setFillViewport(false);
         sc.setVerticalScrollBarEnabled(false);
         sheet = new LinearLayout(c);
         sheet.setOrientation(LinearLayout.VERTICAL);
         android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
         bg.setColor(pal.cardBg);
-        bg.setCornerRadii(new float[]{pal.dp(22), pal.dp(22), pal.dp(22), pal.dp(22), 0, 0, 0, 0});
+        /* 四角全圆：setSafeArea 后 sheet 底边悬在 dock 上方，方角会显得断头 */
+        bg.setCornerRadii(new float[]{pal.dp(22), pal.dp(22), pal.dp(22), pal.dp(22),
+                pal.dp(22), pal.dp(22), pal.dp(22), pal.dp(22)});
         sheet.setBackground(bg);
         int pad = p.dp(16);
         sheet.setPadding(pad, pad, pad, pad + p.dp(18));
@@ -68,6 +73,26 @@ public class NativeSettingsPanel extends FrameLayout {
         sc.addView(sheet, new ScrollView.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         addView(sc, slp);
+    }
+
+    /** 顶部让开 appbar 窗、底部让开 dock（与其他原生页同口径：top+84 / bottom+84）。
+     *  sheet 锚 BOTTOM 且此前零让位 → 「模糊强度」滑杆和「完成」按钮正好压在
+     *  dock 窗底下（dock 是 PopupWindow 恒在页面层之上），滚到底也调不了。 */
+    public void setSafeArea(int topPx, int bottomPx) {
+        safeTop = topPx;
+        safeBottom = bottomPx;
+        applySafeArea();
+    }
+
+    private void applySafeArea() {
+        if (sc == null) return;
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) sc.getLayoutParams();
+        int top = safeTop + pal.dp(84);
+        int bottom = safeBottom + pal.dp(84);
+        if (lp.topMargin == top && lp.bottomMargin == bottom) return;
+        lp.topMargin = top;
+        lp.bottomMargin = bottom;
+        sc.setLayoutParams(lp);
     }
 
     public void setDark(boolean d) {
