@@ -2129,6 +2129,17 @@ body.wp-qq.has-wallpaper .wall{
   --bg-blur: var(--wp-blur, 8px);
   filter: blur(var(--bg-blur)) saturate(.92) brightness(1.04) !important;
 }
+/* 横屏 letterbox（2026-10-28）：竖版壁纸横屏 cover 会裁掉上下一大半
+   （用户报「壁纸被遮挡一大半」）。改两层：.wall 自身 cover+模糊做两侧
+   氛围垫，::before contain 整张居中可见——与原生 NativeBackdrop 横屏
+   同口径（原生接管时本层在下面，仅回退路径可见）。 */
+@media (orientation: landscape) {
+  body.wp-qq.has-wallpaper .wall::before{
+    content: "";
+    position: absolute; inset: 0;
+    background: var(--wallpaper, none) center / contain no-repeat;
+  }
+}
 /* 轻纱挂在 .wall 内部：z 序天然在壁纸之上、内容之下，不参与点击。 */
 body.wp-qq.has-wallpaper .wall::after{
   content: "";
