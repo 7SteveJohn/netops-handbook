@@ -13,6 +13,7 @@ import android.graphics.RenderNode;
 import android.graphics.Matrix;
 import android.graphics.Path;
 import android.graphics.RuntimeShader;
+import android.view.ViewTreeObserver;
 import android.graphics.Shader;
 import android.graphics.Typeface;
 import android.app.Activity;
@@ -387,11 +388,13 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         Log.i(TAG, "原生底栏 " + (on ? "接管" : "退位（回退 HTML 底栏）"));
     }
 
-    /** 桥：栏矩形（CSS×dpr 物理像素，屏幕坐标）。容器/触摸判定/图标配色的几何真源。 */
+    /** 桥：栏矩形（CSS×dpr 物理像素，**主窗口本地坐标**——JS getBoundingClientRect
+     *  本就是窗口坐标，分屏/小窗下窗口 ≠ 屏幕，此口径保证换算基准不漂）。
+     *  弹窗本地坐标由 dockRect()/pillCy() 按「弹窗在主窗口内的位置」实时换算
+     *  （2026-10-28：原先在此处按 getLocationOnScreen 一次性换算，分屏/小窗切换
+     *  时窗口在屏幕上移动，换算基准过期 → dock 错位/失效/重影）。 */
     public void setLensBarRect(float l, float t, float w, float h) {
-        int[] vl = new int[2];
-        getLocationOnScreen(vl);
-        barRect.set(l - vl[0], t - vl[1], l - vl[0] + w, t - vl[1] + h);
+        barRect.set(l, t, l + w, t + h);
         invalidate();
     }
 
@@ -575,9 +578,27 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     /** 复用的屏幕坐标缓冲：pillCy() 每帧被多次调用（绘制+重建门），
      *  原先每调一次 new int[2]，120Hz 下是纯 GC 垃圾。 */
     private final int[] locTmp = new int[2];
+    /** 分屏/小窗坐标链缓冲：主窗口本地 ↔ 弹窗本地的换算基准与中间量。 */
+    private final int[] winOff = new int[2];
+    private final int[] pvOff = new int[2];
+    private final int[] scrTmp = new int[2];
+    private final int[] anchorScr = new int[2];
+    private final int[] anchorWin = new int[2];
+    private final RectF barLocal = new RectF();
+
+    /** 弹窗内容视图在**主窗口**内的位置（窗口本地 ← 弹窗本地 的换算基准）。
+     *  分屏/小窗下主窗口在屏幕上有偏移，getLocationOnScreen 的口径会把窗口
+     *  偏移重复计入 —— 必须用「弹窗屏幕位置 − 主窗口屏幕原点」。 */
+    private void popupOffsetInMainWindow(int[] out) {
+        getLocationOnScreen(scrTmp);
+        anchor.getLocationOnScreen(anchorScr);
+        anchor.getLocationInWindow(anchorWin);
+        out[0] = scrTmp[0] - (anchorScr[0] - anchorWin[0]);
+        out[1] = scrTmp[1] - (anchorScr[1] - anchorWin[1]);
+    }
     private float pillCy() {
         if (pillCyPx > 0) {
-            getLocationOnScreen(locTmp);
+            popupOffsetInMainWindow(locTmp);
             float local = pillCyPx - locTmp[1];
             float hh = pillH / 2f;
             float lo = hh + 1f, hi = bandH - hh - 1f;
@@ -752,14 +773,14 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     /**
      * 首选：PixelCopy 直接回读合成结果（GPU 侧），不触发整页软件光栅化。
      * 抓的是**主窗口**，本层活在 PopupWindow 的独立 Window 里，所以不会抓到自己。
+     * 坐标口径 = **主窗口本地**（PixelCopy 的 rect 就是窗口坐标；firstCx/pillCyPx
+     * 均为窗口本地，分屏/小窗下不再叠加窗口的屏幕偏移）。
      */
     private void captureByPixelCopy(long t0) {
-        int[] vl = new int[2];
-        getLocationOnScreen(vl);
         /* 只抓药丸那一小块（+ 位移余量），不再抓整条带：
            整条带 1272×420 ≈ 2.1MB 回读实测 70ms，缩到 ~300×250 后应该一个量级往下掉。 */
         float cxScreen = firstCx + slot * (float) pos.value();
-        float cyScreen = pillCyPx > 0 ? pillCyPx : (vl[1] + bandH - pillH / 2f - 22f * density);
+        float cyScreen = pillCyPx > 0 ? pillCyPx : (viewportH - pillH / 2f - 22f * density);
         int pad = (int) (40 * density);
         int halfW = (int) (pillW / 2f + LIFT_GROWTH * density / 2f) + pad;
         int halfH = (int) (pillH / 2f + LIFT_GROWTH * density / 2f) + pad;
@@ -768,17 +789,20 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
            拿它夹 srcRect 会把 2587 以下的标签整体裁出背景图，CLAMP 平铺成一片
            匀色 —— 2026-10-26 实测"镜内图标在、文字没了"就是这个。 */
         int maxH = viewportH > 0 ? (int) viewportH : m.heightPixels;
+        int winW = anchor != null ? anchor.getWidth() : m.widthPixels;
         int l = Math.max(0, (int) (cxScreen - halfW));
         int top = Math.max(0, (int) (cyScreen - halfH));
-        int r = Math.min(m.widthPixels, (int) (cxScreen + halfW));
+        int r = Math.min(winW, (int) (cxScreen + halfW));
         int bot = Math.min(maxH, (int) (cyScreen + halfH));
         if (r - l < 4 || bot - top < 4) {
             copyBusy = false;
             return;
         }
         srcRect.set(l, top, r, bot);
-        bgOffX = l - vl[0];
-        bgOffY = top - vl[1];
+        /* uBgOffset：弹窗本地 p → 位图坐标 = p + (弹窗窗口位置 − 抓图左上) */
+        popupOffsetInMainWindow(pvOff);
+        bgOffX = l - pvOff[0];
+        bgOffY = top - pvOff[1];
         if (backdrop == null || backdrop.getWidth() != srcRect.width()
                 || backdrop.getHeight() != srcRect.height()) {
             backdrop = Bitmap.createBitmap(srcRect.width(), srcRect.height(), Bitmap.Config.ARGB_8888);
@@ -1095,28 +1119,27 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     private void maybeCaptureBarBackdrop() {
         if (detached || !nativeDock || barCopyBusy || window == null) return;
         if (Build.VERSION.SDK_INT < 33) return;
-        RectF bar = dockRect();
-        int W = (int) bar.width(), H = (int) bar.height();
-        if (W < 16 || H < 16) return;
+        if (barRect.width() <= 4 || barRect.height() <= 4) return;   // 无几何不抓
+        int W = (int) barRect.width(), H = (int) barRect.height();
         boolean stale = barBackdrop == null
-                || Math.abs(lastCapturedBar.left - bar.left) > 0.5f
-                || Math.abs(lastCapturedBar.top - bar.top) > 0.5f
-                || Math.abs(lastCapturedBar.width() - bar.width()) > 0.5f
-                || Math.abs(lastCapturedBar.height() - bar.height()) > 0.5f
+                || Math.abs(lastCapturedBar.left - barRect.left) > 0.5f
+                || Math.abs(lastCapturedBar.top - barRect.top) > 0.5f
+                || Math.abs(lastCapturedBar.width() - barRect.width()) > 0.5f
+                || Math.abs(lastCapturedBar.height() - barRect.height()) > 0.5f
                 || lastCapturedDark != (dark ? 1 : 0);
         if (!stale) return;
-        int[] vl = new int[2];
-        getLocationOnScreen(vl);
         DisplayMetrics m = getResources().getDisplayMetrics();
         int maxH = viewportH > 0 ? (int) viewportH : m.heightPixels;
+        int winW = anchor != null ? anchor.getWidth() : m.widthPixels;
         int pad = (int) (32 * density);
-        int cl = Math.max(0, (int) (vl[0] + bar.left) - pad);
-        int ct = Math.max(0, (int) (vl[1] + bar.top) - pad);
-        int cr = Math.min(m.widthPixels, (int) (vl[0] + bar.right) + pad);
-        int cb = Math.min(maxH, (int) (vl[1] + bar.bottom) + pad);
+        /* PixelCopy 的 rect = 主窗口本地坐标；barRect 现在就是这个口径，直接用 */
+        int cl = Math.max(0, (int) barRect.left - pad);
+        int ct = Math.max(0, (int) barRect.top - pad);
+        int cr = Math.min(winW, (int) barRect.right + pad);
+        int cb = Math.min(maxH, (int) barRect.bottom + pad);
         if (cr - cl < W || cb - ct < H) {
             Log.w(TAG, "栏玻璃抓取跳过：栏超界 rect=" + cl + "," + ct + "-" + cr + "," + cb);
-            return;   // 栏连本体都被屏边裁掉：回退实色
+            return;   // 栏连本体都被窗口边裁掉：回退实色
         }
         if (barBackdrop == null || barBackdrop.getWidth() != cr - cl
                 || barBackdrop.getHeight() != cb - ct) {
@@ -1125,10 +1148,11 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         }
         srcBarRect.set(cl, ct, cr, cb);
         barCopyBusy = true;
-        final RectF barSnap = new RectF(bar);
-        /* 栏左上在位图内的偏移：content.eval(栏本地 p) 须读到位图 p+off */
-        final int offX = vl[0] + (int) bar.left - cl;
-        final int offY = vl[1] + (int) bar.top - ct;
+        final RectF barSnap = new RectF(barRect);
+        /* 栏左上在位图内的偏移（弹窗本地→位图）：off = 弹窗窗口位置 − 抓图左上 */
+        popupOffsetInMainWindow(pvOff);
+        final int offX = pvOff[0] - cl;
+        final int offY = pvOff[1] - ct;
         try {
             PixelCopy.request(window, srcBarRect, barBackdrop, result -> {
                 barCopyBusy = false;
@@ -1139,7 +1163,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                     barCapOffY = offY;
                     if (barBackdropShader != null) {
                         /* setLocalMatrix 的 M 把画布坐标映到位图坐标（canvas p 采样
-                           M·p）：栏本地 p 对应位图 p+off → 平移 +off。写成 −off 会
+                           M·p）：弹窗本地 p 对应位图 p+off → 平移 +off。写成 −off 会
                            采样到负坐标被 CLAMP 成首行涂抹色（2026-10-28 真机实测
                            整条栏一色 227 的根因）。 */
                         android.graphics.Matrix mm = new android.graphics.Matrix();
@@ -1369,11 +1393,18 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     /** 栏矩形：JS 上报优先；未上报时以药丸行推导（上下各外扩 6dp，左右满宽）。
      *  fallback 用独立 RectF —— 共享 tmpRect 会被滑块绘制覆盖，引用混乱。 */
     private RectF dockRect() {
-        if (barRect.width() > 4 && barRect.height() > 4) return barRect;
-        float cy = pillCy();
-        float top = cy - pillH / 2f - 6f * density;
-        barFallback.set(0, top, bandW, top + pillH + 12f * density);
-        return barFallback;
+        if (barRect.width() <= 4 || barRect.height() <= 4) {
+            float cy = pillCy();
+            float top = cy - pillH / 2f - 6f * density;
+            barFallback.set(0, top, bandW, top + pillH + 12f * density);
+            return barFallback;
+        }
+        /* JS 推的是主窗口本地坐标；弹窗画布是弹窗本地 → 按「弹窗在主窗口内的
+           位置」实时换算（分屏/小窗下窗口在屏幕上移动，固定换算会过期错位） */
+        popupOffsetInMainWindow(winOff);
+        barLocal.set(barRect.left - winOff[0], barRect.top - winOff[1],
+                barRect.right - winOff[0], barRect.bottom - winOff[1]);
+        return barLocal;
     }
 
     /** 图标+文字绘制核心。dx/dy = 画布偏移；onlyIdx >= 0 时只画该格（蓝态），
@@ -1506,6 +1537,12 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
            首次量到的是瞬态布局。1.5s / 3s 各补量一次，稳定值覆盖瞬态值。 */
         v.postDelayed(v::requestGeometry, 1500);
         v.postDelayed(v::requestGeometry, 3000);
+        /* 窗口几何联动：分屏/小窗/自由窗口拖拽都会改 anchor 尺寸而不一定触发
+           onConfigurationChanged（rotation 才必触发）——布局一变就对齐弹窗宽度
+           并重测几何，否则 dock 留在旧窗口的尺寸/位置上（2026-10-28 用户报）。 */
+        v.lastAnchorW = -1;
+        v.lastAnchorH = -1;
+        v.anchor.getViewTreeObserver().addOnGlobalLayoutListener(v.anchorLayoutListener);
         v.showPopup();
         return v;
     }
@@ -1519,9 +1556,15 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
 
     public void reflow() {
         if (popup == null || detached || anchor == null) return;
-        int screenW = anchor.getResources().getDisplayMetrics().widthPixels;
-        if (lastPopupWidth == screenW && popup.isShowing()) return;
-        lastPopupWidth = screenW;
+        /* 基准 = **anchor 窗口宽**（分屏=半屏宽、小窗=窗口宽、全屏=屏宽）——
+           用屏宽做基准的话，分屏/小窗切换不触发重算，弹窗保持旧宽
+           （2026-10-28 用户报「分屏/小窗 dock 失效、尺寸不对、回全屏重影」）。 */
+        int winW = anchor.getWidth();
+        if (lastPopupWidth == winW && popup.isShowing()) return;
+        lastPopupWidth = winW;
+        /* MATCH_PARENT 在 showAtLocation 时按屏幕定格；分屏/小窗必须显式给
+           窗口宽，否则弹窗比窗口宽、dock 溢出到别人的半屏里。 */
+        popup.setWidth(Math.max(1, winW));
         if (popup.isShowing()) {
             try { popup.dismiss(); } catch (Throwable ignored) { }
         }
@@ -1546,6 +1589,32 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                 else Log.w(TAG, "PopupWindow 等待窗口 token 超时，未显示");
             }
         });
+    }
+
+    /* ---- 窗口几何联动（分屏/小窗/自由窗口）----
+       进入/退出分屏、拖拽小窗、调整分割线都改 anchor 尺寸而不一定触发
+       onConfigurationChanged（rotation 才必触发）。布局一变就对齐弹窗宽度
+       并重测几何，否则 dock 留在旧窗口的尺寸/位置上（2026-10-28 用户报）。 */
+    private int lastAnchorW = -1;
+    private int lastAnchorH = -1;
+    private final ViewTreeObserver.OnGlobalLayoutListener anchorLayoutListener =
+            this::onAnchorLayoutMaybe;
+    private final Runnable anchorLayoutWork = this::onAnchorLayoutChanged;
+
+    private void onAnchorLayoutMaybe() {
+        if (detached || anchor == null) return;
+        if (anchor.getWidth() == lastAnchorW && anchor.getHeight() == lastAnchorH) return;
+        lastAnchorW = anchor.getWidth();
+        lastAnchorH = anchor.getHeight();
+        /* 布局风暴节流：分割线拖拽会连续 layout，稳定 120ms 后一次到位 */
+        anchor.removeCallbacks(anchorLayoutWork);
+        anchor.postDelayed(anchorLayoutWork, 120);
+    }
+
+    private void onAnchorLayoutChanged() {
+        if (detached) return;
+        reflow();
+        requestGeometry();   // barRect 的窗口本地基准变了，几何整体重测
     }
 
     /** 键盘弹出时收起透镜窗：adjustResize 下它会悬停在键盘上沿，药丸拦截带
@@ -1610,6 +1679,9 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         ticking = false;
         removeCallbacks(null);   // 预热/几何补测的 postDelayed 一并撤掉（detached 后本就是空操作）
         Choreographer.getInstance().removeFrameCallback(this);
+        try {
+            anchor.getViewTreeObserver().removeOnGlobalLayoutListener(anchorLayoutListener);
+        } catch (Throwable ignored) { }
         pressed = false;
         dragging = false;
         dropping = false;
