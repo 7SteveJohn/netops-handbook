@@ -728,4 +728,354 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
      * 首选：PixelCopy 直接回读合成结果（GPU 侧），不触发整页软件光栅化。
      * 抓的是**主窗口**，本层活在 PopupWindow 的独立 Window 里，所以不会抓到自己。
      */
+    private void captureByPixelCopy(long t0) {
+        int[] vl = new int[2];
+        getLocationOnScreen(vl);
+        /* 只抓药丸那一小块（+ 位移余量），不再抓整条带：
+           整条带 1272×420 ≈ 2.1MB 回读实测 70ms，缩到 ~300×250 后应该一个量级往下掉。 */
+        float cxScreen = firstCx + slot * (float) pos.value();
+        float cyScreen = pillCyPx > 0 ? pillCyPx : (vl[1] + bandH - pillH / 2f - 22f * density);
+        int pad = (int) (40 * density);
+        int halfW = (int) (pillW / 2f + LIFT_GROWTH * density / 2f) + pad;
+        int halfH = (int) (pillH / 2f + LIFT_GROWTH * density / 2f) + pad;
+        DisplayMetrics m = getResources().getDisplayMetrics();
+        /* 底边基准 = 页面视口物理高（2800）。heightPixels 只有 2587（挖掉手势条），
+           拿它夹 srcRect 会把 2587 以下的标签整体裁出背景图，CLAMP 平铺成一片
+           匀色 —— 2026-10-26 实测"镜内图标在、文字没了"就是这个。 */
+        int maxH = viewportH > 0 ? (int) viewportH : m.heightPixels;
+        int l = Math.max(0, (int) (cxScreen - halfW));
+        int top = Math.max(0, (int) (cyScreen - halfH));
+        int r = Math.min(m.widthPixels, (int) (cxScreen + halfW));
+        int bot = Math.min(maxH, (int) (cyScreen + halfH));
+        if (r - l < 4 || bot - top < 4) {
+            copyBusy = false;
+            return;
+        }
+        srcRect.set(l, top, r, bot);
+        bgOffX = l - vl[0];
+        bgOffY = top - vl[1];
+        if (backdrop == null || backdrop.getWidth() != srcRect.width()
+                || backdrop.getHeight() != srcRect.height()) {
+            backdrop = Bitmap.createBitmap(srcRect.width(), srcRect.height(), Bitmap.Config.ARGB_8888);
+            backdropShader = new BitmapShader(backdrop, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+        }
+        try {
+            PixelCopy.request(window, srcRect, backdrop, result -> {
+                long ms = (System.nanoTime() - t0) / 1_000_000L;
+                copyBusy = false;
+                if (result == PixelCopy.SUCCESS) {
+                    copySumMs += ms;
+                    captures++;
+                    if (ms > copyMaxMs) copyMaxMs = ms;
+                    lastCaptureMs = System.currentTimeMillis();
+                    /* debug 取证：dump 最近一次抓图（R1 折射内容与页面不符排查） */
+                    if ((getContext().getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+                        try {
+                            java.io.File f = new java.io.File(getContext().getExternalFilesDir(null), "backdrop-dump.png");
+                            java.io.FileOutputStream fo = new java.io.FileOutputStream(f);
+                            backdrop.compress(Bitmap.CompressFormat.PNG, 90, fo);
+                            fo.close();
+                        } catch (Throwable ignored) { }
+                    }
+                    invalidate();
+                } else {
+                    Log.w(TAG, "PixelCopy 失败 result=" + result + "，退回软件绘制");
+                    captureByDraw(System.nanoTime());
+                }
+            }, new Handler(Looper.getMainLooper()));
+        } catch (Throwable t) {
+            copyBusy = false;
+            Log.w(TAG, "PixelCopy 抛异常，退回软件绘制", t);
+            captureByDraw(System.nanoTime());
+        }
+    }
+
+    /** 兜底：WebView 软件光栅化。实测 95~265ms，很贵，只在 PixelCopy 不可用时用。 */
+    private void captureByDraw(long t0) {
+        if (webView == null) {
+            copyBusy = false;
+            return;
+        }
+        int[] wl = new int[2];
+        int[] vl = new int[2];
+        webView.getLocationOnScreen(wl);
+        this.getLocationOnScreen(vl);
+        int left = vl[0] - wl[0];
+        int top = vl[1] - wl[1];
+        if (left < 0 || top < 0) {
+            copyBusy = false;
+            return;
+        }
+        if (backdrop == null || backdrop.getWidth() != bandW || backdrop.getHeight() != bandH) {
+            backdrop = Bitmap.createBitmap(bandW, bandH, Bitmap.Config.ARGB_8888);
+            backdropShader = new BitmapShader(backdrop, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+        }
+        bgOffX = 0;
+        bgOffY = 0;      /* 整条带模式：背景图左上角就是本 View 的左上角 */
+        try {
+            Canvas c = new Canvas(backdrop);
+            c.translate(-left, -top);
+            webView.draw(c);
+            long ms = (System.nanoTime() - t0) / 1_000_000L;
+            copySumMs += ms;
+            captures++;
+            if (ms > copyMaxMs) copyMaxMs = ms;
+            lastCaptureMs = System.currentTimeMillis();
+        } catch (Throwable t) {
+            Log.w(TAG, "WebView 离屏绘制失败", t);
+        } finally {
+            copyBusy = false;
+        }
+    }
+
+    /* ================= 触摸 ================= */
+
+    /** 只接管药丸那一条带；其余放行，否则会吞掉底栏 tab 的点击。
+     *  nativeDock 时接管整条栏（图标/文字也在原生，点击=切页），x 须落在栏矩形内。 */
+    private boolean inPillBand(float y) {
+        if (nativeDock && barRect.width() > 4) {
+            RectF b = dockRect();
+            return b.contains(lastHitX, y);
+        }
+        float cy = pillCy();
+        float hh = pillH / 2f;
+        return y >= cy - hh && y <= cy + hh;
+    }
+    private float lastHitX;
+
+    /** 越界橡皮筋：1 − 1/(|o|·0.55/limit + 1)，渐近收敛而非线性跟随。 */
+    private static float rubberBand(float overshoot, float limit) {
+        float pull = (float) (1.0 - 1.0 / (Math.abs(overshoot) * 0.55 / limit + 1.0));
+        return limit * pull * Math.signum(overshoot);
+    }
+
+    /** 手指 x → 位置（格），两端带橡皮筋。 */
+    private float positionAt(float x) {
+        float raw = (x - firstCx) / slot;
+        if (raw < 0) return rubberBand(raw, OVERDRAG);
+        if (raw > count - 1) return (count - 1) + rubberBand(raw - (count - 1), OVERDRAG);
+        return raw;
+    }
+
+    /**
+     * 药丸带之外的触摸**必须人工转发给 WebView**。
+     * 本层活在独立 Window 里，事件不会像普通子 View 那样自动漏给下层 —— 不转发的话，
+     * 底栏上下那一圈页面内容就点不动了（这是 PopupWindow 方案的必要补丁）。
+     */
+    private void forwardToWebView(MotionEvent e) {
+        if (webView == null) return;
+        int[] wl = new int[2];
+        int[] vl = new int[2];
+        webView.getLocationOnScreen(wl);
+        this.getLocationOnScreen(vl);
+        MotionEvent e2 = MotionEvent.obtain(e);
+        e2.offsetLocation(vl[0] - wl[0], vl[1] - wl[1]);
+        try {
+            webView.dispatchTouchEvent(e2);
+        } catch (Throwable t) {
+            Log.w(TAG, "转发触摸到 WebView 失败", t);
+        } finally {
+            e2.recycle();
+        }
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    @Override
+    public boolean onTouchEvent(MotionEvent e) {
+        if (slot <= 0) return false;
+        ensureTicking();   // 帧回调自眠中：触摸唤醒
+        /* 已接管（pressed）的手势一律自己处理，不转发，否则拖出药丸带就断线了 */
+        lastHitX = e.getX();
+        if (!pressed && !inPillBand(e.getY())) {
+            forwardToWebView(e);
+            return true;
+        }
+        double now = nowSec();
+        switch (e.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                Log.i(TAG, String.format("DOWN x=%.0f view w=%d -> cell %.2f (count=%d, popup=%dx%d)",
+                        e.getX(), getWidth(), positionAt(e.getX()), count,
+                        popup == null ? -1 : popup.getWidth(), popup == null ? -1 : popup.getHeight()));
+                pressed = true;
+                dragging = false;
+                dropping = false;
+                downX = lastX = e.getX();
+                lastMoveMs = e.getEventTime();
+                velIndexPerMs = 0;
+                pressedIndex = Math.max(0, Math.min(count - 1, Math.round(positionAt(e.getX()))));
+                pos.springTo(pressedIndex, TRAVEL, now);
+                lift.springTo(1, LIFT_S, now);
+                lastCaptureMs = 0;   // 按下立刻重抓背景，别让玻璃映出几分钟前的旧画面
+                if (!nativeDock) setPressClass(true); // 藏起 HTML 药丸（nativeDock 时已整体隐藏）
+                invalidate();
+                return true;
+
+            case MotionEvent.ACTION_MOVE: {
+                if (!pressed) return false;
+                float x = e.getX();
+                long t = e.getEventTime();
+                long dt = t - lastMoveMs;
+                if (dt > 0) {
+                    float v = (x - lastX) / slot / dt;          // 格/ms
+                    velIndexPerMs = velIndexPerMs * 0.6f + v * 0.4f;
+                    lastMoveMs = t;
+                    lastX = x;
+                }
+                if (!dragging && Math.abs(x - downX) < TOUCH_SLOP_DP * density) return true;
+                dragging = true;
+                pos.springTo(positionAt(x), FOLLOW, now);
+                int idx = Math.max(0, Math.min(count - 1, Math.round(positionAt(x))));
+                if (idx != pressedIndex) {
+                    pressedIndex = idx;
+                    performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK);
+                }
+                invalidate();
+                return true;
+            }
+
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL: {
+                if (!pressed) return false;
+                boolean up = e.getActionMasked() == MotionEvent.ACTION_UP;
+                pressed = false;
+                if (up) {
+                    /* 松手：按 100ms 速度投影落格，最多越过手指所在格的下一格 */
+                    float lead = velIndexPerMs * FLING_MS;
+                    int target = (int) Math.round(pos.target() + lead);
+                    target = Math.max(pressedIndex - 1, Math.min(pressedIndex + 1, target));
+                    target = Math.max(0, Math.min(count - 1, target));
+                    pressedIndex = target;
+                    pos.springTo(target, TRAVEL, now);
+                    commit(target);
+                } else {
+                    pos.springTo(selectedIndex, TRAVEL, now);
+                }
+                dragging = false;
+                dropping = true;
+                invalidate();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 把选择提交给页面（页面切视图后回调用 setSelectedIndex 对齐）。 */
+    private void commit(int index) {
+        selectedIndex = index;
+        if (webView == null) return;
+        String js = "(function(){try{if(typeof NetOpsLensSelect==='function'){NetOpsLensSelect("
+                + index + ");}}catch(e){}})()";
+        try {
+            webView.evaluateJavascript(js, null);
+        } catch (Throwable t) {
+            Log.w(TAG, "提交选择失败", t);
+        }
+    }
+
+    /* ================= 绘制 ================= */
+
+    private void updateShaderUniforms(float cx, float hw, float hh) {
+        if (shader == null) return;
+        float liftV = (float) lift.value();
+        shader.setFloatUniform("uCenter", cx, pillCy());
+        shader.setFloatUniform("uHalf", hw, hh);
+        shader.setFloatUniform("uRadius", Math.min(hw, hh));
+        /* FlClash style.scale(lift)：折射与色散都随抬起量缩放 */
+        shader.setFloatUniform("uRefract", Math.abs(REFRACTION) * density * liftV);
+        shader.setFloatUniform("uBevel", BEVEL * density);
+        shader.setFloatUniform("uDisperse", DISPERSION * liftV);
+        shader.setFloatUniform("uDp", density);
+        shader.setFloatUniform("uBgOffset", bgOffX, bgOffY);
+        /* 镜内内容放大：FlClash _lensMagnify 16%，随抬起量进出。
+           仅 nativeDock 开：HTML 底栏模式下图标文字就活在被折射的 WebView
+           背景里，放大 = 镜内多出第二套错位内容（2026-10-27 真机「学习一格
+           两份字」重影的根源），回退路径镜内保持 1:1。 */
+        shader.setFloatUniform("uMagnify", nativeDock ? 1f + 0.16f * liftV : 1f);
+        /* FlClash uOptics.z：暗色 1.33 / 浅色 1 */
+        shader.setFloatUniform("uBrightness", dark ? 1.33f : 1.0f);
+        if (backdropShader != null) {
+            try {
+                shader.setInputShader("backdrop", backdropShader);
+            } catch (Throwable t) {
+                Log.w(TAG, "setInputShader 失败", t);
+            }
+        }
+    }
+
+    @Override
+    protected void onDraw(Canvas canvas) {
+        super.onDraw(canvas);
+        long t0 = System.nanoTime();
+
+        float liftV = (float) lift.value();
+        if (nativeDock) {
+            /* ---- 未拿到 JS 上报的栏几何前不画 ----
+               冷启动时 WebView 还在加载，barRect 无效 → dockRect() 退回「全宽兜底」
+               胶囊（又宽又高），数秒后真实几何到达再缩回，用户看到「由大变小」的
+               生硬过渡（2026-10-27 用户报）。宁可先空着，几何到达后一次淡入。 */
+            if (barRect.width() <= 4 || barRect.height() <= 4) {
+                if (getAlpha() != 0f) setAlpha(0f);   /* 冷启动从不可见起步，等几何到达再淡入 */
+                geomFadedIn = false;
+                frames++;
+                return;
+            }
+            if (!geomFadedIn) {
+                geomFadedIn = true;
+                animate().alpha(1f).setDuration(140).start();
+            }
+            /* ---- 原生底栏：容器→滑块→玻璃→图标文字。图标在玻璃之上，
+               对齐 FlClash _LensContent 的「镜内内容独立重绘」——顺带解决
+               旧 P2「镜内放大靠位图采样偏软」：现在是矢量重绘恒锐。 ---- */
+            boolean lensing = pressed || liftV > 0.005f;
+            drawDockChrome(canvas, lensing);
+            if (lensing) {
+                drawGlass(canvas, liftV);
+            }
+            drawLensTabs(canvas);
+        } else {
+            /* 旧路径：静止态本层不画（外观由 HTML 药丸承担），只画按压透镜 */
+            if (liftV <= 0.005f && !pressed) {
+                frames++;
+                return;
+            }
+            drawGlass(canvas, liftV);
+        }
+
+        long ms = (System.nanoTime() - t0) / 1_000_000L;
+        drawSumMs += ms;
+        if (ms > drawMaxMs) drawMaxMs = ms;
+        frames++;
+        if (System.nanoTime() - statStartNs > 2_000_000_000L) {
+            Log.i(TAG, String.format(
+                    "绘制%d帧 | 抓图%d次 单次均%.2fms 峰值%dms | draw均%.2fms 峰值%dms | pos=%.2f jelly=%+.3f lift=%.2f",
+                    frames, captures,
+                    captures > 0 ? copySumMs / (float) captures : 0f, copyMaxMs,
+                    frames > 0 ? drawSumMs / (float) frames : 0f, drawMaxMs,
+                    pos.value(), jelly.value(), lift.value()));
+            frames = 0;
+            captures = 0;
+            copySumMs = 0;
+            drawSumMs = 0;
+            copyMaxMs = 0;
+            drawMaxMs = 0;
+            statStartNs = System.nanoTime();
+        }
+    }
+
+    /** 分层缓存重建：B1=容器；B2=灰态图标+文字（透明底）。barRect/主题变化时调。 */
+    private void rebuildChrome() {
+        RectF bar = dockRect();
+        int W = Math.max(1, (int) bar.width()), H = Math.max(1, (int) bar.height());
+        if (chromeB1 == null || chromeB1.getWidth() != W || chromeB1.getHeight() != H
+                || chromeB1.getConfig() == Bitmap.Config.HARDWARE
+                || chromeDark != (dark ? 1 : 0)) {
+            /* HARDWARE 位图不可写：末尾会把 chromeB1 转成 HARDWARE 常驻纹理，
+               若本次重建尺寸不变而复用旧对象，new Canvas(硬件位图) 会直接抛异常
+               （2026-10-27 位置/药丸中心重建门启用后真机崩溃：Canvas.<init>）。 */
+            chromeB1 = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888);
+            chromeDark = dark ? 1 : 0;
+        }
+        chromeRect.set(bar);
+        chromePillCy = pillCy();
+        Canvas c1 = new Canvas(chromeB1);
 }
