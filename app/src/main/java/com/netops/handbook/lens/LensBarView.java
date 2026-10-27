@@ -290,8 +290,9 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
        createMutable——真机实测 IllegalArgumentException），每帧 drawRenderNode
        重放，代价同 blit。抓图未就绪/低版本/渲染失败回退实色。
        交互透镜（drawGlass）不受影响，玻璃栏上再叠放大透镜=iOS 26 分层玻璃。 */
-    private Bitmap barBackdrop;                     // 整栏背景抓图（栏本地 1:1）
+    private Bitmap barBackdrop;                     // 整栏背景抓图（栏矩形+pad，折射向外采样用）
     private BitmapShader barBackdropShader;
+    private int barCapOffX, barCapOffY;             // 栏左上在背景位图内的偏移（pad 对齐）
     private RenderNode glassBarNode;                // 玻璃条显示列表（含描边）
     private RuntimeShader barGlassShader;
     private final Paint barGlassP = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -1089,8 +1090,9 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
 
     /** 整栏背景抓取（栏体玻璃采样源）：PixelCopy 主窗口、每代一次。
      *  与透镜的交互期局部抓分开（独立 busy，拖拽期的整栏回读不插队）。
-     *  抓图矩形 = 栏的屏幕矩形，栏位图与玻璃本地坐标 1:1，无需对齐矩阵。
-     *  代判定：矩形/主题/位图尺寸变了才重抓，否则跳过（帧路径每帧进来也无成本）。 */
+     *  抓图矩形 = 栏 ± pad（折射向外弯，边缘带要采栏外壁纸——FlClash 透镜
+     *  抓图带 40dp pad 同理）；位图原点=栏左上−pad，localMatrix 平移对齐
+     *  content 坐标。代判定：矩形/主题变了才重抓，否则跳过。 */
     private void maybeCaptureBarBackdrop() {
         if (detached || !nativeDock || barCopyBusy || window == null) return;
         if (Build.VERSION.SDK_INT < 33) return;
@@ -1098,40 +1100,54 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         int W = (int) bar.width(), H = (int) bar.height();
         if (W < 16 || H < 16) return;
         boolean stale = barBackdrop == null
-                || barBackdrop.getWidth() != W || barBackdrop.getHeight() != H
                 || Math.abs(lastCapturedBar.left - bar.left) > 0.5f
                 || Math.abs(lastCapturedBar.top - bar.top) > 0.5f
                 || Math.abs(lastCapturedBar.width() - bar.width()) > 0.5f
                 || Math.abs(lastCapturedBar.height() - bar.height()) > 0.5f
                 || lastCapturedDark != (dark ? 1 : 0);
         if (!stale) return;
-        if (barBackdrop == null || barBackdrop.getWidth() != W || barBackdrop.getHeight() != H) {
-            barBackdrop = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888);
-            barBackdropShader = new BitmapShader(barBackdrop, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
-            glassBarNode = null;
-        }
         int[] vl = new int[2];
         getLocationOnScreen(vl);
         DisplayMetrics m = getResources().getDisplayMetrics();
         int maxH = viewportH > 0 ? (int) viewportH : m.heightPixels;
-        int l = (int) (vl[0] + bar.left);
-        int t = (int) (vl[1] + bar.top);
-        int r = (int) (vl[0] + bar.right);
-        int b = (int) (vl[1] + bar.bottom);
-        if (l < 0 || t < 0 || r > m.widthPixels || b > maxH || r - l < W - 2 || b - t < H - 2) {
-            Log.w(TAG, "栏玻璃抓取跳过：栏超界 l=" + l + " t=" + t + " r=" + r + " b=" + b
-                    + " maxH=" + maxH + " 屏宽=" + m.widthPixels + " 栏=" + bar);
-            return;   // 栏被屏边裁剪：背景与栏位图对不齐，宁可不玻璃（回退实色）
+        int pad = (int) (32 * density);
+        int cl = Math.max(0, (int) (vl[0] + bar.left) - pad);
+        int ct = Math.max(0, (int) (vl[1] + bar.top) - pad);
+        int cr = Math.min(m.widthPixels, (int) (vl[0] + bar.right) + pad);
+        int cb = Math.min(maxH, (int) (vl[1] + bar.bottom) + pad);
+        if (cr - cl < W || cb - ct < H) {
+            Log.w(TAG, "栏玻璃抓取跳过：栏超界 rect=" + cl + "," + ct + "-" + cr + "," + cb);
+            return;   // 栏连本体都被屏边裁掉：回退实色
         }
-        srcBarRect.set(l, t, r, b);
+        if (barBackdrop == null || barBackdrop.getWidth() != cr - cl
+                || barBackdrop.getHeight() != cb - ct) {
+            barBackdrop = Bitmap.createBitmap(cr - cl, cb - ct, Bitmap.Config.ARGB_8888);
+            barBackdropShader = new BitmapShader(barBackdrop, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+            glassBarNode = null;
+        }
+        srcBarRect.set(cl, ct, cr, cb);
         barCopyBusy = true;
         final RectF barSnap = new RectF(bar);
+        /* 栏左上在位图内的偏移：content.eval(栏本地 p) 须读到位图 p+off */
+        final int offX = vl[0] + (int) bar.left - cl;
+        final int offY = vl[1] + (int) bar.top - ct;
         try {
             PixelCopy.request(window, srcBarRect, barBackdrop, result -> {
                 barCopyBusy = false;
                 if (result == PixelCopy.SUCCESS) {
                     lastCapturedBar.set(barSnap);
                     lastCapturedDark = dark ? 1 : 0;
+                    barCapOffX = offX;
+                    barCapOffY = offY;
+                    if (barBackdropShader != null) {
+                        /* setLocalMatrix 的 M 把画布坐标映到位图坐标（canvas p 采样
+                           M·p）：栏本地 p 对应位图 p+off → 平移 +off。写成 −off 会
+                           采样到负坐标被 CLAMP 成首行涂抹色（2026-10-28 真机实测
+                           整条栏一色 227 的根因）。 */
+                        android.graphics.Matrix mm = new android.graphics.Matrix();
+                        mm.setTranslate(barCapOffX, barCapOffY);
+                        barBackdropShader.setLocalMatrix(mm);
+                    }
                     barCaptureGen++;         // 新底 → 玻璃显示列表重录
                     invalidate();
                 }
@@ -1139,11 +1155,11 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             }, new Handler(Looper.getMainLooper()));
         } catch (Throwable t2) {
             barCopyBusy = false;
-            Log.w(TAG, "栏体玻璃抓取抛异常，回退实色", t2);
+            Log.w(TAG, "栏玻璃抓取抛异常，回退实色", t2);
         }
     }
 
-    /** 玻璃条显示列表重录（换代时）：库 AGSL（页面头卡同款 uniforms）+ 描边。
+    /** 玻璃条显示列表重录（换代时）：库 AGSL + 描边。
      *  录制画布硬件加速，RuntimeShader 可用；每帧 drawRenderNode 重放=一次 GPU
      *  绘制，代价与 blit 同级。任何失败 → glassBarNode=null 回退实色，
      *  本代不再重试（barBakedGen 记账，防每帧异常刷屏）。 */
@@ -1151,8 +1167,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         int W = (int) bar.width(), H = (int) bar.height();
         if (barBakedGen == barCaptureGen) return;          // 本代已处理（成败均不再试）
         if (Build.VERSION.SDK_INT < 33 || !nativeDock) return;
-        if (barCaptureGen == 0 || barBackdrop == null
-                || barBackdrop.getWidth() != W || barBackdrop.getHeight() != H) {
+        if (barCaptureGen == 0 || barBackdrop == null || barBackdropShader == null) {
             return;                                        // 等抓图落定（帧路径驱动）
         }
         barBakedGen = barCaptureGen;
@@ -1160,22 +1175,31 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             if (barGlassShader == null) {
                 barGlassShader = new RuntimeShader(loadBarAgsl(getResources()));
             }
-            /* 参数=页面头卡口径（glassWrap：折射带18dp/偏移56dp/色散.35/tint .55浅.62暗），
-               带宽与位移按栏高夹紧——栏只有 ~64dp 高，56dp 位移会采样到对边之外。 */
-            float band = Math.min(18f * density, H * 0.30f);
-            float amount = Math.min(56f * density, H * 0.55f);
+            /* 配方=FlClash 底栏（pill）实测值（FlClash液态玻璃源码研读 §3.1）：
+               tint #F4F4F4@58% 浅 / surfaceContainerHighest@48% 深（≈#363636，暗色
+               下是「提亮中和」而不是白 tint 发奶）；饱和度 2.10/1.925——液态玻璃
+               的通透感全靠它，1.0+白tint 会退化成磨砂白面板（2026-10-28 用户
+               「跟 FlClash/酷安不一样」报因）。折射向外弯（正值，FlClash
+               「凸起透镜向外弯」口径），带/位移按栏高夹紧。 */
+            float band = Math.min(16f * density, H * 0.26f);
+            float amount = Math.min(20f * density, H * 0.42f);
             barGlassShader.setFloatUniform("size", new float[]{W, H});
             barGlassShader.setFloatUniform("offset", new float[]{0f, 0f});
             barGlassShader.setFloatUniform("cornerRadii", new float[]{r, r, r, r});
             barGlassShader.setFloatUniform("refractionHeight", band);
-            barGlassShader.setFloatUniform("refractionAmount", -amount);
+            barGlassShader.setFloatUniform("refractionAmount", amount);
             barGlassShader.setFloatUniform("depthEffect", 0.3f);
             barGlassShader.setFloatUniform("chromaticAberration", 0.35f);
             barGlassShader.setFloatUniform("contrast", 0f);
             barGlassShader.setFloatUniform("whitePoint", 0f);
-            barGlassShader.setFloatUniform("chromaMultiplier", 1f);
-            barGlassShader.setFloatUniform("tintColor", new float[]{1f, 1f, 1f});
-            barGlassShader.setFloatUniform("tintAlpha", dark ? 0.62f : 0.55f);
+            barGlassShader.setFloatUniform("chromaMultiplier", dark ? 1.925f : 2.10f);
+            if (dark) {
+                barGlassShader.setFloatUniform("tintColor", new float[]{0.21f, 0.21f, 0.22f});
+                barGlassShader.setFloatUniform("tintAlpha", 0.48f);
+            } else {
+                barGlassShader.setFloatUniform("tintColor", new float[]{0.957f, 0.957f, 0.957f});
+                barGlassShader.setFloatUniform("tintAlpha", 0.55f);
+            }
             barGlassShader.setInputShader("content", barBackdropShader);
             barGlassP.setShader(barGlassShader);
             RenderNode node = new RenderNode("dockGlassBar");
@@ -1247,21 +1271,11 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             tabSprites[i] = sp;
         }
 
-        /* 软件 → HARDWARE 位图：blit 走 GPU 常驻纹理，免去每帧 ~7MB 的上传
-           （120Hz 滑块动画期间这是与 WebView 争 GPU 的隐形大头）。失败回退软件位图。 */
-        try {
-            if (Build.VERSION.SDK_INT >= 26) {
-                Bitmap h1 = chromeB1.copy(Bitmap.Config.HARDWARE, false);
-                Bitmap h3 = sliderBmp.copy(Bitmap.Config.HARDWARE, false);
-                if (h1 != null) chromeB1 = h1;
-                if (h3 != null) sliderBmp = h3;
-            }
-        } catch (Throwable t) {
-            Log.w(TAG, "HARDWARE 位图转换失败，保持软件位图", t);
-        }
-
         /* 滑块缓存：阴影 + 白药丸本体一次画好（透明底）。
-           尺寸按最大态（含 LIFT 增量 + 阴影边距），blit 时按中心对齐。 */
+           尺寸按最大态（含 LIFT 增量 + 阴影边距），blit 时按中心对齐。
+           必须在 HARDWARE 转换之前建——2026-10-28：原先排在转换之后，首次重建
+           sliderBmp 还是 null，copy() NPE 被吞 → chromeB1 永远停在软件位图，
+           滑块动画期每帧整栏上传。 */
         int sw = (int) ((pillW + LIFT_GROWTH * density) / 2f * 2f + 24f * density);
         int sh = (int) ((pillH + LIFT_GROWTH * density) / 2f * 2f + 24f * density);
         sliderBmp = Bitmap.createBitmap(Math.max(4, sw), Math.max(4, sh), Bitmap.Config.ARGB_8888);
@@ -1275,6 +1289,19 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         c3.drawRoundRect(sr3, rr, rr, sliderFillP);
         sliderStrokeP.setStrokeWidth(density);
         c3.drawRoundRect(sr3, rr, rr, sliderStrokeP);
+
+        /* 软件 → HARDWARE 位图：blit 走 GPU 常驻纹理，免去每帧 ~7MB 的上传
+           （120Hz 滑块动画期间这是与 WebView 争 GPU 的隐形大头）。失败回退软件位图。 */
+        try {
+            if (Build.VERSION.SDK_INT >= 26) {
+                Bitmap h1 = chromeB1.copy(Bitmap.Config.HARDWARE, false);
+                Bitmap h3 = sliderBmp.copy(Bitmap.Config.HARDWARE, false);
+                if (h1 != null) chromeB1 = h1;
+                if (h3 != null) sliderBmp = h3;
+            }
+        } catch (Throwable t) {
+            Log.w(TAG, "HARDWARE 位图转换失败，保持软件位图", t);
+        }
     }
 
     /** 原生底栏：容器/灰图标（缓存 blit）+滑块。

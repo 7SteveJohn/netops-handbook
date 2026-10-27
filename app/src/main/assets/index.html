@@ -2872,6 +2872,7 @@ buildWallFloor(bands);
 applyGlass(getGlass() || glassDefaults);
 APPBAR_BG_REV++;
 try { if (w.NetOpsPushAppBar) w.NetOpsPushAppBar(); } catch (e) { }
+try { if (w.NetBridge && w.NetBridge.setNativeDockBgRev) w.NetBridge.setNativeDockBgRev(APPBAR_BG_REV); } catch (e) { }
 });
 }
 function stripHue(px, w, h) {
@@ -4830,6 +4831,6 @@ if (document.readyState === 'loading') {
 document.addEventListener('DOMContentLoaded', init, { once: true });
 } else { init(); }
 })();
-;window.__BUILD__='20261028-0042';</script>
+;window.__BUILD__='20261028-0321';</script>
 </body>
 </html>

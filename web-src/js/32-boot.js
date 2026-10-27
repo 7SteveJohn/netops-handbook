@@ -1074,6 +1074,10 @@
       applyGlass(getGlass() || glassDefaults);
       APPBAR_BG_REV++;
       try { if (w.NetOpsPushAppBar) w.NetOpsPushAppBar(); } catch (e) { }
+      /* dock 栏体玻璃同一信号：壁纸此刻才真正可抓（抓早了是 backdrop 底色），
+         让原生 dock 重抓采样源（2026-10-28：dock 冷启动抓到 uniform 底色后
+         stale 永假、再也不重抓——栏体玻璃恒为纯色的根因）。 */
+      try { if (w.NetBridge && w.NetBridge.setNativeDockBgRev) w.NetBridge.setNativeDockBgRev(APPBAR_BG_REV); } catch (e) { }
     });
   }
   /* 取滤镜结果底部条带的平均色并转成 HSL。

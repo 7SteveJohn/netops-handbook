@@ -1073,6 +1073,12 @@ public class MainActivity extends AppCompatActivity {
             applyNativePageMode(direct, wpFile, blurDp);
         }
 
+        /** 壁纸已解码落画（JS floorBands 回调）：dock 栏体玻璃此刻才能抓到新壁纸。 */
+        @JavascriptInterface
+        public void setNativeDockBgRev(int rev) {
+            runOnUiThread(() -> { if (lensBar != null) lensBar.onBackdropChanged(); });
+        }
+
         private void applyNativePageMode(boolean direct, String wpFile, float blurDp) {
             runOnUiThread(() -> {
                 if (nativeBackdrop != null) nativeBackdrop.setWallpaper(direct ? wpFile : "", blurDp);
