@@ -9,6 +9,7 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.RectF;
+import android.graphics.RenderNode;
 import android.graphics.Matrix;
 import android.graphics.Path;
 import android.graphics.RuntimeShader;
@@ -278,6 +279,29 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     /** 小图内容的垂直基准（药丸中心）。它随 pillCyPx/insets 独立漂移，
      *  必须纳入重建判定，否则栏没动、药丸动了 → 小图内容仍是旧偏移（文字被裁）。 */
     private float chromePillCy = -1f;
+
+    /* ---- 栏体玻璃（AndroidLiquidGlassView 同款材质，2026-10-28）----
+       R1a 曾把容器画成近实色：当时 WebView 内容会滚进 dock 区，半透=正文透出。
+       内容区收短（margin-bottom）后栏后只剩干净壁纸，具备了上真玻璃的前提；
+       页面头卡已用 vendored 库（QmDeve）玻璃化，栏体跟进统一材质语言。
+       管线：整栏矩形 PixelCopy 一次（每代：壁纸/主题/几何变化）→ 库 AGSL
+       （R.raw.liquidglass_effect，与页面头卡同一份）录进 RenderNode 显示列表
+       （录制画布硬件加速，RuntimeShader 可用；Bitmap.Config.HARDWARE 不可直接
+       createMutable——真机实测 IllegalArgumentException），每帧 drawRenderNode
+       重放，代价同 blit。抓图未就绪/低版本/渲染失败回退实色。
+       交互透镜（drawGlass）不受影响，玻璃栏上再叠放大透镜=iOS 26 分层玻璃。 */
+    private Bitmap barBackdrop;                     // 整栏背景抓图（栏本地 1:1）
+    private BitmapShader barBackdropShader;
+    private RenderNode glassBarNode;                // 玻璃条显示列表（含描边）
+    private RuntimeShader barGlassShader;
+    private final Paint barGlassP = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Rect srcBarRect = new Rect();
+    private final RectF lastCapturedBar = new RectF();
+    private int lastCapturedDark = -1;
+    private int barCaptureGen;                      // 抓图代数：成功一次 +1
+    private int barBakedGen;                        // 已尝试渲染的代数（成败都不再试，防每帧重试）
+    private boolean barCopyBusy;
+    private static String barAgsl;                  // AGSL 源码（进程内缓存一份）
     /** 首次拿到真实栏几何后是否已淡入（冷启动防「由大变小」见 onDraw）。 */
     private boolean geomFadedIn = false;
     private final RectF tmpRect = new RectF();
@@ -462,6 +486,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         applyDockColors();
         chromeDark = -1;   // 强制重建缓存（含 per-tab sprites）
         java.util.Arrays.fill(tabSprites, null);
+        lastCapturedDark = -1;   // 玻璃 tint 随主题（0.55 浅 / 0.62 暗），换代重抓重录
         invalidate();
     }
 
@@ -1062,6 +1087,137 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         }
     }
 
+    /** 整栏背景抓取（栏体玻璃采样源）：PixelCopy 主窗口、每代一次。
+     *  与透镜的交互期局部抓分开（独立 busy，拖拽期的整栏回读不插队）。
+     *  抓图矩形 = 栏的屏幕矩形，栏位图与玻璃本地坐标 1:1，无需对齐矩阵。
+     *  代判定：矩形/主题/位图尺寸变了才重抓，否则跳过（帧路径每帧进来也无成本）。 */
+    private void maybeCaptureBarBackdrop() {
+        if (detached || !nativeDock || barCopyBusy || window == null) return;
+        if (Build.VERSION.SDK_INT < 33) return;
+        RectF bar = dockRect();
+        int W = (int) bar.width(), H = (int) bar.height();
+        if (W < 16 || H < 16) return;
+        boolean stale = barBackdrop == null
+                || barBackdrop.getWidth() != W || barBackdrop.getHeight() != H
+                || Math.abs(lastCapturedBar.left - bar.left) > 0.5f
+                || Math.abs(lastCapturedBar.top - bar.top) > 0.5f
+                || Math.abs(lastCapturedBar.width() - bar.width()) > 0.5f
+                || Math.abs(lastCapturedBar.height() - bar.height()) > 0.5f
+                || lastCapturedDark != (dark ? 1 : 0);
+        if (!stale) return;
+        if (barBackdrop == null || barBackdrop.getWidth() != W || barBackdrop.getHeight() != H) {
+            barBackdrop = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888);
+            barBackdropShader = new BitmapShader(barBackdrop, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+            glassBarNode = null;
+        }
+        int[] vl = new int[2];
+        getLocationOnScreen(vl);
+        DisplayMetrics m = getResources().getDisplayMetrics();
+        int maxH = viewportH > 0 ? (int) viewportH : m.heightPixels;
+        int l = (int) (vl[0] + bar.left);
+        int t = (int) (vl[1] + bar.top);
+        int r = (int) (vl[0] + bar.right);
+        int b = (int) (vl[1] + bar.bottom);
+        if (l < 0 || t < 0 || r > m.widthPixels || b > maxH || r - l < W - 2 || b - t < H - 2) {
+            Log.w(TAG, "栏玻璃抓取跳过：栏超界 l=" + l + " t=" + t + " r=" + r + " b=" + b
+                    + " maxH=" + maxH + " 屏宽=" + m.widthPixels + " 栏=" + bar);
+            return;   // 栏被屏边裁剪：背景与栏位图对不齐，宁可不玻璃（回退实色）
+        }
+        srcBarRect.set(l, t, r, b);
+        barCopyBusy = true;
+        final RectF barSnap = new RectF(bar);
+        try {
+            PixelCopy.request(window, srcBarRect, barBackdrop, result -> {
+                barCopyBusy = false;
+                if (result == PixelCopy.SUCCESS) {
+                    lastCapturedBar.set(barSnap);
+                    lastCapturedDark = dark ? 1 : 0;
+                    barCaptureGen++;         // 新底 → 玻璃显示列表重录
+                    invalidate();
+                }
+                /* 失败不重试本代：stale 判定仍是 false，等壁纸/主题/几何换代再来 */
+            }, new Handler(Looper.getMainLooper()));
+        } catch (Throwable t2) {
+            barCopyBusy = false;
+            Log.w(TAG, "栏体玻璃抓取抛异常，回退实色", t2);
+        }
+    }
+
+    /** 玻璃条显示列表重录（换代时）：库 AGSL（页面头卡同款 uniforms）+ 描边。
+     *  录制画布硬件加速，RuntimeShader 可用；每帧 drawRenderNode 重放=一次 GPU
+     *  绘制，代价与 blit 同级。任何失败 → glassBarNode=null 回退实色，
+     *  本代不再重试（barBakedGen 记账，防每帧异常刷屏）。 */
+    private void ensureGlassBar(RectF bar, float r) {
+        int W = (int) bar.width(), H = (int) bar.height();
+        if (barBakedGen == barCaptureGen) return;          // 本代已处理（成败均不再试）
+        if (Build.VERSION.SDK_INT < 33 || !nativeDock) return;
+        if (barCaptureGen == 0 || barBackdrop == null
+                || barBackdrop.getWidth() != W || barBackdrop.getHeight() != H) {
+            return;                                        // 等抓图落定（帧路径驱动）
+        }
+        barBakedGen = barCaptureGen;
+        try {
+            if (barGlassShader == null) {
+                barGlassShader = new RuntimeShader(loadBarAgsl(getResources()));
+            }
+            /* 参数=页面头卡口径（glassWrap：折射带18dp/偏移56dp/色散.35/tint .55浅.62暗），
+               带宽与位移按栏高夹紧——栏只有 ~64dp 高，56dp 位移会采样到对边之外。 */
+            float band = Math.min(18f * density, H * 0.30f);
+            float amount = Math.min(56f * density, H * 0.55f);
+            barGlassShader.setFloatUniform("size", new float[]{W, H});
+            barGlassShader.setFloatUniform("offset", new float[]{0f, 0f});
+            barGlassShader.setFloatUniform("cornerRadii", new float[]{r, r, r, r});
+            barGlassShader.setFloatUniform("refractionHeight", band);
+            barGlassShader.setFloatUniform("refractionAmount", -amount);
+            barGlassShader.setFloatUniform("depthEffect", 0.3f);
+            barGlassShader.setFloatUniform("chromaticAberration", 0.35f);
+            barGlassShader.setFloatUniform("contrast", 0f);
+            barGlassShader.setFloatUniform("whitePoint", 0f);
+            barGlassShader.setFloatUniform("chromaMultiplier", 1f);
+            barGlassShader.setFloatUniform("tintColor", new float[]{1f, 1f, 1f});
+            barGlassShader.setFloatUniform("tintAlpha", dark ? 0.62f : 0.55f);
+            barGlassShader.setInputShader("content", barBackdropShader);
+            barGlassP.setShader(barGlassShader);
+            RenderNode node = new RenderNode("dockGlassBar");
+            node.setPosition(0, 0, W, H);
+            Canvas gc = node.beginRecording();
+            gc.drawRoundRect(0, 0, W, H, r, r, barGlassP);
+            barStrokeP.setStrokeWidth(density);
+            gc.drawRoundRect(0, 0, W, H, r, r, barStrokeP);
+            node.endRecording();
+            glassBarNode = node;
+        } catch (Throwable t) {
+            Log.w(TAG, "栏体玻璃渲染失败，回退实色", t);
+            glassBarNode = null;
+        }
+    }
+
+    private static String loadBarAgsl(android.content.res.Resources res) {
+        if (barAgsl != null) return barAgsl;
+        try (java.io.InputStream is = res.openRawResource(com.netops.handbook.R.raw.liquidglass_effect);
+             java.io.BufferedReader br = new java.io.BufferedReader(new java.io.InputStreamReader(is))) {
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = br.readLine()) != null) sb.append(line).append('\n');
+            barAgsl = sb.toString();
+        } catch (Throwable t) {
+            throw new IllegalStateException("读栏体玻璃 AGSL 失败", t);
+        }
+        return barAgsl;
+    }
+
+    /** 壁纸/通透度变了（NativeBackdrop 重铺）：栏后像素换代，玻璃条需重抓。
+     *  把代基准清空让 stale 判定成立；壁纸解码异步，三连发等它落定
+     *  （沿用 remeasureLensSoon 的节奏）。 */
+    public void onBackdropChanged() {
+        lastCapturedBar.setEmpty();
+        lastCapturedDark = -1;
+        android.os.Handler h = new Handler(Looper.getMainLooper());
+        h.postDelayed(this::maybeCaptureBarBackdrop, 400L);
+        h.postDelayed(this::maybeCaptureBarBackdrop, 900L);
+        h.postDelayed(this::maybeCaptureBarBackdrop, 1500L);
+    }
+
     /** 分层缓存重建：B1=容器；B2=灰态图标+文字（透明底）。barRect/主题变化时调。 */
     private void rebuildChrome() {
         RectF bar = dockRect();
@@ -1138,7 +1294,18 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                 || Math.abs(chromePillCy - pillCy()) > 0.5f) {
             rebuildChrome();
         }
-        canvas.drawBitmap(chromeB1, bar.left, bar.top, null);
+        /* 栏体玻璃：每帧补抓+重录（代判定在内部，未变即零成本跳过），
+           玻璃显示列表就绪则顶替实色 blit */
+        maybeCaptureBarBackdrop();
+        ensureGlassBar(bar, bar.height() / 2f);
+        if (glassBarNode != null) {
+            int sv = canvas.save();
+            canvas.translate(bar.left, bar.top);
+            canvas.drawRenderNode(glassBarNode);
+            canvas.restoreToCount(sv);
+        } else {
+            canvas.drawBitmap(chromeB1, bar.left, bar.top, null);
+        }
 
         /* 滑块先画（在图标之下）：拖到两格中间时滑块从图标后面滑过，
            图标始终完整可见（HTML tab-pill 的 z 序，2026-10-27 用户反馈「遮挡其中一个」）。 */
