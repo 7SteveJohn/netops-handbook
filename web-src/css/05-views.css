@@ -448,8 +448,10 @@ html.dark .topo { opacity: .96; }
 }
 @media (min-width: 900px) {
   .page { max-width: 860px; }
-  /* 标题栏此前停在 720，正文已到 860 → 左边缘差 70px，这里跟齐 */
-  .appbar__row { max-width: 860px; }
+  /* 顶栏不跟正文列限宽（2026-10-28 用户报「顶部两边空那么大块」）：平板上顶栏是
+     导航 chrome，不是阅读正文 —— 卡在 860 会在两侧各留 ~140dp 死白，标题/按钮挤在
+     中间一小段。改为铺满 + 固定内边距，左侧菜单键贴边、右侧三键贴右。 */
+  .appbar__row { max-width: none; margin: 0; padding: 0 18px; }
   .searchbar { max-width: 840px; }
   body:not(.tabbar-regular) .tabbar { max-width: 860px; }
   .card__inner { padding-left: 16px; padding-right: 16px; }
@@ -468,7 +470,7 @@ html.dark .topo { opacity: .96; }
    只作用于 .plist（阶段页/排障页/面试页的卡片流），标题、统计、速查表等保持整行。 */
 @media (min-width: 1200px) {
   .page { max-width: 1180px; }
-  .appbar__row { max-width: 1180px; }
+  .appbar__row { max-width: none; margin: 0; padding: 0 22px; }
   .searchbar { max-width: 1160px; }
   body:not(.tabbar-regular) .tabbar { max-width: 1180px; }
   .plist {

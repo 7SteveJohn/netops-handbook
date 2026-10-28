@@ -400,11 +400,8 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
      *  侧栏若通高就会被顶栏那条玻璃横切（2026-10-28 用户报「打开直接重叠」）。 */
     public void setRailTopInset(float px) {
         if (Math.abs(px - railTop) < 0.5f) return;
-        railTop = px;
-        if (dockVertical) {
-            computeRailGeometry();
-            invalidate();
-        }
+        railTop = Math.max(0f, px);
+        reflow();        // 窗口 y 偏移/高度都要跟着变（顺带 computeRailGeometry）
     }
 
     /** 桥：页面 boot 上报原生底栏开关（localStorage netops_native_dock，默认开）。 */
@@ -659,13 +656,13 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         float pillWv = railW - 20f * dp;           // 交叉向（x）药丸宽
         /* 轨高夹到页面视口高：窗口比视口多出的 1~2px 会让栏体抓图被判「超界」
            而整条回退实色；夹齐后抓图区恰好覆盖栏体。 */
+        /* 本窗已整体下移到顶栏下沿，所以轨矩形从本地 0 起；高度 = 窗口高 - 14dp，
+           两端圆角都能露出来（通高到底的话下端被屏幕边切掉，像「插进地里」）。 */
         float h = viewportH > 0 ? Math.min(bandH, viewportH) : bandH;
-        float top = Math.min(railTop, h - pillHv * 2f);   // 顶栏让位（异常值不许把栏压没）
-        /* 底部同样留 14dp：通高到底的话下端圆角被屏幕边缘切掉，只有上端圆、像「插进地里」 */
-        float bottom = Math.max(top + pillHv * 2f, h - 14f * dp);
-        railRect.set(14f * dp, top, 14f * dp + railW, bottom);
+        float bottom = Math.max(pillHv * 2f, h - 14f * dp);
+        railRect.set(14f * dp, 0, 14f * dp + railW, bottom);
         axisPitch = pitch;
-        axisFirst = top + (bottom - top - (4f * pitch + pillHv)) / 2f + pillHv / 2f;
+        axisFirst = (bottom - (4f * pitch + pillHv)) / 2f + pillHv / 2f;
         crossCView = railRect.left + railW / 2f;
         pillW = pillWv;                            // x 维（交叉向）
         pillH = pillHv;                            // y 维（轴向）
@@ -1791,6 +1788,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
      *  （2026-10-27 竖屏实测「我的」点不到）。宽度变了就 dismiss 重 show。 */
     private int lastPopupWidth;
     private int lastPopupHeight = -1;
+    private float lastPopupTop = -1f;
     private boolean popupVertical;
 
     public void reflow() {
@@ -1802,16 +1800,20 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         int winH = anchor.getHeight();
         boolean vert = isLandscapeWindow();   // 横屏 = 左侧竖排栏（不能拿弹窗自身宽高比判，见 isLandscapeWindow）
         /* 形态基准变化才重算：宽（分屏/小窗）与横竖形态任一变化都 dismiss 重 show */
-        if (lastPopupWidth == winW && lastPopupHeight == winH && popup.isShowing()) return;
+        if (lastPopupWidth == winW && lastPopupHeight == winH
+                && Math.abs(lastPopupTop - railTop) < 0.5f && popup.isShowing()) return;
         lastPopupWidth = winW;
         lastPopupHeight = winH;
+        lastPopupTop = railTop;
         /* MATCH_PARENT 在 showAtLocation 时按屏幕定格；分屏/小窗必须显式给
            窗口宽，否则弹窗比窗口宽、dock 溢出到别人的半屏里。 */
         float dp = anchor.getResources().getDisplayMetrics().density;
         if (vert) {
             popupVertical = true;
             popup.setWidth((int) ((88f + 14f) * dp));   // 轨宽 + 左距
-            popup.setHeight(winH);
+            /* 窗口从顶栏下沿起（不是 0）：**触摸窗不能盖住顶栏**，否则左侧菜单键
+               落在窗里被 dock 吃掉（2026-10-28 顶栏铺满后 ☰ 移到最左，点不动）。 */
+            popup.setHeight(Math.max(1, winH - (int) railTop));
         } else {
             popupVertical = false;
             popup.setWidth(Math.max(1, winW));
@@ -1833,7 +1835,8 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                     try {
                         popup.showAtLocation(anchor, popupVertical
                                 ? (Gravity.START | Gravity.TOP)
-                                : (Gravity.BOTTOM | Gravity.START), 0, 0);
+                                : (Gravity.BOTTOM | Gravity.START),
+                                0, popupVertical ? (int) railTop : 0);
                     } catch (Throwable t) {
                         Log.w(TAG, "PopupWindow 显示失败", t);
                     }

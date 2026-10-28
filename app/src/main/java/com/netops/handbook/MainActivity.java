@@ -1305,10 +1305,10 @@ public class MainActivity extends AppCompatActivity {
                 appbarBar.setGeometry(json);
                 appbarBar.warmUp();
                 /* 竖排侧栏让开顶栏：顶栏底边 + 8dp 呼吸，否则两条玻璃叠着切一刀 */
-                if (lensBar != null) {
-                    lensBar.setRailTopInset(appbarBar.barBottomPx()
-                            + 8f * getResources().getDisplayMetrics().density);
-                }
+                float below = appbarBar.barBottomPx()
+                        + 8f * getResources().getDisplayMetrics().density;
+                if (lensBar != null) lensBar.setRailTopInset(below);
+                if (nativeDrawer != null) nativeDrawer.setTopInset(below);
             });
         }
 

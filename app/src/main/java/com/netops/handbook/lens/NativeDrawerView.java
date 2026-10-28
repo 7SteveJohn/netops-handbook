@@ -27,7 +27,11 @@ public class NativeDrawerView extends FrameLayout {
     }
 
     private final LinearLayout panel;
+    private final ScrollView sheet;
     private final View scrim;
+    /** 顶栏底边（px）：抽屉从顶栏下沿起，别压在顶栏下面（2026-10-28 顶栏铺满后左侧
+     *  ☰ 压不进、抽屉标题也被顶栏盖住）。 */
+    private float topInset = 0f;
     private final NativeBlocks.Palette pal;
     private final Go go;
     private final Runnable onClosed;
@@ -49,6 +53,7 @@ public class NativeDrawerView extends FrameLayout {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         ScrollView sc = new ScrollView(c);
+        sheet = sc;
         sc.setFillViewport(false);
         sc.setVerticalScrollBarEnabled(false);
         sc.setClipToPadding(false);
@@ -67,6 +72,18 @@ public class NativeDrawerView extends FrameLayout {
         addView(sc, new LayoutParams(pal.dp(300), ViewGroup.LayoutParams.MATCH_PARENT, Gravity.START));
 
         setOnClickListener(v -> close());
+    }
+
+    /** 顶栏底边（px）：面板整体下移，避免压在顶栏玻璃下面。 */
+    public void setTopInset(float px) {
+        px = Math.max(0f, px);
+        if (Math.abs(px - topInset) < 0.5f) return;
+        topInset = px;
+        ViewGroup.LayoutParams lp = sheet.getLayoutParams();
+        if (lp instanceof LayoutParams) {
+            ((LayoutParams) lp).topMargin = Math.round(px);
+            sheet.setLayoutParams(lp);
+        }
     }
 
     public void setPageData(JSONObject data) { root = data; }
