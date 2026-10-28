@@ -210,6 +210,11 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     private float axisPitch = 0f;    // 格距（沿轴）
     private float crossCView = 0f;   // 固定方向中心（横=y / 竖=x，视图本地）
     private final RectF railRect = new RectF();   // 竖排侧栏矩形（视图本地）
+    /** 竖排栏宽 / 左距（dp）。窗口宽度必须跟着这两个值走：窗口比栏宽多出去的每 1px
+     *  都会**吞掉内容区的点击**（2026-10-28 复查：栏收窄到 48dp 后窗口还是 280px，
+     *  内容左缘 90px 的点击全被转发进 WebView）。 */
+    private static final float RAIL_W_DP = 48f;
+    private static final float RAIL_LEFT_DP = 14f;
     /** 竖排侧栏顶让位（顶栏底边，视图本地 px）：顶栏是独立窗、永远压在上面，
      *  侧栏通高会被它横切一刀。 */
     private float railTop = 0f;
@@ -680,7 +685,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         /* FlClash NavigationSidebar 实测（lib/ui/sidebar.dart:12-26）：
            栏宽 48dp、项 40dp 方块、项距 4dp、项内圆角 10dp、选中 = 8% 填充 + 左缘
            3dp×16dp 竖条。compact 态**只有图标没有文字**。 */
-        float railW = 48f * dp;
+        float railW = RAIL_W_DP * dp;
         float pitch = 44f * dp;                    // 40 项 + 4 间距
         float pillHv = 40f * dp;
         float pillWv = 40f * dp;
@@ -694,10 +699,10 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         float contentH = 4f * pitch + pillHv;
         float panelH = contentH + 8f * dp;
         float cy0 = (h - 14f * dp) / 2f;
-        railRect.set(14f * dp, cy0 - panelH / 2f, 14f * dp + railW, cy0 + panelH / 2f);
+        railRect.set(0, cy0 - panelH / 2f, railW, cy0 + panelH / 2f);
         axisPitch = pitch;
         axisFirst = railRect.top + 4f * dp + pillHv / 2f;
-        crossCView = railRect.left + railW / 2f;
+        crossCView = railRect.left + railW / 2f;   // = 栏心（窗口本地）
         pillW = pillWv;                            // x 维（交叉向）
         pillH = pillHv;                            // y 维（轴向）
     }
@@ -1826,7 +1831,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         float dp0 = act.getResources().getDisplayMetrics().density;
         boolean vert0 = act.getResources().getConfiguration()
                 .screenWidthDp > act.getResources().getConfiguration().screenHeightDp;
-        int w0 = vert0 ? (int) ((88f + 14f) * dp0) : ViewGroup.LayoutParams.MATCH_PARENT;
+        int w0 = vert0 ? (int) (RAIL_W_DP * dp0) : ViewGroup.LayoutParams.MATCH_PARENT;
         int h0 = vert0 ? ViewGroup.LayoutParams.MATCH_PARENT : (int) (120 * dp0);
         v.popup = new PopupWindow(v, w0, h0, false);
         v.popupVertical = vert0;
@@ -1892,7 +1897,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         float dp = anchor.getResources().getDisplayMetrics().density;
         if (vert) {
             popupVertical = true;
-            popup.setWidth((int) ((88f + 14f) * dp));   // 轨宽 + 左距
+            popup.setWidth((int) (RAIL_W_DP * dp));   // 只含栏宽；左距交给窗口 x 偏移
             /* 窗口从顶栏下沿起（不是 0）：**触摸窗不能盖住顶栏**，否则左侧菜单键
                落在窗里被 dock 吃掉（2026-10-28 顶栏铺满后 ☰ 移到最左，点不动）。 */
             popup.setHeight(Math.max(1, winH - (int) railTop));
@@ -1916,10 +1921,14 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                 if (detached || popup.isShowing()) return;
                 if (anchor.getWindowToken() != null) {
                     try {
+                        /* 竖排窗口不能贴屏幕左缘：0..38px 是系统返回手势区，弹窗压住它
+                           就再也滑不出返回（2026-10-28 复查 MIUI 日志 BackGestureEvent Fault）。
+                           窗口左移出 RAIL_LEFT_DP，栏体视觉位置不变（railRect.left 为 0）。 */
                         popup.showAtLocation(anchor, popupVertical
                                 ? (Gravity.START | Gravity.TOP)
                                 : (Gravity.BOTTOM | Gravity.START),
-                                0, popupVertical ? (int) railTop : 0);
+                                popupVertical ? (int) (RAIL_LEFT_DP * density) : 0,
+                                popupVertical ? (int) railTop : 0);
                     } catch (Throwable t) {
                         Log.w(TAG, "PopupWindow 显示失败", t);
                     }

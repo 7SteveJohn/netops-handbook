@@ -401,7 +401,9 @@ public class MainActivity extends AppCompatActivity {
                 () -> { if (lensBar != null) lensBar.setOverlaid(false); });
         nativeDrawer.setLayoutParams(new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
-        root.addView(nativeDrawer);
+        /* addView 顺序 = z 序：抽屉必须**最后**加（见下方 addView(nativeDrawer)），
+           早加会被后面创建的原生页盖住 —— 抽屉里「阶段一：…」右半截被页面白卡压掉的
+           真因（2026-10-28 复查；内容左缩进从 102dp 收到 70dp 后才暴露）。 */
 
         /* 原生搜索页（N5）：原生输入框 + 命中高亮 + 键盘自适应。 */
         nativeSearch = new com.netops.handbook.lens.NativeSearchView(this);
@@ -457,6 +459,9 @@ public class MainActivity extends AppCompatActivity {
         nativeQuiz = new com.netops.handbook.lens.NativeQuizView(this);
         nativeQuiz.setGlassSource(nativeBackdrop);
         addNativePage(nativeQuiz);
+
+        /* 抽屉最后加：z 序压在全部原生页之上（见构造处注释） */
+        root.addView(nativeDrawer);
 
         configureWebView();
         webView.addJavascriptInterface(new Bridge(), "NetBridge");
