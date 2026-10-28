@@ -63,6 +63,8 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     /* ---- 弹簧：与 FlClash 同名同参 ---- */
     private static final SpringSpec FOLLOW  = SpringSpec.ratio(1024, 0.9);
     private static final SpringSpec TRAVEL  = SpringSpec.durationBounce(400, 0.15);
+    /** 竖排侧栏填充白度（0~255）：172 ≈ 67%，壁纸透得上来，图标/文字也压得住。 */
+    private static final int RAIL_ALPHA = 172;
     private static final SpringSpec LIFT_S  = SpringSpec.durationBounce(250, 0);
     private static final SpringSpec JELLY_S = SpringSpec.ratio(100, 0.4);
 
@@ -281,6 +283,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     private Bitmap sliderBmp;   // 含阴影的滑块（透明底），滑块-only 动画期 blit 免 saveLayer
     private final Paint blitP = new Paint(Paint.FILTER_BITMAP_FLAG);
     private final Paint barFillP = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint railFillP = new Paint(Paint.ANTI_ALIAS_FLAG);   // 竖排侧栏半透明填充
     private final Paint barStrokeP = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint sliderFillP = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint sliderStrokeP = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -417,6 +420,11 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         setWillNotDraw(false);
         rimPaint.setStyle(Paint.Style.STROKE);
         rimPaint.setStrokeWidth(1f * density);
+        /* ❗描边画笔必须显式 STROKE：Paint 默认 FILL，漏设的话「画一圈边」实际是
+           「整块填满」——栏体先画玻璃再被这条 #E3E3E8 实色盖回去，玻璃等于白做
+           （2026-10-28 用户报「液态玻璃被改了」的真因）。 */
+        barStrokeP.setStyle(Paint.Style.STROKE);
+        sliderStrokeP.setStyle(Paint.Style.STROKE);
         rimPaint.setColor(Color.argb(90, 255, 255, 255));
         if (Build.VERSION.SDK_INT >= 33) {
             shader = new RuntimeShader(AGSL);
@@ -1361,6 +1369,10 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             }
             barGlassShader.setInputShader("content", barBackdropShader);
             barGlassP.setShader(barGlassShader);
+            /* 玻璃层半透叠在容器底上：AGSL 输出不透明，全强度会把容器整块盖掉，
+               栏后正文直接透上来（2026-10-28 真机：底栏能看见「工具箱/搜索」）。
+               150/255 让容器承担底色、玻璃只出霜面与折射。 */
+            barGlassP.setAlpha(150);
             return true;
         } catch (Throwable t) {
             Log.w(TAG, "栏体玻璃组装失败，回退实色", t);
@@ -1487,17 +1499,40 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         /* 栏体玻璃：每帧补抓+组装（代判定在内部，未变即零成本跳过），
            玻璃就绪则直画（库 AGSL，透镜同款模式），否则实色 blit */
         maybeCaptureBarBackdrop();
-        if (ensureBarGlass(bar, dockRadius(bar))) {
+        if (dockVertical) {
+            /* 竖排侧栏**不走 AGSL**：本层活在独立 PopupWindow 里，栏体抓图只能拿到
+               主窗口底色（2026-10-28 真机 dump：368×1903 整张 246,246,248 全白），
+               AGSL 再漂亮也是在一块白板上做折射 —— 观感就是「实心白面板」，降 tint
+               也压不下去。改用半透明白直接和下层壁纸混合：要的是「透」，且透明度
+               可调（用户 2026-10-28：侧栏发闷，要更透）。 */
             int sv = canvas.save();
             canvas.translate(bar.left, bar.top);
             float rr2 = dockRadius(bar);
             float bw2 = bar.width(), bh2 = bar.height();
-            canvas.drawRoundRect(0, 0, bw2, bh2, rr2, rr2, barGlassP);
+            railFillP.setColor(Color.argb(RAIL_ALPHA, 255, 255, 255));
+            canvas.drawRoundRect(0, 0, bw2, bh2, rr2, rr2, railFillP);
             barStrokeP.setStrokeWidth(density);
             canvas.drawRoundRect(0, 0, bw2, bh2, rr2, rr2, barStrokeP);
             canvas.restoreToCount(sv);
         } else {
-            canvas.drawBitmap(chromeB1, bar.left, bar.top, null);
+            /* 先铺容器底：玻璃就绪时它被 AGSL 整块盖住（AGSL 输出不透明，采样的是
+               栏后像素），只在抓图未就绪/低版本时兜底成实色 —— 也就是原来的回退路径，
+               这里提前画，省掉一条分支。 */
+            int bs = canvas.save();
+            canvas.translate(bar.left, bar.top);
+            float br2 = dockRadius(bar);
+            canvas.drawRoundRect(0, 0, bar.width(), bar.height(), br2, br2, barFillP);
+            canvas.restoreToCount(bs);
+            if (ensureBarGlass(bar, dockRadius(bar))) {
+                int sv = canvas.save();
+                canvas.translate(bar.left, bar.top);
+                float rr2 = dockRadius(bar);
+                float bw2 = bar.width(), bh2 = bar.height();
+                canvas.drawRoundRect(0, 0, bw2, bh2, rr2, rr2, barGlassP);
+                barStrokeP.setStrokeWidth(density);
+                canvas.drawRoundRect(0, 0, bw2, bh2, rr2, rr2, barStrokeP);
+                canvas.restoreToCount(sv);
+            }
         }
 
         composePillCenter();
