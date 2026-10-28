@@ -155,6 +155,7 @@ public class NativePhaseView extends LinearLayout {
     public boolean show(String pid, String focusId) {
         Phase p = byId.get(pid);
         if (p == null) return false;
+        if (getVisibility() == VISIBLE && current == p && focusId == null && !dirty) return true;
         boolean rebuild = dirty || current != p || focusId != null || page.getChildCount() == 0;
         current = p;
         pendingFocus = focusId;

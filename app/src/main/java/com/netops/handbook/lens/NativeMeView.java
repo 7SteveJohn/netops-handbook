@@ -69,6 +69,7 @@ public class NativeMeView extends LinearLayout {
     public boolean show() {
         android.util.Log.i("NativeMe", "show root=" + (root != null));
         if (root == null) return false;
+        if (getVisibility() == VISIBLE && !dirty) return true;
         done.clear(); fav.clear();
         for (String s : sp.getString("done", "").split(",")) if (!s.isEmpty()) done.add(s);
         for (String s : sp.getString("fav", "").split(",")) if (!s.isEmpty()) fav.add(s);

@@ -94,6 +94,7 @@ public class NativeSimpleList extends LinearLayout {
 
     public boolean show() {
         if (items.length() == 0) return false;
+        if (getVisibility() == VISIBLE && !dirty) return true;
         if (dirty || page.getChildCount() == 0) { buildPage(); dirty = false; }
         scroller.scrollTo(0, 0);
         animate().cancel();          /* 取消未完成的 hide 动画，否则其 endAction 会把刚显示的页面又置 GONE */

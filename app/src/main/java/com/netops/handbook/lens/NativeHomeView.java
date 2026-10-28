@@ -87,6 +87,7 @@ public class NativeHomeView extends LinearLayout {
 
     public boolean show() {
         if (root == null) return false;
+        if (getVisibility() == VISIBLE && !dirty) return true;
         loadState();
         if (dirty || page.getChildCount() == 0) { buildPage(); dirty = false; }
         scroller.scrollTo(0, sp.getInt("scroll_home", 0));

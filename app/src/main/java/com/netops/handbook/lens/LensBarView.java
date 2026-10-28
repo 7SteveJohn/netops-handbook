@@ -1183,8 +1183,19 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     }
 
     /** 把选择提交给页面（页面切视图后回调用 setSelectedIndex 对齐）。 */
+    /** 松手立刻通知宿主做原生切页（不等 JS 路由）：JS 那一跳实测 16~204ms，
+     *  侧栏因此「不跟手」（2026-10-28）。原生先切，JS 事后确认是同一页即无操作。 */
+    public interface OnCommit { void onCommit(int index); }
+
+    private OnCommit onCommit;
+
+    public void setOnCommit(OnCommit l) { onCommit = l; }
+
     private void commit(int index) {
         selectedIndex = index;
+        if (onCommit != null) {
+            try { onCommit.onCommit(index); } catch (Throwable ignored) { }
+        }
         if (webView == null) return;
         String js = "(function(){try{if(typeof NetOpsLensSelect==='function'){NetOpsLensSelect("
                 + index + ");}}catch(e){}})()";

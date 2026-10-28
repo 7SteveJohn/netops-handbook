@@ -466,7 +466,21 @@ public class MainActivity extends AppCompatActivity {
         root.addView(nativeDrawer);
 
         configureWebView();
-        webView.addJavascriptInterface(new Bridge(), "NetBridge");
+        bridge = new Bridge();
+        webView.addJavascriptInterface(bridge, "NetBridge");
+        /* 侧栏松手 → 原生立刻切页（不等 JS 路由的 16~204ms） */
+        if (lensBar != null) {
+            lensBar.setOnCommit(i -> runOnUiThread(() -> {
+                if (bridge == null) return;
+                switch (i) {
+                    case 0: bridge.showNativeHome(); break;
+                    case 1: bridge.showNativeFault(); break;
+                    case 2: bridge.showNativeDict(); break;
+                    case 3: bridge.showNativeIv(); break;
+                    default: bridge.showNativeMe(); break;
+                }
+            }));
+        }
         pageReady = false;
         rendererGone = false;
 
@@ -1005,6 +1019,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // ------------------------------------------------------------------ JS 桥
+
+    private Bridge bridge;
 
     private class Bridge {
 
