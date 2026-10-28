@@ -61,7 +61,11 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     private static final float FLING_MS      = 100f;    // 速度投影时长
 
     /* ---- 弹簧：与 FlClash 同名同参 ---- */
-    private static final SpringSpec FOLLOW  = SpringSpec.ratio(1024, 0.9);
+    /* 拖拽跟手弹簧：质量 1 时临界阻尼的稳态滞后 = v·2ζ/ω。首版 1024/0.9 →
+       ω=32，快拖（1500px/s）药丸落后手指 ~84px（半格）—— 用户报「从第一个点
+       到第二个点的中间非常粘手」（2026-10-29）。10000/1.0 → ω=100，滞后 ~30ms
+       ≈ 1:1 跟手，保留一点缓冲的液感；松手落格仍是 TRAVEL 的弹性。 */
+    private static final SpringSpec FOLLOW  = SpringSpec.ratio(10000, 1.0);
     private static final SpringSpec TRAVEL  = SpringSpec.durationBounce(400, 0.15);
     private static final SpringSpec LIFT_S  = SpringSpec.durationBounce(250, 0);
     private static final SpringSpec JELLY_S = SpringSpec.ratio(100, 0.4);
@@ -241,6 +245,13 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     private boolean copyBusy = false;
     private long lastCaptureMs = 0;
     private static final long ACTIVE_CAPTURE_MS = 50;    // 交互期背景重抓 ~20fps：镜内剖切边与页面同步
+    /* 竖排侧栏拖拽期抓图优化：按下时抓**整轨一次**（弹窗不动、壁纸不动 → 全程有效），
+       拖动中停掉 50ms 周期 PixelCopy。首版 700ms 拖拽实测抓 26 次（均 6ms 峰值 31ms）
+       + 每次落地全窗 invalidate —— 用户报拖拽「非常粘手/好卡」（2026-10-29）。
+       lensRailIssued = 整轨抓图已发出（在它落地前不再发 pill 抓，避免小图回写
+       覆盖大图、uBgOffset 与位图尺寸错位）；失败即清标志退回周期抓图。 */
+    private boolean lensRailIssued = false;
+    private boolean lensRailFull = false;
     private boolean wasActive = false;                   // 弹簧落定后补一帧空画用
     private boolean dark = false;                        // 暗色模式（uBrightness 1.33 的开关）
     private float lastSentPos = Float.MIN_VALUE;         // 上次广播的透镜位置（连续调色节流）
@@ -828,7 +839,8 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                 lastSentPos = p;
                 callLensPos(p);
             }
-            if (lensing && System.currentTimeMillis() - lastCaptureMs >= ACTIVE_CAPTURE_MS) {
+            if (lensing && !(dockVertical && (lensRailIssued || lensRailFull))
+                    && System.currentTimeMillis() - lastCaptureMs >= ACTIVE_CAPTURE_MS) {
                 captureBackdrop();
             }
             /* 脏区重合成：滑块+蓝格移动区域（玻璃期仍整层——折射面大）。
@@ -931,11 +943,32 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
      */
     private void captureByPixelCopy(long t0) {
         /* 只抓药丸那一小块（+ 位移余量），不再抓整条带：
-           整条带 1272×420 ≈ 2.1MB 回读实测 70ms，缩到 ~300×250 后应该一个量级往下掉。 */
+           整条带 1272×420 ≈ 2.1MB 回读实测 70ms，缩到 ~300×250 后应该一个量级往下掉。
+           竖排拖拽例外：lensRailIssued 时抓整轨（含 pad）——拖全程背景不动，一次管到底。 */
         float cxScreen;
         float cyScreen;
         if (dockVertical) {
             popupOffsetInMainWindow(pvOff);
+            if (lensRailIssued) {
+                int padR = (int) (40 * density);
+                int maxH2 = viewportH > 0 ? (int) viewportH : getResources().getDisplayMetrics().heightPixels;
+                int winW2 = anchor != null ? anchor.getWidth() : getResources().getDisplayMetrics().widthPixels;
+                int rl = Math.max(0, (int) (railRect.left + pvOff[0]) - padR);
+                int rt = Math.max(0, (int) (railRect.top + pvOff[1]) - padR);
+                int rr = Math.min(winW2, (int) (railRect.right + pvOff[0]) + padR);
+                int rb = Math.min(maxH2, (int) (railRect.bottom + pvOff[1]) + padR);
+                if (rr - rl < 4 || rb - rt < 4) { copyBusy = false; return; }
+                srcRect.set(rl, rt, rr, rb);
+                bgOffX = rl - pvOff[0];
+                bgOffY = rt - pvOff[1];
+                if (backdrop == null || backdrop.getWidth() != srcRect.width()
+                        || backdrop.getHeight() != srcRect.height()) {
+                    backdrop = Bitmap.createBitmap(srcRect.width(), srcRect.height(), Bitmap.Config.ARGB_8888);
+                    backdropShader = new BitmapShader(backdrop, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+                }
+                issuePixelCopy(t0);
+                return;
+            }
             cxScreen = crossCView + pvOff[0];
             cyScreen = cellAxis((int) Math.round(pos.value()))
                     + axisPitch * ((float) pos.value() - Math.round(pos.value())) + pvOff[1];
@@ -970,6 +1003,13 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             backdrop = Bitmap.createBitmap(srcRect.width(), srcRect.height(), Bitmap.Config.ARGB_8888);
             backdropShader = new BitmapShader(backdrop, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
         }
+        issuePixelCopy(t0);
+    }
+
+    /** 发出一次 PixelCopy（srcRect/backdrop/bgOff 已就位）。rail = 本次是整轨抓图：
+     *  落地置 lensRailFull（拖拽期停发）；失败清 lensRailIssued 退回周期 pill 抓图。 */
+    private void issuePixelCopy(long t0) {
+        final boolean rail = lensRailIssued && !lensRailFull;
         try {
             PixelCopy.request(window, srcRect, backdrop, result -> {
                 long ms = (System.nanoTime() - t0) / 1_000_000L;
@@ -979,6 +1019,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                     captures++;
                     if (ms > copyMaxMs) copyMaxMs = ms;
                     lastCaptureMs = System.currentTimeMillis();
+                    if (rail) lensRailFull = true;
                     /* debug 取证：dump 最近一次抓图（R1 折射内容与页面不符排查） */
                     if ((getContext().getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
                         try {
@@ -990,12 +1031,14 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                     }
                     invalidate();
                 } else {
+                    if (rail) lensRailIssued = false;
                     Log.w(TAG, "PixelCopy 失败 result=" + result + "，退回软件绘制");
                     captureByDraw(System.nanoTime());
                 }
             }, new Handler(Looper.getMainLooper()));
         } catch (Throwable t) {
             copyBusy = false;
+            if (rail) lensRailIssued = false;
             Log.w(TAG, "PixelCopy 抛异常，退回软件绘制", t);
             captureByDraw(System.nanoTime());
         }
@@ -1131,6 +1174,12 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                 pos.springTo(pressedIndex, TRAVEL, now);
                 lift.springTo(1, LIFT_S, now);
                 lastCaptureMs = 0;   // 按下立刻重抓背景，别让玻璃映出几分钟前的旧画面
+                /* 竖排：本次按压直接抓整轨（拖全程有效），拖动中不再周期重抓。
+                   抓图必须在这里**立刻发起** —— 节奏发起点（doFrame）已被
+                   lensRailIssued 跳过，只置标志不发起 = 整场拖拽零抓图。 */
+                lensRailIssued = dockVertical;
+                lensRailFull = false;
+                if (dockVertical) captureBackdrop();
                 if (!nativeDock) setPressClass(true); // 藏起 HTML 药丸（nativeDock 时已整体隐藏）
                 invalidate();
                 return true;
@@ -1177,6 +1226,8 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                 }
                 dragging = false;
                 dropping = true;
+                /* lensRailIssued/Full 留到下次 DOWN 重置：松手回落动画期
+                   背景同样没变，整轨抓图继续有效，回落期不再周期重抓 */
                 invalidate();
                 return true;
             }
