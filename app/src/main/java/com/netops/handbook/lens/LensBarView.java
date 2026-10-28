@@ -63,8 +63,6 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     /* ---- 弹簧：与 FlClash 同名同参 ---- */
     private static final SpringSpec FOLLOW  = SpringSpec.ratio(1024, 0.9);
     private static final SpringSpec TRAVEL  = SpringSpec.durationBounce(400, 0.15);
-    /** 竖排侧栏填充白度（0~255）：172 ≈ 67%，壁纸透得上来，图标/文字也压得住。 */
-    private static final int RAIL_ALPHA = 172;
     private static final SpringSpec LIFT_S  = SpringSpec.durationBounce(250, 0);
     private static final SpringSpec JELLY_S = SpringSpec.ratio(100, 0.4);
 
@@ -288,7 +286,6 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     private Bitmap sliderBmp;   // 含阴影的滑块（透明底），滑块-only 动画期 blit 免 saveLayer
     private final Paint blitP = new Paint(Paint.FILTER_BITMAP_FLAG);
     private final Paint barFillP = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint railFillP = new Paint(Paint.ANTI_ALIAS_FLAG);   // 竖排侧栏半透明填充
     private final Paint barStrokeP = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint sliderFillP = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint sliderStrokeP = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -319,6 +316,8 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     private RuntimeShader barGlassShader;
     private final Paint barGlassP = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Rect srcBarRect = new Rect();
+    /** PixelCopy 落点（清晰原图）；barBackdrop 是它雾化后的合成结果。 */
+    private Bitmap barCapTmp;
     private final RectF lastCapturedBar = new RectF();
     private int lastCapturedDark = -1;
     private boolean barCopyBusy;
@@ -613,6 +612,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         }
         if (pillH <= 0 && !dockVertical) pillH = 56f * density;
         if (pillW <= 0 && !dockVertical) pillW = slot + 8f * density;   // 药丸比一格宽 8dp，与 CSS 同
+        scheduleBarRecapture();      // 尺寸/方向变了：旧采样作废，重抓三代
     }
 
     /* ================= 横屏侧栏（竖排 dock） ================= */
@@ -1310,6 +1310,10 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             barBackdrop = Bitmap.createBitmap(cr - cl, cb - ct, Bitmap.Config.ARGB_8888);
             barBackdropShader = new BitmapShader(barBackdrop, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
         }
+        if (barCapTmp == null || barCapTmp.getWidth() != cr - cl
+                || barCapTmp.getHeight() != cb - ct) {
+            barCapTmp = Bitmap.createBitmap(cr - cl, cb - ct, Bitmap.Config.ARGB_8888);
+        }
         srcBarRect.set(cl, ct, cr, cb);
         barCopyBusy = true;
         final RectF barSnap = new RectF(barWin);
@@ -1317,9 +1321,10 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         final int offX = pvOff[0] - cl;
         final int offY = pvOff[1] - ct;
         try {
-            PixelCopy.request(window, srcBarRect, barBackdrop, result -> {
+            PixelCopy.request(window, srcBarRect, barCapTmp, result -> {
                 barCopyBusy = false;
                 if (result == PixelCopy.SUCCESS) {
+                    composeHaze(barCapTmp, barBackdrop);
                     lastCapturedBar.set(barSnap);
                     lastCapturedDark = dark ? 1 : 0;
                     barCapOffX = offX;
@@ -1355,9 +1360,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         /* 解锁/回前台：主窗口表面刚恢复（锁屏期 PixelCopy 报 no backing surface，
            抓图全部失败），强制重抓一次——否则玻璃停留在透明/实色回退态 */
         if (isVisible && nativeDock && !barCopyBusy) {
-            lastCapturedBar.setEmpty();
-            lastCapturedDark = -1;
-            maybeCaptureBarBackdrop();
+            scheduleBarRecapture();   // 解锁/回前台：壁纸刚恢复，三连发重抓
         }
     }
 
@@ -1400,7 +1403,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                 barGlassShader.setFloatUniform("tintAlpha", 0.48f);
             } else {
                 barGlassShader.setFloatUniform("tintColor", new float[]{0.957f, 0.957f, 0.957f});
-                barGlassShader.setFloatUniform("tintAlpha", 0.55f);
+                barGlassShader.setFloatUniform("tintAlpha", 0.58f);   // FlClash pill 实测 58%
             }
             barGlassShader.setInputShader("content", barBackdropShader);
             barGlassP.setShader(barGlassShader);
@@ -1440,6 +1443,44 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         h.postDelayed(this::maybeCaptureBarBackdrop, 400L);
         h.postDelayed(this::maybeCaptureBarBackdrop, 900L);
         h.postDelayed(this::maybeCaptureBarBackdrop, 1500L);
+    }
+
+    /** FlClash 底栏 haze（研读 §2-④ / §3.1）：**28% 清晰原图 + 72% 过 15.6dp 模糊**，
+     *  不是单档模糊。这里用「降采样再双线性放大」近似高斯（一次性、每代一次），
+     *  合成结果直接喂给着色器当 content —— 文字被糊掉、只剩色块，才是 iOS 底栏的手感。
+     *  之前只有 tint 没有 haze，采样的是**清晰**背景，正文原样透出来（用户报「像半透明白板」）。 */
+    private void composeHaze(Bitmap src, Bitmap dst) {
+        if (src == null || dst == null) return;
+        try {
+            int w = src.getWidth(), h = src.getHeight();
+            int div = Math.max(4, Math.round(15.6f * density / 3f));   // ≈ 15.6dp 的模糊半径
+            int sw = Math.max(1, w / div), sh = Math.max(1, h / div);
+            Bitmap small = Bitmap.createBitmap(sw, sh, Bitmap.Config.ARGB_8888);
+            new Canvas(small).drawBitmap(src, null, new Rect(0, 0, sw, sh),
+                    new Paint(Paint.FILTER_BITMAP_FLAG));
+            Canvas c = new Canvas(dst);
+            c.drawBitmap(src, 0f, 0f, null);                       // 底：100% 原图
+            Paint p = new Paint(Paint.FILTER_BITMAP_FLAG);
+            p.setAlpha(184);                                        // 叠 72% 模糊 → 剩 28% 清晰
+            c.drawBitmap(small, null, new Rect(0, 0, w, h), p);
+            small.recycle();
+        } catch (Throwable t) {
+            Log.w(TAG, "haze 合成失败，退回清晰底图", t);
+            try {
+                Canvas c = new Canvas(dst);
+                c.drawBitmap(src, 0f, 0f, null);
+            } catch (Throwable ignored) { }
+        }
+    }
+
+    /** 栏体采样源补抓（三连发）：冷启动那次抓到的是白屏/半成品，几何不变化就一直用着。 */
+    private void scheduleBarRecapture() {
+        lastCapturedBar.setEmpty();
+        lastCapturedDark = -1;
+        android.os.Handler h = new Handler(Looper.getMainLooper());
+        h.postDelayed(this::maybeCaptureBarBackdrop, 500L);
+        h.postDelayed(this::maybeCaptureBarBackdrop, 1500L);
+        h.postDelayed(this::maybeCaptureBarBackdrop, 3000L);
     }
 
     /** 分层缓存重建：B1=容器；B2=灰态图标+文字（透明底）。barRect/主题变化时调。 */
@@ -1534,22 +1575,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         /* 栏体玻璃：每帧补抓+组装（代判定在内部，未变即零成本跳过），
            玻璃就绪则直画（库 AGSL，透镜同款模式），否则实色 blit */
         maybeCaptureBarBackdrop();
-        if (dockVertical) {
-            /* 竖排侧栏**不走 AGSL**：本层活在独立 PopupWindow 里，栏体抓图只能拿到
-               主窗口底色（2026-10-28 真机 dump：368×1903 整张 246,246,248 全白），
-               AGSL 再漂亮也是在一块白板上做折射 —— 观感就是「实心白面板」，降 tint
-               也压不下去。改用半透明白直接和下层壁纸混合：要的是「透」，且透明度
-               可调（用户 2026-10-28：侧栏发闷，要更透）。 */
-            int sv = canvas.save();
-            canvas.translate(bar.left, bar.top);
-            float rr2 = dockRadius(bar);
-            float bw2 = bar.width(), bh2 = bar.height();
-            railFillP.setColor(Color.argb(RAIL_ALPHA, 255, 255, 255));
-            canvas.drawRoundRect(0, 0, bw2, bh2, rr2, rr2, railFillP);
-            barStrokeP.setStrokeWidth(density);
-            canvas.drawRoundRect(0, 0, bw2, bh2, rr2, rr2, barStrokeP);
-            canvas.restoreToCount(sv);
-        } else {
+        {
             /* 先铺容器底：玻璃就绪时它被 AGSL 整块盖住（AGSL 输出不透明，采样的是
                栏后像素），只在抓图未就绪/低版本时兜底成实色 —— 也就是原来的回退路径，
                这里提前画，省掉一条分支。 */
@@ -1844,6 +1870,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             try { popup.dismiss(); } catch (Throwable ignored) { }
         }
         showPopup();
+        scheduleBarRecapture();      // 弹窗尺寸/位置换代：栏体采样源跟着换
     }
 
     private void showPopup() {
