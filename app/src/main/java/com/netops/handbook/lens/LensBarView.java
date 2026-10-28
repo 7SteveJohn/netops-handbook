@@ -286,6 +286,8 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     private Bitmap sliderBmp;   // 含阴影的滑块（透明底），滑块-only 动画期 blit 免 saveLayer
     private final Paint blitP = new Paint(Paint.FILTER_BITMAP_FLAG);
     private final Paint barFillP = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint railSelP = new Paint(Paint.ANTI_ALIAS_FLAG);   // 竖排选中项底
+    private final Paint railBarP = new Paint(Paint.ANTI_ALIAS_FLAG);   // 竖排选中竖条
     private final Paint barStrokeP = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint sliderFillP = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint sliderStrokeP = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -645,7 +647,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
            竖排侧栏**不能**照搬这条：栏高 ~1630px，半高半径 121px 会让两端变成半圆，
            整条看着像一根竖着的椭圆（2026-10-28 用户报）。侧栏是面板，用固定 16dp 圆角（与原生卡片同族）。 */
         float half = Math.min(bar.width(), bar.height()) / 2f;
-        return dockVertical ? Math.min(16f * density, half) : half;
+        return dockVertical ? Math.min(10f * density, half) : half;
     }
 
     /** 方向推断 + 轨道几何。竖排几何完全由原生自算，不吃 JS 的横排 HTML 栏矩形。 */
@@ -675,19 +677,26 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
      *  药丸=轨道宽−20dp × 格距−16dp。数字对标 FlClash 单元格 76dp 口径。 */
     private void computeRailGeometry() {
         float dp = density;
-        float railW = 88f * dp;
-        float pitch = 78f * dp;
-        float pillHv = 62f * dp;                   // 轴向（y）药丸高
-        float pillWv = railW - 20f * dp;           // 交叉向（x）药丸宽
+        /* FlClash NavigationSidebar 实测（lib/ui/sidebar.dart:12-26）：
+           栏宽 48dp、项 40dp 方块、项距 4dp、项内圆角 10dp、选中 = 8% 填充 + 左缘
+           3dp×16dp 竖条。compact 态**只有图标没有文字**。 */
+        float railW = 48f * dp;
+        float pitch = 44f * dp;                    // 40 项 + 4 间距
+        float pillHv = 40f * dp;
+        float pillWv = 40f * dp;
         /* 轨高夹到页面视口高：窗口比视口多出的 1~2px 会让栏体抓图被判「超界」
            而整条回退实色；夹齐后抓图区恰好覆盖栏体。 */
         /* 本窗已整体下移到顶栏下沿，所以轨矩形从本地 0 起；高度 = 窗口高 - 14dp，
            两端圆角都能露出来（通高到底的话下端被屏幕边切掉，像「插进地里」）。 */
         float h = viewportH > 0 ? Math.min(bandH, viewportH) : bandH;
-        float bottom = Math.max(pillHv * 2f, h - 14f * dp);
-        railRect.set(14f * dp, 0, 14f * dp + railW, bottom);
+        /* 面板只包住 5 个图标（FlClash 的栏是贴着屏幕边的，没有面板；我们浮在壁纸上，
+           面板必须收成内容高，否则 48dp 宽 × 全高就是一条空槽）。 */
+        float contentH = 4f * pitch + pillHv;
+        float panelH = contentH + 8f * dp;
+        float cy0 = (h - 14f * dp) / 2f;
+        railRect.set(14f * dp, cy0 - panelH / 2f, 14f * dp + railW, cy0 + panelH / 2f);
         axisPitch = pitch;
-        axisFirst = (bottom - (4f * pitch + pillHv)) / 2f + pillHv / 2f;
+        axisFirst = railRect.top + 4f * dp + pillHv / 2f;
         crossCView = railRect.left + railW / 2f;
         pillW = pillWv;                            // x 维（交叉向）
         pillH = pillHv;                            // y 维（轴向）
@@ -1559,6 +1568,25 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         }
     }
 
+    /** 竖排选中态，照搬 FlClash：项底 = 40dp 方块 10dp 圆角、`onSurface @ 8%` 填充
+     *  （切换即跳，不做滑动）；左缘一条 3dp×16dp 全圆竖条（首个主色）跟着弹簧滑。 */
+    private void drawRailSelection(Canvas canvas) {
+        float dp = density;
+        float item = 40f * dp;
+        RectF bar = dockRect();
+        float p = (float) pos.value();
+        int idx = Math.max(0, Math.min(count - 1, Math.round(p)));
+        float selCy = cellAxis(idx);
+        float r = 10f * dp;
+        railSelP.setColor(dark ? 0x1FFFFFFF : 0x14000000);       // onSurface @ 8%
+        canvas.drawRoundRect(crossCView - item / 2f, selCy - item / 2f,
+                crossCView + item / 2f, selCy + item / 2f, r, r, railSelP);
+        float iy = axisFirst + axisPitch * p;                    // 竖条跟随弹簧
+        float bw = 3f * dp, bh = 16f * dp, x = bar.left + 4f * dp;
+        railBarP.setColor(activeColor());
+        canvas.drawRoundRect(x, iy - bh / 2f, x + bw, iy + bh / 2f, bw / 2f, bw / 2f, railBarP);
+    }
+
     /** 原生底栏：容器/灰图标（缓存 blit）+滑块。
      *  lensing（透镜在场）走实时绘制（含果冻形变+saveLayer 阴影）；
      *  滑块-only 动画（切页弹簧）走 blit —— 每帧 saveLayer 的离屏分配是
@@ -1616,7 +1644,9 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             hw = (pillW + g) / 2f * (1f + s);
             hh = (pillH + g) / 2f * (1f - s * 1.4f);
         }
-        if (!lensing && sliderBmp != null) {
+        if (dockVertical) {
+            drawRailSelection(canvas);
+        } else if (!lensing && sliderBmp != null) {
             /* 滑块-only 动画：形变量（jelly/lift）微小，直接 blit 固定尺寸缓存 */
             canvas.drawBitmap(sliderBmp, cx - sliderBmp.getWidth() / 2f,
                     cy - sliderBmp.getHeight() / 2f, blitP);
@@ -1690,9 +1720,9 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             if (onlyIdx >= 0 && i != onlyIdx) continue;
             float cx, iconTop;
             if (dockVertical) {
-                /* 竖排：格心 x = 轨道中心；格内自上而下 图标+文字，格 y = 轴向中心 */
+                /* FlClash compact：项内只有图标，垂直居中，无文字 */
                 cx = crossCView + dx;
-                iconTop = cellAxis(i) - contentH / 2f + dy;
+                iconTop = cellAxis(i) - 11f * density + dy;
             } else {
                 cx = firstCx + slot * i + dx;
                 iconTop = pillCy() - contentH / 2f + dy;
@@ -1714,6 +1744,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                 }
                 canvas.restore();
             }
+            if (dockVertical) continue;            // 竖排无文字
             textP.setColor(color);
             textP.setTextAlign(Paint.Align.CENTER);
             canvas.drawText(TAB_LABELS[i], cx, textBaseline, textP);

@@ -243,8 +243,9 @@ public class MainActivity extends AppCompatActivity {
      *  可以在每次布局回调里无脑调。 */
     private void applyDockInset() {
         if (root == null || root.getWidth() <= 0) return;
+        /* 竖排侧栏宽 48dp + 左距 14dp + 8dp 呼吸（FlClash compact 栏宽 48dp） */
         int left = root.getWidth() > root.getHeight()
-                ? Math.round(102f * getResources().getDisplayMetrics().density) : 0;
+                ? Math.round(70f * getResources().getDisplayMetrics().density) : 0;
         android.view.View[] pages = {nativeHome, nativePhase, nativeFault, nativeIv, nativeDict,
                 nativeRefs, nativeGlossary, nativeRoadmap, nativeQuiz, nativeSearch,
                 nativeMe, nativeFav};
