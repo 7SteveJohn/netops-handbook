@@ -1225,6 +1225,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         }
     }
 
+    /* 临时探针：谁在空闲时每帧 invalidate（粘滞感排查） */
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
@@ -1304,9 +1305,13 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         float winL = barWin.left + pvOff[0];
         float winT = barWin.top + pvOff[1];
         int W = (int) barWin.width(), H = (int) barWin.height();
+        /* ❗比较必须同坐标系：lastCapturedBar 存的是**弹窗本地**（barSnap），这里原先
+           拿它跟主窗口坐标的 winL/winT 比 —— 两者恒差一个弹窗偏移 → 永远「过期」→
+           每帧重抓一次 PixelCopy（单次 ~20ms）→ 空闲也 60fps 重绘，全局手感发粘
+           （2026-10-28 复查：绘制 140 帧/2s、inv 140/2s）。改比 barWin。 */
         boolean stale = barBackdrop == null
-                || Math.abs(lastCapturedBar.left - winL) > 0.5f
-                || Math.abs(lastCapturedBar.top - winT) > 0.5f
+                || Math.abs(lastCapturedBar.left - barWin.left) > 0.5f
+                || Math.abs(lastCapturedBar.top - barWin.top) > 0.5f
                 || Math.abs(lastCapturedBar.width() - barWin.width()) > 0.5f
                 || Math.abs(lastCapturedBar.height() - barWin.height()) > 0.5f
                 || lastCapturedDark != (dark ? 1 : 0);
