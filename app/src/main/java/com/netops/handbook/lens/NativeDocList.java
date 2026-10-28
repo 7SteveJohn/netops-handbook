@@ -46,6 +46,9 @@ public class NativeDocList extends LinearLayout {
 
     private final Config cfg;
     private JSONArray items = new JSONArray();
+    /** 页面已构建过？数据/主题/direct 变才重建 —— 重建一次 280~300ms（35 行 + 玻璃头卡），
+     *  每次 show 都重建 = 切页时 UI 线程被按住 0.3 秒，侧栏弹簧直接顿住（2026-10-28 用户报「卡得要命」）。 */
+    private boolean dirty = true;
     private boolean dark = false, direct = false;
     private final ScrollView scroller;
     private final LinearLayout page;
@@ -96,14 +99,15 @@ public class NativeDocList extends LinearLayout {
 
     public void mergeLegacyState(String doneJson, String favJson) {
         boolean changed = mergeInto(done, doneJson) | mergeInto(fav, favJson);
-        if (changed) { saveState(); if (isShowing()) buildPage(); }
+        if (changed) { saveState(); dirty = true; if (isShowing()) buildPage(); }
     }
 
     public void setState(String id, String kind, boolean on) {
         Set<String> target = "fav".equals(kind) ? fav : done;
         if (!(on ? target.add(id) : target.remove(id))) return;
         saveState();
-        if ("done".equals(kind) && isShowing()) buildPage();
+        dirty = true;
+        if ("done".equals(kind) && isShowing()) { buildPage(); dirty = false; }
     }
 
     private boolean mergeInto(Set<String> target, String json) {
@@ -120,28 +124,26 @@ public class NativeDocList extends LinearLayout {
     public void setPageData(JSONObject root) {
         JSONArray arr = root.optJSONArray(cfg.dataKey);
         if (arr != null) items = arr;
+        dirty = true;
         android.util.Log.i("NativeDoc", cfg.dataKey + " n=" + items.length());
     }
 
     /* ---------------- 显示 ---------------- */
     public boolean show() {
         if (items.length() == 0) return false;
-        buildPage();
+        if (dirty || page.getChildCount() == 0) { buildPage(); dirty = false; }
         scroller.scrollTo(0, sp.getInt("scroll_" + cfg.scrollKey, 0));
         animate().cancel();          /* 取消未完成的 hide 动画，否则其 endAction 会把刚显示的页面又置 GONE */
         setVisibility(VISIBLE);
-        setAlpha(0f);
-        animate().alpha(1f).setDuration(140).start();
+        setAlpha(1f);   /* 不做整屏淡入：带玻璃卡的全屏视图 alpha 动画要新建离屏层，
+                           切页时实测 95th 53ms / 99th 200ms（2026-10-28）*/
         return true;
     }
 
     public void hide() {
         if (getVisibility() != VISIBLE) return;
         sp.edit().putInt("scroll_" + cfg.scrollKey, scroller.getScrollY()).apply();
-        animate().alpha(0f).setDuration(120).withEndAction(() -> {
-            setVisibility(GONE);
-            page.removeAllViews();
-        }).start();
+        setVisibility(GONE);
     }
 
     public boolean isShowing() { return getVisibility() == VISIBLE; }

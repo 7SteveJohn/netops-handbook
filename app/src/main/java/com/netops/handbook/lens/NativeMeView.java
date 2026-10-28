@@ -62,6 +62,10 @@ public class NativeMeView extends LinearLayout {
 
     public void setPageData(JSONObject data) { root = data; }
 
+    /** 已构建过就复用：buildPage 一次要几十到几百 ms，每次 show 重建会把 UI 线程按住，
+     *  切页时侧栏弹簧直接顿住（2026-10-28）。数据/主题变化才置脏。 */
+    private boolean dirty = true;
+
     public boolean show() {
         android.util.Log.i("NativeMe", "show root=" + (root != null));
         if (root == null) return false;
@@ -72,18 +76,15 @@ public class NativeMeView extends LinearLayout {
         scroller.scrollTo(0, sp.getInt("scroll_me", 0));
         animate().cancel();          /* 取消未完成的 hide 动画，否则其 endAction 会把刚显示的页面又置 GONE */
         setVisibility(VISIBLE);
-        setAlpha(0f);
-        animate().alpha(1f).setDuration(140).start();
+        setAlpha(1f);   /* 不做整屏淡入：带玻璃卡的全屏视图 alpha 动画要新建离屏层，
+                           切页时实测 95th 53ms / 99th 200ms（2026-10-28）*/
         return true;
     }
 
     public void hide() {
         if (getVisibility() != VISIBLE) return;
         sp.edit().putInt("scroll_me", scroller.getScrollY()).apply();
-        animate().alpha(0f).setDuration(120).withEndAction(() -> {
-            setVisibility(GONE);
-            page.removeAllViews();
-        }).start();
+        setVisibility(GONE);
     }
 
     public boolean isShowing() { return getVisibility() == VISIBLE; }
@@ -105,6 +106,7 @@ public class NativeMeView extends LinearLayout {
     private void refreshPalette() {
         pal = NativeBlocks.palette(getContext(), dark, direct);
         setBackgroundColor(pal.bg);
+        dirty = true;
         if (isShowing()) buildPage();
     }
 

@@ -100,7 +100,7 @@ public class NativePhaseView extends LinearLayout {
     public void mergeLegacyState(String doneJson, String favJson) {
         boolean changed = mergeInto(done, doneJson);
         changed |= mergeInto(fav, favJson);
-        if (changed) { saveState(); if (isShowing()) buildPage(); }
+        if (changed) { saveState(); dirty = true; if (isShowing()) buildPage(); }
     }
 
     /** 页面层改了状态：直接设值（取消也要生效，不能只做并集）。 */
@@ -108,6 +108,7 @@ public class NativePhaseView extends LinearLayout {
         Set<String> target = "fav".equals(kind) ? fav : done;
         if (!(on ? target.add(id) : target.remove(id))) return;
         saveState();
+        dirty = true;
         if ("done".equals(kind) && isShowing()) buildPage();
     }
 
@@ -147,28 +148,30 @@ public class NativePhaseView extends LinearLayout {
     /* ---------------- 显示 ---------------- */
     public boolean show(String pid) { return show(pid, null); }
 
+    /** 已构建过就复用：buildPage 一次几十~几百 ms，每次 show 重建会按住 UI 线程
+     *  （2026-10-28 侧栏切页「卡得要命」）。换阶段/带 focus/数据变化才重建。 */
+    private boolean dirty = true;
+
     public boolean show(String pid, String focusId) {
         Phase p = byId.get(pid);
         if (p == null) return false;
+        boolean rebuild = dirty || current != p || focusId != null || page.getChildCount() == 0;
         current = p;
         pendingFocus = focusId;
-        buildPage();
+        if (rebuild) { buildPage(); dirty = false; }
         pendingFocus = null;
         scroller.scrollTo(0, focusId == null ? sp.getInt("scroll_" + pid, 0) : 0);
         animate().cancel();          /* 取消未完成的 hide 动画，否则其 endAction 会把刚显示的页面又置 GONE */
         setVisibility(VISIBLE);
-        setAlpha(0f);
-        animate().alpha(1f).setDuration(140).start();
+        setAlpha(1f);   /* 不做整屏淡入：带玻璃卡的全屏视图 alpha 动画要新建离屏层，
+                           切页时实测 95th 53ms / 99th 200ms（2026-10-28）*/
         return true;
     }
 
     public void hide() {
         if (getVisibility() != VISIBLE) return;
         if (current != null) sp.edit().putInt("scroll_" + current.id, scroller.getScrollY()).apply();
-        animate().alpha(0f).setDuration(120).withEndAction(() -> {
-            setVisibility(GONE);
-            page.removeAllViews();
-        }).start();
+        setVisibility(GONE);
     }
 
     public boolean isShowing() { return getVisibility() == VISIBLE; }
@@ -191,6 +194,7 @@ public class NativePhaseView extends LinearLayout {
     private void refreshPalette() {
         pal = NativeBlocks.palette(getContext(), dark, direct);
         setBackgroundColor(pal.bg);
+        dirty = true;
         if (current != null && isShowing()) buildPage();
     }
 
