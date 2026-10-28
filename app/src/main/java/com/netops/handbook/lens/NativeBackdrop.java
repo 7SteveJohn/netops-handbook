@@ -29,6 +29,10 @@ public class NativeBackdrop extends FrameLayout {
     private final ImageView image;     // 主壁纸：竖屏 cover / 横屏 FIT_CENTER（整张可见）
     private String current;
     private boolean landscape;
+    /** WebView 独占路由（CLI）时让位。本层 z 序在 WebView 之上（给原生页当壁纸底），
+     *  一旦常显就把 WebView 盖死：竖屏整屏盖、横屏被 FIT_CENTER 竖带切穿，
+     *  而触摸仍穿透到 WebView —— 页面看不见、点了没反应（2026-10-29 平板实测）。 */
+    private boolean revealedForWeb;
 
     public NativeBackdrop(Context c) {
         super(c);
@@ -70,12 +74,12 @@ public class NativeBackdrop extends FrameLayout {
     /** blurDp 跟随通透度（JS 传 --wp-blur），与 Web 层 .wall 同一口径。 */
     public void setWallpaper(String file, float blurDp) {
         if (file == null || file.isEmpty()) {
-            setVisibility(GONE);
             image.setImageDrawable(null);
+            ambient.setImageDrawable(null);
             current = null;
+            refreshVisibility();
             return;
         }
-        current = file;
         android.util.Log.i("NativeBackdrop", "setWallpaper " + file + " blur=" + blurDp);
         Bitmap bmp = CACHE.get(file);
         if (bmp == null) {
@@ -83,16 +87,31 @@ public class NativeBackdrop extends FrameLayout {
             if (bmp != null) CACHE.put(file, bmp);
         }
         if (bmp == null) {
-            setVisibility(GONE);
+            current = null;
+            refreshVisibility();
             return;
         }
+        current = file;
         android.graphics.drawable.Drawable dr = new android.graphics.drawable.BitmapDrawable(
                 getResources(), bmp);
         image.setImageDrawable(dr);
         ambient.setImageDrawable(dr);
         applyBlur(blurDp);
         applyLayoutMode();
-        setVisibility(VISIBLE);
+        refreshVisibility();
+    }
+
+    /** WebView 路由（CLI）→ true 让位；任何原生页显示 → false 收回。
+     *  由 MainActivity.hideNativePagesExcept(keep) 按 keep==null 统一驱动。 */
+    public void setRevealed(boolean revealed) {
+        if (revealedForWeb == revealed) return;
+        revealedForWeb = revealed;
+        refreshVisibility();
+    }
+
+    /** 有壁纸且没在给 WebView 让位时才显示；否则 GONE（GONE 不参与命中测试）。 */
+    private void refreshVisibility() {
+        setVisibility(current != null && !revealedForWeb ? VISIBLE : GONE);
     }
 
     private void applyBlur(float blurDp) {

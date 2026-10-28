@@ -205,6 +205,10 @@ public class MainActivity extends AppCompatActivity {
         if (!"search".equals(keep) && nativeSearch != null) nativeSearch.hide();
         if (!"me".equals(keep) && nativeMe != null) nativeMe.hide();
         if (!"fav".equals(keep) && nativeFav != null) nativeFav.hide();
+        /* keep==null = 本路由没有原生页（CLI 等 WebView 独占页）→ 壁纸层让位，
+           否则它（z 序在 WebView 之上）会把 WebView 盖死：页面看不见、触摸却穿透。
+           任何原生页显示时收回让位。 */
+        if (nativeBackdrop != null) nativeBackdrop.setRevealed(keep == null);
         if (nativeDrawer != null && nativeDrawer.isOpen()) {
             nativeDrawer.close();
             if (lensBar != null) lensBar.setOverlaid(false);
