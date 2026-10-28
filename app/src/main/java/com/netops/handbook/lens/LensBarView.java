@@ -245,13 +245,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     private boolean copyBusy = false;
     private long lastCaptureMs = 0;
     private static final long ACTIVE_CAPTURE_MS = 50;    // 交互期背景重抓 ~20fps：镜内剖切边与页面同步
-    /* 竖排侧栏拖拽期抓图优化：按下时抓**整轨一次**（弹窗不动、壁纸不动 → 全程有效），
-       拖动中停掉 50ms 周期 PixelCopy。首版 700ms 拖拽实测抓 26 次（均 6ms 峰值 31ms）
-       + 每次落地全窗 invalidate —— 用户报拖拽「非常粘手/好卡」（2026-10-29）。
-       lensRailIssued = 整轨抓图已发出（在它落地前不再发 pill 抓，避免小图回写
-       覆盖大图、uBgOffset 与位图尺寸错位）；失败即清标志退回周期抓图。 */
-    private boolean lensRailIssued = false;
-    private boolean lensRailFull = false;
+    /* 仅横排底栏透镜用（竖排侧栏无透镜 → 零抓图，见 drawDockChrome）。 */
     private boolean wasActive = false;                   // 弹簧落定后补一帧空画用
     private boolean dark = false;                        // 暗色模式（uBrightness 1.33 的开关）
     private float lastSentPos = Float.MIN_VALUE;         // 上次广播的透镜位置（连续调色节流）
@@ -333,6 +327,9 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     private int barCapOffX, barCapOffY;             // 栏左上在背景位图内的偏移（pad 对齐）
     private RuntimeShader barGlassShader;
     private final Paint barGlassP = new Paint(Paint.ANTI_ALIAS_FLAG);
+    /** 竖排侧栏面板（FlClash 口径纯色半透，见 drawDockChrome）：浅色 ~70% 白、
+       暗色 ~80% 深面——暗壁纸上暗面板要更高不透明度才托得住灰图标。 */
+    private final Paint railFillP = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Rect srcBarRect = new Rect();
     /** PixelCopy 落点（清晰原图）；barBackdrop 是它雾化后的合成结果。 */
     private Bitmap barCapTmp;
@@ -347,6 +344,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     /** 亮/暗两套配色，逐值对齐 01-tokens.css（浅 #2563eb/#8E8E93；暗 #0a84ff/rgba(235,235,245,.60)）。 */
     private void applyDockColors() {
         if (dark) {
+            railFillP.setColor(Color.argb(204, 24, 24, 26));   // 竖排面板：暗面 ~80%
             barFillP.setColor(Color.argb(255, 28, 28, 30));   // 实色：用户实证半透透出正文「吓人」       // 近实色 modal 级（.95），对齐「滚动路径零模糊」决策
             barStrokeP.setColor(Color.argb(255, 56, 56, 58));     // --border #38383a
             sliderFillP.setColor(Color.argb(255, 44, 44, 46));    // --surface-2 #2c2c2e
@@ -355,6 +353,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             textP.setColor(Color.argb(153, 235, 235, 245));
             inactiveColor = Color.argb(153, 235, 235, 245);
         } else {
+            railFillP.setColor(Color.argb(178, 255, 255, 255));   // 竖排面板：白 ~70%（cf1fc0d 前的已验收值）
             barFillP.setColor(Color.WHITE);                    // 实色：同上
             barStrokeP.setColor(Color.argb(255, 227, 227, 232));  // --border #e3e3e8
             /* 对照 FlClash 手机端（液态玻璃=极致）实测：选中药丸 #DEE5FC（主色 12% 叠白，不是纯白）、
@@ -839,7 +838,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                 lastSentPos = p;
                 callLensPos(p);
             }
-            if (lensing && !(dockVertical && (lensRailIssued || lensRailFull))
+            if (lensing && !dockVertical
                     && System.currentTimeMillis() - lastCaptureMs >= ACTIVE_CAPTURE_MS) {
                 captureBackdrop();
             }
@@ -943,32 +942,11 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
      */
     private void captureByPixelCopy(long t0) {
         /* 只抓药丸那一小块（+ 位移余量），不再抓整条带：
-           整条带 1272×420 ≈ 2.1MB 回读实测 70ms，缩到 ~300×250 后应该一个量级往下掉。
-           竖排拖拽例外：lensRailIssued 时抓整轨（含 pad）——拖全程背景不动，一次管到底。 */
+           整条带 1272×420 ≈ 2.1MB 回读实测 70ms，缩到 ~300×250 后应该一个量级往下掉。 */
         float cxScreen;
         float cyScreen;
         if (dockVertical) {
             popupOffsetInMainWindow(pvOff);
-            if (lensRailIssued) {
-                int padR = (int) (40 * density);
-                int maxH2 = viewportH > 0 ? (int) viewportH : getResources().getDisplayMetrics().heightPixels;
-                int winW2 = anchor != null ? anchor.getWidth() : getResources().getDisplayMetrics().widthPixels;
-                int rl = Math.max(0, (int) (railRect.left + pvOff[0]) - padR);
-                int rt = Math.max(0, (int) (railRect.top + pvOff[1]) - padR);
-                int rr = Math.min(winW2, (int) (railRect.right + pvOff[0]) + padR);
-                int rb = Math.min(maxH2, (int) (railRect.bottom + pvOff[1]) + padR);
-                if (rr - rl < 4 || rb - rt < 4) { copyBusy = false; return; }
-                srcRect.set(rl, rt, rr, rb);
-                bgOffX = rl - pvOff[0];
-                bgOffY = rt - pvOff[1];
-                if (backdrop == null || backdrop.getWidth() != srcRect.width()
-                        || backdrop.getHeight() != srcRect.height()) {
-                    backdrop = Bitmap.createBitmap(srcRect.width(), srcRect.height(), Bitmap.Config.ARGB_8888);
-                    backdropShader = new BitmapShader(backdrop, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
-                }
-                issuePixelCopy(t0);
-                return;
-            }
             cxScreen = crossCView + pvOff[0];
             cyScreen = cellAxis((int) Math.round(pos.value()))
                     + axisPitch * ((float) pos.value() - Math.round(pos.value())) + pvOff[1];
@@ -1006,10 +984,8 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         issuePixelCopy(t0);
     }
 
-    /** 发出一次 PixelCopy（srcRect/backdrop/bgOff 已就位）。rail = 本次是整轨抓图：
-     *  落地置 lensRailFull（拖拽期停发）；失败清 lensRailIssued 退回周期 pill 抓图。 */
+    /** 发出一次 PixelCopy（srcRect/backdrop/bgOff 已就位）。 */
     private void issuePixelCopy(long t0) {
-        final boolean rail = lensRailIssued && !lensRailFull;
         try {
             PixelCopy.request(window, srcRect, backdrop, result -> {
                 long ms = (System.nanoTime() - t0) / 1_000_000L;
@@ -1019,7 +995,6 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                     captures++;
                     if (ms > copyMaxMs) copyMaxMs = ms;
                     lastCaptureMs = System.currentTimeMillis();
-                    if (rail) lensRailFull = true;
                     /* debug 取证：dump 最近一次抓图（R1 折射内容与页面不符排查） */
                     if ((getContext().getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
                         try {
@@ -1031,14 +1006,12 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                     }
                     invalidate();
                 } else {
-                    if (rail) lensRailIssued = false;
                     Log.w(TAG, "PixelCopy 失败 result=" + result + "，退回软件绘制");
                     captureByDraw(System.nanoTime());
                 }
             }, new Handler(Looper.getMainLooper()));
         } catch (Throwable t) {
             copyBusy = false;
-            if (rail) lensRailIssued = false;
             Log.w(TAG, "PixelCopy 抛异常，退回软件绘制", t);
             captureByDraw(System.nanoTime());
         }
@@ -1174,12 +1147,6 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                 pos.springTo(pressedIndex, TRAVEL, now);
                 lift.springTo(1, LIFT_S, now);
                 lastCaptureMs = 0;   // 按下立刻重抓背景，别让玻璃映出几分钟前的旧画面
-                /* 竖排：本次按压直接抓整轨（拖全程有效），拖动中不再周期重抓。
-                   抓图必须在这里**立刻发起** —— 节奏发起点（doFrame）已被
-                   lensRailIssued 跳过，只置标志不发起 = 整场拖拽零抓图。 */
-                lensRailIssued = dockVertical;
-                lensRailFull = false;
-                if (dockVertical) captureBackdrop();
                 if (!nativeDock) setPressClass(true); // 藏起 HTML 药丸（nativeDock 时已整体隐藏）
                 invalidate();
                 return true;
@@ -1226,8 +1193,6 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                 }
                 dragging = false;
                 dropping = true;
-                /* lensRailIssued/Full 留到下次 DOWN 重置：松手回落动画期
-                   背景同样没变，整轨抓图继续有效，回落期不再周期重抓 */
                 invalidate();
                 return true;
             }
@@ -1320,7 +1285,10 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                旧 P2「镜内放大靠位图采样偏软」：现在是矢量重绘恒锐。 ---- */
             boolean lensing = pressed || liftV > 0.005f;
             drawDockChrome(canvas, lensing);
-            if (lensing) {
+            /* 透镜只在横排底栏画：竖排侧栏走 FlClash 口径的平面面板（用户实证
+               竖排强加玻璃「真的卡」，2026-10-29——AGSL 整轨每帧重绘 + 抓图链
+               全部只服务于观感，平面绘制零成本）。 */
+            if (lensing && !dockVertical) {
                 drawGlass(canvas, liftV);
             }
             drawLensTabs(canvas);
@@ -1678,27 +1646,41 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                 || Math.abs(chromePillCy - pillCy()) > 0.5f) {
             rebuildChrome();
         }
-        /* 栏体玻璃：每帧补抓+组装（代判定在内部，未变即零成本跳过），
-           玻璃就绪则直画（库 AGSL，透镜同款模式），否则实色 blit */
-        maybeCaptureBarBackdrop();
-        {
-            /* 先铺容器底：玻璃就绪时它被 AGSL 整块盖住（AGSL 输出不透明，采样的是
-               栏后像素），只在抓图未就绪/低版本时兜底成实色 —— 也就是原来的回退路径，
-               这里提前画，省掉一条分支。 */
+        /* 栏体：竖排 = FlClash 口径的**纯色半透面板**（FlClash NavigationSidebar
+           本无玻璃面板，垫一层半透只为壁纸上的图标可读）—— 无 AGSL、无抓图、
+           无透镜，每帧只剩几个 drawRoundRect + 位图 blit。用户实证竖排强加
+           玻璃「真的卡」（2026-10-29），玻璃观感让位流畅。横排 = 玻璃路径不动。 */
+        if (dockVertical) {
             int bs = canvas.save();
             canvas.translate(bar.left, bar.top);
             float br2 = dockRadius(bar);
-            canvas.drawRoundRect(0, 0, bar.width(), bar.height(), br2, br2, barFillP);
+            canvas.drawRoundRect(0, 0, bar.width(), bar.height(), br2, br2, railFillP);
+            barStrokeP.setStrokeWidth(density);
+            canvas.drawRoundRect(0, 0, bar.width(), bar.height(), br2, br2, barStrokeP);
             canvas.restoreToCount(bs);
-            if (ensureBarGlass(bar, dockRadius(bar))) {
-                int sv = canvas.save();
+        } else {
+            /* 栏体玻璃：每帧补抓+组装（代判定在内部，未变即零成本跳过），
+               玻璃就绪则直画（库 AGSL，透镜同款模式），否则实色 blit */
+            maybeCaptureBarBackdrop();
+            {
+                /* 先铺容器底：玻璃就绪时它被 AGSL 整块盖住（AGSL 输出不透明，采样的是
+                   栏后像素），只在抓图未就绪/低版本时兜底成实色 —— 也就是原来的回退路径，
+                   这里提前画，省掉一条分支。 */
+                int bs = canvas.save();
                 canvas.translate(bar.left, bar.top);
-                float rr2 = dockRadius(bar);
-                float bw2 = bar.width(), bh2 = bar.height();
-                canvas.drawRoundRect(0, 0, bw2, bh2, rr2, rr2, barGlassP);
-                barStrokeP.setStrokeWidth(density);
-                canvas.drawRoundRect(0, 0, bw2, bh2, rr2, rr2, barStrokeP);
-                canvas.restoreToCount(sv);
+                float br2 = dockRadius(bar);
+                canvas.drawRoundRect(0, 0, bar.width(), bar.height(), br2, br2, barFillP);
+                canvas.restoreToCount(bs);
+                if (ensureBarGlass(bar, dockRadius(bar))) {
+                    int sv = canvas.save();
+                    canvas.translate(bar.left, bar.top);
+                    float rr2 = dockRadius(bar);
+                    float bw2 = bar.width(), bh2 = bar.height();
+                    canvas.drawRoundRect(0, 0, bw2, bh2, rr2, rr2, barGlassP);
+                    barStrokeP.setStrokeWidth(density);
+                    canvas.drawRoundRect(0, 0, bw2, bh2, rr2, rr2, barStrokeP);
+                    canvas.restoreToCount(sv);
+                }
             }
         }
 
