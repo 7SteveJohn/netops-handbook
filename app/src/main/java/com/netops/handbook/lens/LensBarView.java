@@ -641,7 +641,11 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     /** 栏体圆角：横排=栏高/2（胶囊），竖排=轨宽/2（竖向胶囊）。
      *  竖排栏高 = 整窗高，拿高度算半径会退化成满圆角。 */
     private float dockRadius(RectF bar) {
-        return Math.min(bar.width(), bar.height()) / 2f;
+        /* 横排底栏：半高 = 胶囊（FlClash pill 就是这个语义，横向短条两端自然是半圆）。
+           竖排侧栏**不能**照搬这条：栏高 ~1630px，半高半径 121px 会让两端变成半圆，
+           整条看着像一根竖着的椭圆（2026-10-28 用户报）。侧栏是面板，用固定 16dp 圆角（与原生卡片同族）。 */
+        float half = Math.min(bar.width(), bar.height()) / 2f;
+        return dockVertical ? Math.min(16f * density, half) : half;
     }
 
     /** 方向推断 + 轨道几何。竖排几何完全由原生自算，不吃 JS 的横排 HTML 栏矩形。 */
