@@ -28,6 +28,10 @@ import org.json.JSONObject;
  */
 public class NativeSettingsPanel extends FrameLayout {
 
+    /** 开合回调：面板是原生 View，侧栏/透镜是独立弹窗永远置顶 —— 面板一开就得让侧栏退位，
+     *  否则侧栏压在面板左半，壁纸选项被挡（2026-10-28 用户报）。 */
+    public interface OnOpen { void onOpen(boolean open); }
+
     public interface Set {
         void apply(String kind, String value);
     }
@@ -112,8 +116,13 @@ public class NativeSettingsPanel extends FrameLayout {
         build();
     }
 
+    private OnOpen onOpen;
+
+    public void setOnOpen(OnOpen l) { onOpen = l; }
+
     public void show() {
         android.util.Log.i("NativeSettings", "show");
+        if (onOpen != null) onOpen.onOpen(true);
         try {
             build();
         } catch (Throwable t) {
@@ -126,7 +135,10 @@ public class NativeSettingsPanel extends FrameLayout {
 
     public void hide() {
         if (getVisibility() != VISIBLE) return;
-        animate().alpha(0f).setDuration(140).withEndAction(() -> setVisibility(GONE)).start();
+        animate().alpha(0f).setDuration(140).withEndAction(() -> {
+            setVisibility(GONE);
+            if (onOpen != null) onOpen.onOpen(false);
+        }).start();
     }
 
     /* ---------------- 构建 ---------------- */

@@ -393,6 +393,8 @@ public class MainActivity extends AppCompatActivity {
         settingsPanel.setLayoutParams(new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         root.addView(settingsPanel);     /* 面板必须在所有原生页之上 */
+        /* 面板开合 → 侧栏退位（侧栏是独立弹窗，永远压在面板上） */
+        settingsPanel.setOnOpen(open -> { if (lensBar != null) lensBar.setOverlaid(open); });
 
         /* 原生抽屉：最顶层 overlay。开合联动 dock（setOverlaid），否则药丸压住抽屉。 */
         nativeDrawer = new com.netops.handbook.lens.NativeDrawerView(this,
