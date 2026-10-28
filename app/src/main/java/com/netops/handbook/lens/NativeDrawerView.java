@@ -55,7 +55,10 @@ public class NativeDrawerView extends FrameLayout {
         panel = new LinearLayout(c);
         panel.setOrientation(LinearLayout.VERTICAL);
         android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
-        bg.setColor(pal.cardBg);
+        /* 抽屉是**导航面板**，必须实色：直铺模式 cardBg = argb(214,255,255,255)，
+           底下的页面卡片/标题会 16% 透上来，和抽屉自己的文字叠成「两层字」
+           （2026-10-28 用户报「侧栏打开直接重叠了」）。只强制 alpha=1，RGB 不动。 */
+        bg.setColor(pal.cardBg | 0xFF000000);
         bg.setCornerRadii(new float[]{0, 0, pal.dp(22), pal.dp(22), pal.dp(22), pal.dp(22), 0, 0});
         panel.setBackground(bg);
         panel.setPadding(pal.dp(16), pal.dp(20), pal.dp(16), pal.dp(24));

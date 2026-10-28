@@ -202,6 +202,10 @@ public class AppBarView extends View {
         Log.i(TAG, "原生顶栏 " + (on ? "接管" : "退位（回退 HTML 顶栏）"));
     }
 
+    /** 顶栏底边（窗口本地 px）：横屏竖排 dock 要据此让开顶部，否则顶栏玻璃会从
+     *  侧栏身上横切过去（2026-10-28 用户报「侧栏和顶栏重叠」）。 */
+    public float barBottomPx() { return barRect.bottom; }
+
     public void setDark(boolean d) {
         if (dark == d) return;
         dark = d;

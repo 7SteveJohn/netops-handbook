@@ -210,6 +210,9 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     private float axisPitch = 0f;    // 格距（沿轴）
     private float crossCView = 0f;   // 固定方向中心（横=y / 竖=x，视图本地）
     private final RectF railRect = new RectF();   // 竖排侧栏矩形（视图本地）
+    /** 竖排侧栏顶让位（顶栏底边，视图本地 px）：顶栏是独立窗、永远压在上面，
+     *  侧栏通高会被它横切一刀。 */
+    private float railTop = 0f;
     private float pillCxNow, pillCyNow;           // 药丸中心（视图本地，按方向合成）
     private float pillCyPx = 0;      // 药丸中心 y（由 JS 上报，避免和 safe-area 打架）
     private float viewportH = 0;     // 页面视口物理高（=真实窗口高）；heightPixels 是挖掉手势条的安全高，两者差 213px
@@ -391,6 +394,17 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         textP.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         textP.setTextSize(10f * density);
         applyDockColors();
+    }
+
+    /** 竖排侧栏顶部让位（顶栏底边 px）。顶栏是独立 PopupWindow、永远在最上层，
+     *  侧栏若通高就会被顶栏那条玻璃横切（2026-10-28 用户报「打开直接重叠」）。 */
+    public void setRailTopInset(float px) {
+        if (Math.abs(px - railTop) < 0.5f) return;
+        railTop = px;
+        if (dockVertical) {
+            computeRailGeometry();
+            invalidate();
+        }
     }
 
     /** 桥：页面 boot 上报原生底栏开关（localStorage netops_native_dock，默认开）。 */
@@ -646,9 +660,12 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         /* 轨高夹到页面视口高：窗口比视口多出的 1~2px 会让栏体抓图被判「超界」
            而整条回退实色；夹齐后抓图区恰好覆盖栏体。 */
         float h = viewportH > 0 ? Math.min(bandH, viewportH) : bandH;
-        railRect.set(14f * dp, 0, 14f * dp + railW, h);
+        float top = Math.min(railTop, h - pillHv * 2f);   // 顶栏让位（异常值不许把栏压没）
+        /* 底部同样留 14dp：通高到底的话下端圆角被屏幕边缘切掉，只有上端圆、像「插进地里」 */
+        float bottom = Math.max(top + pillHv * 2f, h - 14f * dp);
+        railRect.set(14f * dp, top, 14f * dp + railW, bottom);
         axisPitch = pitch;
-        axisFirst = (h - (4f * pitch + pillHv)) / 2f + pillHv / 2f;
+        axisFirst = top + (bottom - top - (4f * pitch + pillHv)) / 2f + pillHv / 2f;
         crossCView = railRect.left + railW / 2f;
         pillW = pillWv;                            // x 维（交叉向）
         pillH = pillHv;                            // y 维（轴向）
