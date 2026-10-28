@@ -301,9 +301,10 @@ public class NativeBlocks {
             glass.setTintColorRed(1f);
             glass.setTintColorGreen(1f);
             glass.setTintColorBlue(1f);
-            /* 承载文字的玻璃面必须够实：Web 版卡片是 0.84 白，这里取 0.55/0.62 折中——
-               rim 的折射色散保留，正文可读性接近白卡（0.07 时文字直接被壁纸吃掉）。 */
-            glass.setTintAlpha(p.dark ? 0.62f : 0.55f);
+            /* 承载文字的玻璃面必须够实：0.55/0.62 在亮壁纸（云、白墙）上会把正文吃掉
+               —— 二级页头卡右半截“看起来是空白”、副标题读不出来（2026-10-28 用户报
+               「显示不全」）。提到 0.82/0.84：仍能透出壁纸的明暗关系，正文回到白卡水平。 */
+            glass.setTintAlpha(p.dark ? 0.84f : 0.82f);
             card.setBackground(null);
             glass.addView(card);
             LinearLayout holder = new LinearLayout(c);
