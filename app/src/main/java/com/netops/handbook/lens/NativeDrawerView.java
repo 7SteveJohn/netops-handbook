@@ -2,7 +2,10 @@ package com.netops.handbook.lens;
 
 import android.content.Context;
 import android.view.Gravity;
+import android.view.MotionEvent;
+import android.view.VelocityTracker;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
@@ -38,6 +41,14 @@ public class NativeDrawerView extends FrameLayout {
     private JSONObject root;
 
     private static final long DUR = 200;
+    /** 滑动关闭判定（MD3/iOS 抽屉惯例）：位移过 40% 宽，或向左甩速 > 500dp/s。 */
+    private static final float CLOSE_DIST_FRAC = 0.4f;
+    private static final float CLOSE_FLING_DP = 500f;
+
+    private final float touchSlop;
+    private float downX, downY;
+    private boolean dragging;
+    private VelocityTracker vt;
 
     public NativeDrawerView(Context c, NativeBlocks.Palette p, Go go, Runnable onClosed) {
         super(c);
@@ -72,6 +83,69 @@ public class NativeDrawerView extends FrameLayout {
         addView(sc, new LayoutParams(pal.dp(300), ViewGroup.LayoutParams.MATCH_PARENT, Gravity.START));
 
         setOnClickListener(v -> close());
+        touchSlop = ViewConfiguration.get(c).getScaledTouchSlop();
+    }
+
+    /* ── 跟手滑动关闭（2026-10-29）：面板/遮罩上横向拖拽 → 面板跟手平移，
+          松手按「位移 40% 宽」或「向左甩速」判收，否则弹回。
+          之前只能点遮罩关（记录在案的缺失手势）。竖向滚动不受影响：
+          只有横向位移超过 touchSlop 且占优才拦截，条目点击照常。 ── */
+
+    @Override
+    public boolean onInterceptTouchEvent(MotionEvent ev) {
+        if (getVisibility() != VISIBLE) return false;
+        switch (ev.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                downX = ev.getX();
+                downY = ev.getY();
+                dragging = false;
+                break;
+            case MotionEvent.ACTION_MOVE: {
+                float dx = ev.getX() - downX;
+                if (!dragging && dx < -touchSlop && Math.abs(dx) > Math.abs(ev.getY() - downY)) {
+                    dragging = true;
+                    if (vt == null) vt = VelocityTracker.obtain(); else vt.clear();
+                    vt.addMovement(ev);
+                    panel.animate().cancel();
+                    animate().cancel();
+                    setAlpha(1f);   /* 开合动画中被抓住时 alpha 可能停在半途 */
+                    return true;
+                }
+                break;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public boolean onTouchEvent(MotionEvent ev) {
+        if (!dragging) return super.onTouchEvent(ev);
+        if (vt == null) vt = VelocityTracker.obtain();
+        vt.addMovement(ev);
+        switch (ev.getActionMasked()) {
+            case MotionEvent.ACTION_MOVE: {
+                float dx = Math.max(-panel.getWidth(), Math.min(0f, ev.getX() - downX));
+                panel.setTranslationX(dx);
+                break;
+            }
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL: {
+                vt.computeCurrentVelocity(1000);
+                float vx = vt.getXVelocity();
+                boolean doClose = panel.getTranslationX() < -panel.getWidth() * CLOSE_DIST_FRAC
+                        || vx < -CLOSE_FLING_DP * getResources().getDisplayMetrics().density;
+                dragging = false;
+                vt.recycle();
+                vt = null;
+                if (doClose) {
+                    close();
+                } else {
+                    panel.animate().translationX(0).setDuration(150).start();
+                }
+                break;
+            }
+        }
+        return true;
     }
 
     /** 顶栏底边（px）：面板整体下移，避免压在顶栏玻璃下面。 */
