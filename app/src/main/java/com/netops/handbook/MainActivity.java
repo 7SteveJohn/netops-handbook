@@ -237,6 +237,28 @@ public class MainActivity extends AppCompatActivity {
         root.addView(v);
     }
 
+    /** 横屏竖排 dock 占左缘 102dp（轨 88 + 左距 14）：原生页整体右移，
+     *  否则侧栏把每页左侧内容压住（2026-10-28 真机：卡片/标题左半边被吃掉）。
+     *  竖屏归零 —— 底栏横趴在底部，不吃横向空间。幂等：margin 已对就跳过，
+     *  可以在每次布局回调里无脑调。 */
+    private void applyDockInset() {
+        if (root == null || root.getWidth() <= 0) return;
+        int left = root.getWidth() > root.getHeight()
+                ? Math.round(102f * getResources().getDisplayMetrics().density) : 0;
+        android.view.View[] pages = {nativeHome, nativePhase, nativeFault, nativeIv, nativeDict,
+                nativeRefs, nativeGlossary, nativeRoadmap, nativeQuiz, nativeSearch,
+                nativeMe, nativeFav};
+        for (android.view.View p : pages) {
+            if (p == null) continue;
+            android.view.ViewGroup.LayoutParams lp0 = p.getLayoutParams();
+            if (!(lp0 instanceof FrameLayout.LayoutParams)) continue;
+            FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) lp0;
+            if (lp.leftMargin == left) continue;
+            lp.leftMargin = left;
+            p.setLayoutParams(lp);
+        }
+    }
+
     private com.netops.handbook.lens.NativeDocList addDocList(
             com.netops.handbook.lens.NativeDocList.Config cfg) {
         com.netops.handbook.lens.NativeDocList v = new com.netops.handbook.lens.NativeDocList(this, cfg);
@@ -439,6 +461,9 @@ public class MainActivity extends AppCompatActivity {
         webView.addJavascriptInterface(new Bridge(), "NetBridge");
         pageReady = false;
         rendererGone = false;
+
+        /* 侧栏让位：每次布局后对齐原生页左缩进（旋转/分屏都走这里，幂等） */
+        root.getViewTreeObserver().addOnGlobalLayoutListener(this::applyDockInset);
 
         /* 原生透镜层：叠在 WebView 之上，只画底部药丸那一块。
            它需要 PixelCopy(API 33+) + AGSL，两者都不可用时内部自动降级为半透明，不崩。 */

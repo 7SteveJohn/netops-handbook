@@ -465,7 +465,9 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             this.pillCyPx = pillCyScreen;
         }
         this.viewportH = viewportHPx;
-        if (!dockVertical) {
+        if (dockVertical) {
+            computeRailGeometry();                 // 轨高按视口高夹齐，视口到达后重排
+        } else {
             axisFirst = firstCx;                   // 横排：轴向=x
             axisPitch = slot;
         }
@@ -592,10 +594,28 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
 
     /* ================= 横屏侧栏（竖排 dock） ================= */
 
-    /** 方向推断 + 轨道几何：视图（=窗口大小）宽>高 = 横屏 → 竖排侧栏。
-     *  竖排几何完全由原生自算，不吃 JS 的横排 HTML 栏矩形。 */
+    /** 横屏判定：**必须用主窗口尺寸**，不能用本 View（弹窗）的宽高比 ——
+     *  弹窗横屏是 280×1904、竖屏是「屏宽×120dp」，用它的比例会把竖屏判成
+     *  竖排栏（只剩居中一列图标）、横屏判成横排栏（画在 280px 宽的窗外 =
+     *  整条 dock 消失）。2026-10-28 真机：两个方向同时报废，用户报
+     *  「交互全没了」。 */
+    private boolean isLandscapeWindow() {
+        if (anchor != null && anchor.getWidth() > 0 && anchor.getHeight() > 0) {
+            return anchor.getWidth() > anchor.getHeight();
+        }
+        android.content.res.Configuration c = getResources().getConfiguration();
+        return c.screenWidthDp > c.screenHeightDp;
+    }
+
+    /** 栏体圆角：横排=栏高/2（胶囊），竖排=轨宽/2（竖向胶囊）。
+     *  竖排栏高 = 整窗高，拿高度算半径会退化成满圆角。 */
+    private float dockRadius(RectF bar) {
+        return Math.min(bar.width(), bar.height()) / 2f;
+    }
+
+    /** 方向推断 + 轨道几何。竖排几何完全由原生自算，不吃 JS 的横排 HTML 栏矩形。 */
     private void updateOrientation() {
-        boolean vert = bandW > bandH;
+        boolean vert = isLandscapeWindow();
         if (vert != dockVertical) {
             dockVertical = vert;
             chromeDark = -1;                       // 缓存（含 sprite 形状）按方向重建
@@ -615,10 +635,12 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         float pitch = 78f * dp;
         float pillHv = 62f * dp;                   // 轴向（y）药丸高
         float pillWv = railW - 20f * dp;           // 交叉向（x）药丸宽
-        float padV = 14f * dp;
-        railRect.set(14f * dp, 0, 14f * dp + railW, bandH);
+        /* 轨高夹到页面视口高：窗口比视口多出的 1~2px 会让栏体抓图被判「超界」
+           而整条回退实色；夹齐后抓图区恰好覆盖栏体。 */
+        float h = viewportH > 0 ? Math.min(bandH, viewportH) : bandH;
+        railRect.set(14f * dp, 0, 14f * dp + railW, h);
         axisPitch = pitch;
-        axisFirst = (bandH - (4f * pitch + pillHv)) / 2f + pillHv / 2f;
+        axisFirst = (h - (4f * pitch + pillHv)) / 2f + pillHv / 2f;
         crossCView = railRect.left + railW / 2f;
         pillW = pillWv;                            // x 维（交叉向）
         pillH = pillHv;                            // y 维（轴向）
@@ -1149,12 +1171,15 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
 
         float liftV = (float) lift.value();
         if (nativeDock) {
-            /* ---- 未拿到 JS 上报的栏几何前不画（横排）----
-               冷启动时 WebView 还在加载，barRect 无效 → dockRect() 退回「全宽兜底」
-               胶囊（又宽又高），数秒后真实几何到达再缩回，用户看到「由大变小」的
-               生硬过渡（2026-10-27 用户报）。宁可先空着，几何到达后一次淡入。
-               竖排侧栏几何由原生自算，无此依赖。 */
-            if (!dockVertical && (barRect.width() <= 4 || barRect.height() <= 4)) {
+            /* ---- 未拿到几何前不画 ----
+               横排：冷启动时 WebView 还在加载，barRect 无效 → dockRect() 退回「全宽
+               兜底」胶囊（又宽又高），数秒后真实几何到达再缩回，用户看到「由大变小」
+               的生硬过渡（2026-10-27 用户报）。宁可先空着，几何到达后一次淡入。
+               竖排：轨矩形由 onSizeChanged 自算，等它算出来即可。 */
+            boolean noGeom = dockVertical
+                    ? (railRect.width() <= 4 || railRect.height() <= 4)
+                    : (barRect.width() <= 4 || barRect.height() <= 4);
+            if (noGeom) {
                 if (getAlpha() != 0f) setAlpha(0f);   /* 冷启动从不可见起步，等几何到达再淡入 */
                 geomFadedIn = false;
                 frames++;
@@ -1302,7 +1327,9 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         if (Build.VERSION.SDK_INT < 33 || !nativeDock) return false;
         if (barBackdrop == null || barBackdropShader == null) return false;
         int W = (int) bar.width(), H = (int) bar.height();
-        if (barBackdrop.getWidth() < W + 2 || barBackdrop.getHeight() < H + 2) return false;
+        /* 竖排栏是整窗高，抓图矩形的上下 pad 被窗口边裁掉 → 位图恰好 W×H，
+           不能要求 +2 余量（否则竖排永远走实色回退） */
+        if (barBackdrop.getWidth() < W || barBackdrop.getHeight() < H) return false;
         try {
             if (barGlassShader == null) {
                 barGlassShader = new RuntimeShader(loadBarAgsl(getResources()));
@@ -1384,7 +1411,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         chromeRect.set(bar);
         chromePillCy = pillCy();
         Canvas c1 = new Canvas(chromeB1);
-        float r = bar.height() / 2f;
+        float r = dockRadius(bar);
         c1.drawRoundRect(0, 0, W, H, r, r, barFillP);
         barStrokeP.setStrokeWidth(density);
         c1.drawRoundRect(0, 0, W, H, r, r, barStrokeP);
@@ -1460,10 +1487,10 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         /* 栏体玻璃：每帧补抓+组装（代判定在内部，未变即零成本跳过），
            玻璃就绪则直画（库 AGSL，透镜同款模式），否则实色 blit */
         maybeCaptureBarBackdrop();
-        if (ensureBarGlass(bar, bar.height() / 2f)) {
+        if (ensureBarGlass(bar, dockRadius(bar))) {
             int sv = canvas.save();
             canvas.translate(bar.left, bar.top);
-            float rr2 = bar.height() / 2f;
+            float rr2 = dockRadius(bar);
             float bw2 = bar.width(), bh2 = bar.height();
             canvas.drawRoundRect(0, 0, bw2, bh2, rr2, rr2, barGlassP);
             barStrokeP.setStrokeWidth(density);
@@ -1529,6 +1556,9 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     /** 栏矩形：JS 上报优先；未上报时以药丸行推导（上下各外扩 6dp，左右满宽）。
      *  fallback 用独立 RectF —— 共享 tmpRect 会被滑块绘制覆盖，引用混乱。 */
     private RectF dockRect() {
+        /* 竖排：栏体 = 原生自算的轨矩形。横屏时 JS 仍在量隐藏的横排 HTML 栏
+           （y≈1750、宽 2300+），拿它当栏体等于把整条栏画到 280px 宽的弹窗外。 */
+        if (dockVertical) return railRect;
         if (barRect.width() <= 4 || barRect.height() <= 4) {
             float cy = pillCy();
             float top = cy - pillH / 2f - 6f * density;
@@ -1718,7 +1748,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
            （2026-10-28 用户报「分屏/小窗 dock 失效、尺寸不对、回全屏重影」）。 */
         int winW = anchor.getWidth();
         int winH = anchor.getHeight();
-        boolean vert = winW > winH;   // 横屏 = 左侧竖排栏
+        boolean vert = isLandscapeWindow();   // 横屏 = 左侧竖排栏（不能拿弹窗自身宽高比判，见 isLandscapeWindow）
         /* 形态基准变化才重算：宽（分屏/小窗）与横竖形态任一变化都 dismiss 重 show */
         if (lastPopupWidth == winW && lastPopupHeight == winH && popup.isShowing()) return;
         lastPopupWidth = winW;
