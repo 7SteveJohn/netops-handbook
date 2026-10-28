@@ -121,13 +121,14 @@ public class NativeBackdrop extends FrameLayout {
             float r = Math.max(0.01f, blurDp) * dp;
             image.setRenderEffect(android.graphics.RenderEffect.createBlurEffect(
                     r, r, android.graphics.Shader.TileMode.CLAMP));
-            /* 环境层：固定重模糊 + 压暗，只做「两侧延伸」的氛围垫，不参与通透度。
-               压暗走 ImageView 级 setColorFilter（RenderEffect.createColorEffect
-               在本 compileSdk 解析不到，实测）。 */
-            float ra = 40f * dp;
+            /* 环境层（横屏两侧垫）与主图同 blur：同一张图同一档模糊，contain 竖带与
+               cover 垫在边界处颜色连续，没有接缝 —— 这才是 Web 层 .wall 的口径
+               （整张壁纸统一轻度模糊、颜色场景保留，2026-10-26 用户认可的那种）。
+               首版这里用过 40dp 重模糊 + 59% 暗夜压暗，与主图 blur2dp 拼出三条观感、
+               两条硬接缝，人物从卡片背后穿过 —— 用户报「越改越丑，没有一开始的
+               美感」（2026-10-29 横屏真机截图实证）。 */
             ambient.setRenderEffect(RenderEffect.createBlurEffect(
-                    ra, ra, android.graphics.Shader.TileMode.CLAMP));
-            ambient.setColorFilter(android.graphics.Color.argb(150, 12, 16, 22));
+                    r, r, android.graphics.Shader.TileMode.CLAMP));
         } catch (Throwable ignored) { }
     }
 
