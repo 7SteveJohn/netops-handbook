@@ -346,11 +346,13 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         } else {
             barFillP.setColor(Color.WHITE);                    // 实色：同上
             barStrokeP.setColor(Color.argb(255, 227, 227, 232));  // --border #e3e3e8
-            sliderFillP.setColor(Color.WHITE);
-            sliderStrokeP.setColor(Color.argb(20, 0, 0, 0));
-            iconP.setColor(Color.rgb(142, 142, 147));             // --tab-inactive #8E8E93
-            textP.setColor(Color.rgb(142, 142, 147));
-            inactiveColor = Color.rgb(142, 142, 147);
+            /* 对照 FlClash 手机端（液态玻璃=极致）实测：选中药丸 #DEE5FC（主色 12% 叠白，不是纯白）、
+               未选中图标 #424754（深灰蓝，我们原来的 #8E8E93 偏浅发灰）。 */
+            sliderFillP.setColor(Color.argb(31, 37, 99, 235));    // accent #2563EB @ 12%
+            sliderStrokeP.setColor(Color.argb(18, 37, 99, 235));
+            iconP.setColor(Color.rgb(66, 71, 84));                // #424754
+            textP.setColor(Color.rgb(66, 71, 84));
+            inactiveColor = Color.rgb(66, 71, 84);
         }
     }
 
