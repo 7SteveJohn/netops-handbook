@@ -197,6 +197,8 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     private int bandW = 0, bandH = 0;
     private int count = 5;
     private float slot = 0;          // 一格宽
+    /** CSS 上报的底栏药丸尺寸（竖排期被 rail 常量覆盖，回横排要还原）。 */
+    private float jsPillW = 0, jsPillH = 0;
     private float pillW = 0, pillH = 0;
     private float firstCx = 0;       // 第 0 格药丸中心 x（屏幕 px）
     /* ---- 横屏侧栏（竖排 dock，2026-10-28）----
@@ -470,6 +472,8 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         this.count = Math.max(1, tabCount);
         /* 上报的已经是物理像素（页面按 devicePixelRatio 换算过），这里不要再乘 density */
         this.slot = slotPx;
+        this.jsPillW = pillWPx;
+        this.jsPillH = pillHPx;
         this.pillW = pillWPx;
         this.pillH = pillHPx;
         this.firstCx = firstCxPx;
@@ -626,6 +630,14 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         return c.screenWidthDp > c.screenHeightDp;
     }
 
+    /** 药丸圆角：横排 = 半高（两端全圆胶囊）；竖排 = 18dp 圆角方块。
+     *  竖排药丸 68×62dp，按 min(w,h)/2 取会变成**正圆**（2026-10-28 用户报
+     *  「药丸状态有点奇怪」：选中格像挂了个球，文字贴着圆边）。 */
+    private float pillCorner(float hw, float hh) {
+        float r = Math.min(hw, hh);
+        return dockVertical ? Math.min(18f * density, r) : r;
+    }
+
     /** 栏体圆角：横排=栏高/2（胶囊），竖排=轨宽/2（竖向胶囊）。
      *  竖排栏高 = 整窗高，拿高度算半径会退化成满圆角。 */
     private float dockRadius(RectF bar) {
@@ -639,7 +651,16 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             dockVertical = vert;
             chromeDark = -1;                       // 缓存（含 sprite 形状）按方向重建
             java.util.Arrays.fill(tabSprites, null);
-            if (dockVertical) computeRailGeometry();
+            if (dockVertical) {
+                computeRailGeometry();
+            } else if (jsPillW > 0) {
+                /* 竖排期 pillW/pillH 被 rail 常量（68×62dp）覆盖，回横排必须还原成
+                   CSS 上报的底栏药丸 —— 否则底栏上挂着一颗小圆点（2026-10-28 用户报
+                   「底栏药丸状态奇怪」）。 */
+                pillW = jsPillW;
+                pillH = jsPillH;
+                if (slot > 0) { axisPitch = slot; axisFirst = firstCx; }
+            }
             invalidate();
         } else if (dockVertical) {
             computeRailGeometry();                 // 尺寸变了（旋转/分屏拖拽）重排
@@ -1163,7 +1184,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         float liftV = (float) lift.value();
         shader.setFloatUniform("uCenter", cx, cy);
         shader.setFloatUniform("uHalf", hw, hh);
-        shader.setFloatUniform("uRadius", Math.min(hw, hh));
+        shader.setFloatUniform("uRadius", pillCorner(hw, hh));
         /* FlClash style.scale(lift)：折射与色散都随抬起量缩放 */
         shader.setFloatUniform("uRefract", Math.abs(REFRACTION) * density * liftV);
         shader.setFloatUniform("uBevel", BEVEL * density);
@@ -1471,7 +1492,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         Canvas c3 = new Canvas(sliderBmp);
         float bw = pillW / 2f, bh = pillH / 2f;
         RectF sr3 = new RectF(sw / 2f - bw, sh / 2f - bh, sw / 2f + bw, sh / 2f + bh);
-        float rr = Math.min(bw, bh);
+        float rr = pillCorner(bw, bh);
         Paint shadowP = new Paint(Paint.ANTI_ALIAS_FLAG);
         shadowP.setColor(Color.argb(38, 15, 23, 42));
         c3.drawRoundRect(sr3.left, sr3.top + density, sr3.right, sr3.bottom + 2f * density, rr, rr, shadowP);
@@ -1571,7 +1592,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                     cy - sliderBmp.getHeight() / 2f, blitP);
         } else {
             tmpRect.set(cx - hw, cy - hh, cx + hw, cy + hh);
-            float sr = Math.min(hw, hh);
+            float sr = pillCorner(hw, hh);
             int sv = canvas.save();
             canvas.saveLayer(tmpRect.left - 6f * density, tmpRect.top - 6f * density,
                     tmpRect.right + 6f * density, tmpRect.bottom + 6f * density, null);
@@ -1706,7 +1727,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         }
 
         pillRect.set(cx - hw, cy - hh, cx + hw, cy + hh);
-        float r = Math.min(hw, hh);
+        float r = pillCorner(hw, hh);
 
         if (shader != null && backdrop != null && Build.VERSION.SDK_INT >= 33) {
             updateShaderUniforms(cx, cy, hw, hh);
