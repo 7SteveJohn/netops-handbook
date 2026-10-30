@@ -1465,13 +1465,34 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                 }
                 return;
             }
+            /* 壁纸兜底但位图还没解码完：本轮什么都不做，等下一帧/下一次通知，
+               别掉到下面的 PixelCopy（那条路此刻必抛 no backing surface） */
+            return;
         }
 
         barCopyBusy = true;
         barContentDirty = false;
         lastBarCapMs = SystemClock.uptimeMillis();
+        /* window 字段是 attach 时缓存的；Activity 重建/系统换 surface 后它会失效，
+           PixelCopy 直接抛 "Window doesn't have a backing surface!"（2026-10-31 实测
+           每秒刷屏）。就近取当前 Activity 窗口，并要求 decor 已挂到窗口。 */
+        Window wNow = window;
+        if (getContext() instanceof Activity) {
+            Activity a = (Activity) getContext();
+            if (a.getWindow() != null) wNow = a.getWindow();
+        }
+        /* isAttachedToWindow 不足以判定：启动瞬间 decor 已挂上但 isShown() 仍 false，
+           此时 PixelCopy 抛 "no backing surface"（2026-10-31 实测 rect=(0,536-220,1328)
+           decorShown=false）。两个条件都要满足才抓。 */
+        if (wNow == null || wNow.getDecorView() == null
+                || !wNow.getDecorView().isAttachedToWindow()
+                || !wNow.getDecorView().isShown()) {
+            barCopyBusy = false;
+            barContentDirty = true;      // 等窗口就绪再抓
+            return;
+        }
         try {
-            PixelCopy.request(window, srcBarRect, barCapTmp, result -> {
+            PixelCopy.request(wNow, srcBarRect, barCapTmp, result -> {
                 barCopyBusy = false;
                 if (result == PixelCopy.SUCCESS) {
                     preferWallpaper = false;
