@@ -20,6 +20,7 @@ import android.app.Activity;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Choreographer;
@@ -344,6 +345,12 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     private Bitmap barCapTmp;
     private final RectF lastCapturedBar = new RectF();
     private int lastCapturedDark = -1;
+    /** 栏下内容变了（滚动/切页/拖拽）→ 需要重抓。没有它时栏体玻璃采样源是静态壁纸，
+        弯折平滑壁纸肉眼看不出，等于"栏体没有液态玻璃"（2026-10-31 定位）。 */
+    private boolean barContentDirty = false;
+    private long lastBarCapMs = 0;
+    /** true = 上一次内容抓取失败过，本次改用静态壁纸兜底（下次成功再复位）。 */
+    private boolean preferWallpaper = false;
     private boolean barCopyBusy;
     private static String barAgsl;                  // AGSL 源码（进程内缓存一份）
     /** 首次拿到真实栏几何后是否已淡入（冷启动防「由大变小」见 onDraw）。 */
@@ -1377,6 +1384,10 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     private void maybeCaptureBarBackdrop() {
         if (detached || !nativeDock || barCopyBusy || window == null) return;
         if (Build.VERSION.SDK_INT < 33) return;
+        /* 节流：PixelCopy 单次 1~20ms，滚动时每帧抓会把主线程按住（2026-10-28 实测
+           空闲 60fps 重绘、全局发粘）。70ms ≈ 14fps，配合 composeHaze 的模糊已呈
+           连续；静止时无脏标记 → 一次都不抓。 */
+        if (barContentDirty && SystemClock.uptimeMillis() - lastBarCapMs < 70) return;
         RectF barWin = dockRect();
         if (barWin.width() <= 4 || barWin.height() <= 4) return;   // 无几何不抓
         /* dockRect = 弹窗本地（方向正确）；PixelCopy rect = 主窗口本地 → 加弹窗窗口偏移 */
@@ -1388,7 +1399,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
            拿它跟主窗口坐标的 winL/winT 比 —— 两者恒差一个弹窗偏移 → 永远「过期」→
            每帧重抓一次 PixelCopy（单次 ~20ms）→ 空闲也 60fps 重绘，全局手感发粘
            （2026-10-28 复查：绘制 140 帧/2s、inv 140/2s）。改比 barWin。 */
-        boolean stale = barBackdrop == null
+        boolean stale = barContentDirty || barBackdrop == null
                 || Math.abs(lastCapturedBar.left - barWin.left) > 0.5f
                 || Math.abs(lastCapturedBar.top - barWin.top) > 0.5f
                 || Math.abs(lastCapturedBar.width() - barWin.width()) > 0.5f
@@ -1421,8 +1432,11 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         final int offX = pvOff[0] - cl;
         final int offY = pvOff[1] - ct;
 
-        // 优先直取 NativeBackdrop 静态壁纸层（AndroidLiquidGlassView 官方标准源：0ms 无穿透无截屏开销）
-        if (backdropSource != null) {
+        /* ❗2026-10-31 反转：原先「优先取静态壁纸（0ms 无截屏开销）」——但壁纸是平滑
+           渐变，折射弯它等于什么都没弯，栏体玻璃在日常静止/滚动时都看不出液态感。
+           改为优先抓**栏下真实内容**（经 composeHaze 糊成色块后再折射 = FlClash 观感），
+           壁纸降级为「抓取失败时兜底」。开销由上面的 70ms 节流控制。 */
+        if (preferWallpaper && backdropSource != null) {
             Bitmap wallBmp = backdropSource.getCurrentBitmap();
             if (wallBmp != null && !wallBmp.isRecycled()) {
                 int bw = wallBmp.getWidth();
@@ -1454,10 +1468,13 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         }
 
         barCopyBusy = true;
+        barContentDirty = false;
+        lastBarCapMs = SystemClock.uptimeMillis();
         try {
             PixelCopy.request(window, srcBarRect, barCapTmp, result -> {
                 barCopyBusy = false;
                 if (result == PixelCopy.SUCCESS) {
+                    preferWallpaper = false;
                     composeHaze(barCapTmp, barBackdrop);
                     lastCapturedBar.set(barSnap);
                     lastCapturedDark = dark ? 1 : 0;
@@ -1474,10 +1491,17 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                     }
                     invalidate();   // 新底落位 → 之后的直画用新采样
                 } else {
-                    /* 失败即弃位图：透明位图上屏 = 玻璃凭空消失（alpha0 全透）；
-                       回退实色，等壁纸/主题/解锁可见性换代再重抓 */
-                    barBackdrop = null;
-                    barBackdropShader = null;
+                    /* 抓不到真实内容（锁屏/无 backing surface）→ 改走静态壁纸兜底：
+                       壁纸弯折虽不明显，但至少是玻璃而不是实色板。 */
+                    if (backdropSource != null && !preferWallpaper) {
+                        preferWallpaper = true;
+                        maybeCaptureBarBackdrop();
+                    } else {
+                        /* 连壁纸都没有：弃位图。透明位图上屏 = 玻璃凭空消失（alpha0 全透），
+                           回退实色等下次几何/可见性变化再重抓 */
+                        barBackdrop = null;
+                        barBackdropShader = null;
+                    }
                 }
             }, new Handler(Looper.getMainLooper()));
         } catch (Throwable t2) {
@@ -1551,17 +1575,11 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         }
     }
 
+    /** 栏体 AGSL 交给共享加载器（AppBarView 用同一份，见 GlassAgsl）。 */
     private static String loadBarAgsl(android.content.res.Resources res) {
         if (barAgsl != null) return barAgsl;
-        try (java.io.InputStream is = res.openRawResource(com.netops.handbook.R.raw.liquidglass_effect);
-             java.io.BufferedReader br = new java.io.BufferedReader(new java.io.InputStreamReader(is))) {
-            StringBuilder sb = new StringBuilder();
-            String line;
-            while ((line = br.readLine()) != null) sb.append(line).append('\n');
-            barAgsl = sb.toString();
-        } catch (Throwable t) {
-            throw new IllegalStateException("读栏体玻璃 AGSL 失败", t);
-        }
+        barAgsl = GlassAgsl.load(res);
+        if (barAgsl == null) throw new IllegalStateException("读栏体玻璃 AGSL 失败");
         return barAgsl;
     }
 
@@ -1605,6 +1623,17 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     }
 
     /** 栏体采样源补抓（三连发）：冷启动那次抓到的是白屏/半成品，几何不变化就一直用着。 */
+    /** 栏下内容变了（滚动/切页/拖拽）：标脏并立刻尝试重抓（内部 70ms 节流）。
+     *  2026-10-31：栏体玻璃采样源由静态壁纸改为真实内容后，靠这个入口跟随滚动。 */
+    public void refreshBarBackdrop() {
+        if (detached || !nativeDock) return;
+        barContentDirty = true;
+        if (!barCopyBusy && SystemClock.uptimeMillis() - lastBarCapMs >= 70) {
+            maybeCaptureBarBackdrop();
+        }
+        invalidate();
+    }
+
     private void scheduleBarRecapture() {
         lastCapturedBar.setEmpty();
         lastCapturedDark = -1;

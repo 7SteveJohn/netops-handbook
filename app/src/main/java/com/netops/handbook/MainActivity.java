@@ -212,6 +212,7 @@ public class MainActivity extends AppCompatActivity {
            否则它（z 序在 WebView 之上）会把 WebView 盖死：页面看不见、触摸却穿透。
            任何原生页显示时收回让位。 */
         if (nativeBackdrop != null) nativeBackdrop.setRevealed(keep == null);
+        if (lensBar != null) lensBar.refreshBarBackdrop();   // 切页后栏下内容变了
         if (nativeDrawer != null && nativeDrawer.isOpen()) {
             nativeDrawer.close();
             if (lensBar != null) lensBar.setOverlaid(false);
@@ -660,9 +661,10 @@ public class MainActivity extends AppCompatActivity {
         final long[] last = {0};
         android.view.ViewTreeObserver.OnScrollChangedListener l = () -> {
             long now = android.os.SystemClock.uptimeMillis();
-            if (now - last[0] < 120) return;
+            if (now - last[0] < 50) return;   // 20fps：玻璃跟随滚动的观感下限
             last[0] = now;
             appbarBar.invalidateBackdrop();
+            if (lensBar != null) lensBar.refreshBarBackdrop();   // 底栏玻璃同样跟随滚动
         };
         java.util.ArrayDeque<android.view.View> stack = new java.util.ArrayDeque<>();
         stack.push(page);

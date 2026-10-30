@@ -4598,7 +4598,7 @@ bgScrollT = setTimeout(function () {
 bgScrollT = 0;
 APPBAR_BG_REV++;
 try { if (w.NetOpsPushAppBar) w.NetOpsPushAppBar(); } catch (e) { }
-}, 120);
+}, 50);
 }, { passive: true });
 var init = { r: 'learn', a: null };
 var hash = (location.hash || '').replace(/^#/, '').split('/');
@@ -5078,6 +5078,6 @@ if (document.readyState === 'loading') {
 document.addEventListener('DOMContentLoaded', init, { once: true });
 } else { init(); }
 })();
-;window.__BUILD__='20261031-0159-eb05a8';</script>
+;window.__BUILD__='20261031-0351-5c8860';</script>
 </body>
 </html>

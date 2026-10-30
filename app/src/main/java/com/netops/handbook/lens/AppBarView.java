@@ -4,6 +4,7 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.graphics.BitmapShader;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.ColorMatrix;
@@ -90,6 +91,14 @@ public class AppBarView extends View {
     /* ---- 背景：PixelCopy → ÷2×4 下采样 → 上采样 blit 即模糊 ---- */
     private Bitmap backdrop;              // 抓到的原始背景（栏矩形区域）
     private Bitmap blurred;               // 下采样链产物
+    /* ---- 栏体液态玻璃（库 AGSL，2026-10-31 与底栏同一份）----
+       顶栏原实现只有「模糊位图 + tint」——没有折射/色散，所以没有液态玻璃观感。
+       现在把下采样模糊图喂给同一个 liquidglass_effect：弯折 + 色散 + 提饱和。 */
+    private android.graphics.RuntimeShader glassShader;
+    private BitmapShader hazedShader;
+    private Bitmap hazedSrc;          // hazedShader 当前绑定的位图（BitmapShader 无 getBitmap）
+    private final Paint glassP = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private boolean glassShaderFailed = false;
     private int backdropRev = -1;         // blurred 对应的 bgRev（-1=失效重抓）
     private final Paint blurP = new Paint(Paint.FILTER_BITMAP_FLAG);
     private final ColorMatrixColorFilter saturateFilter;   // --glass-saturate 165%，常量
@@ -213,6 +222,8 @@ public class AppBarView extends View {
     public float barBottomPx() { return barRect.bottom; }
 
     public void setDark(boolean d) {
+        boolean changed = (dark != d);
+        if (changed) { glassShader = null; }   // tint uniform 随主题变，重建一次
         if (dark == d) return;
         dark = d;
         applyColors();
@@ -404,6 +415,7 @@ public class AppBarView extends View {
                 post(this::captureBackdrop);
             }
         };
+        final long capT0 = System.nanoTime();
         try {
             Bitmap out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
             copyBusy = true;
@@ -416,6 +428,9 @@ public class AppBarView extends View {
                         if (result == PixelCopy.SUCCESS) {
                             backdrop = out;
                             buildBlurChain();
+                            long capMs = (System.nanoTime() - capT0) / 1_000_000L;
+                            if (capMs > 6) Log.i(TAG, "抓取耗时 " + capMs + "ms（" + w + "x" + h + "）"
+                                    + (capMs > 12 ? " ⚠ 超过 12ms，滚动会掉帧" : ""));
                             backdropRev = revAtReq;
                             invalidate();
                             if (bgRev != revAtReq) post(this::captureBackdrop);
@@ -447,9 +462,59 @@ public class AppBarView extends View {
             }
             if (blurred != null && blurred != cur) blurred.recycle();
             blurred = cur;
+            hazedShader = null; hazedSrc = null;   // 位图换了：BitmapShader 必须按新图重建
+            buildGlassShader();
         } catch (Throwable t) {
             Log.w(TAG, "模糊链构建失败", t);
             blurred = null;
+        }
+    }
+
+    /** 组装栏体玻璃：content = 已雾化的模糊图（÷16），折射/色散配方同底栏。 */
+    private void buildGlassShader() {
+        if (glassShaderFailed || blurred == null || barRect.width() <= 4) return;
+        if (Build.VERSION.SDK_INT < 33) { glassShaderFailed = true; return; }
+        try {
+            if (hazedShader == null || hazedSrc != blurred) {
+                hazedShader = new BitmapShader(blurred, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+                hazedSrc = blurred;
+            }
+            if (glassShader == null) {
+                String agsl = GlassAgsl.load(getResources());
+                if (agsl == null) { glassShaderFailed = true; return; }
+                glassShader = new android.graphics.RuntimeShader(agsl);
+            }
+            float W = barRect.width(), H = barRect.height();
+            float band = Math.min(18f * density, H * 0.28f);
+            float amount = Math.min(22f * density, H * 0.45f);
+            glassShader.setFloatUniform("size", new float[]{W, H});
+            glassShader.setFloatUniform("offset", new float[]{0f, 0f});
+            glassShader.setFloatUniform("cornerRadii", new float[]{0f, 0f, 0f, 0f});
+            glassShader.setFloatUniform("refractionHeight", band);
+            glassShader.setFloatUniform("refractionAmount", -amount);
+            glassShader.setFloatUniform("depthEffect", 0.35f);
+            glassShader.setFloatUniform("chromaticAberration", 0.40f);
+            glassShader.setFloatUniform("contrast", 0.05f);
+            glassShader.setFloatUniform("whitePoint", 0.02f);
+            glassShader.setFloatUniform("chromaMultiplier", dark ? 1.85f : 2.05f);
+            if (dark) {
+                glassShader.setFloatUniform("tintColor", new float[]{0.18f, 0.18f, 0.20f});
+                glassShader.setFloatUniform("tintAlpha", 0.42f);
+            } else {
+                glassShader.setFloatUniform("tintColor", new float[]{0.96f, 0.96f, 0.98f});
+                glassShader.setFloatUniform("tintAlpha", 0.36f);
+            }
+            /* 模糊图与栏同域但小 16 倍：矩阵把画布坐标映到模糊图坐标 */
+            Matrix mm = new Matrix();
+            mm.setScale(blurred.getWidth() / Math.max(1f, W), blurred.getHeight() / Math.max(1f, H));
+            hazedShader.setLocalMatrix(mm);
+            glassShader.setInputShader("content", hazedShader);
+            glassP.setShader(glassShader);
+            invalidate();
+        } catch (Throwable t) {
+            glassShaderFailed = true;      /* 编译/组装失败：永久回退到位图绘制 */
+            glassP.setShader(null);
+            Log.w(TAG, "顶栏玻璃 shader 组装失败，回退模糊位图", t);
         }
     }
 
@@ -660,7 +725,12 @@ public class AppBarView extends View {
         /* 1. 背景：模糊壁纸 + tint 渐变（玻璃开）；实色 surface（玻璃关）。
               背景静态（内容不滚进顶栏底下），只按 bgRev/主题/几何重抓。 */
         if (glassOn) {
-            if (blurred != null) {
+            if (glassP.getShader() != null) {
+                int gs = canvas.save();
+                canvas.translate(barRect.left, barRect.top);
+                canvas.drawRect(0, 0, barRect.width(), barRect.height(), glassP);
+                canvas.restoreToCount(gs);
+            } else if (blurred != null) {
                 canvas.drawBitmap(blurred, null, barRect, blurP);
             } else {
                 captureBackdrop();   // 首帧未就绪：实色垫底 + 异步补抓

@@ -3060,11 +3060,13 @@
       if (bgLastTop >= 0 && Math.abs(top - bgLastTop) < 6) return;
       bgLastTop = top;
       if (bgScrollT) return;
+      /* 50ms ≈ 20fps：FlClash 是每帧抓一次，我们受 PixelCopy 成本限制退到 20fps。
+         60fps 需 3 倍开销，实测数据出来前不冒进（见 appbar 抓取耗时日志）。 */
       bgScrollT = setTimeout(function () {
         bgScrollT = 0;
         APPBAR_BG_REV++;
         try { if (w.NetOpsPushAppBar) w.NetOpsPushAppBar(); } catch (e) { }
-      }, 120);
+      }, 50);
     }, { passive: true });
 
     /* 初始路由：支持 #phase/p2 形式的深链，非根路由自动垫一层根页便于返回 */
