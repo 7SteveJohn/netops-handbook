@@ -49,6 +49,11 @@ keystore.properties
 /web-src/tools/scan-terms.py
 /web-src/tools/remove-content-glass.py
 /web-src/tools/fix-*.py
+/web-src/tools/fix-*.js
+/web-src/tools/post-shots.py
+/find_geom.py
+# 交付记录/任务书/清单（是否公开待定，先不入库；要公开时 git add -f）
+/docs/
 /web-src/tools/verify-apk.js
 
 # AI 助手协作文件：仅本地使用，不入公开仓库
