@@ -286,7 +286,11 @@ public class AppBarView extends View {
             try {
                 if (popup != null) {
                     int hWin = (int) (barRect.height() + 30f * density);
-                    popup.update(0, 0, ViewGroup.LayoutParams.MATCH_PARENT, hWin);
+                    /* 宽度必须给绝对 px：PopupWindow.update 对 MATCH_PARENT(-1) 的处理
+                       不可靠，旋转后窗口会停在旧宽度把画布裁掉（2026-10-30 真机：
+                       横屏玻璃带只画到 1904px，右侧裸壁纸硬缝）。 */
+                    int sw = getResources().getDisplayMetrics().widthPixels;
+                    popup.update(0, 0, sw, hWin);
                 }
             } catch (Throwable ignored) { }
             backdropRev = -1;   // 几何变了 → 背景区域变了 → 重抓

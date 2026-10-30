@@ -519,6 +519,17 @@ public class MainActivity extends AppCompatActivity {
         try {
             appbarBar = com.netops.handbook.lens.AppBarView.attach(this, root, webView);
             appbarBar.setDark(resolvedDark());
+            /* 旋转后 onConfigurationChanged 里立即索取几何会量到「旧布局」
+               （WebView 还没换向重排）→ 顶栏玻璃停在竖屏宽度（2026-10-30 真机：
+               横屏玻璃带只有 1904px，右侧裸壁纸硬缝）。改为 WebView 尺寸真正
+               变化后再索取：布局回调即新几何，防抖 120ms 合并连发。 */
+            final Runnable[] geoTask = {null};
+            webView.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or_, ob) -> {
+                if (r - l == or_ - ol && b - t == ob - ot) return;
+                if (geoTask[0] != null) webView.removeCallbacks(geoTask[0]);
+                geoTask[0] = () -> { if (appbarBar != null) appbarBar.requestGeometry(); };
+                webView.postDelayed(geoTask[0], 120);
+            });
         } catch (Throwable t) {
             Log.w(TAG, "原生顶栏挂载失败（不影响主流程）", t);
             appbarBar = null;
