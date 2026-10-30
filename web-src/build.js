@@ -284,6 +284,16 @@ function build() {
     problems.push('内容一致性门禁无法运行: ' + e.message);
   }
 
+  /* ---------- 桥面门禁 ----------
+     @JavascriptInterface 方法必须有消费者：2026-10-31 审计发现 6 个 hideNativeXxx
+     桥从未被调用（JS 只用 hideAllNativePages）。死桥靠记性挡不住，交给门禁。 */
+  let bridge = { ok: true, errs: [], notes: '' };
+  try {
+    bridge = require('./tools/audit-bridge-surface').gate();
+  } catch (e) {
+    problems.push('桥面门禁无法运行: ' + e.message);
+  }
+
   /* ---------- 门禁执行器 ----------
      默认用子进程跑门禁脚本（保持它们能单独执行、自带退出码与中文报告）。
      某些受管控环境禁止 node 派生任何子进程（execFileSync 抛 EBUSY/EPERM，
@@ -350,7 +360,7 @@ function build() {
   console.log('  ' + '产物'.padEnd(30) + kb(html).padStart(12));
   console.log('  → ' + path.relative(path.resolve(ROOT, '..'), OUT).replace(/\\/g, '/'));
 
-  const failed = problems.length > 0 || !glass.ok || !content.ok || !contrastGate.ok || !tokensGate.ok;
+  const failed = problems.length > 0 || !glass.ok || !content.ok || !contrastGate.ok || !tokensGate.ok || !bridge.ok;
   if (failed) {
     if (problems.length) {
       console.log('\n  ✗ 离线校验未通过：');
@@ -365,6 +375,10 @@ function build() {
       console.log('\n  ✗ 内容一致性门禁未通过（见 tools/audit-content-consistency.js）：');
       content.errs.forEach(v => console.log('    - ' + v));
     }
+    if (!bridge.ok) {
+      console.log('\n  ✗ 桥面门禁未通过（见 tools/audit-bridge-surface.js）：');
+      bridge.errs.forEach(v => console.log('    - ' + v));
+    }
     if (!contrastGate.ok) {
       console.log('\n  ✗ 可读性门禁未通过（见 tools/audit-contrast.js）：');
       console.log('    ' + contrastGate.msg.replace(/\n/g, '\n    '));
@@ -378,6 +392,7 @@ function build() {
     console.log('\n  ✓ 离线校验通过：零外部请求 / 零 CDN / 全部资源内联');
     console.log('  ✓ 玻璃覆盖门禁通过：不透明底色全部走 --surf-* token 或登记了例外理由');
     console.log('  ✓ 内容一致性门禁通过：' + JSON.stringify(content.counts) + '（README 数字与产物措辞已比对）');
+    console.log('  ✓ 桥面门禁通过：' + bridge.notes);
     console.log('  ' + contrastGate.msg);
     console.log('  ' + tokensGate.msg);
   }

@@ -1307,21 +1307,12 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @JavascriptInterface
-        public void hideNativeFav() { if (nativeFav != null) runOnUiThread(() -> nativeFav.hide()); }
-
-        @JavascriptInterface
         public void showNativeDrawer() {
             if (nativeDrawer == null) return;
             runOnUiThread(() -> {
                 nativeDrawer.open();
                 if (lensBar != null) lensBar.setOverlaid(true);
             });
-        }
-
-        @JavascriptInterface
-        public void hideNativeDrawer() {
-            if (nativeDrawer == null) return;
-            runOnUiThread(() -> nativeDrawer.close());
         }
 
         @JavascriptInterface
@@ -1334,9 +1325,6 @@ public class MainActivity extends AppCompatActivity {
             if (nativeMe == null) return;
             runOnUiThread(() -> { hideNativePagesExcept("me"); nativeMe.show(); });
         }
-
-        @JavascriptInterface
-        public void hideNativeMe() { if (nativeMe != null) runOnUiThread(() -> nativeMe.hide()); }
 
         /** 设置面板打开时，页面层把当前状态推回来。 */
         @JavascriptInterface
@@ -1359,19 +1347,10 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @JavascriptInterface
-        public void hideNativeSearch() { if (nativeSearch != null) runOnUiThread(() -> nativeSearch.hide()); }
-
-        @JavascriptInterface
         public void showNativeHome() { if (nativeHome != null) runOnUiThread(() -> { hideNativePagesExcept("home"); nativeHome.show(); }); }
 
         @JavascriptInterface
-        public void hideNativeHome() { if (nativeHome != null) runOnUiThread(() -> nativeHome.hide()); }
-
-        @JavascriptInterface
         public void showNativeQuiz() { if (nativeQuiz != null) runOnUiThread(() -> { hideNativePagesExcept("quiz"); nativeQuiz.show(); }); }
-
-        @JavascriptInterface
-        public void hideNativeQuiz() { if (nativeQuiz != null) runOnUiThread(() -> nativeQuiz.hide()); }
 
         @JavascriptInterface
         public void showNativeIv() {
