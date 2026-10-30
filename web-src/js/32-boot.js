@@ -2888,6 +2888,7 @@
        类切换 + body 级类变化 → 30ms 合并推送），调用点零侵入；几何由原生主动
        索取（Bridge.ready / insets / 旋转补测时注入量测 JS），这里只做应答。 */
     var NATIVE_APPBAR_KEY = 'netops_native_appbar';
+    var lastAppBarName = null, lastAppBarScrolled = null;
     function nativeAppbarOn() {
       try { return localStorage.getItem(NATIVE_APPBAR_KEY) !== '0'; } catch (e) { return true; }
     }
@@ -2897,6 +2898,25 @@
         var app = $('#appbar');
         if (!app) return;
         var sw = $('#searchWrap');
+        /* 玻璃底图重抓触发：原设计只认壁纸版本号（APPBAR_BG_REV 仅壁纸变化时++），
+           原生化后栏下是各页头部——路由一换玻璃里就是上一页的幽灵字/白卡
+           （2026-10-30 用户报「玻璃里隐隐有网络学习手册 2.0」）。改为：
+           标题变（路由换）立即 bump + 450ms 后补 bump 抓稳定帧；is-scrolled
+           翻越（栏下内容位移越阈值）也 bump。 */
+        var nm = barName ? barName.textContent : '';
+        if (nm !== lastAppBarName) {
+          if (lastAppBarName !== null) {
+            APPBAR_BG_REV++;
+            setTimeout(function () {
+              APPBAR_BG_REV++;
+              try { if (w.NetOpsPushAppBar) w.NetOpsPushAppBar(); } catch (e) { }
+            }, 450);
+          }
+          lastAppBarName = nm;
+        }
+        var scr = app.classList.contains('is-scrolled');
+        if (lastAppBarScrolled !== null && scr !== lastAppBarScrolled) APPBAR_BG_REV++;
+        lastAppBarScrolled = scr;
         var searchOpen = !!(sw && sw.classList.contains('is-open'));
         var overlaid = !!d.querySelector('.drawer.is-open');
         d.body.classList.toggle('is-appbar-q', searchOpen);

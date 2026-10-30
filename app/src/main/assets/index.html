@@ -4470,6 +4470,7 @@ w.NetOpsNativeDockOn = nativeDockOn;
 A.nativeDockOn = nativeDockOn;
 A.setNativeDock = w.NetOpsSetNativeDock;
 var NATIVE_APPBAR_KEY = 'netops_native_appbar';
+var lastAppBarName = null, lastAppBarScrolled = null;
 function nativeAppbarOn() {
 try { return localStorage.getItem(NATIVE_APPBAR_KEY) !== '0'; } catch (e) { return true; }
 }
@@ -4479,6 +4480,20 @@ if (!(w.NetBridge && w.NetBridge.setAppBarState)) return;
 var app = $('#appbar');
 if (!app) return;
 var sw = $('#searchWrap');
+var nm = barName ? barName.textContent : '';
+if (nm !== lastAppBarName) {
+if (lastAppBarName !== null) {
+APPBAR_BG_REV++;
+setTimeout(function () {
+APPBAR_BG_REV++;
+try { if (w.NetOpsPushAppBar) w.NetOpsPushAppBar(); } catch (e) { }
+}, 450);
+}
+lastAppBarName = nm;
+}
+var scr = app.classList.contains('is-scrolled');
+if (lastAppBarScrolled !== null && scr !== lastAppBarScrolled) APPBAR_BG_REV++;
+lastAppBarScrolled = scr;
 var searchOpen = !!(sw && sw.classList.contains('is-open'));
 var overlaid = !!d.querySelector('.drawer.is-open');
 d.body.classList.toggle('is-appbar-q', searchOpen);
@@ -5071,6 +5086,6 @@ if (document.readyState === 'loading') {
 document.addEventListener('DOMContentLoaded', init, { once: true });
 } else { init(); }
 })();
-;window.__BUILD__='20261030-1958';</script>
+;window.__BUILD__='20261030-2035';</script>
 </body>
 </html>

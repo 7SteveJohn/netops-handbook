@@ -357,6 +357,13 @@ public class AppBarView extends View {
     private boolean copyBusy = false;     /* PixelCopy 在途标志：onDraw 兜底路径没有它
                                               会每帧发一次抓图请求（抓图风暴） */
 
+    /** 外部强制重抓：设置面板关闭时调用——面板开着的那次抓样把半透明遮罩
+     *  和上一页头部一起采了进去（2026-10-30 用户报「玻璃里隐隐有网络学习手册 2.0」）。 */
+    public void invalidateBackdrop() {
+        backdropRev = -1;
+        invalidate();
+    }
+
     private void captureBackdrop() {
         if (detached || copyBusy || !glassOn || !hasGeometry || backdropRev == bgRev) return;
         if (Build.VERSION.SDK_INT < 26) return;   // PixelCopy.Window 需 26+；低版本走实色降级
@@ -370,6 +377,7 @@ public class AppBarView extends View {
         int r = Math.min(sw, l + (int) barRect.width() + 1);
         int bot = top + (int) barRect.height() + 1;
         int w = Math.max(4, r - l), h = Math.max(4, bot - top);
+        final int revAtReq = bgRev;   /* 在途期间 bgrev 再变 → 完成后补抓（丢更新竞态） */
         try {
             Bitmap out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
             copyBusy = true;
@@ -380,8 +388,9 @@ public class AppBarView extends View {
                         if (result == PixelCopy.SUCCESS) {
                             backdrop = out;
                             buildBlurChain();
-                            backdropRev = bgRev;
+                            backdropRev = revAtReq;
                             invalidate();
+                            if (bgRev != revAtReq) post(this::captureBackdrop);
                         } else {
                             Log.w(TAG, "PixelCopy 失败 result=" + result + "，顶栏退回实色");
                         }
