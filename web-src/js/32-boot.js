@@ -76,14 +76,17 @@
       case 'dict':     html = nativeAllOn() ? '' : V.dict({ cat: filters.dictCat }); break;
       case 'iv':       html = nativeAllOn() ? '' : V.iv({ cat: filters.ivCat }); break;
       case 'me':       html = nativeAllOn() ? '' : V.me(); break;
-      case 'fav':      html = V.fav(); break;
+      case 'fav':      html = nativeAllOn() ? '' : V.fav(); break;
       case 'refs':     html = nativeAllOn() ? '' : V.refs(); break;
       case 'ref':      html = nativeAllOn() ? '' : V.ref(st.a); break;
       case 'glossary': html = nativeAllOn() ? '' : V.glossary(); break;
       case 'roadmap':  html = nativeAllOn() ? '' : V.roadmap(); break;
       case 'quiz':     html = nativeAllOn() ? '' : V.quiz(); break;
       case 'cli':      html = V.cli(); break;
-      case 'search':   html = V.search(lastQuery, A.searchAll(lastQuery)); break;
+      /* search / fav 之前无条件渲染 WebView 版，被原生页整块盖住 —— 用户看不见，
+         但白跑一次全库检索 + 组 HTML，还会把「没有找到「」」这类旧文案留在无障碍树里
+         （2026-10-31 实测 uiautomator 抓到）。原生接管时直接留空。 */
+      case 'search':   html = nativeAllOn() ? '' : V.search(lastQuery, A.searchAll(lastQuery)); break;
       default:         html = V.learn();
     }
     view.innerHTML = html;
