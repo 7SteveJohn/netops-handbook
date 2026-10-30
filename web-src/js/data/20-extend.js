@@ -229,6 +229,38 @@ window.NETOPS_EXT = {
         ['日志按级别与时间收敛', '按设施/严重级别 + 时间窗过滤', '设备时间戳与服务器接收时间是两回事，先对时']
       ],
       tip: '先证明「数据在不在」，再证明「算得对不对」：up → 原始计数器 → 求导窗口 → 聚合标签 → 告警阈值，五步顺序不要跳。'
+    },
+    {
+      id: 'tcpdump-filter', icon: 'i-activity', t: '抓包过滤器速查', d: 'BPF 抓前过滤与 Wireshark 显示过滤器一对一口径，排障先抄这一页',
+      cols: ['场景', '写法', '要点'],
+      rows: [
+        ['抓指定主机/网段', 'host 198.51.100.80 或 net 198.51.100.0/24', '命令形如 tcpdump -nn <写法>；not host 排除干扰源'],
+        ['抓指定端口', 'tcp port 443', '协议可省：port 53 表示 TCP 和 UDP 一起抓'],
+        ['组合条件', 'host A and (port 80 or port 443)', 'and/or/not 组合，含括号的表达式要用引号包住'],
+        ['只看握手/挥手', 'tcp[tcpflags] & (tcp-syn|tcp-fin) != 0', 'TCP 标志位过滤，回放复盘第一招'],
+        ['落盘与回放', 'tcpdump -w a.pcap；tcpdump -r a.pcap', '线上先 -w 落盘，细看交给 Wireshark'],
+        ['保完整报文', '-s0', '默认 snaplen 会截断，-w 落盘前必加'],
+        ['PMTUD 定位', 'icmp[icmptype]==icmp-unreach and icmp[icmpcode]==4', '命中即 need to frag (mtu X)，X 就是路径 MTU'],
+        ['显示过滤地址', 'ip.addr==198.51.100.80', '源或目的任一命中；分方向用 ip.src/ip.dst'],
+        ['显示过滤 TCP', 'tcp.port==443 and tcp.flags.syn==1', 'tcp.analysis.retransmission 一键筛重传'],
+        ['显示过滤应用层', 'http.request；dns.flags.response==0', 'dns.flags.response==0 只看查询不看应答']
+      ]
+    },
+    {
+      id: 'cmd-windows', icon: 'i-terminal', t: 'Windows 网络排障命令速查', d: '办公网 Windows 终端从链路、地址到解析的分层排障命令一览，重置类命令列为最后手段。',
+      cols: ['命令', '看什么 / 干什么', '判读口径'],
+      rows: [
+        ['ipconfig /all', '地址、租约起止、DHCP/DNS 服务器、DNS 后缀', '169.254.x.x=无应答；看后缀判断短名解析落点'],
+        ['ipconfig /release 与 /renew', '重走一遍 DHCP 四步', 'renew 后仍是 169.254，查链路与服务器，客户端无罪'],
+        ['route print -4', 'IPv4 路由表与接口跃点', '先比前缀长度，多默认路由再比跃点数（小者优先）'],
+        ['arp -a', '网关 MAC 是否学到', '无条目或 incomplete=二层不通，查端口与 VLAN'],
+        ['ping -4 / ping -6', '强制按指定协议族探测', '先网关后远端：断在哪一层，问题就在哪一层'],
+        ['tracert -d', '逐跳路径，-d 免反向解析更快', '路径停在哪一跳，故障就在那一跳之后'],
+        ['nslookup', '直接向 DNS 服务器发起查询', '不查 hosts 与缓存；与应用解析不一致先想到这两处'],
+        ['Get-NetAdapter / Get-NetIPAddress', '网卡与地址的 PowerShell 视图', '可管道过滤导出，适合批量取证与巡检'],
+        ['Get-NetRoute', '路由表的 PowerShell 等价物', '-DestinationPrefix 0.0.0.0/0 直筛默认路由'],
+        ['netsh winsock reset / netsh int ip reset', '重置 Winsock 目录 / TCP/IP 栈', '最后手段：清静态配置，需管理员权限并重启']
+      ]
     }
   ],
 
@@ -281,6 +313,16 @@ window.NETOPS_EXT = {
     { t: '最长前缀匹配', d: '转发表查找规则，与配置顺序无关。备份路由要更小前缀或更差优先级，否则永远轮不到它。' },
     { t: '状态检测', d: '首包建会话、回程按会话放行。去回路径不对称时会话匹配不上，就会出现「有去无回」。' },
     { t: 'NAT-T / DPD', d: '前者把 ESP 封进 UDP 让 NAT 能过，后者用来发现对端已经消失并清理失效安全关联。' },
-    { t: 'netem', d: 'Linux 的流量整形与损伤注入模块，做延迟/丢包/重复/损坏演练的底层手段。演练后要确认规则已清。' }
+    { t: 'netem', d: 'Linux 的流量整形与损伤注入模块，做延迟/丢包/重复/损坏演练的底层手段。演练后要确认规则已清。' },
+    { t: 'M-LAG', d: '跨设备链路聚合：两台独立控制面的交换机对外像一台。peer-link 同步表项、keepalive 心跳、dfs-group 裁主，三件套缺一都会在故障时脑裂。' },
+    { t: 'vPC', d: 'Cisco Nexus 的 M-LAG 同类实现（vPC domain + peer-link + peer-keepalive），概念与华为 dfs-group 一一对应，排障口径可互译。' },
+    { t: 'MACsec', d: '802.1AE 二层逐跳加密，EtherType 0x88E5；MKA 管密钥协商，CAK 必须十六进制。保护的是链路不是端到端，中间每一跳都要配。' },
+    { t: 'IGMP Snooping', d: '二层监听 IGMP 报文建立组播转发表。没开它，组播在 VLAN 里按广播泛洪——接入层带宽与 CPU 异常的第一嫌疑。' },
+    { t: 'PIM RP', d: '稀疏模式组播的汇合点，所有 (*,G) 先到 RP 再切 SPT。全网 RP 口径必须一致（静态或 BSR），不一致的典型现象是部分组播组通、部分不通。' },
+    { t: 'SD-WAN SLA 选路', d: '按应用识别加时延/丢包/抖动探测结果动态选 Underlay。策略不命中的第一排查点：探测目标不可达，导致所有链路被标成不达标。' },
+    { t: '分流（Split Tunneling）', d: 'SSL VPN 只把指定网段路由推进客户端，其余流量走本地网络。应用打不开的第一嫌疑是分流列表缺网段，而不是隧道没通。' },
+    { t: 'DPI', d: '深度包检测，按载荷特征识别应用。HTTPS 普及后只能看 SNI/证书与流量特征，ECH 推广后识别能力还会再降——策略要留网段与应用兜底。' },
+    { t: 'DoH / DoT', d: '把 DNS 查询塞进 HTTPS/TLS（443/853 端口）绕过本地解析。行为管理域名策略失效与审计盲区的头号来源，企业网通常按网段封公共 DoH。' },
+    { t: 'stratum', d: 'NTP 层级：原子钟/GPS 为 stratum 0 参考源，每经一层加 1，同层对等互备合法。层值异常跳变通常意味着上游失联、已退到本地时钟。' }
   ]
 };

@@ -15,6 +15,8 @@
     [/^(kubectl|helm|istioctl|cilium|calicoctl|crictl|docker|ncp)\b/, 'k8s'],
     [/^(show bgp|show ip|show version|show run|show log|show mac|show vlan|show spanning|show mpls|show interfaces|show interface|configure terminal|enable|write memory)\b/, 'cs'],
     [/^(display|system-view|undo|reset|screen-length)\b/, 'hw'],
+    /* win 要排在 lx 的 route/ping 组之前：route print/arp -a/tracert 是 Windows 语义 */
+    [/^(ipconfig|netsh|route print|route add|arp -a|pktmon|typeperf|wevtutil|get-net|systeminfo|w32tm|tracert|winver)\b/, 'win'],
     [/^(ip|ss|tc|iptables|ip6tables|nft|systemctl|journalctl|ethtool|nmcli|sysctl|bpftool|dig|nslookup|hostname|bridge|netns|nsenter|tcpdump|bird|birdc|ufw|firewall-cmd|nm)\b/, 'lx'],
     [/^(git|ansible|python|pip|curl|wget|ssh|scp|nc|ping|traceroute|tracepath|mtr|arping|route|netstat|ifconfig|uname|cat|grep|tee|mkdir|cp|mv|chmod|source|export|nmap|lsof)\b/, 'lx'],
     [/^(nmap|lsof)\b/, 'lx']

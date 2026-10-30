@@ -97,13 +97,13 @@ function analyze() {
     if (l.length < 3) errs.push('模块 ' + m.id + ' 分步操作只有 ' + l.length + ' 步（下限 3）→ 补成能照着做完的路径');
   });
 
-  /* B. 字典行形状（数组的数组，5 列） */
+  /* B. 字典行形状（数组的数组，6 列——2026-10-30 加 Windows 平台列） */
   const dic = JSON.parse(read('.cache/dic.json'));
   dic.forEach((r, i) => {
-    if (!Array.isArray(r)) { errs.push('字典第 ' + (i + 1) + ' 行不是数组（必须 [名称,华为,Cisco,中兴,Linux]，写成对象会让 r.join 崩）'); return; }
-    if (r.length !== 5) errs.push('字典第 ' + (i + 1) + ' 行长度 ' + r.length + '（应为 5）');
+    if (!Array.isArray(r)) { errs.push('字典第 ' + (i + 1) + ' 行不是数组（必须 [名称,华为,Cisco,中兴,Linux,Windows]，写成对象会让 r.join 崩）'); return; }
+    if (r.length !== 6) errs.push('字典第 ' + (i + 1) + ' 行长度 ' + r.length + '（应为 6：名称+四厂商+Windows）');
     else if (r.slice(1).every(v => !String(v || '').trim() || String(v).trim() === '-'))
-      errs.push('字典第 ' + (i + 1) + ' 行「' + r[0] + '」四家全为空/短横，等于没有对照');
+      errs.push('字典第 ' + (i + 1) + ' 行「' + r[0] + '」五家全为空/短横，等于没有对照');
   });
   if (dic.length !== CORE.dict.rows.length)
     errs.push('字典源 ' + dic.length + ' 行 与生成产物 ' + CORE.dict.rows.length + ' 行不一致（忘记跑 gen-data.js？）');

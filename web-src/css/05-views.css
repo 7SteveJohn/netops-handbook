@@ -465,6 +465,11 @@ html.dark .topo { opacity: .96; }
   content-visibility: auto;
   contain-intrinsic-size: auto 140px;
 }
+/* 搜索结果流（31-views V.search 复用同一门控）：带高亮正文的卡远高于阶段页
+   折叠卡，估计高度调到 320px，滚动条定位与跳变才稳。 */
+.plist--s > .anim-in {
+  contain-intrinsic-size: auto 320px;
+}
 /* ≥1200（大横屏平板 / 桌面 / DeX）：卡片流改两栏。
    此前只有一列 860，1600 宽时两侧各空 370px 纯浪费。
    只作用于 .plist（阶段页/排障页/面试页的卡片流），标题、统计、速查表等保持整行。 */

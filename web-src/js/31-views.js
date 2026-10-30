@@ -198,12 +198,12 @@
     var rows = CORE.dict.rows.filter(function (r) {
       if (cat !== '全部' && A.normCat(r.cat) !== cat) return false;
       if (!q) return true;
-      var hay = [r.fn, r.hw, r.cs, r.zte, r.lx].join(' ').toLowerCase();
+      var hay = [r.fn, r.hw, r.cs, r.zte, r.lx, r.win].join(' ').toLowerCase();
       return hay.indexOf(q.toLowerCase()) >= 0;
     });
     var h = '';
     h += '<div class="dict__hint">' + icon('i-info', 'icon--sm') +
-      '<span>四家平台命令横向对照 · 共 ' + CORE.dict.rows.length + ' 条。命令在不同版本/平台可能有差异，请以官方文档为准。</span></div>';
+      '<span>五家平台命令横向对照 · 共 ' + CORE.dict.rows.length + ' 条。命令在不同版本/平台可能有差异，请以官方文档为准。</span></div>';
     h += '<div class="chips" data-chipgroup="dictCat" style="margin-top:10px">' +
       chip('全部', cat === '全部', CORE.dict.rows.length) +
       A.DICT_CATS.map(function (c) {
@@ -529,21 +529,30 @@
   V.search = function (q, res) {
     if (!res || !res.n) return page(empty('没有找到「' + q + '」', '试试 vlan / ospf / bgp / k8s / 丢包'));
     var h = '<div class="t-xs t-mute" style="margin-bottom:10px">找到 ' + res.n + ' 条与「' + esc(q) + '」相关的内容</div>';
+    /* 搜索是全库最长的卡片流（最坏 40 张带高亮正文的模块卡 + 三组 30 卡）。
+       复用阶段/排障/面试页的 .plist 门控（05-views.css）：视口外的卡片直接跳过
+       layout/paint。plist--s 只把 contain-intrinsic-size 估计调高（带正文的卡比
+       阶段页折叠卡高）。 */
+    function plistOf(arr, cardHtml) {
+      return '<div class="plist plist--s">' + arr.map(function (x, i) {
+        return '<div class="anim-in" style="--i:' + Math.min(i, 12) + '">' + cardHtml(x, i) + '</div>';
+      }).join('') + '</div>';
+    }
     if (res.mods.length) {
       h += sec('i-layers', '知识模块 · ' + res.mods.length);
-      h += res.mods.slice(0, 40).map(function (m) { return A.modCard(m, q); }).join('');
+      h += plistOf(res.mods.slice(0, 40), function (m) { return A.modCard(m, q); });
     }
     if (res.faults.length) {
       h += sec('i-wrench', '排障案例 · ' + res.faults.length);
-      h += res.faults.slice(0, 30).map(function (f) { return A.faultCard(f, q); }).join('');
+      h += plistOf(res.faults.slice(0, 30), function (f) { return A.faultCard(f, q); });
     }
     if (res.iv.length) {
       h += sec('i-briefcase', '面试真题 · ' + res.iv.length);
-      h += res.iv.slice(0, 30).map(function (x) { return A.ivCard(x, q); }).join('');
+      h += plistOf(res.iv.slice(0, 30), function (x) { return A.ivCard(x, q); });
     }
     if (res.dict.length) {
       h += sec('i-terminal', '命令字典 · ' + res.dict.length);
-      h += '<div class="list">' + res.dict.slice(0, 30).map(function (r) {
+      h += plistOf(res.dict.slice(0, 30), function (r) {
         return '<div class="dict__row">' +
           '<div class="dict__fn">' + icon('i-chev-right', 'icon--xs') + '<span>' + U.hl(r.fn, q) + '</span></div>' +
           CORE.dict.cols.map(function (c) {
@@ -552,7 +561,7 @@
             return '<div class="dict__kv"><div class="dict__k">' + esc(c.n.split(' ')[0]) + '</div>' +
               '<div class="dict__v" data-cmd="' + esc(v) + '">' + U.hl(v, q) + '</div></div>';
           }).join('') + '</div>';
-      }).join('') + '</div>';
+      });
     }
     if (res.refs && res.refs.length) {
       h += sec('i-inbox', '速查表 · ' + res.refs.length);
