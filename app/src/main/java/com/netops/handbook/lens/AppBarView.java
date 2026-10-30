@@ -351,7 +351,11 @@ public class AppBarView extends View {
         }
     }
 
-    /* ================= 背景（PixelCopy + 下采样模糊） ================= */
+    /* ================= 背景（PixelCopy 采样） =================
+     * 采样时机决定「通透是不是真的」：只在路由切换/滚动越阈值时抓一张，同页滚动
+     * 时玻璃纹丝不动（2026-10-30 用户：「背景一直固定在那儿，通透在哪儿」）。
+     * 因此加了滚动驱动重抓（JS 侧 120ms 节流 bump bgrev），滚动时玻璃跟着栏下内容走。
+     * 系统级 FLAG_BLUR_BEHIND 试过：PopupWindow 拿不到窗口对象，走不通。 */
 
     /** 预热：几何同步后先抓一张，把首次成本摊在用户看见之前。 */
     public void warmUp() {
@@ -382,7 +386,7 @@ public class AppBarView extends View {
         int bot = top + (int) barRect.height() + 1;
         int w = Math.max(4, r - l), h = Math.max(4, bot - top);
         final int revAtReq = bgRev;   /* 在途期间 bgrev 再变 → 完成后补抓（丢更新竞态） */
-        final Handler h = new Handler(Looper.getMainLooper());
+        final Handler copyHandler = new Handler(Looper.getMainLooper());
         final Runnable watchdog = () -> {
             /* PixelCopy 回调可能被丢（切后台/旋转时 surface 撕掉）——copyBusy 一旦
                卡死，玻璃就冻结在最后一次成功采样直到重启（2026-10-30 真机实测）。
@@ -395,11 +399,11 @@ public class AppBarView extends View {
         try {
             Bitmap out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
             copyBusy = true;
-            h.postDelayed(watchdog, 700);
+            copyHandler.postDelayed(watchdog, 700);
             PixelCopy.request(act.getWindow(), new Rect(l, top, l + w, top + h), out,
                     result -> {
                         copyBusy = false;
-                        h.removeCallbacks(watchdog);
+                        copyHandler.removeCallbacks(watchdog);
                         if (detached) return;
                         if (result == PixelCopy.SUCCESS) {
                             backdrop = out;
@@ -410,10 +414,10 @@ public class AppBarView extends View {
                         } else {
                             Log.w(TAG, "PixelCopy 失败 result=" + result + "，顶栏退回实色");
                         }
-                    }, h);
+                    }, copyHandler);
         } catch (Throwable t) {
             copyBusy = false;
-            h.removeCallbacks(watchdog);
+            copyHandler.removeCallbacks(watchdog);
             Log.w(TAG, "抓背景异常", t);
         }
     }

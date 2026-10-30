@@ -4609,6 +4609,18 @@ lensSync(Array.prototype.indexOf.call($$('.tab'), b));
 });
 fab.addEventListener('click', function () { scroll.scrollTo({ top: 0, behavior: 'smooth' }); });
 scroll.addEventListener('scroll', function () { U.raf(onScroll); }, { passive: true });
+var bgScrollT = 0, bgLastTop = -1;
+scroll.addEventListener('scroll', function () {
+var top = scroll.scrollTop;
+if (bgLastTop >= 0 && Math.abs(top - bgLastTop) < 6) return;
+bgLastTop = top;
+if (bgScrollT) return;
+bgScrollT = setTimeout(function () {
+bgScrollT = 0;
+APPBAR_BG_REV++;
+try { if (w.NetOpsPushAppBar) w.NetOpsPushAppBar(); } catch (e) { }
+}, 120);
+}, { passive: true });
 var init = { r: 'learn', a: null };
 var hash = (location.hash || '').replace(/^#/, '').split('/');
 if (hash[0] && META[hash[0]]) init = { r: hash[0], a: hash[1] || null };
@@ -5086,6 +5098,6 @@ if (document.readyState === 'loading') {
 document.addEventListener('DOMContentLoaded', init, { once: true });
 } else { init(); }
 })();
-;window.__BUILD__='20261030-2035';</script>
+;window.__BUILD__='20261030-2354';</script>
 </body>
 </html>

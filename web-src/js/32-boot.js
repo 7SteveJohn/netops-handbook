@@ -3047,6 +3047,22 @@
     });
     fab.addEventListener('click', function () { scroll.scrollTo({ top: 0, behavior: 'smooth' }); });
     scroll.addEventListener('scroll', function () { U.raf(onScroll); }, { passive: true });
+    /* 顶栏玻璃跟着滚动走：静态采样只在路由切换/滚动越阈值时重抓，同页滚动时
+       玻璃纹丝不动（2026-10-30 用户：「背景一直固定在那儿，通透在哪儿」）。
+       滚动期间 120ms 节流 bump bgrev → 原生重抓栏下内容，玻璃随内容实时变化；
+       停滚后 pushAppBarState 的 is-scrolled 分支还会补一次稳定帧。 */
+    var bgScrollT = 0, bgLastTop = -1;
+    scroll.addEventListener('scroll', function () {
+      var top = scroll.scrollTop;
+      if (bgLastTop >= 0 && Math.abs(top - bgLastTop) < 6) return;
+      bgLastTop = top;
+      if (bgScrollT) return;
+      bgScrollT = setTimeout(function () {
+        bgScrollT = 0;
+        APPBAR_BG_REV++;
+        try { if (w.NetOpsPushAppBar) w.NetOpsPushAppBar(); } catch (e) { }
+      }, 120);
+    }, { passive: true });
 
     /* 初始路由：支持 #phase/p2 形式的深链，非根路由自动垫一层根页便于返回 */
     var init = { r: 'learn', a: null };

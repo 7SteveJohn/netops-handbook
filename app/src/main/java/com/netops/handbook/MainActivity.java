@@ -475,6 +475,21 @@ public class MainActivity extends AppCompatActivity {
         /* 抽屉最后加：z 序压在全部原生页之上（见构造处注释） */
         root.addView(nativeDrawer);
 
+        /* 原生页滚动 → 顶栏玻璃实时重抓：这些页的滚动不经过 WebView，
+           JS 侧监听不到，玻璃会静止不动（2026-10-30 用户：「通透在哪儿」） */
+        hookAppbarScroll(nativePhase);
+        hookAppbarScroll(nativeFault);
+        hookAppbarScroll(nativeIv);
+        hookAppbarScroll(nativeDict);
+        hookAppbarScroll(nativeHome);
+        hookAppbarScroll(nativeMe);
+        hookAppbarScroll(nativeQuiz);
+        hookAppbarScroll(nativeRefs);
+        hookAppbarScroll(nativeFav);
+        hookAppbarScroll(nativeSearch);
+        hookAppbarScroll(nativeGlossary);
+        hookAppbarScroll(nativeRoadmap);
+
         configureWebView();
         bridge = new Bridge();
         webView.addJavascriptInterface(bridge, "NetBridge");
@@ -641,6 +656,33 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         if (root != null) ViewCompat.requestApplyInsets(root);
+    }
+
+    /** 给原生页的所有 ScrollView 挂滚动监听：滚动时顶栏玻璃跟着栏下内容重抓，
+     *  否则原生页滚动（NativeDocList 等）时玻璃是静止的（2026-10-30 用户：
+     *  「背景一直固定在那儿，通透在哪儿」）。递归找 ScrollView，无需各页配合。 */
+    private void hookAppbarScroll(android.view.View page) {
+        if (page == null || appbarBar == null) return;
+        final long[] last = {0};
+        android.view.ViewTreeObserver.OnScrollChangedListener l = () -> {
+            long now = android.os.SystemClock.uptimeMillis();
+            if (now - last[0] < 120) return;
+            last[0] = now;
+            appbarBar.invalidateBackdrop();
+        };
+        java.util.ArrayDeque<android.view.View> stack = new java.util.ArrayDeque<>();
+        stack.push(page);
+        while (!stack.isEmpty()) {
+            android.view.View v = stack.pop();
+            if (v instanceof android.widget.ScrollView) {
+                ((android.widget.ScrollView) v).getViewTreeObserver().addOnScrollChangedListener(l);
+                continue;   // ScrollView 内部不再递归，避免重复挂同一个容器
+            }
+            if (v instanceof android.view.ViewGroup) {
+                android.view.ViewGroup g = (android.view.ViewGroup) v;
+                for (int i = 0; i < g.getChildCount(); i++) stack.push(g.getChildAt(i));
+            }
+        }
     }
 
     @Override
