@@ -57,56 +57,31 @@
   function hasNativeBridge() {
     return !!(w.NetBridge && w.NetBridge.hideAllNativePages);
   }
-  /* 原生阶段页开关（顶层：render() 与 boot() 内的桥都要用；定义在 boot 里
-     曾导致 render 抛 ReferenceError → 进阶段页整页不动 + 顶部红错条）。 */
-  function nativePhaseOn() {
+  /* 原生页总开关（顶层：render() 与 boot() 段内的桥都要用；曾定义在 boot 里
+     导致 render 抛 ReferenceError → 进阶段页整页不动 + 顶部红错条）。
+     N0-N6 分批上线期的 13 个分页开关已全部验收上线，收敛成一个应急阀门 ——
+     置 '1' 则所有页面回退 HTML 版（V.xxx 渲染路径仍在）。
+     默认开；无桥（本地浏览器/jsdom）恒 false，与 applyNativeDock 同口径。 */
+  function nativeAllOn() {
     if (!hasNativeBridge()) return false;
-    try { return localStorage.getItem('netops_native_phase') !== '0'; } catch (e) { return true; }
+    try { return localStorage.getItem('netops_native_off') !== '1'; } catch (e) { return true; }
   }
-  /* 原生排障页开关（N4 第一段） */
-  function nativeFaultOn() {
-    if (!hasNativeBridge()) return false;
-    try { return localStorage.getItem('netops_native_fault') !== '0'; } catch (e) { return true; }
-  }
-  /* 原生面试页开关（N4 第二段） */
-  function nativeIvOn() {
-    if (!hasNativeBridge()) return false;
-    try { return localStorage.getItem('netops_native_iv') !== '0'; } catch (e) { return true; }
-  }
-  /* 原生命令字典页开关（N4 第三段） */
-  function nativeDictOn() {
-    if (!hasNativeBridge()) return false;
-    try { return localStorage.getItem('netops_native_dict') !== '0'; } catch (e) { return true; }
-  }
-  function flagOn(key) {
-    if (!hasNativeBridge()) return false;
-    try { return localStorage.getItem(key) !== '0'; } catch (e) { return true; }
-  }
-  function nativeRefsOn() { return flagOn('netops_native_refs'); }
-  function nativeQuizOn() { return flagOn('netops_native_quiz'); }
-  function nativeHomeOn() { return flagOn('netops_native_home'); }
-  function nativeSearchOn() { return flagOn('netops_native_search'); }
-  function nativeMeOn() { return flagOn('netops_native_me'); }
-  function nativeFavOn() { return flagOn('netops_native_fav'); }
-  function nativeDrawerOn() { return flagOn('netops_native_drawer'); }
-  function nativeGlossaryOn() { return flagOn('netops_native_glossary'); }
-  function nativeRoadmapOn() { return flagOn('netops_native_roadmap'); }
 
   function render(st, restore) {
     var html = '';
     switch (st.r) {
-      case 'learn':    html = nativeHomeOn() ? '' : V.learn(); break;
-      case 'phase':    html = nativePhaseOn() ? '' : V.phase(st.a); break;
-      case 'fault':    html = nativeFaultOn() ? '' : V.fault({ cat: filters.faultCat }); break;
-      case 'dict':     html = nativeDictOn() ? '' : V.dict({ cat: filters.dictCat }); break;
-      case 'iv':       html = nativeIvOn() ? '' : V.iv({ cat: filters.ivCat }); break;
-      case 'me':       html = nativeMeOn() ? '' : V.me(); break;
+      case 'learn':    html = nativeAllOn() ? '' : V.learn(); break;
+      case 'phase':    html = nativeAllOn() ? '' : V.phase(st.a); break;
+      case 'fault':    html = nativeAllOn() ? '' : V.fault({ cat: filters.faultCat }); break;
+      case 'dict':     html = nativeAllOn() ? '' : V.dict({ cat: filters.dictCat }); break;
+      case 'iv':       html = nativeAllOn() ? '' : V.iv({ cat: filters.ivCat }); break;
+      case 'me':       html = nativeAllOn() ? '' : V.me(); break;
       case 'fav':      html = V.fav(); break;
-      case 'refs':     html = nativeRefsOn() ? '' : V.refs(); break;
-      case 'ref':      html = nativeRefsOn() ? '' : V.ref(st.a); break;
-      case 'glossary': html = nativeGlossaryOn() ? '' : V.glossary(); break;
-      case 'roadmap':  html = nativeRoadmapOn() ? '' : V.roadmap(); break;
-      case 'quiz':     html = nativeQuizOn() ? '' : V.quiz(); break;
+      case 'refs':     html = nativeAllOn() ? '' : V.refs(); break;
+      case 'ref':      html = nativeAllOn() ? '' : V.ref(st.a); break;
+      case 'glossary': html = nativeAllOn() ? '' : V.glossary(); break;
+      case 'roadmap':  html = nativeAllOn() ? '' : V.roadmap(); break;
+      case 'quiz':     html = nativeAllOn() ? '' : V.quiz(); break;
       case 'cli':      html = V.cli(); break;
       case 'search':   html = V.search(lastQuery, A.searchAll(lastQuery)); break;
       default:         html = V.learn();
@@ -147,22 +122,22 @@
     onScroll();
     warmFirstCardNow();
     /* 原生阶段页：进入该路由即显示；离开即收起（N1 起这是页面本体，不是交接代理） */
-    if (st.r === 'phase' && nativePhaseOn()) {
+    if (st.r === 'phase' && nativeAllOn()) {
       if (w.NetOpsNativePhaseShow) w.NetOpsNativePhaseShow(st.a);
     } else if (w.NetOpsNativePhaseHide) {
       w.NetOpsNativePhaseHide();
     }
-    if (st.r === 'fault' && nativeFaultOn()) {
+    if (st.r === 'fault' && nativeAllOn()) {
       try { if (w.NetBridge && w.NetBridge.showNativeFault) w.NetBridge.showNativeFault(); } catch (e) { }
     } else {
       try { if (w.NetBridge && w.NetBridge.hideNativeFault) w.NetBridge.hideNativeFault(); } catch (e) { }
     }
-    if (st.r === 'iv' && nativeIvOn()) {
+    if (st.r === 'iv' && nativeAllOn()) {
       try { if (w.NetBridge && w.NetBridge.showNativeIv) w.NetBridge.showNativeIv(); } catch (e) { }
     } else {
       try { if (w.NetBridge && w.NetBridge.hideNativeIv) w.NetBridge.hideNativeIv(); } catch (e) { }
     }
-    if (st.r === 'dict' && nativeDictOn()) {
+    if (st.r === 'dict' && nativeAllOn()) {
       try { if (w.NetBridge && w.NetBridge.showNativeDict) w.NetBridge.showNativeDict(); } catch (e) { }
     } else {
       try { if (w.NetBridge && w.NetBridge.hideNativeDict) w.NetBridge.hideNativeDict(); } catch (e) { }
@@ -176,12 +151,12 @@
     try {
       var np = w.NetBridge;
       if (np) {
-        var on = {
-          learn: nativeHomeOn(), phase: nativePhaseOn(), fault: nativeFaultOn(),
-          iv: nativeIvOn(), dict: nativeDictOn(), refs: nativeRefsOn(),
-          glossary: nativeGlossaryOn(), roadmap: nativeRoadmapOn(),
-          quiz: nativeQuizOn(), me: nativeMeOn(), search: nativeSearchOn(),
-          fav: nativeFavOn(), ref: nativeRefsOn()
+        /* 13 个分页开关已收敛为 1 个总开关（P1-2）：路由有原生页 + 总开关开 → show，
+           否则全收。路由白名单与改动前 on-map 的 13 个键完全一致。 */
+        var on = nativeAllOn() && {
+          learn: 1, phase: 1, fault: 1, iv: 1, dict: 1, refs: 1,
+          glossary: 1, roadmap: 1, quiz: 1, me: 1, search: 1,
+          fav: 1, ref: 1
         }[st.r];
         if (on) {
           if (st.r === 'learn') np.showNativeHome();
@@ -205,15 +180,15 @@
     try {
       /* ref（单表详情）也活在 NativeRefsView 里，别在它上面调 showNativeRefs
          （那会把 detailId 重置回列表）；显隐已由上面的 np 分支处理。 */
-      if (st.r === 'refs' && nativeRefsOn()) w.NetBridge.showNativeRefs();
+      if (st.r === 'refs' && nativeAllOn()) w.NetBridge.showNativeRefs();
       else if (st.r !== 'ref') w.NetBridge.hideNativeRefs();
     } catch (e) { }
     try {
-      if (st.r === 'glossary' && nativeGlossaryOn()) w.NetBridge.showNativeGlossary();
+      if (st.r === 'glossary' && nativeAllOn()) w.NetBridge.showNativeGlossary();
       else w.NetBridge.hideNativeGlossary();
     } catch (e) { }
     try {
-      if (st.r === 'roadmap' && nativeRoadmapOn()) w.NetBridge.showNativeRoadmap();
+      if (st.r === 'roadmap' && nativeAllOn()) w.NetBridge.showNativeRoadmap();
       else w.NetBridge.hideNativeRoadmap();
     } catch (e) { }
   }
@@ -517,7 +492,7 @@
         go(r, a);
         /* 原生阶段页：focus 卡片由原生展开+滚动（WebView 里没有卡片可聚焦） */
         if (focus) {
-          if (r === 'phase' && nativePhaseOn() && w.NetBridge && w.NetBridge.showNativePhaseFocus) {
+          if (r === 'phase' && nativeAllOn() && w.NetBridge && w.NetBridge.showNativePhaseFocus) {
             try { w.NetBridge.showNativePhaseFocus(a, focus); } catch (e) { }
           } else {
             focusCard(focus);
@@ -2045,7 +2020,7 @@
       /* 原生搜索接管：不再展开 HTML 搜索条（输入框/高亮/键盘都在原生侧处理）。
          收口走 go('search')：标题/返回栈/render 尾部 showNativeSearch 统一处理——
          直调 showNativeSearch 会绕过标题同步（顶栏残留旧页标题，2026-10-27 实测）。 */
-      if (nativeSearchOn() && w.NetBridge && w.NetBridge.showNativeSearch) {
+      if (nativeAllOn() && w.NetBridge && w.NetBridge.showNativeSearch) {
         if (ev) { ev.preventDefault(); ev.stopPropagation(); }
         closeSearch();
         go('search', null);
@@ -2761,7 +2736,7 @@
 
     $('#btnNav').addEventListener('click', function () {
       /* 原生抽屉接管（HTML 抽屉会被原生页盖死） */
-      if (nativeDrawerOn() && w.NetBridge && w.NetBridge.showNativeDrawer) {
+      if (nativeAllOn() && w.NetBridge && w.NetBridge.showNativeDrawer) {
         try { w.NetBridge.showNativeDrawer(); } catch (e) { }
         return;
       }
@@ -2826,12 +2801,12 @@
     }
     function nativePhaseShow(pid) {
       try {
-        if (!nativePhaseOn()) return false;
+        if (!nativeAllOn()) return false;
         return w.NetBridge.showNativePhase(pid);
       } catch (e) { console.log('[NativePhase] show err ' + e); return false; }
     }
     function nativePhaseHide() {
-      if (!nativePhaseOn()) return;
+      if (!nativeAllOn()) return;
       try { if (w.NetBridge && w.NetBridge.hideNativePhase) w.NetBridge.hideNativePhase(); } catch (e) { }
     }
     /* 原生侧状态变更回调（标记掌握 / 收藏）：同步进页面状态，其它视图口径一致 */

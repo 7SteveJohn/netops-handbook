@@ -2246,50 +2246,25 @@ function keyOf(st) { return st.r + ':' + (st.a || ''); }
 function hasNativeBridge() {
 return !!(w.NetBridge && w.NetBridge.hideAllNativePages);
 }
-function nativePhaseOn() {
+function nativeAllOn() {
 if (!hasNativeBridge()) return false;
-try { return localStorage.getItem('netops_native_phase') !== '0'; } catch (e) { return true; }
+try { return localStorage.getItem('netops_native_off') !== '1'; } catch (e) { return true; }
 }
-function nativeFaultOn() {
-if (!hasNativeBridge()) return false;
-try { return localStorage.getItem('netops_native_fault') !== '0'; } catch (e) { return true; }
-}
-function nativeIvOn() {
-if (!hasNativeBridge()) return false;
-try { return localStorage.getItem('netops_native_iv') !== '0'; } catch (e) { return true; }
-}
-function nativeDictOn() {
-if (!hasNativeBridge()) return false;
-try { return localStorage.getItem('netops_native_dict') !== '0'; } catch (e) { return true; }
-}
-function flagOn(key) {
-if (!hasNativeBridge()) return false;
-try { return localStorage.getItem(key) !== '0'; } catch (e) { return true; }
-}
-function nativeRefsOn() { return flagOn('netops_native_refs'); }
-function nativeQuizOn() { return flagOn('netops_native_quiz'); }
-function nativeHomeOn() { return flagOn('netops_native_home'); }
-function nativeSearchOn() { return flagOn('netops_native_search'); }
-function nativeMeOn() { return flagOn('netops_native_me'); }
-function nativeFavOn() { return flagOn('netops_native_fav'); }
-function nativeDrawerOn() { return flagOn('netops_native_drawer'); }
-function nativeGlossaryOn() { return flagOn('netops_native_glossary'); }
-function nativeRoadmapOn() { return flagOn('netops_native_roadmap'); }
 function render(st, restore) {
 var html = '';
 switch (st.r) {
-case 'learn':    html = nativeHomeOn() ? '' : V.learn(); break;
-case 'phase':    html = nativePhaseOn() ? '' : V.phase(st.a); break;
-case 'fault':    html = nativeFaultOn() ? '' : V.fault({ cat: filters.faultCat }); break;
-case 'dict':     html = nativeDictOn() ? '' : V.dict({ cat: filters.dictCat }); break;
-case 'iv':       html = nativeIvOn() ? '' : V.iv({ cat: filters.ivCat }); break;
-case 'me':       html = nativeMeOn() ? '' : V.me(); break;
+case 'learn':    html = nativeAllOn() ? '' : V.learn(); break;
+case 'phase':    html = nativeAllOn() ? '' : V.phase(st.a); break;
+case 'fault':    html = nativeAllOn() ? '' : V.fault({ cat: filters.faultCat }); break;
+case 'dict':     html = nativeAllOn() ? '' : V.dict({ cat: filters.dictCat }); break;
+case 'iv':       html = nativeAllOn() ? '' : V.iv({ cat: filters.ivCat }); break;
+case 'me':       html = nativeAllOn() ? '' : V.me(); break;
 case 'fav':      html = V.fav(); break;
-case 'refs':     html = nativeRefsOn() ? '' : V.refs(); break;
-case 'ref':      html = nativeRefsOn() ? '' : V.ref(st.a); break;
-case 'glossary': html = nativeGlossaryOn() ? '' : V.glossary(); break;
-case 'roadmap':  html = nativeRoadmapOn() ? '' : V.roadmap(); break;
-case 'quiz':     html = nativeQuizOn() ? '' : V.quiz(); break;
+case 'refs':     html = nativeAllOn() ? '' : V.refs(); break;
+case 'ref':      html = nativeAllOn() ? '' : V.ref(st.a); break;
+case 'glossary': html = nativeAllOn() ? '' : V.glossary(); break;
+case 'roadmap':  html = nativeAllOn() ? '' : V.roadmap(); break;
+case 'quiz':     html = nativeAllOn() ? '' : V.quiz(); break;
 case 'cli':      html = V.cli(); break;
 case 'search':   html = V.search(lastQuery, A.searchAll(lastQuery)); break;
 default:         html = V.learn();
@@ -2318,22 +2293,22 @@ if (st.r === 'me') initSettings();
 scroll.scrollTop = restore ? (scrollMem[keyOf(st)] || 0) : 0;
 onScroll();
 warmFirstCardNow();
-if (st.r === 'phase' && nativePhaseOn()) {
+if (st.r === 'phase' && nativeAllOn()) {
 if (w.NetOpsNativePhaseShow) w.NetOpsNativePhaseShow(st.a);
 } else if (w.NetOpsNativePhaseHide) {
 w.NetOpsNativePhaseHide();
 }
-if (st.r === 'fault' && nativeFaultOn()) {
+if (st.r === 'fault' && nativeAllOn()) {
 try { if (w.NetBridge && w.NetBridge.showNativeFault) w.NetBridge.showNativeFault(); } catch (e) { }
 } else {
 try { if (w.NetBridge && w.NetBridge.hideNativeFault) w.NetBridge.hideNativeFault(); } catch (e) { }
 }
-if (st.r === 'iv' && nativeIvOn()) {
+if (st.r === 'iv' && nativeAllOn()) {
 try { if (w.NetBridge && w.NetBridge.showNativeIv) w.NetBridge.showNativeIv(); } catch (e) { }
 } else {
 try { if (w.NetBridge && w.NetBridge.hideNativeIv) w.NetBridge.hideNativeIv(); } catch (e) { }
 }
-if (st.r === 'dict' && nativeDictOn()) {
+if (st.r === 'dict' && nativeAllOn()) {
 try { if (w.NetBridge && w.NetBridge.showNativeDict) w.NetBridge.showNativeDict(); } catch (e) { }
 } else {
 try { if (w.NetBridge && w.NetBridge.hideNativeDict) w.NetBridge.hideNativeDict(); } catch (e) { }
@@ -2341,12 +2316,10 @@ try { if (w.NetBridge && w.NetBridge.hideNativeDict) w.NetBridge.hideNativeDict(
 try {
 var np = w.NetBridge;
 if (np) {
-var on = {
-learn: nativeHomeOn(), phase: nativePhaseOn(), fault: nativeFaultOn(),
-iv: nativeIvOn(), dict: nativeDictOn(), refs: nativeRefsOn(),
-glossary: nativeGlossaryOn(), roadmap: nativeRoadmapOn(),
-quiz: nativeQuizOn(), me: nativeMeOn(), search: nativeSearchOn(),
-fav: nativeFavOn(), ref: nativeRefsOn()
+var on = nativeAllOn() && {
+learn: 1, phase: 1, fault: 1, iv: 1, dict: 1, refs: 1,
+glossary: 1, roadmap: 1, quiz: 1, me: 1, search: 1,
+fav: 1, ref: 1
 }[st.r];
 if (on) {
 if (st.r === 'learn') np.showNativeHome();
@@ -2368,15 +2341,15 @@ np.hideAllNativePages();
 }
 } catch (e) { }
 try {
-if (st.r === 'refs' && nativeRefsOn()) w.NetBridge.showNativeRefs();
+if (st.r === 'refs' && nativeAllOn()) w.NetBridge.showNativeRefs();
 else if (st.r !== 'ref') w.NetBridge.hideNativeRefs();
 } catch (e) { }
 try {
-if (st.r === 'glossary' && nativeGlossaryOn()) w.NetBridge.showNativeGlossary();
+if (st.r === 'glossary' && nativeAllOn()) w.NetBridge.showNativeGlossary();
 else w.NetBridge.hideNativeGlossary();
 } catch (e) { }
 try {
-if (st.r === 'roadmap' && nativeRoadmapOn()) w.NetBridge.showNativeRoadmap();
+if (st.r === 'roadmap' && nativeAllOn()) w.NetBridge.showNativeRoadmap();
 else w.NetBridge.hideNativeRoadmap();
 } catch (e) { }
 }
@@ -2610,7 +2583,7 @@ var focus = g.getAttribute('data-focus');
 if (drawerCtl.isOpen()) drawerCtl.close();
 go(r, a);
 if (focus) {
-if (r === 'phase' && nativePhaseOn() && w.NetBridge && w.NetBridge.showNativePhaseFocus) {
+if (r === 'phase' && nativeAllOn() && w.NetBridge && w.NetBridge.showNativePhaseFocus) {
 try { w.NetBridge.showNativePhaseFocus(a, focus); } catch (e) { }
 } else {
 focusCard(focus);
@@ -3766,7 +3739,7 @@ if (input) { input.value = ''; input.blur(); }
 function bindSearch() {
 var wrap = $('#searchWrap'), input = $('#q');
 $('#btnSearch').addEventListener('click', function (ev) {
-if (nativeSearchOn() && w.NetBridge && w.NetBridge.showNativeSearch) {
+if (nativeAllOn() && w.NetBridge && w.NetBridge.showNativeSearch) {
 if (ev) { ev.preventDefault(); ev.stopPropagation(); }
 closeSearch();
 go('search', null);
@@ -4370,7 +4343,7 @@ buildDrawer();
 bindGlobal();
 bindSearch();
 $('#btnNav').addEventListener('click', function () {
-if (nativeDrawerOn() && w.NetBridge && w.NetBridge.showNativeDrawer) {
+if (nativeAllOn() && w.NetBridge && w.NetBridge.showNativeDrawer) {
 try { w.NetBridge.showNativeDrawer(); } catch (e) { }
 return;
 }
@@ -4410,12 +4383,12 @@ JSON.stringify(Object.keys(A.S.fav || {})));
 }
 function nativePhaseShow(pid) {
 try {
-if (!nativePhaseOn()) return false;
+if (!nativeAllOn()) return false;
 return w.NetBridge.showNativePhase(pid);
 } catch (e) { console.log('[NativePhase] show err ' + e); return false; }
 }
 function nativePhaseHide() {
-if (!nativePhaseOn()) return;
+if (!nativeAllOn()) return;
 try { if (w.NetBridge && w.NetBridge.hideNativePhase) w.NetBridge.hideNativePhase(); } catch (e) { }
 }
 w.NetOpsNativeGo = function (route, arg) {
@@ -5105,6 +5078,6 @@ if (document.readyState === 'loading') {
 document.addEventListener('DOMContentLoaded', init, { once: true });
 } else { init(); }
 })();
-;window.__BUILD__='20261031-0130';</script>
+;window.__BUILD__='20261031-0142';</script>
 </body>
 </html>
