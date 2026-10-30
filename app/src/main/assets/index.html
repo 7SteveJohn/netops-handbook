@@ -771,7 +771,7 @@ normalize: normalize,
 buildCount: function (CORE, MODS, COMMON) {
 var seen = {};
 CORE.dict.rows.forEach(function (r) {
-['hw', 'cs', 'zte', 'lx'].forEach(function (k) {
+['hw', 'cs', 'zte', 'lx', 'win'].forEach(function (k) {
 var c = r[k];
 if (!c || c === '-') return;                           
 var n = normalize(c), key = n.toLowerCase();
@@ -4635,6 +4635,7 @@ if (!isRoot(init.r)) stack.push({ r: META[init.r].tab, a: null });
 cur = init;
 syncHash(init);
 render(init, false);
+try { if (w.NetOpsPushAppBar) w.NetOpsPushAppBar(); } catch (e) { }
 d.body.classList.add('ready');
 if (w.NetBridge && w.NetBridge.ready) { try { w.NetBridge.ready(); } catch (e) {} }
 }
@@ -5104,6 +5105,6 @@ if (document.readyState === 'loading') {
 document.addEventListener('DOMContentLoaded', init, { once: true });
 } else { init(); }
 })();
-;window.__BUILD__='20261031-0126';</script>
+;window.__BUILD__='20261031-0130';</script>
 </body>
 </html>

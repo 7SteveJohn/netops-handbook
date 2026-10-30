@@ -3098,6 +3098,9 @@
     cur = init;
     syncHash(init);
     render(init, false);
+    /* 深链冷启动（#fault 等非默认路由）：render 已写好 curTitle，立刻直推，
+       别等 30ms 观察器 —— 否则原生栏会先显示默认标题再跳（2026-10-31 QA 实测）。 */
+    try { if (w.NetOpsPushAppBar) w.NetOpsPushAppBar(); } catch (e) { }
 
     d.body.classList.add('ready');
     if (w.NetBridge && w.NetBridge.ready) { try { w.NetBridge.ready(); } catch (e) {} }

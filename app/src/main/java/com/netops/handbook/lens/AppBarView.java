@@ -309,8 +309,9 @@ public class AppBarView extends View {
         btnRects[1] = new RectF(searchCx - half, cy - half, searchCx + half, cy + half);
         btnRects[2] = new RectF(themeCx - half, cy - half, themeCx + half, cy + half);
         /* 标题块左 = 行左 + pad + 44dp 按钮 + 4dp gap（紧接 nav 按钮之后，不盖按钮）。
-           右边界收到 search 命中区左侧再让 8dp（任务书实测值；CSS 的 gap 是 4dp，
-           多让 4dp 给省略号留呼吸），保证长标题不会爬进按钮。 */
+           右边界 = search 命中区左侧再让 8dp（CSS gap 4dp + 4dp 呼吸）。注意：
+           绘制目前只消费 left/centerY（drawTitle 不裁剪、不省略），现有文案实测
+           均在界内；若将来出现超长标题压到搜索键，再补 measureText 省略号。 */
         titleRect.set(rowLeft + pad + 48f * d, top, btnRects[1].left - 8f * d, top + rowH);
 
         hasGeometry = true;

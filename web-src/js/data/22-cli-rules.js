@@ -73,7 +73,9 @@
     buildCount: function (CORE, MODS, COMMON) {
       var seen = {};
       CORE.dict.rows.forEach(function (r) {
-        ['hw', 'cs', 'zte', 'lx'].forEach(function (k) {
+        /* 平台列必须与运行时 buildCliDb 的遍历一致（含 win）——漏 win 会让门禁
+           少算 20 条（2026-10-31 实测：门禁 712 vs App 自报 732）。 */
+        ['hw', 'cs', 'zte', 'lx', 'win'].forEach(function (k) {
           var c = r[k];
           if (!c || c === '-') return;                          /* 缺该厂商命令就不再拿功能名凑 */
           var n = normalize(c), key = n.toLowerCase();
