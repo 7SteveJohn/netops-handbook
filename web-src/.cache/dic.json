@@ -1,610 +1,610 @@
 [
- [
-  "1. 查看版本",
-  "display version",
-  "show version",
-  "show version",
-  "uname -a",
-  "systeminfo"
- ],
- [
-  "2. 运行配置",
-  "display cur",
-  "show run",
-  "show run",
-  "cat /etc/network/interfaces",
-  "-"
- ],
- [
-  "3. 保存配置",
-  "save",
-  "write memory",
-  "write",
-  "-",
-  "-"
- ],
- [
-  "4. 日志缓存",
-  "display logbuffer",
-  "show logging",
-  "show log",
-  "journalctl -xe",
-  "wevtutil qe System /c:20 /f:text"
- ],
- [
-  "5. NTP 同步",
-  "ntp-service enable",
-  "ntp server",
-  "ntp server",
-  "timedatectl set-ntp true",
-  "w32tm /resync"
- ],
- [
-  "6. 接口状态",
-  "dis ip int br",
-  "show ip int br",
-  "show interface br",
-  "ip addr show",
-  "ipconfig /all"
- ],
- [
-  "7. 配置 IP",
-  "ip address x.x.x.x m",
-  "ip address x.x.x.x m",
-  "ip address x.x.x.x m",
-  "ip addr add x.x.x.x/m dev eth0",
-  "netsh int ip set address"
- ],
- [
-  "8. 流量统计",
-  "display interface",
-  "show interfaces",
-  "show interface",
-  "ifconfig -a",
-  "Get-NetAdapterStatistics"
- ],
- [
-  "9. 速率双工",
-  "speed 1000 / duplex full",
-  "speed 1000 / duplex full",
-  "speed 1000",
-  "ethtool eth0",
-  "Get-NetAdapter | ft Name,LinkSpeed"
- ],
- [
-  "10. 接口描述",
-  "description",
-  "description",
-  "description",
-  "ip link set dev eth0 alias \"TO-CORE-GE0/0/1\"",
-  "Get-NetAdapter | ft Name,InterfaceDescription"
- ],
- [
-  "11. 批量VLAN",
-  "vlan batch 10 20",
-  "vlan 10,20",
-  "vlan 10,20",
-  "ip link add link eth0 name eth0.10 type vlan id 10   # 没有批量语法，按子接口逐个建",
-  "-"
- ],
- [
-  "12. VLAN成员",
-  "display vlan",
-  "show vlan",
-  "show vlan",
-  "bridge vlan",
-  "-"
- ],
- [
-  "13. Access模式",
-  "port link-type access",
-  "switchport mode access",
-  "switchport mode access",
-  "bridge vlan add dev eth0 vid 10 pvid untagged   # 还要 bridge 开 vlan_filtering 1，并把默认 vid 1 删掉",
-  "-"
- ],
- [
-  "14. Trunk放行",
-  "port trunk allow-pass vlan 10",
-  "switchport trunk allowed",
-  "switchport trunk allowed vlan add 10",
-  "for v in $(seq 10 20); do bridge vlan add dev eth0 vid $v tagged; done",
-  "-"
- ],
- [
-  "15. Hybrid模式",
-  "port link-type hybrid",
-  "无(类似general)",
-  "-",
-  "-",
-  "-"
- ],
- [
-  "16. MAC表",
-  "display mac-address",
-  "show mac address-table",
-  "show mac-address",
-  "bridge fdb show",
-  "arp -a"
- ],
- [
-  "17. 默认路由",
-  "ip route-static 0.0.0.0 0.0.0.0",
-  "ip route 0.0.0.0 0.0.0.0",
-  "ip route 0.0.0.0 0.0.0.0",
-  "ip route add default",
-  "route add 0.0.0.0 mask 0.0.0.0 <网关>"
- ],
- [
-  "18. OSPF宣告",
-  "area 0 ; network x.x.x.x y.y.y.y",
-  "network x.x.x.x y.y.y.y area 0",
-  "network x.x.x.x y.y.y.y area 0",
-  "birdc show protocols all ospf",
-  "-"
- ],
- [
-  "19. OSPF邻居",
-  "display ospf peer",
-  "show ip ospf neighbor",
-  "show ospf neighbor",
-  "birdc show protocols all ospf",
-  "-"
- ],
- [
-  "20. BGP邻居",
-  "peer x.x.x.x as-number 100",
-  "neighbor x.x.x.x remote-as",
-  "peer x.x.x.x as 100",
-  "vtysh -c \"show ip bgp summary\"",
-  "-"
- ],
- [
-  "21. BGP路由表",
-  "display bgp routing-table",
-  "show ip bgp",
-  "show bgp",
-  "birdc show route",
-  "-"
- ],
- [
-  "22. 接口 IPv6 使能",
-  "ipv6 enable",
-  "ipv6 enable",
-  "ipv6 enable",
-  "sysctl -w net.ipv6.conf.all.disable_ipv6=0",
-  "Enable-NetAdapterBinding -ComponentID ms_tcpip6"
- ],
- [
-  "23. IPv6地址",
-  "ipv6 address x::x/64",
-  "ipv6 address x::x/64",
-  "ipv6 address x::x/64",
-  "ip -6 addr add x::x/64",
-  "netsh int ipv6 add address"
- ],
- [
-  "24. IPv6路由",
-  "display ipv6 routing-table",
-  "show ipv6 route",
-  "show ipv6 route",
-  "ip -6 route show",
-  "route print -6"
- ],
- [
-  "25. 基本ACL",
-  "acl number 2000",
-  "access-list 1 permit",
-  "acl 1",
-  "iptables -A INPUT",
-  "netsh advfirewall firewall add rule"
- ],
- [
-  "26. 高级ACL",
-  "acl number 3000",
-  "access-list 100 permit",
-  "acl 100",
-  "iptables -A INPUT -p tcp",
-  "-"
- ],
- [
-  "27. 防火墙Zone",
-  "security-policy",
-  "zone security",
-  "zone",
-  "firewall-cmd --get-zones",
-  "netsh advfirewall show allprofiles"
- ],
- [
-  "28. 链路聚合",
-  "interface Eth-Trunk 1",
-  "interface Port-channel 1",
-  "interface aggregation",
-  "ip link add bond0 type bond",
-  "New-NetLbfoTeam"
- ],
- [
-  "29. VRRP网关",
-  "vrrp vrid 1 virtual-ip",
-  "vrrp 1 ip x.x.x.x",
-  "vrrp 1 ip x.x.x.x",
-  "keepalived.conf: vrrp_instance VI_1 { virtual_ipaddress { 10.1.1.1/24 dev eth0 } }",
-  "-"
- ],
- [
-  "30. 查看堆叠",
-  "display stack",
-  "show switch",
-  "show stack",
-  "-",
-  "-"
- ],
- [
-  "31. AP状态",
-  "display ap all",
-  "show ap summary",
-  "show ap",
-  "-",
-  "-"
- ],
- [
-  "32. 无线SSID",
-  "ssid-profile",
-  "ssid",
-  "ssid",
-  "hostapd",
-  "netsh wlan show profiles"
- ],
- [
-  "33. K8s网关",
-  "-",
-  "-",
-  "-",
-  "kubectl get ingress",
-  "kubectl get ingress"
- ],
- [
-  "34. NAPALM",
-  "-",
-  "-",
-  "-",
-  "Python napalm",
-  "-"
- ],
- [
-  "35. RESTCONF",
-  "-",
-  "-",
-  "-",
-  "curl -X GET restconf/",
-  "-"
- ],
- [
-  "36. K8s排障",
-  "-",
-  "-",
-  "-",
-  "kubectl describe pod",
-  "kubectl describe pod"
- ],
- [
-  "37. MPLS LSP",
-  "display mpls lsp",
-  "show mpls forwarding-table",
-  "-",
-  "-",
-  "-"
- ],
- [
-  "38. SRv6",
-  "segment-routing ipv6",
-  "-",
-  "-",
-  "ip -6 route",
-  "-"
- ],
- [
-  "39. BGP EVPN",
-  "display bgp l2vpn evpn",
-  "show bgp l2vpn evpn",
-  "-",
-  "vtysh -c \"show bgp l2vpn evpn\"",
-  "-"
- ],
- [
-  "40. MPLS LDP",
-  "display mpls ldp session",
-  "show mpls ldp neighbor",
-  "show mpls ldp",
-  "-",
-  "-"
- ],
- [
-  "41. DHCP池",
-  "dhcp server ip-pool",
-  "ip dhcp pool",
-  "dhcp pool",
-  "dnsmasq",
-  "-"
- ],
- [
-  "42. QoS整形",
-  "traffic-policy",
-  "policy-map",
-  "qos",
-  "tc qdisc",
-  "New-NetQosPolicy"
- ],
- [
-  "43. 策略路由",
-  "traffic-policy / redirect",
-  "route-map",
-  "policy-based-route",
-  "ip rule",
-  "-"
- ],
- [
-  "44. CSS堆叠",
-  "display css status",
-  "show switch",
-  "show stack",
-  "-",
-  "-"
- ],
- [
-  "45. 堆叠优先级",
-  "stack member 1 priority",
-  "switch 1 priority",
-  "-",
-  "-",
-  "-"
- ],
- [
-  "46. 路径追踪",
-  "tracert",
-  "traceroute",
-  "traceroute",
-  "mtr",
-  "tracert"
- ],
- [
-  "47. 镜像抓包",
-  "mirroring",
-  "monitor session",
-  "mirror",
-  "tcpdump -i eth0",
-  "pktmon start --capture"
- ],
- [
-  "48. CPU利用率",
-  "display cpu-usage",
-  "show processes cpu",
-  "show cpu",
-  "top / htop",
-  "typeperf \"\\Processor(_Total)\\% Processor Time\""
- ],
- [
-  "49. 内存利用率",
-  "display memory-usage",
-  "show processes memory",
-  "show memory",
-  "free -h",
-  "systeminfo"
- ],
- [
-  "50. 日志过滤",
-  "info-center loghost level",
-  "logging trap",
-  "log level",
-  "journalctl -p warning",
-  "wevtutil qe System /f:text | findstr /i error"
- ],
- [
-  "51. NAT64",
-  "nat64 prefix",
-  "nat64 prefix",
-  "nat64",
-  "jool",
-  "-"
- ],
- [
-  "52. 464XLAT",
-  "-",
-  "-",
-  "-",
-  "clatd",
-  "-"
- ],
- [
-  "53. VXLAN VNI",
-  "vxlan vni 100",
-  "vni 100",
-  "-",
-  "ip link add vxlan100 type vxlan id 100 dev eth0 dstport 4789",
-  "-"
- ],
- [
-  "54. SRv6 Policy",
-  "segment-routing ipv6",
-  "-",
-  "-",
-  "-",
-  "-"
- ],
- [
-  "55. eBPF检查",
-  "-",
-  "-",
-  "-",
-  "bpftool prog list",
-  "-"
- ],
- [
-  "56. BGP邻居汇总",
-  "display bgp peer",
-  "show ip bgp summary",
-  "show bgp summary",
-  "birdc show proto",
-  "-"
- ],
- [
-  "57. 路由表查看",
-  "display ip routing-table",
-  "show ip route",
-  "show ip route",
-  "ip route",
-  "route print"
- ],
- [
-  "58. 接口简要",
-  "display interface brief",
-  "show ip interface brief",
-  "show interface brief",
-  "ip -br addr",
-  "ipconfig"
- ],
- [
-  "59. 抓包过滤",
-  "capture-packet（华为 VRP 板载抓包，可挂 ACL 限源目；H3C 对应 packet-capture）",
-  "monitor capture CAP int Gi0/0/1 both → match ipv4 host A host B → monitor capture CAP start",
-  "-",
-  "tcpdump -i eth0 -nn host 198.51.100.80 and tcp port 443",
-  "pktmon filter add"
- ],
- [
-  "60. DNS 解析验证与指定服务器查询",
-  "<Huawei> nslookup <SVC-HOST>；<Huawei> display dns server",
-  "Switch# ping <SVC-HOST>；Switch# show hosts",
-  "-",
-  "root@netops:~# dig +short @198.51.100.53 <SVC-HOST>",
-  "-"
- ],
- [
-  "61. 带宽与丢包压测",
-  "VRP 无 iperf，用 NQA 测抖动/丢包：nqa test-instance admin udpj → test-type udpjitter → destination-address ipv4 198.51.100.10 → start now；display nqa results 查结果（对端设备需 nqa-server udpecho 收包）；H3C Comware 同有 NQA udp-jitter，语法以各自文档为准",
-  "IOS 无 iperf，用 IP SLA：ip sla 1 → udp-jitter 198.51.100.10 16384 → frequency 30，ip sla schedule 1 start-time now；show ip sla statistics（对端需 ip sla responder）",
-  "-",
-  "iperf3 -s 服务端；iperf3 -c <IP> -t 10 -P 4；-u -b <标称带宽> 看丢包/抖动；-R 反向；-w 加大 TCP 窗口",
-  "-"
- ],
- [
-  "62. NTP 时钟同步",
-  "ntp-service unicast-server 198.51.100.10；display ntp-service status / sessions（H3C Comware 同族语法）",
-  "ntp server 198.51.100.10；show ntp status / show ntp associations",
-  "-",
-  "timedatectl set-ntp true；chronyc sources -v / chronyc tracking",
-  "-"
- ],
- [
-  "63. QoS 分类标记与队列调度",
-  "traffic classifier … if-match acl；traffic behavior … remark dscp ef / car cir / gts cir；traffic policy + 接口下 traffic-policy p-mark inbound；display traffic policy statistics（H3C 同为 MQC 三段，接口应用写 qos apply policy p inbound）",
-  "class-map / policy-map（set dscp ef、police cir、shape average、priority LLQ）+ service-policy input|output；show policy-map interface",
-  "-",
-  "tc qdisc add dev eth0 root handle 1: htb default 10；tc class add dev eth0 parent 1: classid 1:10 htb rate 100mbit；tc filter add dev eth0 parent 1: protocol ip u32 match ip tos 0xb8 0xfc flowid 1:10（DSCP EF=46=0xb8）；tc -s qdisc show dev eth0",
-  "-"
- ],
- [
-  "64. IS-IS",
-  "isis 1 + network-entity 49.0001.0000.0000.0001.00，接口 isis enable 1；display isis peer / display isis route。H3C 同构：Comware 同名命令（isis 1 / network-entity / isis enable / display isis peer）",
-  "router isis + net 49.0001.0000.0000.0002.00，接口 ip router isis；show isis neighbors / show ip route isis",
-  "-",
-  "FRR isisd：router isis 1 + net ...，接口 ip router isis 1；vtysh -c 'show isis neighbor'",
-  "-"
- ],
- [
-  "65. LLDP 开关与邻居查看",
-  "lldp enable 全局开、接口下 undo lldp enable 关；display lldp neighbor brief 看速查、display lldp neighbor <接口> 看明细（H3C 为 lldp global enable / display lldp neighbor-information brief）",
-  "lldp run 全局开（Catalyst IOS 缺省关，NX-OS 缺省开）；show lldp neighbors [detail]；接口 no lldp transmit 停发；思科互联另有 CDP：cdp run + show cdp neighbors",
-  "-",
-  "lldpd 守护进程常驻收发；lldpctl 直接打印对端 SysName / SysDescr / MgmtIP / PortID",
-  "-"
- ],
- [
-  "66. 广播风暴抑制",
-  "storm-control broadcast percent 5 10 / action block / interval 10，display storm-control（H3C 为接口下 broadcast-suppression ratio 10 或 pps 2000，display broadcast-suppression）",
-  "storm-control broadcast level 10.00 5.00；show storm-control / show interfaces counters broadcast",
-  "-",
-  "ip -s -s link show eth0 看 broadcast 计数增速；tcpdump -ei eth0 broadcast -c 200 采样广播占比（主机侧只做观测）",
-  "-"
- ],
- [
-  "67. GRE 隧道",
-  "interface Tunnel0/0/1 下 tunnel-protocol gre + source/destination；H3C 为 interface Tunnel1 mode gre + source/destination",
-  "interface Tunnel0 下 tunnel source + tunnel destination；GRE over IPsec 加 tunnel protection ipsec profile",
-  "-",
-  "ip tunnel add gre1 mode gre local <本端公网IP> remote <对端公网IP> ttl 255，随后 ip addr add 10.255.0.2/30 dev gre1 + ip link set gre1 up",
-  "-"
- ],
- [
-  "68. 防火墙双机热备（HRP）",
-  "hrp enable / hrp standby-device / hrp interface GigabitEthernet1/0/3 remote 198.51.100.2 / hrp mirror session enable；display hrp state（H3C RBM：remote-backup group 下 remote-backup local/peer + data-channel + device-role primary）",
-  "failover lan unit primary；failover lan interface FAILOVER GigabitEthernet0/3；failover interface ip FAILOVER 198.51.100.1 255.255.255.252 standby 198.51.100.2；failover link STATE GigabitEthernet0/2（状态链路同步会话）；show failover state",
-  "-",
-  "keepalived 配 vrrp_instance 做网关冗余 + conntrackd 同步 conntrack 会话表（conntrackd -s 看同步统计、conntrack -L 列会话表）",
-  "-"
- ],
- [
-  "69. NetFlow / sFlow 流量分析",
-  "ip netstream export host 198.51.100.10 2055；接口下 ip netstream inbound（H3C 同为 netstream 命令族）",
-  "ip flow-export destination 198.51.100.10 2055；接口下 ip flow ingress",
-  "-",
-  "nfcapd -p 2055 -l /var/cache/nfdump/netflow -D 采集；nfdump -R <归档目录> -s ip/bytes 分析",
-  "-"
- ],
- [
-  "70. SNMP Trap 告警上行",
-  "snmp-agent trap enable + snmp-agent target-host trap address udp-domain <接收端IP> params securityname <community> v2c（复核：display snmp-agent target-host）",
-  "snmp-server enable traps snmp linkdown linkup + snmp-server host <接收端IP> version 2c <community>（复核：show snmp host）",
-  "-",
-  "发送：snmptrap -v 2c -c <community> <接收端IP> '' SNMPv2-MIB::coldStart；接收：snmptrapd -f -Lo（snmptrapd.conf 配 authcommunity）",
-  "-"
- ],
- [
-  "71. 组播组",
-  "display igmp group",
-  "show ip igmp groups",
-  "-",
-  "ip maddr show",
-  "-"
- ],
- [
-  "72. M-LAG",
-  "dfs-group 1",
-  "vpc domain 1",
-  "-",
-  "-",
-  "-"
- ],
- [
-  "73. MACsec",
-  "-",
-  "key chain <名> macsec → key <十六进制CKN> → cryptographic-algorithm aes-256-cmac → key-string <CAK>；接口下 macsec network-link",
-  "-",
-  "ip link add macsec0 link eth0 type macsec",
-  "-"
- ],
- [
-  "74. SD-WAN隧道",
-  "display ike sa（站点侧查看 IPsec/IKE SA 验证 Overlay 隧道建立；TNP 隧道属性与选路策略由 iMaster NCE 集中下发，站点侧一般只查不改）",
-  "-",
-  "-",
-  "-",
-  "-"
- ],
- [
-  "75. 容器网络",
-  "-",
-  "-",
-  "-",
-  "docker network inspect bridge",
-  "docker network inspect bridge"
- ],
- [
-  "76. 网管取数",
-  "-",
-  "-",
-  "-",
-  "zabbix_get -s 198.51.100.5 -k system.hostname",
-  "-"
- ]
+  [
+    "1. 查看版本",
+    "display version",
+    "show version",
+    "show version",
+    "uname -a",
+    "systeminfo"
+  ],
+  [
+    "2. 运行配置",
+    "display cur",
+    "show run",
+    "show run",
+    "cat /etc/network/interfaces",
+    "ipconfig /all                     # 查看生效配置（Windows 无\"运行/保存\"两态，改完即生效）"
+  ],
+  [
+    "3. 保存配置",
+    "save",
+    "write memory",
+    "write",
+    "-",
+    "-"
+  ],
+  [
+    "4. 日志缓存",
+    "display logbuffer",
+    "show logging",
+    "show log",
+    "journalctl -xe",
+    "wevtutil qe System /c:20 /f:text"
+  ],
+  [
+    "5. NTP 同步",
+    "ntp-service enable",
+    "ntp server",
+    "ntp server",
+    "timedatectl set-ntp true",
+    "w32tm /resync"
+  ],
+  [
+    "6. 接口状态",
+    "dis ip int br",
+    "show ip int br",
+    "show interface br",
+    "ip addr show",
+    "ipconfig /all"
+  ],
+  [
+    "7. 配置 IP",
+    "ip address x.x.x.x m",
+    "ip address x.x.x.x m",
+    "ip address x.x.x.x m",
+    "ip addr add x.x.x.x/m dev eth0",
+    "netsh int ip set address"
+  ],
+  [
+    "8. 流量统计",
+    "display interface",
+    "show interfaces",
+    "show interface",
+    "ifconfig -a",
+    "Get-NetAdapterStatistics"
+  ],
+  [
+    "9. 速率双工",
+    "speed 1000 / duplex full",
+    "speed 1000 / duplex full",
+    "speed 1000",
+    "ethtool eth0",
+    "Get-NetAdapter | ft Name,LinkSpeed"
+  ],
+  [
+    "10. 接口描述",
+    "description",
+    "description",
+    "description",
+    "ip link set dev eth0 alias \"TO-CORE-GE0/0/1\"",
+    "Get-NetAdapter | ft Name,InterfaceDescription"
+  ],
+  [
+    "11. 批量VLAN",
+    "vlan batch 10 20",
+    "vlan 10,20",
+    "vlan 10,20",
+    "ip link add link eth0 name eth0.10 type vlan id 10   # 没有批量语法，按子接口逐个建",
+    "-"
+  ],
+  [
+    "12. VLAN成员",
+    "display vlan",
+    "show vlan",
+    "show vlan",
+    "bridge vlan",
+    "-"
+  ],
+  [
+    "13. Access模式",
+    "port link-type access",
+    "switchport mode access",
+    "switchport mode access",
+    "bridge vlan add dev eth0 vid 10 pvid untagged   # 还要 bridge 开 vlan_filtering 1，并把默认 vid 1 删掉",
+    "-"
+  ],
+  [
+    "14. Trunk放行",
+    "port trunk allow-pass vlan 10",
+    "switchport trunk allowed",
+    "switchport trunk allowed vlan add 10",
+    "for v in $(seq 10 20); do bridge vlan add dev eth0 vid $v tagged; done",
+    "-"
+  ],
+  [
+    "15. Hybrid模式",
+    "port link-type hybrid",
+    "无(类似general)",
+    "-",
+    "-",
+    "-"
+  ],
+  [
+    "16. MAC表",
+    "display mac-address",
+    "show mac address-table",
+    "show mac-address",
+    "bridge fdb show",
+    "arp -a"
+  ],
+  [
+    "17. 默认路由",
+    "ip route-static 0.0.0.0 0.0.0.0",
+    "ip route 0.0.0.0 0.0.0.0",
+    "ip route 0.0.0.0 0.0.0.0",
+    "ip route add default",
+    "route add 0.0.0.0 mask 0.0.0.0 <网关>"
+  ],
+  [
+    "18. OSPF宣告",
+    "area 0 ; network x.x.x.x y.y.y.y",
+    "network x.x.x.x y.y.y.y area 0",
+    "network x.x.x.x y.y.y.y area 0",
+    "birdc show protocols all ospf",
+    "-"
+  ],
+  [
+    "19. OSPF邻居",
+    "display ospf peer",
+    "show ip ospf neighbor",
+    "show ospf neighbor",
+    "birdc show protocols all ospf",
+    "-"
+  ],
+  [
+    "20. BGP邻居",
+    "peer x.x.x.x as-number 100",
+    "neighbor x.x.x.x remote-as",
+    "peer x.x.x.x as 100",
+    "vtysh -c \"show ip bgp summary\"",
+    "-"
+  ],
+  [
+    "21. BGP路由表",
+    "display bgp routing-table",
+    "show ip bgp",
+    "show bgp",
+    "birdc show route",
+    "-"
+  ],
+  [
+    "22. 接口 IPv6 使能",
+    "ipv6 enable",
+    "ipv6 enable",
+    "ipv6 enable",
+    "sysctl -w net.ipv6.conf.all.disable_ipv6=0",
+    "Enable-NetAdapterBinding -ComponentID ms_tcpip6"
+  ],
+  [
+    "23. IPv6地址",
+    "ipv6 address x::x/64",
+    "ipv6 address x::x/64",
+    "ipv6 address x::x/64",
+    "ip -6 addr add x::x/64",
+    "netsh int ipv6 add address"
+  ],
+  [
+    "24. IPv6路由",
+    "display ipv6 routing-table",
+    "show ipv6 route",
+    "show ipv6 route",
+    "ip -6 route show",
+    "route print -6"
+  ],
+  [
+    "25. 基本ACL",
+    "acl number 2000",
+    "access-list 1 permit",
+    "acl 1",
+    "iptables -A INPUT",
+    "netsh advfirewall firewall add rule"
+  ],
+  [
+    "26. 高级ACL",
+    "acl number 3000",
+    "access-list 100 permit",
+    "acl 100",
+    "iptables -A INPUT -p tcp",
+    "netsh advfirewall firewall add rule name=block80 dir=in action=block protocol=TCP localport=80"
+  ],
+  [
+    "27. 防火墙Zone",
+    "security-policy",
+    "zone security",
+    "zone",
+    "firewall-cmd --get-zones",
+    "netsh advfirewall show allprofiles"
+  ],
+  [
+    "28. 链路聚合",
+    "interface Eth-Trunk 1",
+    "interface Port-channel 1",
+    "interface aggregation",
+    "ip link add bond0 type bond",
+    "New-NetLbfoTeam"
+  ],
+  [
+    "29. VRRP网关",
+    "vrrp vrid 1 virtual-ip",
+    "vrrp 1 ip x.x.x.x",
+    "vrrp 1 ip x.x.x.x",
+    "keepalived.conf: vrrp_instance VI_1 { virtual_ipaddress { 10.1.1.1/24 dev eth0 } }",
+    "-"
+  ],
+  [
+    "30. 查看堆叠",
+    "display stack",
+    "show switch",
+    "show stack",
+    "-",
+    "-"
+  ],
+  [
+    "31. AP状态",
+    "display ap all",
+    "show ap summary",
+    "show ap",
+    "-",
+    "-"
+  ],
+  [
+    "32. 无线SSID",
+    "ssid-profile",
+    "ssid",
+    "ssid",
+    "hostapd",
+    "netsh wlan show profiles"
+  ],
+  [
+    "33. K8s网关",
+    "-",
+    "-",
+    "-",
+    "kubectl get ingress",
+    "kubectl get ingress"
+  ],
+  [
+    "34. NAPALM",
+    "-",
+    "-",
+    "-",
+    "Python napalm",
+    "-"
+  ],
+  [
+    "35. RESTCONF",
+    "-",
+    "-",
+    "-",
+    "curl -X GET restconf/",
+    "-"
+  ],
+  [
+    "36. K8s排障",
+    "-",
+    "-",
+    "-",
+    "kubectl describe pod",
+    "kubectl describe pod"
+  ],
+  [
+    "37. MPLS LSP",
+    "display mpls lsp",
+    "show mpls forwarding-table",
+    "-",
+    "-",
+    "-"
+  ],
+  [
+    "38. SRv6",
+    "segment-routing ipv6",
+    "-",
+    "-",
+    "ip -6 route",
+    "-"
+  ],
+  [
+    "39. BGP EVPN",
+    "display bgp l2vpn evpn",
+    "show bgp l2vpn evpn",
+    "-",
+    "vtysh -c \"show bgp l2vpn evpn\"",
+    "-"
+  ],
+  [
+    "40. MPLS LDP",
+    "display mpls ldp session",
+    "show mpls ldp neighbor",
+    "show mpls ldp",
+    "-",
+    "-"
+  ],
+  [
+    "41. DHCP池",
+    "dhcp server ip-pool",
+    "ip dhcp pool",
+    "dhcp pool",
+    "dnsmasq",
+    "Get-DhcpServerv4Scope            # PS：需装 DHCP Server 角色/RSAT"
+  ],
+  [
+    "42. QoS整形",
+    "traffic-policy",
+    "policy-map",
+    "qos",
+    "tc qdisc",
+    "New-NetQosPolicy"
+  ],
+  [
+    "43. 策略路由",
+    "traffic-policy / redirect",
+    "route-map",
+    "policy-based-route",
+    "ip rule",
+    "-"
+  ],
+  [
+    "44. CSS堆叠",
+    "display css status",
+    "show switch",
+    "show stack",
+    "-",
+    "-"
+  ],
+  [
+    "45. 堆叠优先级",
+    "stack member 1 priority",
+    "switch 1 priority",
+    "-",
+    "-",
+    "-"
+  ],
+  [
+    "46. 路径追踪",
+    "tracert",
+    "traceroute",
+    "traceroute",
+    "mtr",
+    "tracert"
+  ],
+  [
+    "47. 镜像抓包",
+    "mirroring",
+    "monitor session",
+    "mirror",
+    "tcpdump -i eth0",
+    "pktmon start --capture"
+  ],
+  [
+    "48. CPU利用率",
+    "display cpu-usage",
+    "show processes cpu",
+    "show cpu",
+    "top / htop",
+    "typeperf \"\\Processor(_Total)\\% Processor Time\""
+  ],
+  [
+    "49. 内存利用率",
+    "display memory-usage",
+    "show processes memory",
+    "show memory",
+    "free -h",
+    "systeminfo"
+  ],
+  [
+    "50. 日志过滤",
+    "info-center loghost level",
+    "logging trap",
+    "log level",
+    "journalctl -p warning",
+    "wevtutil qe System /f:text | findstr /i error"
+  ],
+  [
+    "51. NAT64",
+    "nat64 prefix",
+    "nat64 prefix",
+    "nat64",
+    "jool",
+    "-"
+  ],
+  [
+    "52. 464XLAT",
+    "-",
+    "-",
+    "-",
+    "clatd",
+    "-"
+  ],
+  [
+    "53. VXLAN VNI",
+    "vxlan vni 100",
+    "vni 100",
+    "-",
+    "ip link add vxlan100 type vxlan id 100 dev eth0 dstport 4789",
+    "-"
+  ],
+  [
+    "54. SRv6 Policy",
+    "segment-routing ipv6",
+    "-",
+    "-",
+    "-",
+    "-"
+  ],
+  [
+    "55. eBPF检查",
+    "-",
+    "-",
+    "-",
+    "bpftool prog list",
+    "-"
+  ],
+  [
+    "56. BGP邻居汇总",
+    "display bgp peer",
+    "show ip bgp summary",
+    "show bgp summary",
+    "birdc show proto",
+    "-"
+  ],
+  [
+    "57. 路由表查看",
+    "display ip routing-table",
+    "show ip route",
+    "show ip route",
+    "ip route",
+    "route print"
+  ],
+  [
+    "58. 接口简要",
+    "display interface brief",
+    "show ip interface brief",
+    "show interface brief",
+    "ip -br addr",
+    "ipconfig"
+  ],
+  [
+    "59. 抓包过滤",
+    "capture-packet（华为 VRP 板载抓包，可挂 ACL 限源目；H3C 对应 packet-capture）",
+    "monitor capture CAP int Gi0/0/1 both → match ipv4 host A host B → monitor capture CAP start",
+    "-",
+    "tcpdump -i eth0 -nn host 198.51.100.80 and tcp port 443",
+    "pktmon filter add"
+  ],
+  [
+    "60. DNS 解析验证与指定服务器查询",
+    "<Huawei> nslookup <SVC-HOST>；<Huawei> display dns server",
+    "Switch# ping <SVC-HOST>；Switch# show hosts",
+    "-",
+    "root@netops:~# dig +short @198.51.100.53 <SVC-HOST>",
+    "nslookup <SVC-HOST> <DNS-SERVER>"
+  ],
+  [
+    "61. 带宽与丢包压测",
+    "VRP 无 iperf，用 NQA 测抖动/丢包：nqa test-instance admin udpj → test-type udpjitter → destination-address ipv4 198.51.100.10 → start now；display nqa results 查结果（对端设备需 nqa-server udpecho 收包）；H3C Comware 同有 NQA udp-jitter，语法以各自文档为准",
+    "IOS 无 iperf，用 IP SLA：ip sla 1 → udp-jitter 198.51.100.10 16384 → frequency 30，ip sla schedule 1 start-time now；show ip sla statistics（对端需 ip sla responder）",
+    "-",
+    "iperf3 -s 服务端；iperf3 -c <IP> -t 10 -P 4；-u -b <标称带宽> 看丢包/抖动；-R 反向；-w 加大 TCP 窗口",
+    "-"
+  ],
+  [
+    "62. NTP 时钟同步",
+    "ntp-service unicast-server 198.51.100.10；display ntp-service status / sessions（H3C Comware 同族语法）",
+    "ntp server 198.51.100.10；show ntp status / show ntp associations",
+    "-",
+    "timedatectl set-ntp true；chronyc sources -v / chronyc tracking",
+    "w32tm /config /manualpeerlist:\"ntp.aliyun.com\" /syncfromflags:manual /update；w32tm /resync；w32tm /query /status 看源与偏差"
+  ],
+  [
+    "63. QoS 分类标记与队列调度",
+    "traffic classifier … if-match acl；traffic behavior … remark dscp ef / car cir / gts cir；traffic policy + 接口下 traffic-policy p-mark inbound；display traffic policy statistics（H3C 同为 MQC 三段，接口应用写 qos apply policy p inbound）",
+    "class-map / policy-map（set dscp ef、police cir、shape average、priority LLQ）+ service-policy input|output；show policy-map interface",
+    "-",
+    "tc qdisc add dev eth0 root handle 1: htb default 10；tc class add dev eth0 parent 1: classid 1:10 htb rate 100mbit；tc filter add dev eth0 parent 1: protocol ip u32 match ip tos 0xb8 0xfc flowid 1:10（DSCP EF=46=0xb8）；tc -s qdisc show dev eth0",
+    "New-NetQosPolicy -Name \"voip\" -DSCPAction 46   # PS；Get-NetQosPolicy 查看；DSCP EF=46"
+  ],
+  [
+    "64. IS-IS",
+    "isis 1 + network-entity 49.0001.0000.0000.0001.00，接口 isis enable 1；display isis peer / display isis route。H3C 同构：Comware 同名命令（isis 1 / network-entity / isis enable / display isis peer）",
+    "router isis + net 49.0001.0000.0000.0002.00，接口 ip router isis；show isis neighbors / show ip route isis",
+    "-",
+    "FRR isisd：router isis 1 + net ...，接口 ip router isis 1；vtysh -c 'show isis neighbor'",
+    "-"
+  ],
+  [
+    "65. LLDP 开关与邻居查看",
+    "lldp enable 全局开、接口下 undo lldp enable 关；display lldp neighbor brief 看速查、display lldp neighbor <接口> 看明细（H3C 为 lldp global enable / display lldp neighbor-information brief）",
+    "lldp run 全局开（Catalyst IOS 缺省关，NX-OS 缺省开）；show lldp neighbors [detail]；接口 no lldp transmit 停发；思科互联另有 CDP：cdp run + show cdp neighbors",
+    "-",
+    "lldpd 守护进程常驻收发；lldpctl 直接打印对端 SysName / SysDescr / MgmtIP / PortID",
+    "-"
+  ],
+  [
+    "66. 广播风暴抑制",
+    "storm-control broadcast percent 5 10 / action block / interval 10，display storm-control（H3C 为接口下 broadcast-suppression ratio 10 或 pps 2000，display broadcast-suppression）",
+    "storm-control broadcast level 10.00 5.00；show storm-control / show interfaces counters broadcast",
+    "-",
+    "ip -s -s link show eth0 看 broadcast 计数增速；tcpdump -ei eth0 broadcast -c 200 采样广播占比（主机侧只做观测）",
+    "-"
+  ],
+  [
+    "67. GRE 隧道",
+    "interface Tunnel0/0/1 下 tunnel-protocol gre + source/destination；H3C 为 interface Tunnel1 mode gre + source/destination",
+    "interface Tunnel0 下 tunnel source + tunnel destination；GRE over IPsec 加 tunnel protection ipsec profile",
+    "-",
+    "ip tunnel add gre1 mode gre local <本端公网IP> remote <对端公网IP> ttl 255，随后 ip addr add 10.255.0.2/30 dev gre1 + ip link set gre1 up",
+    "-"
+  ],
+  [
+    "68. 防火墙双机热备（HRP）",
+    "hrp enable / hrp standby-device / hrp interface GigabitEthernet1/0/3 remote 198.51.100.2 / hrp mirror session enable；display hrp state（H3C RBM：remote-backup group 下 remote-backup local/peer + data-channel + device-role primary）",
+    "failover lan unit primary；failover lan interface FAILOVER GigabitEthernet0/3；failover interface ip FAILOVER 198.51.100.1 255.255.255.252 standby 198.51.100.2；failover link STATE GigabitEthernet0/2（状态链路同步会话）；show failover state",
+    "-",
+    "keepalived 配 vrrp_instance 做网关冗余 + conntrackd 同步 conntrack 会话表（conntrackd -s 看同步统计、conntrack -L 列会话表）",
+    "-"
+  ],
+  [
+    "69. NetFlow / sFlow 流量分析",
+    "ip netstream export host 198.51.100.10 2055；接口下 ip netstream inbound（H3C 同为 netstream 命令族）",
+    "ip flow-export destination 198.51.100.10 2055；接口下 ip flow ingress",
+    "-",
+    "nfcapd -p 2055 -l /var/cache/nfdump/netflow -D 采集；nfdump -R <归档目录> -s ip/bytes 分析",
+    "-"
+  ],
+  [
+    "70. SNMP Trap 告警上行",
+    "snmp-agent trap enable + snmp-agent target-host trap address udp-domain <接收端IP> params securityname <community> v2c（复核：display snmp-agent target-host）",
+    "snmp-server enable traps snmp linkdown linkup + snmp-server host <接收端IP> version 2c <community>（复核：show snmp host）",
+    "-",
+    "发送：snmptrap -v 2c -c <community> <接收端IP> '' SNMPv2-MIB::coldStart；接收：snmptrapd -f -Lo（snmptrapd.conf 配 authcommunity）",
+    "-"
+  ],
+  [
+    "71. 组播组",
+    "display igmp group",
+    "show ip igmp groups",
+    "-",
+    "ip maddr show",
+    "netsh interface ip show joins"
+  ],
+  [
+    "72. M-LAG",
+    "dfs-group 1",
+    "vpc domain 1",
+    "-",
+    "-",
+    "-"
+  ],
+  [
+    "73. MACsec",
+    "-",
+    "key chain <名> macsec → key <十六进制CKN> → cryptographic-algorithm aes-256-cmac → key-string <CAK>；接口下 macsec network-link",
+    "-",
+    "ip link add macsec0 link eth0 type macsec",
+    "-"
+  ],
+  [
+    "74. SD-WAN隧道",
+    "display ike sa（站点侧查看 IPsec/IKE SA 验证 Overlay 隧道建立；TNP 隧道属性与选路策略由 iMaster NCE 集中下发，站点侧一般只查不改）",
+    "-",
+    "-",
+    "-",
+    "-"
+  ],
+  [
+    "75. 容器网络",
+    "-",
+    "-",
+    "-",
+    "docker network inspect bridge",
+    "docker network inspect bridge"
+  ],
+  [
+    "76. 网管取数",
+    "-",
+    "-",
+    "-",
+    "zabbix_get -s 198.51.100.5 -k system.hostname",
+    "-"
+  ]
 ]
