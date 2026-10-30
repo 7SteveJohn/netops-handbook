@@ -378,12 +378,24 @@ public class AppBarView extends View {
         int bot = top + (int) barRect.height() + 1;
         int w = Math.max(4, r - l), h = Math.max(4, bot - top);
         final int revAtReq = bgRev;   /* 在途期间 bgrev 再变 → 完成后补抓（丢更新竞态） */
+        final Handler h = new Handler(Looper.getMainLooper());
+        final Runnable watchdog = () -> {
+            /* PixelCopy 回调可能被丢（切后台/旋转时 surface 撕掉）——copyBusy 一旦
+               卡死，玻璃就冻结在最后一次成功采样直到重启（2026-10-30 真机实测）。
+               700ms 没回来视为丢失：解除闩锁并重试一次。 */
+            if (copyBusy && !detached) {
+                copyBusy = false;
+                post(this::captureBackdrop);
+            }
+        };
         try {
             Bitmap out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
             copyBusy = true;
+            h.postDelayed(watchdog, 700);
             PixelCopy.request(act.getWindow(), new Rect(l, top, l + w, top + h), out,
                     result -> {
                         copyBusy = false;
+                        h.removeCallbacks(watchdog);
                         if (detached) return;
                         if (result == PixelCopy.SUCCESS) {
                             backdrop = out;
@@ -394,9 +406,10 @@ public class AppBarView extends View {
                         } else {
                             Log.w(TAG, "PixelCopy 失败 result=" + result + "，顶栏退回实色");
                         }
-                    }, new Handler(Looper.getMainLooper()));
+                    }, h);
         } catch (Throwable t) {
             copyBusy = false;
+            h.removeCallbacks(watchdog);
             Log.w(TAG, "抓背景异常", t);
         }
     }

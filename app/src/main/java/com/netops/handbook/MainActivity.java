@@ -632,6 +632,15 @@ public class MainActivity extends AppCompatActivity {
         if (root != null) ViewCompat.requestApplyInsets(root);
     }
 
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        /* 回前台强制重抓顶栏玻璃底图：切后台期间 PixelCopy 回调可能被丢，
+           copyBusy 闩锁会让玻璃冻在最后一次成功采样（2026-10-30 用户实测：
+           正常用一阵后顶栏玻璃变成别的页的残像，重启才恢复）。 */
+        if (hasFocus && appbarBar != null) appbarBar.invalidateBackdrop();
+    }
+
     /**
      * 系统内存压力下的降级。javap 查过：WebView 没有 trimMemory/onLowMemory 可供转发，
      * 只剩 freeMemory()；真正值钱的是收掉 offscreenPreRaster 那份视口大小的离屏缓冲
