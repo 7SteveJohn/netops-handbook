@@ -1255,6 +1255,12 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public void showNativeRefs() { if (nativeRefs != null) runOnUiThread(() -> { hideNativePagesExcept("refs"); nativeRefs.show(); }); }
 
+        /** 速查单表直达（原 WebView `ref` 页的入口：搜索「速查」结果点开）。 */
+        @JavascriptInterface
+        public void showNativeRef(String id) {
+            if (nativeRefs != null) runOnUiThread(() -> { hideNativePagesExcept("refs"); nativeRefs.showDetail(id); });
+        }
+
         @JavascriptInterface
         public void hideNativeRefs() { if (nativeRefs != null) runOnUiThread(() -> nativeRefs.hide()); }
 

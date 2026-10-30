@@ -56,10 +56,25 @@ public class NativeRefsView extends LinearLayout {
     /** 已构建过就复用：buildPage 一次要几十到几百 ms，每次 show 重建会把 UI 线程按住，
      *  切页时侧栏弹簧直接顿住（2026-10-28）。数据/主题变化才置脏。 */
     private boolean dirty = true;
+    /** 单表详情模式（搜索「速查」结果直达用）；null = 列表模式。 */
+    private String detailId = null;
 
     public boolean show() {
         if (refs.length() == 0) return false;
+        if (detailId != null) { detailId = null; dirty = true; }   /* 回列表必须重建 */
         if (getVisibility() == VISIBLE && !dirty) return true;
+        return present();
+    }
+
+    /** 直达单表：原 WebView `ref` 页的最后一块入口（2026-10-31）。id 未命中退回列表。 */
+    public boolean showDetail(String id) {
+        if (refs.length() == 0) return false;
+        detailId = id == null ? "" : id;
+        dirty = true;
+        return present();
+    }
+
+    private boolean present() {
         if (dirty || page.getChildCount() == 0) { buildPage(); dirty = false; }
         scroller.scrollTo(0, 0);
         animate().cancel();          /* 取消未完成的 hide 动画，否则其 endAction 会把刚显示的页面又置 GONE */
@@ -103,6 +118,12 @@ public class NativeRefsView extends LinearLayout {
         page.removeAllViews();
         page.setPadding(pal.dp(14), pal.dp(10), pal.dp(14), pal.dp(24));
 
+        if (detailId != null) {
+            JSONObject hit = findRef(detailId);
+            if (hit != null) { page.addView(tableCard(hit)); return; }
+            detailId = null;   /* 未命中：当列表处理 */
+        }
+
         LinearLayout head = NativeBlocks.card(getContext(), pal);
         head.addView(NativeBlocks.tv(getContext(), pal, "速查表", 19, true, pal.textMain));
         TextView sub = NativeBlocks.tv(getContext(), pal,
@@ -121,6 +142,14 @@ public class NativeRefsView extends LinearLayout {
             JSONObject r = refs.optJSONObject(i);
             if (r != null) page.addView(tableCard(r));
         }
+    }
+
+    private JSONObject findRef(String id) {
+        for (int i = 0; i < refs.length(); i++) {
+            JSONObject r = refs.optJSONObject(i);
+            if (r != null && id.equals(r.optString("id"))) return r;
+        }
+        return null;
     }
 
     private android.view.View tableCard(JSONObject r) {

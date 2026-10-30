@@ -156,6 +156,19 @@ function build() {
     console.error('\n  ✗ 玻璃配方表生成失败（glass-recipe.json 有问题？）：' + e.message);
     process.exit(1);
   }
+  /* 原生数据同步生成：资产里的 native-data.json 也必须"改了源就重建"。
+     2026-10-30 曾把 10-29 的旧数据打进包（题库 135 而非 199），发版级事故。
+     该工具属私有工具链（AGENTS.md 私有边界），公开仓库没有它 → 静默跳过。 */
+  try {
+    require('./tools/gen-native-data.js');
+  } catch (e) {
+    if (/Cannot find module/.test(String(e && e.message))) {
+      console.log('  · 跳过 native-data.json 生成（此环境无私有工具 gen-native-data.js）');
+    } else {
+      console.error('\n  ✗ native-data.json 生成失败：' + e.message);
+      process.exit(1);
+    }
+  }
   const report = [];
 
   const preErrs = syntaxCheck(CSS_FILES, true).concat(syntaxCheck(JS_FILES, false));

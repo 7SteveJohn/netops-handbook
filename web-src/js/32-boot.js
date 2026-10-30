@@ -95,7 +95,7 @@
       case 'me':       html = nativeMeOn() ? '' : V.me(); break;
       case 'fav':      html = V.fav(); break;
       case 'refs':     html = nativeRefsOn() ? '' : V.refs(); break;
-      case 'ref':      html = V.ref(st.a); break;
+      case 'ref':      html = nativeRefsOn() ? '' : V.ref(st.a); break;
       case 'glossary': html = nativeGlossaryOn() ? '' : V.glossary(); break;
       case 'roadmap':  html = nativeRoadmapOn() ? '' : V.roadmap(); break;
       case 'quiz':     html = nativeQuizOn() ? '' : V.quiz(); break;
@@ -169,7 +169,7 @@
           iv: nativeIvOn(), dict: nativeDictOn(), refs: nativeRefsOn(),
           glossary: nativeGlossaryOn(), roadmap: nativeRoadmapOn(),
           quiz: nativeQuizOn(), me: nativeMeOn(), search: nativeSearchOn(),
-          fav: nativeFavOn()
+          fav: nativeFavOn(), ref: nativeRefsOn()
         }[st.r];
         if (on) {
           if (st.r === 'learn') np.showNativeHome();
@@ -184,14 +184,17 @@
           else if (st.r === 'me') np.showNativeMe();
           else if (st.r === 'search') np.showNativeSearch();
           else if (st.r === 'fav') np.showNativeFav();
+          else if (st.r === 'ref') np.showNativeRef(st.a || '');
         } else {
           np.hideAllNativePages();
         }
       }
     } catch (e) { }
     try {
+      /* ref（单表详情）也活在 NativeRefsView 里，别在它上面调 showNativeRefs
+         （那会把 detailId 重置回列表）；显隐已由上面的 np 分支处理。 */
       if (st.r === 'refs' && nativeRefsOn()) w.NetBridge.showNativeRefs();
-      else w.NetBridge.hideNativeRefs();
+      else if (st.r !== 'ref') w.NetBridge.hideNativeRefs();
     } catch (e) { }
     try {
       if (st.r === 'glossary' && nativeGlossaryOn()) w.NetBridge.showNativeGlossary();
