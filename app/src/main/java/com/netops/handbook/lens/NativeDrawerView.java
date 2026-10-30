@@ -219,10 +219,22 @@ public class NativeDrawerView extends FrameLayout {
         }
 
         panel.addView(section("查询工具"));
-        panel.addView(item("排障字典", "35 个案例", () -> go.go("fault", "")));
-        panel.addView(item("命令字典", "58 条对照", () -> go.go("dict", "")));
-        panel.addView(item("面试题库", "53 题", () -> go.go("iv", "")));
-        panel.addView(item("速查表", "12 张", () -> go.go("refs", "")));
+        panel.addView(item("排障字典", cnt("faults") + " 个案例", () -> go.go("fault", "")));
+        panel.addView(item("命令字典", dictRows() + " 条对照", () -> go.go("dict", "")));
+        panel.addView(item("面试题库", cnt("interview") + " 题", () -> go.go("iv", "")));
+        panel.addView(item("速查表", cnt("refs") + " 张", () -> go.go("refs", "")));
+    }
+
+    /* 查询工具的副标题随 native-data 实时数走（2026-10-30 前为硬编码 35/58/53/12，扩容后全部过期） */
+    private int cnt(String key) {
+        JSONArray a = root == null ? null : root.optJSONArray(key);
+        return a == null ? 0 : a.length();
+    }
+
+    private int dictRows() {
+        JSONObject d = root == null ? null : root.optJSONObject("dict");
+        JSONArray r = d == null ? null : d.optJSONArray("rows");
+        return r == null ? 0 : r.length();
     }
 
     private View section(String t) {
