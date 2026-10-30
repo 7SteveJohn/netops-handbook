@@ -38,6 +38,14 @@
   var scrollMem = {};
   var lastQuery = '';
 
+  /* 2026-10-31（P0-1 顶栏状态源解耦）：顶栏的标题 / 副标题 / 返回态在 render()
+     里由路由状态算一次并缓存在这里，pushAppBarState() 只读这三个变量，不再读
+     #barName / #barSub 的文本与 #navUse 的 href —— 原生顶栏因此对 HTML 顶栏节点
+     零依赖（DOM 只剩「网页回退顶栏」自己要看的那份）。
+     初值必须用默认路由（META.learn）兜住：applyNativeAppbar() 的首次推送发生在
+     render(init) 之前，空串会让原生栏先画一帧空标题（实测 58ms 空白闪烁）。 */
+  var curTitle = META.learn.t, curSub = META.learn.s, curNavBack = false;
+
   function isRoot(r) { return !!(META[r] && META[r].tab === r); }
 
   /* ---------------- 渲染 ---------------- */
@@ -113,6 +121,10 @@
     if (st.r === 'phase' && A.PH[st.a]) { title = A.PH[st.a].short; sub = A.PH[st.a].title; }
     if (st.r === 'ref') { EXT.refs.forEach(function (x) { if (x.id === st.a) { title = x.t; sub = x.d; } }); }
     if (st.r === 'search') { sub = lastQuery ? ('关键词：' + lastQuery) : ''; }
+    /* 状态源（唯一，P0-1）：标题/副标题/返回态在这里定稿，DOM 写入与原生推送都取自它 */
+    curTitle = title;
+    curSub = sub;
+    curNavBack = !(isRoot(st.r) && !stack.length);
     barName.textContent = title;
     barSub.textContent = sub;
     d.documentElement.setAttribute('data-accent', (st.r === 'phase' && A.PH[st.a]) ? A.PH[st.a].color : m.accent);
@@ -121,7 +133,7 @@
     $$('.tab').forEach(function (b) { b.classList.toggle('is-active', b.dataset.tab === m.tab); });
     syncPillIndex();
     /* 导航按钮：一级用菜单，二级用返回 */
-    navUse.setAttribute('href', (isRoot(st.r) && !stack.length) ? '#i-menu' : '#i-chev-left');
+    navUse.setAttribute('href', curNavBack ? '#i-chev-left' : '#i-menu');
 
     updateProgress();
 
@@ -674,6 +686,9 @@
     /* 玻璃参数按主题分两套（暗色要压暗背景层、下限也不同），换主题必须重算 */
     applyGlass(getGlass() || glassDefaults);
     syncThemeIcon();
+    /* 主题图标刷新不靠 MutationObserver 的 30ms 合并（P0-1：推送已不读 DOM，
+       观察器仍会因 href 变化补一次，这里再直推一次保证图标同帧跟手） */
+    try { if (w.NetOpsPushAppBar) w.NetOpsPushAppBar(); } catch (e) { }
     if (cur.r === 'me') initSettings();
     U.toast('主题：' + ({ auto: '跟随系统', light: '浅色', dark: '深色' }[t]), 'ok');
   }
@@ -2887,9 +2902,11 @@
        开（默认）= body.native-appbar-on（HTML 顶栏 visibility:hidden，保留布局供
        原生索取几何），外观/触摸由 AppBarView 接管；搜索展开、抽屉打开时原生整窗
        退位、HTML 顶栏显形（body 上 is-appbar-q / is-appbar-overlay 组合类 + 原生
-       同步收窗）。状态同步用 MutationObserver（appbar 子树的标题文本/图标 href/
-       类切换 + body 级类变化 → 30ms 合并推送），调用点零侵入；几何由原生主动
-       索取（Bridge.ready / insets / 旋转补测时注入量测 JS），这里只做应答。 */
+       同步收窗）。状态同步用 MutationObserver（appbar 子树的类切换 + body 级类变化
+       → 30ms 合并推送），调用点零侵入。
+       2026-10-31（P0-1）：标题/副标题/返回态改由 render() 缓存的路由状态提供
+       （curTitle/curSub/curNavBack），观察器只再承担 search/overlay/scrolled/
+       body class 这些"真·DOM 态"；几何自测已搬到 AppBarView（P0-2）。 */
     var NATIVE_APPBAR_KEY = 'netops_native_appbar';
     var lastAppBarName = null, lastAppBarScrolled = null;
     function nativeAppbarOn() {
@@ -2906,7 +2923,7 @@
            （2026-10-30 用户报「玻璃里隐隐有网络学习手册 2.0」）。改为：
            标题变（路由换）立即 bump + 450ms 后补 bump 抓稳定帧；is-scrolled
            翻越（栏下内容位移越阈值）也 bump。 */
-        var nm = barName ? barName.textContent : '';
+        var nm = curTitle;
         if (nm !== lastAppBarName) {
           if (lastAppBarName !== null) {
             APPBAR_BG_REV++;
@@ -2925,10 +2942,14 @@
         d.body.classList.toggle('is-appbar-q', searchOpen);
         d.body.classList.toggle('is-appbar-overlay', overlaid);
         w.NetBridge.setAppBarState(JSON.stringify({
-          name: barName ? barName.textContent : '',
-          sub: barSub ? barSub.textContent : '',
-          navBack: !!(navUse && navUse.getAttribute('href') === '#i-chev-left'),
-          themeMoon: !!(themeUse && themeUse.getAttribute('href') === '#i-moon'),
+          /* 文案与返回态取自路由状态（curTitle/curSub/curNavBack），不读 DOM：
+             任务书原文写 themeMoon 用 !U.theme.isDark()，但那会把图标语义翻反
+             （AppBarView.themeMoon：false=太阳=当前亮；syncThemeIcon 也是
+             深色→月亮），故此处取 isDark() 本身，与改动前的 DOM 推导完全等价。 */
+          name: curTitle,
+          sub: curSub,
+          navBack: curNavBack,
+          themeMoon: U.theme.isDark(),
           scrolled: app.classList.contains('is-scrolled'),
           search: searchOpen,
           overlaid: overlaid,
@@ -2962,7 +2983,8 @@
         if (t) return;
         t = setTimeout(function () { t = 0; pushAppBarState(); }, 30);
       }
-      /* appbar 子树：标题文本、navUse/themeUse 的 href、is-scrolled/is-open 类 */
+      /* appbar 子树：is-scrolled / searchWrap.is-open 类（标题与图标已改为状态变量，
+         观察器留着是为类切换，不要删） */
       new MutationObserver(schedule).observe(app, {
         subtree: true, childList: true, attributes: true, characterData: true
       });

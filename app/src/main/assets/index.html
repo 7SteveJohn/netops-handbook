@@ -2240,6 +2240,7 @@ var MAX_STACK = 40;
 var filters = { faultCat: '全部', dictCat: '全部', ivCat: '全部' };
 var scrollMem = {};
 var lastQuery = '';
+var curTitle = META.learn.t, curSub = META.learn.s, curNavBack = false;
 function isRoot(r) { return !!(META[r] && META[r].tab === r); }
 function keyOf(st) { return st.r + ':' + (st.a || ''); }
 function hasNativeBridge() {
@@ -2302,12 +2303,15 @@ var title = m.t, sub = m.s;
 if (st.r === 'phase' && A.PH[st.a]) { title = A.PH[st.a].short; sub = A.PH[st.a].title; }
 if (st.r === 'ref') { EXT.refs.forEach(function (x) { if (x.id === st.a) { title = x.t; sub = x.d; } }); }
 if (st.r === 'search') { sub = lastQuery ? ('关键词：' + lastQuery) : ''; }
+curTitle = title;
+curSub = sub;
+curNavBack = !(isRoot(st.r) && !stack.length);
 barName.textContent = title;
 barSub.textContent = sub;
 d.documentElement.setAttribute('data-accent', (st.r === 'phase' && A.PH[st.a]) ? A.PH[st.a].color : m.accent);
 $$('.tab').forEach(function (b) { b.classList.toggle('is-active', b.dataset.tab === m.tab); });
 syncPillIndex();
-navUse.setAttribute('href', (isRoot(st.r) && !stack.length) ? '#i-menu' : '#i-chev-left');
+navUse.setAttribute('href', curNavBack ? '#i-chev-left' : '#i-menu');
 updateProgress();
 if (st.r === 'cli') initCli();
 if (st.r === 'me') initSettings();
@@ -2735,6 +2739,7 @@ function setTheme(t) {
 U.theme.set(t);
 applyGlass(getGlass() || glassDefaults);
 syncThemeIcon();
+try { if (w.NetOpsPushAppBar) w.NetOpsPushAppBar(); } catch (e) { }
 if (cur.r === 'me') initSettings();
 U.toast('主题：' + ({ auto: '跟随系统', light: '浅色', dark: '深色' }[t]), 'ok');
 }
@@ -4481,7 +4486,7 @@ if (!(w.NetBridge && w.NetBridge.setAppBarState)) return;
 var app = $('#appbar');
 if (!app) return;
 var sw = $('#searchWrap');
-var nm = barName ? barName.textContent : '';
+var nm = curTitle;
 if (nm !== lastAppBarName) {
 if (lastAppBarName !== null) {
 APPBAR_BG_REV++;
@@ -4500,10 +4505,10 @@ var overlaid = !!d.querySelector('.drawer.is-open');
 d.body.classList.toggle('is-appbar-q', searchOpen);
 d.body.classList.toggle('is-appbar-overlay', overlaid);
 w.NetBridge.setAppBarState(JSON.stringify({
-name: barName ? barName.textContent : '',
-sub: barSub ? barSub.textContent : '',
-navBack: !!(navUse && navUse.getAttribute('href') === '#i-chev-left'),
-themeMoon: !!(themeUse && themeUse.getAttribute('href') === '#i-moon'),
+name: curTitle,
+sub: curSub,
+navBack: curNavBack,
+themeMoon: U.theme.isDark(),
 scrolled: app.classList.contains('is-scrolled'),
 search: searchOpen,
 overlaid: overlaid,
@@ -5099,6 +5104,6 @@ if (document.readyState === 'loading') {
 document.addEventListener('DOMContentLoaded', init, { once: true });
 } else { init(); }
 })();
-;window.__BUILD__='20261031-0041';</script>
+;window.__BUILD__='20261031-0126';</script>
 </body>
 </html>

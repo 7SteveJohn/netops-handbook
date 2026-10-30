@@ -29,7 +29,6 @@ import android.view.ViewGroup;
 import android.webkit.WebView;
 import android.widget.PopupWindow;
 
-import org.json.JSONArray;
 import org.json.JSONObject;
 
 /**
@@ -47,9 +46,11 @@ import org.json.JSONObject;
  *    一概不动）。退位由 32-boot 的状态推送驱动，CSS 组合类兜底显形，
  *    见 06-anim.css 的 native-appbar-on 块。
  *
- * 几何真源在 CSS（栏矩形 / 标题块 / 三个按钮矩形全量由 JS 上报，原生层零推导
- * —— R1 的血泪教训：推导必错）。按钮动作 = 程序化 click 对应 HTML 按钮
- * （visibility:hidden 收不到真触摸），全部既有逻辑留在页面侧。
+ * 几何真源在本类（2026-10-31 P0-2 起）：栏矩形 / 标题块 / 三个按钮命中区按 CSS
+ * 布局的实测常量自测（{@link #applySelfGeometry(int)}），不再向 WebView 索取 ——
+ * HTML 顶栏因此可整块移除，也不会再有「量到旧布局」的旋转时序问题。
+ * 按钮动作 = 程序化 click 对应 HTML 按钮（visibility:hidden 收不到真触摸），
+ * 全部既有逻辑留在页面侧。
  * 回退开关：设置页「我的→原生顶栏」（localStorage netops_native_appbar，默认开）。
  */
 public class AppBarView extends View {
@@ -62,7 +63,12 @@ public class AppBarView extends View {
     private ViewGroup anchor;
     private volatile boolean detached = false;
 
-    /* ---- 几何（本 View 坐标物理 px；JS 上报，原生层不做推导）---- */
+    /** .appbar 里除内容行之外的两条「仪表」：topbar-progress 2.5dp + border-bottom 1dp。
+     *  玻璃必须把它们一起盖住 —— 只画 54dp 内容行时栏底会露 3.5dp 未处理壁纸
+     *  （改动前 JS 量的是 .appbar 整体矩形，天然含这两条）。 */
+    private static final float CHROME_EXTRA_DP = 3.5f;
+
+    /* ---- 几何（本 View 坐标物理 px；本类自测，见 applySelfGeometry）---- */
     private final RectF barRect = new RectF();      // 栏矩形（含状态栏 padding 区）
     private final RectF titleRect = new RectF();    // 标题块（name+sub 两行）
     private final RectF[] btnRects = new RectF[3];  // nav / search / theme 命中区
@@ -99,7 +105,7 @@ public class AppBarView extends View {
     private final Paint nameP = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint subP = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint fallbackP = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private LinearGradient gradTint;      // 缓存：applyColors()/setGeometry() 时置空重建
+    private LinearGradient gradTint;      // 缓存：applyColors()/applySelfGeometry() 时置空重建
     private RadialGradient gradSpec;
     private LinearGradient gradShadow;
 
@@ -254,101 +260,98 @@ public class AppBarView extends View {
     }
 
     /**
-     * 几何上报（原生索取制的应答）。数组均为屏幕物理 px（CSS×devicePixelRatio）：
-     * bar=整条（含状态栏 padding 区），title=标题块，nav/search/theme=按钮命中区。
+     * 几何自测（P0-2，2026-10-31）：顶栏矩形不再向 WebView 索取，原生按 density
+     * 常量自己算 —— HTML 顶栏因此可整块移除，旋转/冷启动也不再有「量到旧布局」
+     * 的时序问题（2026-10-30 横屏玻璃带只有 1904px 的根因）。
+     *
+     * 横向常量按 CSS 的宽度断点折算（.appbar__row 的行盒 + padding + 44dp 按钮 + 4dp gap）：
+     *   行内边距：<900dp → 0 6px（03-layout.css:51）；>=900dp → 0 18px（05-views.css:454）；
+     *             >=1200dp → 0 22px（05-views.css:478）；
+     *   行盒：>=600dp 起 max-width 720dp 居中（05-views.css:432），>=900dp 取消封顶。
+     *   实测设备（~950dp 宽）即 pad=18 那一档，代入得 nav 中心距左 40dp /
+     *   theme 中心距右 40dp / search 中心距右 88dp / 标题块左 66dp ——
+     *   与改动前 JS 量 DOM 得到的值一致。
+     *   命中区仍放宽到 48dp 见方（CSS .ibtn 是 44dp，图标中心不变）。
+     *
+     * 纵向：barRect 覆盖 .appbar 整体（含 2.5dp 进度条 + 1dp 底边框），但标题与三键
+     * 只居中在 54dp 内容行里（否则会整体下移 1.75dp）。
+     *
+     * @param statusTopPx 状态栏（含刘海）高度，物理 px；来自 Insets systemBars|cutout
      */
-    public void setGeometry(String json) {
+    public void applySelfGeometry(int statusTopPx) {
+        if (detached) return;
+        float d = density;
+        float barH = barHeightPx();
+        float rowH = barH - CHROME_EXTRA_DP * d;   // .appbar__row 内容行高（54dp / 46dp）
+        float top = Math.max(0f, statusTopPx);
+        int sw = getResources().getDisplayMetrics().widthPixels;
+
+        barRect.set(0f, 0f, sw, top + barH);
+        float cy = top + rowH / 2f;
+        float btn = 48f * d;            // 命中区边宽（48dp 见方）
+        float half = btn / 2f;
+
+        /* 横向：.appbar__row 的行盒在四个断点下不同 —— 先求行盒（rowLeft / rowW），
+           再在行盒坐标系里套「pad + 半个 44dp 按钮」得键中心。padDp 是 dp，展开成
+           px 必须乘 density；行盒位置也用 px。 */
+        float wDp = sw / d;
+        float padDp = wDp >= 1200f ? 22f : (wDp >= 900f ? 18f : 6f);   // 行内边距
+        float pad = padDp * d;
+        /* >=600dp 起行盒封顶 720dp 并居中（05-views.css:432），>=900dp 起取消封顶
+           （05-views.css:454/478）—— 只有 720~899dp 档 rowLeft 非零（8" 平板竖屏 /
+           分屏会落在这里），此时三键与标题都得整体右移 (sw-720dp)/2。 */
+        float rowW = (wDp >= 600f && wDp < 900f) ? Math.min(sw, 720f * d) : sw;
+        float rowLeft = (sw - rowW) / 2f;
+        float navCx = rowLeft + pad + 22f * d;                  // 行左 + pad + 半格
+        float themeCx = rowLeft + rowW - (pad + 22f * d);       // 行右 - pad - 半格
+        float searchCx = themeCx - 48f * d;                     // 相邻一格：44dp 按钮 + 4dp gap
+        btnRects[0] = new RectF(navCx - half, cy - half, navCx + half, cy + half);
+        btnRects[1] = new RectF(searchCx - half, cy - half, searchCx + half, cy + half);
+        btnRects[2] = new RectF(themeCx - half, cy - half, themeCx + half, cy + half);
+        /* 标题块左 = 行左 + pad + 44dp 按钮 + 4dp gap（紧接 nav 按钮之后，不盖按钮）。
+           右边界收到 search 命中区左侧再让 8dp（任务书实测值；CSS 的 gap 是 4dp，
+           多让 4dp 给省略号留呼吸），保证长标题不会爬进按钮。 */
+        titleRect.set(rowLeft + pad + 48f * d, top, btnRects[1].left - 8f * d, top + rowH);
+
+        hasGeometry = true;
+        /* 窗口高度收紧到「栏 + 阴影」：attach 时给的 170dp 只是几何未知前的余量，
+           但 PopupWindow 内的触摸全归本窗（非按钮区转发给 WebView），多出来的空白
+           会吃掉下方内容的点击 —— 2026-10-27 真机：原生阶段页顶部按钮点不动。
+           宽度必须给绝对 px：PopupWindow.update 对 MATCH_PARENT(-1) 的处理不可靠，
+           旋转后窗口会停在旧宽度把画布裁掉（2026-10-30 真机横屏右侧裸壁纸硬缝）。 */
         try {
-            JSONObject o = new JSONObject(json);
-            RectF bar = readRect(o, "bar");
-            RectF title = readRect(o, "title");
-            RectF nav = readRect(o, "nav");
-            RectF se = readRect(o, "search");
-            RectF th = readRect(o, "theme");
-            if (bar == null || bar.width() < 4 || bar.height() < 4) return;
-            int[] vl = new int[2];
-            getLocationOnScreen(vl);
-            toLocal(bar, vl);
-            toLocal(title, vl);
-            toLocal(nav, vl);
-            toLocal(se, vl);
-            toLocal(th, vl);
-            barRect.set(bar);
-            titleRect.set(title == null ? new RectF() : title);
-            btnRects[0] = nav;
-            btnRects[1] = se;
-            btnRects[2] = th;
-            hasGeometry = true;
-            /* 窗口高度收紧到「栏 + 阴影」：attach 时给的 170dp 只是几何未知前的余量，
-               但 PopupWindow 内的触摸全归本窗（非按键区转发给 WebView），多出来的
-               空白会吃掉下方内容的点击 —— 2026-10-27 真机：原生阶段页顶部按钮点不动。
-               收到几何后按真实栏高重设窗口。 */
-            try {
-                if (popup != null) {
-                    int hWin = (int) (barRect.height() + 30f * density);
-                    /* 宽度必须给绝对 px：PopupWindow.update 对 MATCH_PARENT(-1) 的处理
-                       不可靠，旋转后窗口会停在旧宽度把画布裁掉（2026-10-30 真机：
-                       横屏玻璃带只画到 1904px，右侧裸壁纸硬缝）。 */
-                    int sw = getResources().getDisplayMetrics().widthPixels;
-                    popup.update(0, 0, sw, hWin);
-                }
-            } catch (Throwable ignored) { }
-            backdropRev = -1;   // 几何变了 → 背景区域变了 → 重抓
-            gradTint = null;
-            gradSpec = null;
-            gradShadow = null;
-            invalidate();
-            Log.i(TAG, String.format(
-                    "几何已同步 栏(%.0f,%.0f %.0f×%.0f) 标题x=%.0f 三键x=%.0f/%.0f/%.0f",
-                    barRect.left, barRect.top, barRect.width(), barRect.height(),
-                    titleRect.left,
-                    btnRects[0] == null ? -1 : btnRects[0].centerX(),
-                    btnRects[1] == null ? -1 : btnRects[1].centerX(),
-                    btnRects[2] == null ? -1 : btnRects[2].centerX()));
-        } catch (Throwable t) {
-            Log.w(TAG, "几何解析失败", t);
-        }
-    }
-
-    private static RectF readRect(JSONObject o, String key) {
-        JSONArray a = o.optJSONArray(key);
-        if (a == null || a.length() < 4) return null;
-        RectF r = new RectF();
-        r.set((float) a.optDouble(0), (float) a.optDouble(1),
-                (float) a.optDouble(0) + (float) a.optDouble(2),
-                (float) a.optDouble(1) + (float) a.optDouble(3));
-        return r;
-    }
-
-    private static void toLocal(RectF r, int[] viewOrigin) {
-        r.offsetTo(r.left - viewOrigin[0], r.top - viewOrigin[1]);
+            if (popup != null) {
+                popup.update(0, 0, sw, (int) (barRect.height() + 30f * d));
+            }
+        } catch (Throwable ignored) { }
+        backdropRev = -1;   // 几何变了 → 背景区域变了 → 重抓
+        gradTint = null;
+        gradSpec = null;
+        gradShadow = null;
+        invalidate();
+        Log.i(TAG, String.format(
+                "几何自测 栏(%.0f,%.0f %.0f×%.0f) 标题x=%.0f 三键x=%.0f/%.0f/%.0f",
+                barRect.left, barRect.top, barRect.width(), barRect.height(),
+                titleRect.left,
+                btnRects[0].centerX(), btnRects[1].centerX(), btnRects[2].centerX()));
     }
 
     /**
-     * 主动向页面索取几何（R1 同款索取制：失败在 logcat 一目了然）。
-     * Bridge.ready、insets 应用后、旋转补测时各调一次（MainActivity 挂钩）。
+     * 栏总高（物理 px）= .appbar 整体矩形高度，与改动前 JS 量 DOM 的口径一致：
+     *   57.5dp = 54dp 内容行（--appbar-h）+ 2.5dp 进度条 + 1dp 底边框；
+     * 矮屏横屏 CSS 把 --appbar-h 压到 46px（05-views.css
+     * 「@media (max-height:460px) and (orientation:landscape)」），对应 49.5dp。
+     * 3.5dp 那截不能省：只画内容行会让栏底露一条未处理的壁纸缝。
      */
-    public void requestGeometry() {
-        if (webView == null || detached) return;
-        String js = "(function(){try{"
-                + "var dpr=window.devicePixelRatio||1;"
-                + "var bar=document.querySelector('.appbar');"
-                + "var title=document.querySelector('.appbar__title');"
-                + "var nav=document.getElementById('btnNav');"
-                + "var se=document.getElementById('btnSearch');"
-                + "var th=document.getElementById('btnTheme');"
-                + "if(!bar||!title||!nav||!se||!th)return;"
-                + "function r(el){var b=el.getBoundingClientRect();"
-                + "return [b.left*dpr,b.top*dpr,b.width*dpr,b.height*dpr];}"
-                + "if(window.NetBridge&&NetBridge.setAppBarGeometry){"
-                + "NetBridge.setAppBarGeometry(JSON.stringify({bar:r(bar),title:r(title),"
-                + "nav:r(nav),search:r(se),theme:r(th)}));}"
-                + "}catch(e){}})()";
+    private float barHeightPx() {
+        float dp = 57.5f;                                   // 54dp 内容行 + 2.5 + 1
         try {
-            webView.evaluateJavascript(js, null);
-        } catch (Throwable t) {
-            Log.w(TAG, "索取几何的 JS 注入失败", t);
-        }
+            android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
+            boolean landscape = dm.widthPixels > dm.heightPixels;
+            float hDp = dm.heightPixels / density;
+            if (landscape && hDp <= 460f) dp = 49.5f;       // 46dp 内容行 + 2.5 + 1
+        } catch (Throwable ignored) { }
+        return dp * density;
     }
 
     /* ================= 背景（PixelCopy 采样） =================

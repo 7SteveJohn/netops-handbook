@@ -154,6 +154,9 @@ public class MainActivity extends AppCompatActivity {
     private boolean pageReady = false;
     private String pendingInsetsJs = null;
     private int lastInsetSig = Integer.MIN_VALUE;
+    /** 顶部安全区（状态栏 + 刘海）高度，物理 px。原生顶栏自测要它当栏顶 padding，
+     *  取最近一次 insets 分发的 bars.top（P0-2：不再问 WebView 要几何）。 */
+    private int statusTopInsetPx = 0;
 
     // ------------------------------------------------------------------ 生命周期
 
@@ -530,21 +533,12 @@ public class MainActivity extends AppCompatActivity {
         }
 
         /* R2 原生顶栏：顶部独立窗，画玻璃背景 + 标题 + 三键；
-           搜索/抽屉在场时整窗退位（见 AppBarView）。 */
+           搜索/抽屉在场时整窗退位（见 AppBarView）。
+           几何由 AppBarView 自测（P0-2，2026-10-31）：不再向网页索取，
+           因此也不需要 2026-10-30 那个「等 WebView 布局变化再量」的钩子。 */
         try {
             appbarBar = com.netops.handbook.lens.AppBarView.attach(this, root, webView);
             appbarBar.setDark(resolvedDark());
-            /* 旋转后 onConfigurationChanged 里立即索取几何会量到「旧布局」
-               （WebView 还没换向重排）→ 顶栏玻璃停在竖屏宽度（2026-10-30 真机：
-               横屏玻璃带只有 1904px，右侧裸壁纸硬缝）。改为 WebView 尺寸真正
-               变化后再索取：布局回调即新几何，防抖 120ms 合并连发。 */
-            final Runnable[] geoTask = {null};
-            webView.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or_, ob) -> {
-                if (r - l == or_ - ol && b - t == ob - ot) return;
-                if (geoTask[0] != null) webView.removeCallbacks(geoTask[0]);
-                geoTask[0] = () -> { if (appbarBar != null) appbarBar.requestGeometry(); };
-                webView.postDelayed(geoTask[0], 120);
-            });
         } catch (Throwable t) {
             Log.w(TAG, "原生顶栏挂载失败（不影响主流程）", t);
             appbarBar = null;
@@ -919,6 +913,9 @@ public class MainActivity extends AppCompatActivity {
             Insets bars = insets.getInsets(
                     WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
             Insets ime = insets.getInsets(WindowInsetsCompat.Type.ime());
+            /* 顶栏几何自测的唯一外部输入（物理 px）。每次分发都刷新，即使安全区
+               签名没变也保持最新（旋转后签名可能相同但高度取自新方向）。 */
+            statusTopInsetPx = bars.top;
             float dp = getResources().getDisplayMetrics().density;
             if (dp <= 0) dp = 1f;
 
@@ -972,7 +969,34 @@ public class MainActivity extends AppCompatActivity {
             if (webView != null) webView.evaluateJavascript(js, null);
         });
         remeasureLensSoon();
-        if (appbarBar != null) appbarBar.requestGeometry();   // 安全区变了顶栏矩形必变
+        applyAppBarSelfGeometry();   // 安全区变了顶栏矩形必变
+    }
+
+    /**
+     * 顶栏几何自测落地（P0-2，2026-10-31）。原生按 density 常量算 bar/title/三键
+     * 矩形，不再注入 JS 量 DOM —— 顺带把原先挂在 setAppBarGeometry 桥上的两件
+     * 副作用搬回来（预热采样 + 竖排侧栏让开顶栏），桥因此可以整块删掉。
+     */
+    private void applyAppBarSelfGeometry() {
+        if (appbarBar == null) return;
+        /* 状态栏高每次现取（root 的 WindowInsets 已是当前方向的值）：旋转时下一次
+           insets 分发可能晚一两帧，靠缓存值会让横屏头一帧的栏高按竖屏算（闪一下）。 */
+        if (root != null) {
+            try {
+                WindowInsetsCompat wi = ViewCompat.getRootWindowInsets(root);
+                if (wi != null) {
+                    statusTopInsetPx = wi.getInsets(WindowInsetsCompat.Type.systemBars()
+                            | WindowInsetsCompat.Type.displayCutout()).top;
+                }
+            } catch (Throwable ignored) { }
+        }
+        appbarBar.applySelfGeometry(statusTopInsetPx);
+        appbarBar.warmUp();
+        /* 竖排侧栏让开顶栏：顶栏底边 + 8dp 呼吸，否则两条玻璃叠着切一刀 */
+        float below = appbarBar.barBottomPx()
+                + 8f * getResources().getDisplayMetrics().density;
+        if (lensBar != null) lensBar.setRailTopInset(below);
+        if (nativeDrawer != null) nativeDrawer.setTopInset(below);
     }
 
     /** 三连发重测透镜几何（120/500/900ms）。
@@ -1114,7 +1138,7 @@ public class MainActivity extends AppCompatActivity {
                 /* 页面就绪 = 布局已定，这时索取底栏几何最准（早了量到的矩形是错的）。
                    由原生主动索取，成功与否都会打日志，不再静默失败。 */
                 if (lensBar != null) lensBar.requestGeometry();
-                if (appbarBar != null) appbarBar.requestGeometry();
+                if (appbarBar != null) applyAppBarSelfGeometry();
             });
         }
 
@@ -1407,22 +1431,6 @@ public class MainActivity extends AppCompatActivity {
             runOnUiThread(() -> appbarBar.setState(json));
         }
 
-        /** 顶栏几何上报（原生索取制应答）：bar/title/nav/search/theme 五个矩形，
-         *  屏幕物理 px（CSS×devicePixelRatio）。落地后预抓一次背景。 */
-        @JavascriptInterface
-        public void setAppBarGeometry(String json) {
-            if (appbarBar == null) return;
-            runOnUiThread(() -> {
-                appbarBar.setGeometry(json);
-                appbarBar.warmUp();
-                /* 竖排侧栏让开顶栏：顶栏底边 + 8dp 呼吸，否则两条玻璃叠着切一刀 */
-                float below = appbarBar.barBottomPx()
-                        + 8f * getResources().getDisplayMetrics().density;
-                if (lensBar != null) lensBar.setRailTopInset(below);
-                if (nativeDrawer != null) nativeDrawer.setTopInset(below);
-            });
-        }
-
         /** 栏矩形上报（CSS×dpr 物理像素）——原生底栏容器/触摸判定的几何真源。 */
         @JavascriptInterface
         public void setLensBarRect(float l, float t, float w, float h) {
@@ -1701,7 +1709,9 @@ public class MainActivity extends AppCompatActivity {
         if (nativeMe != null) nativeMe.setDark(resolvedDark());
         if (appbarBar != null) {
             appbarBar.setDark(resolvedDark());
-            appbarBar.requestGeometry();   // 旋转后顶栏矩形无条件补测（R1 同款教训）
+            /* 旋转后顶栏几何无条件重算：displayMetrics 此时已是新方向，不必等
+               WebView 重排（这正是「横屏玻璃带只画到 1904px」的病根）。 */
+            applyAppBarSelfGeometry();
         }
         if (root != null) {
             ViewCompat.requestApplyInsets(root);
