@@ -4,6 +4,7 @@
  *   node web-src/build.js  [--no-min]
  * ============================================================ */
 const fs = require('fs');
+const crypto = require('crypto');
 const path = require('path');
 
 const ROOT = __dirname;
@@ -212,13 +213,21 @@ function build() {
     js += '\n;/* ===== ' + path.basename(f) + ' ===== */\n' + raw;
     report.push(['JS  ' + path.basename(f), raw]);
   });
-  /* 构建水印（2026-09-30）：装机后在「我的」页脚核对是哪一刻构建的，
-     消灭「装的是不是新版」这类来回——水印跟着实际运行的 HTML 走，
-     无论是旧 APK 还是 devpage 顶替，页脚一看便知。 */
-  const now = new Date();
+  /* 构建水印（2026-09-30；2026-10-31 改为确定性）：
+     装机后在「我的」页脚核对是哪一份源码构建的，消灭「装的是不是新版」这类来回。
+     ❗不能用"构建那一刻的时钟"：那样每次重建产物都变，index.html 永远脏、
+     verify-apk 永远对不上（同一份源码打两次包，字节不同）。
+     现在 = 源码最新修改时间 + 源码内容哈希：源码不变则重建字节完全一致；
+     改了任何源文件，两段都会变，照样能判断新旧。 */
+  const srcFiles = CSS_FILES.concat(JS_FILES);
+  let maxMtime = 0;
+  srcFiles.forEach(f => { try { maxMtime = Math.max(maxMtime, fs.statSync(path.join(ROOT, f)).mtimeMs); } catch (e) {} });
+  const stamp = new Date(maxMtime || Date.now());
   const p2 = n => String(n).padStart(2, '0');
-  js += "\n;window.__BUILD__='" + now.getFullYear() + p2(now.getMonth() + 1) + p2(now.getDate()) +
-        '-' + p2(now.getHours()) + p2(now.getMinutes()) + "';";
+  const srcHash = crypto.createHash('sha1')
+    .update(srcFiles.map(f => read(f)).join('\u0000')).digest('hex').slice(0, 6);
+  js += "\n;window.__BUILD__='" + stamp.getFullYear() + p2(stamp.getMonth() + 1) + p2(stamp.getDate()) +
+        '-' + p2(stamp.getHours()) + p2(stamp.getMinutes()) + '-' + srcHash + "';";
   const jsOut = MIN ? minJs(js) : js;
 
   const spriteRaw = read('html/sprite.svg');
