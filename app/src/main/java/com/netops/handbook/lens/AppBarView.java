@@ -362,6 +362,10 @@ public class AppBarView extends View {
         post(this::captureBackdrop);
     }
 
+    /** 非按钮区手势透传中（DOWN 起，UP/CANCEL 止）：整段转发给内容层，
+     *  否则只发 DOWN 不发 UP，内容层永远收不到 click（2026-10-31 实测）。 */
+    private boolean passthrough = false;
+
     private boolean copyBusy = false;     /* PixelCopy 在途标志：onDraw 兜底路径没有它
                                               会每帧发一次抓图请求（抓图风暴） */
 
@@ -551,6 +555,27 @@ public class AppBarView extends View {
         }
     }
 
+    /** 非按钮区触摸 → 转发给活动根布局（谁在最上层就点谁）。
+     *  原实现固定转发 WebView：原生页时代，栏下 30dp 阴影带与标题区的点击
+     *  全被吞（WebView 在原生页下面是空的）——2026-10-31 实测「速查表」行
+     *  在 y=274 点不动即此。 */
+    private void forwardToContent(MotionEvent e) {
+        if (anchor == null) { forwardToWebView(e); return; }
+        int[] tl = new int[2];
+        int[] vl = new int[2];
+        anchor.getLocationOnScreen(tl);
+        this.getLocationOnScreen(vl);
+        MotionEvent e2 = MotionEvent.obtain(e);
+        e2.offsetLocation(vl[0] - tl[0], vl[1] - tl[1]);
+        try {
+            anchor.dispatchTouchEvent(e2);
+        } catch (Throwable t) {
+            Log.w(TAG, "转发触摸到内容层失败", t);
+        } finally {
+            e2.recycle();
+        }
+    }
+
     /** 按钮动作 = 触发对应 HTML 按钮的 click()：抽屉/返回/搜索/主题的全部既有
      *  逻辑留在页面侧，原生只接管观感。visibility:hidden 的元素收不到真触摸，
      *  必须程序化 click（事件处理器照常执行）。 */
@@ -571,16 +596,17 @@ public class AppBarView extends View {
     public boolean onTouchEvent(MotionEvent e) {
         if (searchOpen || overlaid || nativeBar == 0) {
             /* 理论上退位期整窗已 dismiss；万一事件仍进来（时序窗），按透传处理 */
-            forwardToWebView(e);
+            forwardToContent(e);
             return true;
         }
         switch (e.getActionMasked()) {
             case MotionEvent.ACTION_DOWN: {
                 int idx = hitButton(e.getX(), e.getY());
                 if (idx < 0) {
-                    /* 非按钮区（标题/留白）：HTML 顶栏无任何可点目标，原样转发，
-                       语义与「顶栏不存在」一致 */
-                    forwardToWebView(e);
+                    /* 非按钮区（标题/留白/栏下阴影带）：整段手势透传给内容层，
+                       语义与「顶栏不存在」一致（DOWN 必须配 UP，见 passthrough 注释） */
+                    passthrough = true;
+                    forwardToContent(e);
                     return true;
                 }
                 pressedBtn = idx;
@@ -588,6 +614,7 @@ public class AppBarView extends View {
                 return true;
             }
             case MotionEvent.ACTION_MOVE: {
+                if (passthrough) { forwardToContent(e); return true; }
                 if (pressedBtn >= 0) {
                     if (hitButton(e.getX(), e.getY()) != pressedBtn) {
                         pressedBtn = -1;   // 滑出取消
@@ -599,6 +626,11 @@ public class AppBarView extends View {
             }
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_CANCEL: {
+                if (passthrough) {
+                    passthrough = false;
+                    forwardToContent(e);
+                    return true;
+                }
                 int idx = pressedBtn;
                 pressedBtn = -1;
                 invalidate();
