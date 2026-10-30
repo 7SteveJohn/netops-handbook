@@ -361,6 +361,7 @@ public class MainActivity extends AppCompatActivity {
         nativeBackdrop.setLayoutParams(new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         root.addView(nativeBackdrop);
+        if (lensBar != null) lensBar.setBackdropSource(nativeBackdrop);
 
         /* 原生学习首页（N2）：必须挂在壁纸层之上（曾先建后建壁纸层，被整屏壁纸挡住）。 */
         /* 原生学习首页（N2）：阶段入口 + 进度环 + 工具箱。 */
@@ -472,19 +473,7 @@ public class MainActivity extends AppCompatActivity {
         configureWebView();
         bridge = new Bridge();
         webView.addJavascriptInterface(bridge, "NetBridge");
-        /* 侧栏松手 → 原生立刻切页（不等 JS 路由的 16~204ms） */
-        if (lensBar != null) {
-            lensBar.setOnCommit(i -> runOnUiThread(() -> {
-                if (bridge == null) return;
-                switch (i) {
-                    case 0: bridge.showNativeHome(); break;
-                    case 1: bridge.showNativeFault(); break;
-                    case 2: bridge.showNativeDict(); break;
-                    case 3: bridge.showNativeIv(); break;
-                    default: bridge.showNativeMe(); break;
-                }
-            }));
-        }
+
         pageReady = false;
         rendererGone = false;
 
@@ -496,6 +485,18 @@ public class MainActivity extends AppCompatActivity {
         try {
             lensBar = LensBarView.attach(this, root, webView);
             lensBar.setDark(resolvedDark());
+            if (nativeBackdrop != null) lensBar.setBackdropSource(nativeBackdrop);
+            /* 侧栏松手 → 原生立刻切页（不等 JS 路由的 16~204ms） */
+            lensBar.setOnCommit(i -> runOnUiThread(() -> {
+                if (bridge == null) return;
+                switch (i) {
+                    case 0: bridge.showNativeHome(); break;
+                    case 1: bridge.showNativeFault(); break;
+                    case 2: bridge.showNativeDict(); break;
+                    case 3: bridge.showNativeIv(); break;
+                    default: bridge.showNativeMe(); break;
+                }
+            }));
         } catch (Throwable t) {
             Log.w(TAG, "原生透镜层挂载失败（不影响主流程）", t);
             lensBar = null;
@@ -1070,7 +1071,9 @@ public class MainActivity extends AppCompatActivity {
                 Log.i("LensBar", String.format(
                         "几何已同步 一格%.1f 药丸%.1f×%.1f 首格中心(%.1f,%.1f) 共%d格",
                         slot, pillW, pillH, firstCx, pillCy, count));
-                lensBar.warmUp();
+                if (!lensBar.isDockVertical()) {
+                    lensBar.warmUp();
+                }
             });
         }
 
@@ -1590,9 +1593,20 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onConfigurationChanged(@NonNull android.content.res.Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
+        boolean isLandscape = newConfig.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
+        if (nativeBackdrop != null) {
+            nativeBackdrop.notifyOrientationChanged(isLandscape);
+        }
         // 系统深浅色切换时同步系统栏；网页侧 auto 模式由 CSS media query 自行响应
         applyBarAppearance(resolvedDark());
-        if (lensBar != null) { lensBar.setDark(resolvedDark()); lensBar.reflow(); }   // 旋转后弹窗宽度重算
+        if (lensBar != null) {
+            lensBar.setDark(resolvedDark());
+            lensBar.reflow();
+            lensBar.onBackdropChanged(); // 旋转后壁纸切换，通知玻璃层重采样
+        }
+        if (settingsPanel != null) {
+            settingsPanel.build();
+        }
         if (nativePhase != null) nativePhase.setDark(resolvedDark());
         if (nativeFault != null) nativeFault.setDark(resolvedDark());
         if (nativeIv != null) nativeIv.setDark(resolvedDark());

@@ -142,7 +142,7 @@ public class NativeSettingsPanel extends FrameLayout {
     }
 
     /* ---------------- 构建 ---------------- */
-    private void build() {
+    public void build() {
         sheet.removeAllViews();
         sheet.addView(title("设置"));
 
@@ -154,38 +154,69 @@ public class NativeSettingsPanel extends FrameLayout {
             setter.apply("theme", v);
         }));
 
-        sheet.addView(section("背景壁纸"));
+        sheet.addView(section("背景壁纸（自适应横竖屏）"));
         sheet.addView(chipRow(new String[][]{{"none", "无壁纸"}}, wallpaper, v -> {
             wallpaper = v;
             setter.apply("wallpaper", v);
         }));
-        String lastCat = null;
-        LinearLayout wrap = null;
+
+        java.util.Map<String, java.util.List<JSONObject>> groups = new java.util.LinkedHashMap<>();
         for (int i = 0; i < wallpapers.length(); i++) {
             JSONObject wp = wallpapers.optJSONObject(i);
             if (wp == null) continue;
-            String cat = wp.optString("cat");
-            if (!cat.equals(lastCat)) {
-                TextView catTv = NativeBlocks.tv(getContext(), pal, cat, 11, true, pal.textMute);
-                catTv.setPadding(0, pal.dp(8), 0, pal.dp(4));
-                sheet.addView(catTv);
-                wrap = new LinearLayout(getContext());
-                wrap.setOrientation(LinearLayout.HORIZONTAL);
-                sheet.addView(wrap, NativeBlocks.matchP());
-                lastCat = cat;
+            if ("landscape".equals(wp.optString("orientation"))) continue;
+            String cat = wp.optString("cat", "其他");
+            if (cat.contains("二次元")) cat = "二次元壁纸（自适应横竖屏）";
+            else if (cat.contains("简约")) cat = "简约质感（自适应横竖屏）";
+            if (!groups.containsKey(cat)) groups.put(cat, new java.util.ArrayList<>());
+            groups.get(cat).add(wp);
+        }
+
+        boolean isLandscape = getResources().getConfiguration().orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
+
+        for (java.util.Map.Entry<String, java.util.List<JSONObject>> entry : groups.entrySet()) {
+            TextView catTv = NativeBlocks.tv(getContext(), pal, entry.getKey(), 11, true, pal.textMute);
+            catTv.setPadding(0, pal.dp(10), 0, pal.dp(4));
+            sheet.addView(catTv);
+
+            java.util.List<JSONObject> list = entry.getValue();
+            int total = list.size();
+            LinearLayout row = null;
+            for (int i = 0; i < total; i++) {
+                if (i % 3 == 0) {
+                    row = new LinearLayout(getContext());
+                    row.setOrientation(LinearLayout.HORIZONTAL);
+                    sheet.addView(row, NativeBlocks.matchP());
+                }
+                JSONObject wp = list.get(i);
+                final String idP = wp.optString("id");
+                final String idL = wp.optString("pair");
+                boolean active = wallpaper.equals(idP) || (!idL.isEmpty() && wallpaper.equals(idL));
+                TextView chip = chip(wp.optString("name"), active);
+                chip.setGravity(Gravity.CENTER);
+                chip.setOnClickListener(v -> {
+                    String targetId = (isLandscape && !idL.isEmpty()) ? idL : idP;
+                    wallpaper = targetId;
+                    setter.apply("wallpaper", targetId);
+                    build();
+                });
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                        0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f);
+                if (i % 3 < 2) lp.rightMargin = pal.dp(8);
+                lp.bottomMargin = pal.dp(6);
+                row.addView(chip, lp);
             }
-            final String id = wp.optString("id");
-            TextView chip = chip(wp.optString("name"), wallpaper.equals(id));
-            chip.setOnClickListener(v -> {
-                wallpaper = id;
-                setter.apply("wallpaper", id);
-                build();
-            });
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            lp.rightMargin = pal.dp(8);
-            lp.bottomMargin = pal.dp(6);
-            wrap.addView(chip, lp);
+            int remainder = total % 3;
+            if (remainder != 0 && row != null) {
+                int dummyNeeded = 3 - remainder;
+                for (int d = 0; d < dummyNeeded; d++) {
+                    View stub = new View(getContext());
+                    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                            0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f);
+                    if (d < dummyNeeded - 1) lp.rightMargin = pal.dp(8);
+                    row.addView(stub, lp);
+                }
+            }
         }
 
         sheet.addView(section("全局质感"));

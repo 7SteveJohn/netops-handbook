@@ -47,6 +47,7 @@ public class NativeDrawerView extends FrameLayout {
 
     private final float touchSlop;
     private float downX, downY;
+    private int downId = -1;   /* 多指：只跟起手那根手指（move 按它取坐标） */
     private boolean dragging;
     private VelocityTracker vt;
 
@@ -96,13 +97,17 @@ public class NativeDrawerView extends FrameLayout {
         if (getVisibility() != VISIBLE) return false;
         switch (ev.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
+                downId = ev.getPointerId(0);
                 downX = ev.getX();
                 downY = ev.getY();
                 dragging = false;
                 break;
             case MotionEvent.ACTION_MOVE: {
-                float dx = ev.getX() - downX;
-                if (!dragging && dx < -touchSlop && Math.abs(dx) > Math.abs(ev.getY() - downY)) {
+                /* 多指：只跟起手那根手指；它抬起则本次不拦截（剩余指重新起手） */
+                int pi = ev.findPointerIndex(downId);
+                if (pi < 0) return false;
+                float dx = ev.getX(pi) - downX;
+                if (!dragging && dx < -touchSlop && Math.abs(dx) > Math.abs(ev.getY(pi) - downY)) {
                     dragging = true;
                     if (vt == null) vt = VelocityTracker.obtain(); else vt.clear();
                     vt.addMovement(ev);
@@ -124,7 +129,15 @@ public class NativeDrawerView extends FrameLayout {
         vt.addMovement(ev);
         switch (ev.getActionMasked()) {
             case MotionEvent.ACTION_MOVE: {
-                float dx = Math.max(-panel.getWidth(), Math.min(0f, ev.getX() - downX));
+                /* 多指：主指抬起（次要指残留）按取消收场，防面板跳位后误判收起 */
+                int pi = ev.findPointerIndex(downId);
+                if (pi < 0) {
+                    dragging = false;
+                    vt.recycle(); vt = null;
+                    panel.animate().translationX(0).setDuration(150).start();
+                    return true;
+                }
+                float dx = Math.max(-panel.getWidth(), Math.min(0f, ev.getX(pi) - downX));
                 panel.setTranslationX(dx);
                 break;
             }

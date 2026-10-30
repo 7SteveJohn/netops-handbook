@@ -67,6 +67,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
        ≈ 1:1 跟手，保留一点缓冲的液感；松手落格仍是 TRAVEL 的弹性。 */
     private static final SpringSpec FOLLOW  = SpringSpec.ratio(10000, 1.0);
     private static final SpringSpec TRAVEL  = SpringSpec.durationBounce(400, 0.15);
+    private static final SpringSpec FAST_TRAVEL = SpringSpec.durationBounce(140, 0.02);
     private static final SpringSpec LIFT_S  = SpringSpec.durationBounce(250, 0);
     private static final SpringSpec JELLY_S = SpringSpec.ratio(100, 0.4);
 
@@ -236,6 +237,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     private boolean dropping = false;
     private int pressedIndex = 0;
     private int selectedIndex = 0;
+    private int downId = -1;   /* 多指：只跟起手那根手指（move 按它取坐标） */
     private float downX = 0;
     private float lastX = 0;
     private long lastMoveMs = 0;
@@ -322,6 +324,13 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
        透镜的 RuntimeShader 直画在此 view 久经验证，栏体同款直画，代价=每帧
        一次小面积 shader。抓图未就绪/低版本/失败回退实色（chromeB1）。
        交互透镜（drawGlass）不受影响，玻璃栏上再叠放大透镜=iOS 26 分层玻璃。 */
+    private NativeBackdrop backdropSource;          // 静态壁纸采样源（对齐 AndroidLiquidGlassView 官方标准源）
+
+    public void setBackdropSource(NativeBackdrop src) {
+        this.backdropSource = src;
+        onBackdropChanged();
+    }
+
     private Bitmap barBackdrop;                     // 整栏背景抓图（栏矩形+pad，折射向外采样用）
     private BitmapShader barBackdropShader;
     private int barCapOffX, barCapOffY;             // 栏左上在背景位图内的偏移（pad 对齐）
@@ -345,8 +354,8 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     private void applyDockColors() {
         if (dark) {
             railFillP.setColor(Color.argb(204, 24, 24, 26));   // 竖排面板：暗面 ~80%
-            barFillP.setColor(Color.argb(255, 28, 28, 30));   // 实色：用户实证半透透出正文「吓人」       // 近实色 modal 级（.95），对齐「滚动路径零模糊」决策
-            barStrokeP.setColor(Color.argb(255, 56, 56, 58));     // --border #38383a
+            barFillP.setColor(Color.argb(255, 28, 28, 30));   // 实色回退
+            barStrokeP.setColor(Color.argb(70, 255, 255, 255));   // 半透亮边高光（AndroidLiquidGlass 质感）
             sliderFillP.setColor(Color.argb(255, 44, 44, 46));    // --surface-2 #2c2c2e
             sliderStrokeP.setColor(Color.argb(26, 255, 255, 255));
             iconP.setColor(Color.argb(153, 235, 235, 245));       // --tab-inactive rgba(235,235,245,.60)
@@ -354,8 +363,8 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             inactiveColor = Color.argb(153, 235, 235, 245);
         } else {
             railFillP.setColor(Color.argb(178, 255, 255, 255));   // 竖排面板：白 ~70%（cf1fc0d 前的已验收值）
-            barFillP.setColor(Color.WHITE);                    // 实色：同上
-            barStrokeP.setColor(Color.argb(255, 227, 227, 232));  // --border #e3e3e8
+            barFillP.setColor(Color.WHITE);                    // 实色回退
+            barStrokeP.setColor(Color.argb(120, 255, 255, 255));  // 半透白色高光边缘
             /* 对照 FlClash 手机端（液态玻璃=极致）实测：选中药丸 #DEE5FC（主色 12% 叠白，不是纯白）、
                未选中图标 #424754（深灰蓝，我们原来的 #8E8E93 偏浅发灰）。 */
             sliderFillP.setColor(Color.argb(31, 37, 99, 235));    // accent #2563EB @ 12%
@@ -532,12 +541,17 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         int i = Math.max(0, Math.min(count - 1, index));
         selectedIndex = i;
         if (!pressed) {
-            /* 滑块弹簧错峰 200ms：切页瞬间 WebView 正做重渲染（冷启动首开
-               JIT 冷下更重），滑块动画每帧 invalidate 与之争抢 —— 实测
-               阶段页入场动画 legacy janky 8.65%（关原生底栏 1.01%）。
-               滑块停原格 200ms，页面转场首帧落地后再弹向新格（iOS 指示器惯例）。 */
-            removeCallbacks(sliderCatchUp);
-            postDelayed(sliderCatchUp, 250);
+            if (dockVertical || nativeDock) {
+                /* 原生Dock/侧栏模式：0延迟直接跟进，彻底拔除250ms人为延迟导致的粘滞感 */
+                removeCallbacks(sliderCatchUp);
+                if (Math.round(pos.target()) != selectedIndex) {
+                    pos.springTo(selectedIndex, dockVertical ? FAST_TRAVEL : TRAVEL, nowSec());
+                    ensureTicking();
+                }
+            } else {
+                removeCallbacks(sliderCatchUp);
+                postDelayed(sliderCatchUp, 250);
+            }
         }
     }
 
@@ -565,7 +579,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
      * 本方法在 ready、insets 应用后、attach 后 1.5s/3s 各调一次，以最后一次为准。
      */
     public void requestGeometry() {
-        if (webView == null || detached) return;
+        if (webView == null || detached || dockVertical) return;
         /* 用页面自己的 devicePixelRatio 换成**物理像素**再上报，别让原生拿 density 换算：
            wm density 是 560(3.5)，但 WebView 的 CSS 缩放未必等于它。 */
         String js = "(function(){try{"
@@ -625,12 +639,17 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         bandH = h;
         updateOrientation();
         /* 只补 JS 还没上报的项：CSS 才是几何真源，这里只是兜底 */
-        if (slot <= 0 && !dockVertical) {
-            slot = w / (float) Math.max(1, count);
-            firstCx = slot * 0.5f;
+        if (dockVertical) {
+            computeRailGeometry();
+            if (slot <= 0) slot = axisPitch;
+        } else {
+            if (slot <= 0) {
+                slot = w / (float) Math.max(1, count);
+                firstCx = slot * 0.5f;
+            }
+            if (pillH <= 0) pillH = 56f * density;
+            if (pillW <= 0) pillW = slot + 8f * density;   // 药丸比一格宽 8dp，与 CSS 同
         }
-        if (pillH <= 0 && !dockVertical) pillH = 56f * density;
-        if (pillW <= 0 && !dockVertical) pillW = slot + 8f * density;   // 药丸比一格宽 8dp，与 CSS 同
         scheduleBarRecapture();      // 尺寸/方向变了：旧采样作废，重抓三代
     }
 
@@ -713,6 +732,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         float cy0 = (h - 14f * dp) / 2f;
         railRect.set(0, cy0 - panelH / 2f, railW, cy0 + panelH / 2f);
         axisPitch = pitch;
+        if (slot <= 0) slot = pitch;
         axisFirst = railRect.top + 4f * dp + pillHv / 2f;
         crossCView = railRect.left + railW / 2f;   // = 栏心（窗口本地）
         pillW = pillWv;                            // x 维（交叉向）
@@ -924,7 +944,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
      * 耗时正是本探针要测的量。
      */
     private void captureBackdrop() {
-        if (detached || bandW <= 0 || bandH <= 0 || copyBusy) return;
+        if (detached || bandW <= 0 || bandH <= 0 || copyBusy || dockVertical) return;
         copyBusy = true;   /* bitmap 由各条路径按自己的尺寸建（整条带 / 药丸小块） */
         long t0 = System.nanoTime();
         if (window != null && Build.VERSION.SDK_INT >= 26) {
@@ -1061,8 +1081,8 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
      *  nativeDock 时接管整条栏（图标/文字也在原生，点击=切页），x 须落在栏矩形内。 */
     private boolean inPillBand(float y) {
         if (dockVertical) {
-            /* 竖排：接管带 = 轨道整列（触摸 x 已在栏内），沿 y 全程接管 */
-            return true;
+            /* 竖排：接管带仅限轨道面板及其容错扩展（上下各8dp），其余放行给页面 */
+            return y >= railRect.top - 8f * density && y <= railRect.bottom + 8f * density;
         }
         if (nativeDock && barRect.width() > 4) {
             RectF b = dockRect();
@@ -1122,7 +1142,12 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     @SuppressLint("ClickableViewAccessibility")
     @Override
     public boolean onTouchEvent(MotionEvent e) {
-        if (slot <= 0) return false;
+        float pitch = dockVertical ? axisPitch : slot;
+        if (pitch <= 0) {
+            if (dockVertical) computeRailGeometry();
+            pitch = dockVertical ? axisPitch : slot;
+            if (pitch <= 0) return false;
+        }
         ensureTicking();   // 帧回调自眠中：触摸唤醒
         /* 已接管（pressed）的手势一律自己处理，不转发，否则拖出药丸带就断线了 */
         lastHitX = e.getX();
@@ -1140,20 +1165,31 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                 pressed = true;
                 dragging = false;
                 dropping = false;
+                downId = e.getPointerId(0);
                 downX = lastX = hitAxis(e.getX());
                 lastMoveMs = e.getEventTime();
                 velIndexPerMs = 0;
                 pressedIndex = Math.max(0, Math.min(count - 1, Math.round(positionAtAxis(hitAxis()))));
-                pos.springTo(pressedIndex, TRAVEL, now);
-                lift.springTo(1, LIFT_S, now);
-                lastCaptureMs = 0;   // 按下立刻重抓背景，别让玻璃映出几分钟前的旧画面
+                pos.springTo(pressedIndex, dockVertical ? FAST_TRAVEL : TRAVEL, now);
+                if (!dockVertical) lift.springTo(1, LIFT_S, now);
+                if (!dockVertical) lastCaptureMs = 0;   // 侧栏零截屏，底栏按下立刻重抓背景
                 if (!nativeDock) setPressClass(true); // 藏起 HTML 药丸（nativeDock 时已整体隐藏）
                 invalidate();
                 return true;
 
             case MotionEvent.ACTION_MOVE: {
                 if (!pressed) return false;
-                float x = hitAxis(e.getX());
+                /* 多指：只跟随起手那根手指；它抬起（次要指残留）按取消收场，
+                   防止坐标跳到另一根手指上把药丸甩飞。 */
+                int pi = e.findPointerIndex(downId);
+                if (pi < 0) {
+                    pressed = false;
+                    pos.springTo(selectedIndex, dockVertical ? FAST_TRAVEL : TRAVEL, now);
+                    dragging = false;
+                    invalidate();
+                    return true;
+                }
+                float x = hitAxis(e.getX(pi));
                 long t = e.getEventTime();
                 long dt = t - lastMoveMs;
                 if (dt > 0) {
@@ -1186,13 +1222,16 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                     target = Math.max(pressedIndex - 1, Math.min(pressedIndex + 1, target));
                     target = Math.max(0, Math.min(count - 1, target));
                     pressedIndex = target;
-                    pos.springTo(target, TRAVEL, now);
+                    pos.springTo(target, dockVertical ? FAST_TRAVEL : TRAVEL, now);
                     commit(target);
                 } else {
-                    pos.springTo(selectedIndex, TRAVEL, now);
+                    pos.springTo(selectedIndex, dockVertical ? FAST_TRAVEL : TRAVEL, now);
                 }
                 dragging = false;
-                dropping = true;
+                dropping = !dockVertical;
+                if (dockVertical) {
+                    lift.springTo(0, FAST_TRAVEL, now);
+                }
                 invalidate();
                 return true;
             }
@@ -1215,8 +1254,16 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             try { onCommit.onCommit(index); } catch (Throwable ignored) { }
         }
         if (webView == null) return;
-        String js = "(function(){try{if(typeof NetOpsLensSelect==='function'){NetOpsLensSelect("
-                + index + ");}}catch(e){}})()";
+        String js;
+        if (onCommit != null) {
+            js = "(function(){try{"
+                    + "if(typeof NetOpsLensSyncTab==='function'){NetOpsLensSyncTab(" + index + ");}"
+                    + "else if(typeof NetOpsLensSelect==='function'){NetOpsLensSelect(" + index + ");}"
+                    + "}catch(e){}})()";
+        } else {
+            js = "(function(){try{if(typeof NetOpsLensSelect==='function'){NetOpsLensSelect("
+                    + index + ");}}catch(e){}})()";
+        }
         try {
             webView.evaluateJavascript(js, null);
         } catch (Throwable t) {
@@ -1370,11 +1417,43 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             barCapTmp = Bitmap.createBitmap(cr - cl, cb - ct, Bitmap.Config.ARGB_8888);
         }
         srcBarRect.set(cl, ct, cr, cb);
-        barCopyBusy = true;
         final RectF barSnap = new RectF(barWin);
-        /* 栏左上在位图内的偏移（弹窗本地→位图）：off = 弹窗窗口位置 − 抓图左上 */
         final int offX = pvOff[0] - cl;
         final int offY = pvOff[1] - ct;
+
+        // 优先直取 NativeBackdrop 静态壁纸层（AndroidLiquidGlassView 官方标准源：0ms 无穿透无截屏开销）
+        if (backdropSource != null) {
+            Bitmap wallBmp = backdropSource.getCurrentBitmap();
+            if (wallBmp != null && !wallBmp.isRecycled()) {
+                int bw = wallBmp.getWidth();
+                int bh = wallBmp.getHeight();
+                float scale = Math.max((float) winW / bw, (float) maxH / bh);
+                float dx = (winW - bw * scale) * 0.5f;
+                float dy = (maxH - bh * scale) * 0.5f;
+
+                Canvas cv = new Canvas(barCapTmp);
+                cv.drawColor(0, android.graphics.PorterDuff.Mode.CLEAR);
+                android.graphics.Matrix mat = new android.graphics.Matrix();
+                mat.setScale(scale, scale);
+                mat.postTranslate(dx - cl, dy - ct);
+                Paint bp = new Paint(Paint.FILTER_BITMAP_FLAG);
+                cv.drawBitmap(wallBmp, mat, bp);
+
+                composeHaze(barCapTmp, barBackdrop);
+                lastCapturedBar.set(barSnap);
+                lastCapturedDark = dark ? 1 : 0;
+                barCapOffX = offX;
+                barCapOffY = offY;
+                if (barBackdropShader != null) {
+                    android.graphics.Matrix mm = new android.graphics.Matrix();
+                    mm.setTranslate(barCapOffX, barCapOffY);
+                    barBackdropShader.setLocalMatrix(mm);
+                }
+                return;
+            }
+        }
+
+        barCopyBusy = true;
         try {
             PixelCopy.request(window, srcBarRect, barCapTmp, result -> {
                 barCopyBusy = false;
@@ -1441,31 +1520,29 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                的通透感全靠它，1.0+白tint 会退化成磨砂白面板（2026-10-28 用户
                「跟 FlClash/酷安不一样」报因）。折射向外弯（正值，FlClash
                「凸起透镜向外弯」口径），带/位移按栏高夹紧。 */
-            float band = Math.min(16f * density, H * 0.26f);
-            float amount = Math.min(20f * density, H * 0.42f);
+            float minDim = Math.min(W, H);
+            float band = Math.min(18f * density, minDim * 0.28f);
+            float amount = Math.min(22f * density, minDim * 0.45f);
             barGlassShader.setFloatUniform("size", new float[]{W, H});
             barGlassShader.setFloatUniform("offset", new float[]{0f, 0f});
             barGlassShader.setFloatUniform("cornerRadii", new float[]{r, r, r, r});
             barGlassShader.setFloatUniform("refractionHeight", band);
-            barGlassShader.setFloatUniform("refractionAmount", amount);
-            barGlassShader.setFloatUniform("depthEffect", 0.3f);
-            barGlassShader.setFloatUniform("chromaticAberration", 0.35f);
-            barGlassShader.setFloatUniform("contrast", 0f);
-            barGlassShader.setFloatUniform("whitePoint", 0f);
-            barGlassShader.setFloatUniform("chromaMultiplier", dark ? 1.925f : 2.10f);
+            barGlassShader.setFloatUniform("refractionAmount", -amount); // 负值：AndroidLiquidGlassView 官方标准向内凸透镜折射
+            barGlassShader.setFloatUniform("depthEffect", 0.35f);
+            barGlassShader.setFloatUniform("chromaticAberration", 0.40f);
+            barGlassShader.setFloatUniform("contrast", 0.05f);
+            barGlassShader.setFloatUniform("whitePoint", 0.02f);
+            barGlassShader.setFloatUniform("chromaMultiplier", dark ? 1.85f : 2.05f);
             if (dark) {
-                barGlassShader.setFloatUniform("tintColor", new float[]{0.21f, 0.21f, 0.22f});
-                barGlassShader.setFloatUniform("tintAlpha", 0.48f);
+                barGlassShader.setFloatUniform("tintColor", new float[]{0.18f, 0.18f, 0.20f});
+                barGlassShader.setFloatUniform("tintAlpha", 0.42f);
             } else {
-                barGlassShader.setFloatUniform("tintColor", new float[]{0.957f, 0.957f, 0.957f});
-                barGlassShader.setFloatUniform("tintAlpha", 0.58f);   // FlClash pill 实测 58%
+                barGlassShader.setFloatUniform("tintColor", new float[]{0.96f, 0.96f, 0.98f});
+                barGlassShader.setFloatUniform("tintAlpha", 0.36f); // 36% 纯净乳白染色，透出 64% 饱和壁纸原色
             }
             barGlassShader.setInputShader("content", barBackdropShader);
             barGlassP.setShader(barGlassShader);
-            /* 玻璃层半透叠在容器底上：AGSL 输出不透明，全强度会把容器整块盖掉，
-               栏后正文直接透上来（2026-10-28 真机：底栏能看见「工具箱/搜索」）。
-               150/255 让容器承担底色、玻璃只出霜面与折射。 */
-            barGlassP.setAlpha(150);
+            barGlassP.setAlpha(255); // 全强度渲染：由 AGSL 内部 mix 决定透光率，不垫实白底板
             return true;
         } catch (Throwable t) {
             Log.w(TAG, "栏体玻璃组装失败，回退实色", t);
@@ -1514,9 +1591,8 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             new Canvas(small).drawBitmap(src, null, new Rect(0, 0, sw, sh),
                     new Paint(Paint.FILTER_BITMAP_FLAG));
             Canvas c = new Canvas(dst);
-            c.drawBitmap(src, 0f, 0f, null);                       // 底：100% 原图
+            c.drawColor(0, android.graphics.PorterDuff.Mode.CLEAR);
             Paint p = new Paint(Paint.FILTER_BITMAP_FLAG);
-            p.setAlpha(184);                                        // 叠 72% 模糊 → 剩 28% 清晰
             c.drawBitmap(small, null, new Rect(0, 0, w, h), p);
             small.recycle();
         } catch (Throwable t) {
@@ -1650,38 +1726,26 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
            本无玻璃面板，垫一层半透只为壁纸上的图标可读）—— 无 AGSL、无抓图、
            无透镜，每帧只剩几个 drawRoundRect + 位图 blit。用户实证竖排强加
            玻璃「真的卡」（2026-10-29），玻璃观感让位流畅。横排 = 玻璃路径不动。 */
-        if (dockVertical) {
+        maybeCaptureBarBackdrop();
+        boolean hasGlass = ensureBarGlass(bar, dockRadius(bar));
+        if (hasGlass) {
+            int sv = canvas.save();
+            canvas.translate(bar.left, bar.top);
+            float rr2 = dockRadius(bar);
+            float bw2 = bar.width(), bh2 = bar.height();
+            canvas.drawRoundRect(0, 0, bw2, bh2, rr2, rr2, barGlassP);
+            barStrokeP.setStrokeWidth(density);
+            canvas.drawRoundRect(0, 0, bw2, bh2, rr2, rr2, barStrokeP);
+            canvas.restoreToCount(sv);
+        } else {
             int bs = canvas.save();
             canvas.translate(bar.left, bar.top);
             float br2 = dockRadius(bar);
-            canvas.drawRoundRect(0, 0, bar.width(), bar.height(), br2, br2, railFillP);
+            Paint fillP = dockVertical ? railFillP : barFillP;
+            canvas.drawRoundRect(0, 0, bar.width(), bar.height(), br2, br2, fillP);
             barStrokeP.setStrokeWidth(density);
             canvas.drawRoundRect(0, 0, bar.width(), bar.height(), br2, br2, barStrokeP);
             canvas.restoreToCount(bs);
-        } else {
-            /* 栏体玻璃：每帧补抓+组装（代判定在内部，未变即零成本跳过），
-               玻璃就绪则直画（库 AGSL，透镜同款模式），否则实色 blit */
-            maybeCaptureBarBackdrop();
-            {
-                /* 先铺容器底：玻璃就绪时它被 AGSL 整块盖住（AGSL 输出不透明，采样的是
-                   栏后像素），只在抓图未就绪/低版本时兜底成实色 —— 也就是原来的回退路径，
-                   这里提前画，省掉一条分支。 */
-                int bs = canvas.save();
-                canvas.translate(bar.left, bar.top);
-                float br2 = dockRadius(bar);
-                canvas.drawRoundRect(0, 0, bar.width(), bar.height(), br2, br2, barFillP);
-                canvas.restoreToCount(bs);
-                if (ensureBarGlass(bar, dockRadius(bar))) {
-                    int sv = canvas.save();
-                    canvas.translate(bar.left, bar.top);
-                    float rr2 = dockRadius(bar);
-                    float bw2 = bar.width(), bh2 = bar.height();
-                    canvas.drawRoundRect(0, 0, bw2, bh2, rr2, rr2, barGlassP);
-                    barStrokeP.setStrokeWidth(density);
-                    canvas.drawRoundRect(0, 0, bw2, bh2, rr2, rr2, barStrokeP);
-                    canvas.restoreToCount(sv);
-                }
-            }
         }
 
         composePillCenter();
@@ -2030,6 +2094,8 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
      *  置顶，药丸触摸带会吃掉 sheet 底部控件（全局质感的玻璃开关）的点击，甚至
      *  被当成切 tab 处理（切页还会顺带关 sheet）—— 2026-10-26 用户报障。
      *  页面经 NetBridge.setSheetOpen 推送开合状态。 */
+    public boolean isDockVertical() { return dockVertical; }
+
     public void setOverlaid(boolean overlaid) {
         if (this.overlaid == overlaid || popup == null || detached) return;
         this.overlaid = overlaid;

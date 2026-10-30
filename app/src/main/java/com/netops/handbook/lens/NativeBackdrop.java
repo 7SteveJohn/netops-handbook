@@ -23,11 +23,13 @@ import java.io.InputStream;
  */
 public class NativeBackdrop extends FrameLayout {
 
-    private static final LruCache<String, Bitmap> CACHE = new LruCache<>(3);
+    private static final LruCache<String, Bitmap> CACHE = new LruCache<>(8);
 
-    private final ImageView ambient;   // 横屏环境层：cover + 重模糊 + 压暗（垫在两侧）
-    private final ImageView image;     // 主壁纸：竖屏 cover / 横屏 FIT_CENTER（整张可见）
-    private String current;
+    private final ImageView ambient;   // 横屏环境层
+    private final ImageView image;     // 主壁纸：统一 CENTER_CROP 满画幅显示
+    private String baseFile;           // 外部下发的壁纸文件名
+    private String current;            // 当前正在显示的实际文件名
+    private float currentBlurDp = 8f;  // 当前模糊深度
     private boolean landscape;
     /** WebView 独占路由（CLI）时让位。本层 z 序在 WebView 之上（给原生页当壁纸底），
      *  一旦常显就把 WebView 盖死：竖屏整屏盖、横屏被 FIT_CENTER 竖带切穿，
@@ -36,6 +38,8 @@ public class NativeBackdrop extends FrameLayout {
 
     public NativeBackdrop(Context c) {
         super(c);
+        landscape = c.getResources().getConfiguration().orientation
+                == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
         ambient = new ImageView(c);
         ambient.setScaleType(ImageView.ScaleType.CENTER_CROP);
         ambient.setVisibility(GONE);
@@ -51,21 +55,59 @@ public class NativeBackdrop extends FrameLayout {
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
-        boolean land = w > h;
-        if (land != landscape) {
-            landscape = land;
-            applyLayoutMode();
+        if (w > 0 && h > 0) {
+            boolean land = w > h;
+            if (land != landscape) {
+                landscape = land;
+                updateImageForOrientation();
+            }
         }
     }
 
-    /** 竖屏：壁纸 cover 铺满（现状）。横屏：竖版壁纸若继续 cover 会裁掉上下
-     *  一大半（用户报「壁纸被遮挡一大半」）—— 改 letterbox：整张等高居中可见，
-     *  两侧露出的空档垫重模糊压暗的环境层；侧边 dock 正好落在环境层上。 */
+    /** 无论横屏还是竖屏，壁纸统一 CENTER_CROP 铺满全屏，杜绝两侧虚化垫边（模糊黑边） */
     private void applyLayoutMode() {
-        image.setScaleType(landscape
-                ? ImageView.ScaleType.FIT_CENTER
-                : ImageView.ScaleType.CENTER_CROP);
-        ambient.setVisibility(landscape && image.getDrawable() != null ? VISIBLE : GONE);
+        image.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        ambient.setVisibility(GONE);
+    }
+
+    /** 横竖屏文件名自动成对转换算法：_p.webp 与 _l.webp 互转 */
+    public static String resolveOrientationFile(String file, boolean isLandscape) {
+        if (file == null || file.isEmpty()) return file;
+        if (isLandscape) {
+            if (file.endsWith("_p.webp")) {
+                return file.substring(0, file.length() - 7) + "_l.webp";
+            }
+        } else {
+            if (file.endsWith("_l.webp")) {
+                return file.substring(0, file.length() - 7) + "_p.webp";
+            }
+        }
+        return file;
+    }
+
+    /** 屏幕旋转显式通知（由 Activity onConfigurationChanged 第一时间调用，0延迟换图） */
+    public void notifyOrientationChanged(boolean isLandscape) {
+        if (landscape != isLandscape) {
+            landscape = isLandscape;
+            updateImageForOrientation();
+        }
+    }
+
+    private void updateImageForOrientation() {
+        if (baseFile == null || baseFile.isEmpty()) return;
+        String target = resolveOrientationFile(baseFile, landscape);
+        if (target != null && !target.equals(current)) {
+            android.util.Log.i("NativeBackdrop", "auto-switching orientation wallpaper to " + target
+                    + " (land=" + landscape + ")");
+            loadBitmapAndDisplay(target);
+        }
+    }
+
+    /** 供外部玻璃件（LensBarView 等）直接采样当前壁纸原图，避免 PixelCopy 动态截屏开销与穿透问题 */
+    public Bitmap getCurrentBitmap() {
+        return (image != null && image.getDrawable() instanceof android.graphics.drawable.BitmapDrawable)
+                ? ((android.graphics.drawable.BitmapDrawable) image.getDrawable()).getBitmap()
+                : null;
     }
 
     /** file = assets/wallpapers 下的文件名；空串/未知 = 隐藏（无壁纸）。 */
@@ -73,6 +115,8 @@ public class NativeBackdrop extends FrameLayout {
 
     /** blurDp 跟随通透度（JS 传 --wp-blur），与 Web 层 .wall 同一口径。 */
     public void setWallpaper(String file, float blurDp) {
+        baseFile = file;
+        currentBlurDp = blurDp;
         if (file == null || file.isEmpty()) {
             image.setImageDrawable(null);
             ambient.setImageDrawable(null);
@@ -80,7 +124,20 @@ public class NativeBackdrop extends FrameLayout {
             refreshVisibility();
             return;
         }
-        android.util.Log.i("NativeBackdrop", "setWallpaper " + file + " blur=" + blurDp);
+        String target = resolveOrientationFile(file, landscape);
+        android.util.Log.i("NativeBackdrop", "setWallpaper base=" + file + " target=" + target
+                + " land=" + landscape + " blur=" + blurDp);
+        loadBitmapAndDisplay(target);
+    }
+
+    private void loadBitmapAndDisplay(String file) {
+        if (file == null || file.isEmpty()) {
+            image.setImageDrawable(null);
+            ambient.setImageDrawable(null);
+            current = null;
+            refreshVisibility();
+            return;
+        }
         Bitmap bmp = CACHE.get(file);
         if (bmp == null) {
             bmp = decode(file);
@@ -96,7 +153,7 @@ public class NativeBackdrop extends FrameLayout {
                 getResources(), bmp);
         image.setImageDrawable(dr);
         ambient.setImageDrawable(dr);
-        applyBlur(blurDp);
+        applyBlur(currentBlurDp);
         applyLayoutMode();
         refreshVisibility();
     }
@@ -121,12 +178,6 @@ public class NativeBackdrop extends FrameLayout {
             float r = Math.max(0.01f, blurDp) * dp;
             image.setRenderEffect(android.graphics.RenderEffect.createBlurEffect(
                     r, r, android.graphics.Shader.TileMode.CLAMP));
-            /* 环境层（横屏两侧垫）与主图同 blur：同一张图同一档模糊，contain 竖带与
-               cover 垫在边界处颜色连续，没有接缝 —— 这才是 Web 层 .wall 的口径
-               （整张壁纸统一轻度模糊、颜色场景保留，2026-10-26 用户认可的那种）。
-               首版这里用过 40dp 重模糊 + 59% 暗夜压暗，与主图 blur2dp 拼出三条观感、
-               两条硬接缝，人物从卡片背后穿过 —— 用户报「越改越丑，没有一开始的
-               美感」（2026-10-29 横屏真机截图实证）。 */
             ambient.setRenderEffect(RenderEffect.createBlurEffect(
                     r, r, android.graphics.Shader.TileMode.CLAMP));
         } catch (Throwable ignored) { }

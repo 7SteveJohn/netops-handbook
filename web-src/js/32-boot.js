@@ -717,8 +717,11 @@
      长按「全局质感」弹窗标题 0.6 秒开调参面板（隐藏入口，不占正式界面）。 */
   /* 2026-10-27：.list__item / .card__head 退出形变——它们贴着容器边，按下缩放/拖拽位移
    会让直角按压背景与圆角容器错位露底色（用户实证「矩形色块跟底面背景不一致」，
-   与 2026-10-26 直铺模式关形变同根）。独立浮动的按钮/筹码/卡片保留手感。 */
-  var SQUISH_SEL = '.tab, .chip, .btn, .ibtn, .phase, .stat, #fab';
+   与 2026-10-26 直铺模式关形变同根）。独立浮动的按钮/筹码/卡片保留手感。
+   2026-10-30：.tab 退出——float 模式 .tab 的指针事件归药丸拖拽（33-apple）所有
+   （按压类两套系统打架），nativeDock 模式下 HTML tabbar 整体隐藏收不到事件，
+   两态下 .tab 的形变都是死路径。 */
+  var SQUISH_SEL = '.chip, .btn, .ibtn, .phase, .stat, #fab';
   /* 形变默认值取自玻璃配方表（motion.squish → --gr-squish-*），不再在这里抄第二份。
      以前 SQT_DEF 和表里是同一组数字各存一份，改表其实不改行为。
      单位换算：max 生成的是 px、back 是 s，而面板按 px 数值与 ms 用。
@@ -892,11 +895,27 @@
   }
   function lsGet(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
   /* 内置壁纸清单:由 tools/gen-wallpapers.py 生成,文件在 assets/wallpapers/ */
-  var WALLPAPERS = [{"id": "wp-1-1", "cat": "二次元", "name": "二次元1", "file": "二次元1.webp"}, {"id": "wp-1-2", "cat": "二次元", "name": "二次元2", "file": "二次元2.webp"}, {"id": "wp-2-1", "cat": "芙宁娜", "name": "芙宁娜1", "file": "芙宁娜1.webp"}, {"id": "wp-2-2", "cat": "芙宁娜", "name": "芙宁娜2", "file": "芙宁娜2.webp"}, {"id": "wp-3-1", "cat": "今汐", "name": "今汐1", "file": "今汐1.webp"}, {"id": "wp-3-2", "cat": "今汐", "name": "今汐2", "file": "今汐2.webp"}, {"id": "wp-4-1", "cat": "卡提希娅", "name": "卡提希娅1", "file": "卡提希娅1.webp"}, {"id": "wp-4-2", "cat": "卡提希娅", "name": "卡提希娅2", "file": "卡提希娅2.webp"}, {"id": "wp-5-1", "cat": "雷电将军", "name": "雷电将军1", "file": "雷电将军1.webp"}, {"id": "wp-5-2", "cat": "雷电将军", "name": "雷电将军2", "file": "雷电将军2.webp"}, {"id": "wp-6-1", "cat": "纳西妲", "name": "纳西妲1", "file": "纳西妲1.webp"}, {"id": "wp-6-2", "cat": "纳西妲", "name": "纳西妲2", "file": "纳西妲2.webp"}, {"id": "wp-7-1", "cat": "守岸人", "name": "守岸人1", "file": "守岸人1.webp"}, {"id": "wp-7-2", "cat": "守岸人", "name": "守岸人2", "file": "守岸人2.webp"}];
+  var WALLPAPERS = [{"id": "wp-p-anime-1", "cat": "二次元·竖屏", "name": "海滨站台", "orientation": "portrait", "pair": "wp-l-anime-1", "file": "anime_station_p.webp"}, {"id": "wp-p-anime-2", "cat": "二次元·竖屏", "name": "绿意电车", "orientation": "portrait", "pair": "wp-l-anime-2", "file": "anime_tram_p.webp"}, {"id": "wp-p-anime-3", "cat": "二次元·竖屏", "name": "雨后晴空", "orientation": "portrait", "pair": "wp-l-anime-3", "file": "anime_rain_p.webp"}, {"id": "wp-p-anime-4", "cat": "二次元·竖屏", "name": "静谧书阁", "orientation": "portrait", "pair": "wp-l-anime-4", "file": "anime_library_p.webp"}, {"id": "wp-p-anime-5", "cat": "二次元·竖屏", "name": "暗夜六花", "orientation": "portrait", "pair": "wp-l-anime-5", "file": "anime_rikka_night_p.webp"}, {"id": "wp-p-anime-6", "cat": "二次元·竖屏", "name": "黄昏六花", "orientation": "portrait", "pair": "wp-l-anime-6", "file": "anime_rikka_sunset_p.webp"}, {"id": "wp-l-anime-1", "cat": "二次元·横屏", "name": "海滨站台", "orientation": "landscape", "pair": "wp-p-anime-1", "file": "anime_station_l.webp"}, {"id": "wp-l-anime-2", "cat": "二次元·横屏", "name": "绿意电车", "orientation": "landscape", "pair": "wp-p-anime-2", "file": "anime_tram_l.webp"}, {"id": "wp-l-anime-3", "cat": "二次元·横屏", "name": "雨后晴空", "orientation": "landscape", "pair": "wp-p-anime-3", "file": "anime_rain_l.webp"}, {"id": "wp-l-anime-4", "cat": "二次元·横屏", "name": "静谧书阁", "orientation": "landscape", "pair": "wp-p-anime-4", "file": "anime_library_l.webp"}, {"id": "wp-l-anime-5", "cat": "二次元·横屏", "name": "暗夜六花", "orientation": "landscape", "pair": "wp-p-anime-5", "file": "anime_rikka_night_l.webp"}, {"id": "wp-l-anime-6", "cat": "二次元·横屏", "name": "黄昏六花", "orientation": "landscape", "pair": "wp-p-anime-6", "file": "anime_rikka_sunset_l.webp"}, {"id": "wp-p-min-1", "cat": "简约·竖屏", "name": "深空流光", "orientation": "portrait", "pair": "wp-l-min-1", "file": "min_flow_p.webp"}, {"id": "wp-p-min-2", "cat": "简约·竖屏", "name": "暗黑脉络", "orientation": "portrait", "pair": "wp-l-min-2", "file": "min_mesh_p.webp"}, {"id": "wp-p-min-3", "cat": "简约·竖屏", "name": "液态光谱", "orientation": "portrait", "pair": "wp-l-min-3", "file": "min_prism_p.webp"}, {"id": "wp-p-min-4", "cat": "简约·竖屏", "name": "极简几何", "orientation": "portrait", "pair": "wp-l-min-4", "file": "min_geom_p.webp"}, {"id": "wp-p-min-5", "cat": "简约·竖屏", "name": "暮色终端", "orientation": "portrait", "pair": "wp-l-min-5", "file": "min_dusk_p.webp"}, {"id": "wp-l-min-1", "cat": "简约·横屏", "name": "深空流光", "orientation": "landscape", "pair": "wp-p-min-1", "file": "min_flow_l.webp"}, {"id": "wp-l-min-2", "cat": "简约·横屏", "name": "暗黑脉络", "orientation": "landscape", "pair": "wp-p-min-2", "file": "min_mesh_l.webp"}, {"id": "wp-l-min-3", "cat": "简约·横屏", "name": "液态光谱", "orientation": "landscape", "pair": "wp-p-min-3", "file": "min_prism_l.webp"}, {"id": "wp-l-min-4", "cat": "简约·横屏", "name": "极简几何", "orientation": "landscape", "pair": "wp-p-min-4", "file": "min_geom_l.webp"}, {"id": "wp-l-min-5", "cat": "简约·横屏", "name": "暮色终端", "orientation": "landscape", "pair": "wp-p-min-5", "file": "min_dusk_l.webp"}];
 
   function findWp(id) {
-    for (var i = 0; i < WALLPAPERS.length; i++) if (WALLPAPERS[i].id === id) return WALLPAPERS[i];
+    if (!id) return null;
+    for (var i = 0; i < WALLPAPERS.length; i++) {
+      if (WALLPAPERS[i].id === id || WALLPAPERS[i].file === id) return WALLPAPERS[i];
+    }
     return null;
+  }
+  /* 屏幕方向自适应解析:当前视口横屏则优先使用配对横屏版,竖屏则优先使用配对竖屏版 */
+  function resolveWpForOrientation(wp) {
+    if (!wp) return null;
+    var isLandscape = (w.innerWidth || 0) > (w.innerHeight || 0);
+    if (isLandscape && wp.orientation === 'portrait' && wp.pair) {
+      var pairWp = findWp(wp.pair);
+      if (pairWp) return pairWp;
+    } else if (!isLandscape && wp.orientation === 'landscape' && wp.pair) {
+      var pairWp = findWp(wp.pair);
+      if (pairWp) return pairWp;
+    }
+    return wp;
   }
   /* 壁纸相对路径 → URL:index.html 与 wallpapers/ 同目录(file:///android_asset/ 下相对解析,
      浏览器预览若静态服务器 serve 了 assets 目录同样可用;中文文件名需编码) */
@@ -904,7 +923,8 @@
     return 'wallpapers/' + rel.split('/').map(function (s) { return encodeURIComponent(s); }).join('/');
   }
   function setWallpaperBg(wp) {
-    var u = wpUrl(wp.file);
+    var activeWp = resolveWpForOrientation(wp);
+    var u = wpUrl((activeWp || wp).file);
     paintWallpaper('url(' + u + ')');
   }
   /* 壁纸只写 --wallpaper 一个真源，由 .wall 层负责铺与模糊。
@@ -916,7 +936,8 @@
     try {
       var direct = d.body.classList.contains('has-wallpaper');
       var wp = findWp(lsGet(WP_KEY) || '');
-      var file = wp ? wp.file : '';
+      var activeWp = resolveWpForOrientation(wp);
+      var file = activeWp ? activeWp.file : (wp ? wp.file : '');
       /* 与 --wp-blur 同一公式（不读 CSS 变量：boot 期可能尚未写入，读到空值就退回 8px，
          真机上表现为「原生页底图明显比网页糊」）。 */
       var g0 = (typeof getGlass === 'function' && getGlass()) || {};
@@ -1171,7 +1192,7 @@
       sheet.classList.add('is-open');
     });
 
-    /* 内置壁纸选择区:7 类 x 2 张文字 chips(用户 2026-08-12:不要缩略图,只要名字) */
+    /* 内置壁纸选择区:二次元与简约专区自适应主题文字 chips(支持成对联动高亮与自适应) */
     function renderWpGrid() {
       var grid = $('#wpGrid');
       if (!grid) return;
@@ -1179,12 +1200,17 @@
       var html = '', lastCat = null;
       for (var i = 0; i < WALLPAPERS.length; i++) {
         var wp = WALLPAPERS[i];
-        if (wp.cat !== lastCat) {
+        if (wp.orientation === 'landscape') continue; // 仅展示基准主题条目，横竖屏通过 pair 自动自适应切换
+        var catName = wp.cat;
+        if (catName.indexOf('二次元') >= 0) catName = '二次元壁纸（自适应横竖屏）';
+        else if (catName.indexOf('简约') >= 0) catName = '简约质感（自适应横竖屏）';
+        if (catName !== lastCat) {
           if (lastCat !== null) html += '</div>';
-          html += '<div class="wp-cat">' + wp.cat + '</div><div class="wp-chips">';
-          lastCat = wp.cat;
+          html += '<div class="wp-cat">' + catName + '</div><div class="wp-chips">';
+          lastCat = catName;
         }
-        html += '<button type="button" class="chip' + (curId === wp.id ? ' is-active' : '') + '" data-wpid="' + wp.id + '">' + wp.name + '</button>';
+        var isActive = (curId === wp.id) || (wp.pair && curId === wp.pair);
+        html += '<button type="button" class="chip' + (isActive ? ' is-active' : '') + '" data-wpid="' + wp.id + '" data-pair="' + (wp.pair || '') + '">' + wp.name + '</button>';
       }
       html += '</div>';
       grid.innerHTML = html;
@@ -1194,13 +1220,16 @@
         while (t && t !== grid && !(t.classList && t.classList.contains('chip'))) t = t.parentNode;
         if (!t || t === grid) return;
         var id = t.getAttribute('data-wpid');
-        var wp = findWp(id);
+        var pair = t.getAttribute('data-pair');
+        var isLandscape = (w.innerWidth || 0) > (w.innerHeight || 0);
+        var targetId = (isLandscape && pair) ? pair : id;
+        var wp = findWp(targetId) || findWp(id);
         if (!wp) return;
         applyWallpaper(wp.id, 'wp');
         var cells = grid.querySelectorAll('.chip');
         for (var j = 0; j < cells.length; j++) cells[j].classList.remove('is-active');
         t.classList.add('is-active');
-        U.toast('壁纸: ' + wp.name, 'ok');
+        U.toast('壁纸: ' + wp.name + '（自适应）', 'ok');
         sheet.classList.remove('is-open');
       };
     }
@@ -1267,7 +1296,7 @@
     if (!val || val === 'none') { lbl.textContent = '默认'; return; }
     if (val.indexOf('wp-') === 0) {
       var wp = findWp(val);
-      lbl.textContent = wp ? wp.name : '已设置';
+      lbl.textContent = wp ? (wp.name + '（自适应）') : '已设置';
       return;
     }
     if (val.startsWith('data:') || val === 'custom') { lbl.textContent = '自定义图片'; return; }
@@ -1279,6 +1308,32 @@
      统一底色，dock 栏用恒定玻璃面保可辨。CSS 规则都以 .has-wallpaper 作用域
      收口，无壁纸时零影响；body.wp-qq 常驻，不再有开关与存储。 */
   d.body.classList.add('wp-qq');
+
+  /* 监听屏幕旋转与尺寸变化:横竖屏翻转时自动无感切换成对的横屏/竖屏壁纸 */
+  var lastIsLandscape = (w.innerWidth || 0) > (w.innerHeight || 0);
+  function checkOrientationChange() {
+    var curLandscape = (w.innerWidth || 0) > (w.innerHeight || 0);
+    if (curLandscape !== lastIsLandscape) {
+      lastIsLandscape = curLandscape;
+      var curId = lsGet(WP_KEY);
+      if (curId && curId.indexOf('wp-') === 0) {
+        var wp = findWp(curId);
+        if (wp) {
+          var targetWp = resolveWpForOrientation(wp);
+          if (targetWp && targetWp.id !== curId) {
+            lsSet(WP_KEY, targetWp.id);
+          }
+          setWallpaperBg(targetWp || wp);
+          syncNativePageMode();
+          updateWallpaperLabel(targetWp ? targetWp.id : curId);
+        }
+      }
+    }
+  }
+  w.addEventListener('resize', checkOrientationChange);
+  w.addEventListener('orientationchange', function () {
+    setTimeout(checkOrientationChange, 120);
+  });
 
   /* 页面启动时恢复已保存的壁纸 */
   (function restoreWallpaper() {
@@ -2181,7 +2236,10 @@
     { cmd: 'display current-configuration', plat: 'hw', fn: '查看当前配置', out: 'sysname CE6850-1\ninterface Vlanif10\n ip address 192.168.10.1 255.255.255.0\ninterface GigabitEthernet0/0/1\n port link-type trunk\n...' },
     { cmd: 'kubectl get pods', plat: 'k8s', fn: 'K8s 查看 Pod', out: 'NAME                     READY  STATUS   RESTARTS  AGE\nnginx-7c9bc7c7b7-abc12   1/1    Running  0         3d2h' },
     { cmd: 'kubectl get svc', plat: 'k8s', fn: 'K8s 查看 Service', out: 'NAME     TYPE        CLUSTER-IP  EXTERNAL-IP  PORT(S)  AGE\nnginx    ClusterIP   10.96.0.10  <none>       80/TCP   3d' },
-    { cmd: 'kubectl get nodes', plat: 'k8s', fn: 'K8s 查看节点', out: 'NAME    STATUS  ROLES          AGE  VERSION\nnode-1  Ready   control-plane  30d  v1.28.2\nnode-2  Ready   <none>         30d  v1.28.2' }
+    { cmd: 'kubectl get nodes', plat: 'k8s', fn: 'K8s 查看节点', out: 'NAME    STATUS  ROLES          AGE  VERSION\nnode-1  Ready   control-plane  30d  v1.28.2\nnode-2  Ready   <none>         30d  v1.28.2' },
+    { cmd: 'arp -a', plat: 'win', fn: 'ARP 表', out: '接口: 192.168.1.100 --- 0x4\nInternet 地址         物理地址           类型\n192.168.1.1           aa-bb-cc-dd-ee-ff     动态' },
+    { cmd: 'systeminfo', plat: 'win', fn: '系统信息', out: 'Host Name:                 NETOPS-PC\nOS Name:                   Microsoft Windows 11 专业版\nTotal Physical Memory:     16,384 MB' },
+    { cmd: 'w32tm /query /status', plat: 'win', fn: 'NTP 状态', out: ' leap 指示符: 0（无警告）\n层级: 3（辅助引用）\n源: time.windows.com' }
   ];
 
   function buildCliDb() {
@@ -2199,7 +2257,7 @@
        旧写法在某家为 '-' 时拿中文功能名顶上（37 处），会造出「接口描述」这种
        根本敲不出来的"命令"，比缺条目更坏；关键字检索由字典页自己负责。 */
     CORE.dict.rows.forEach(function (r) {
-      ['hw', 'cs', 'zte', 'lx'].forEach(function (k) {
+      ['hw', 'cs', 'zte', 'lx', 'win'].forEach(function (k) {
         var n = R.normalize(r[k]);
         if (!R.isCommand(n)) return;
         push(n, r[k], r.fn, k);
@@ -2230,7 +2288,7 @@
   }
   /* 快速命令分组(优化4):按平台过滤展示 */
   var QUICK_GROUPS = [
-    { k: 'all', l: '常用' }, { k: 'hw', l: 'VRP' }, { k: 'lx', l: 'Linux' }, { k: 'k8s', l: 'K8s' }
+    { k: 'all', l: '常用' }, { k: 'hw', l: 'VRP' }, { k: 'lx', l: 'Linux' }, { k: 'k8s', l: 'K8s' }, { k: 'win', l: 'Win' }
   ];
   var quickGroup = 'all';
   function renderQuick() {
@@ -2289,13 +2347,17 @@
     }
   }
   function promptOf() {
-    return { hw: '<Huawei>', cs: 'Switch#', zte: 'ZXR10#', lx: 'root@netops:~#' }[cliMode];
+    return { hw: '<Huawei>', cs: 'Switch#', zte: 'ZXR10#', lx: 'root@netops:~#', win: 'C:\\Users\\NetOps>' }[cliMode];
   }
+  var CLI_SCROLLBACK = 600;   /* 终端 scrollback 上限：会话内输出无上限会把面板
+                                 DOM 越滚越大（内存 + 每次输入后的重排都变慢）。
+                                 超限从顶部裁最老的行；clear 仍是全清。 */
   function cliPrint(out, text, cls) {
     var div = d.createElement('div');
     div.className = 'cli__line--' + (cls || 'dim');
     div.textContent = text;
     out.appendChild(div);
+    while (out.childNodes.length > CLI_SCROLLBACK) out.removeChild(out.firstChild);
   }
   function execCli(out, v) {
     var low = v.toLowerCase().trim();
@@ -2318,7 +2380,7 @@
     }
     if (low.indexOf('mode ') === 0) {
       var m = low.slice(5).trim();
-      if (['hw', 'cs', 'zte', 'lx'].indexOf(m) < 0) { cliPrint(out, '不支持的平台：' + m, 'err'); return; }
+      if (['hw', 'cs', 'zte', 'lx', 'win'].indexOf(m) < 0) { cliPrint(out, '不支持的平台：' + m, 'err'); return; }
       cliMode = m; $('#cliPrompt').textContent = promptOf();
       cliPrint(out, '已切换到 ' + m + ' 平台', 'ok');
       return;
@@ -2556,6 +2618,10 @@
       return null;
     }
     function start(e) {
+      /* 多指：已有手势进行中时，第二根手指的 touchstart 不得重置追踪起点
+         （否则进行中的边缘返回被新手指劫持/跳变）；第一根手指独占手势，
+         直到它 end/cancel。 */
+      if (active) return;
       var t = e.touches ? e.touches[0] : e;
       /* 起手在底栏上：点按/横滑都是底栏自身语义，左缘手势让位 */
       if (t.target && t.target.closest && t.target.closest('.tabbar')) { active = false; return; }
@@ -2883,6 +2949,16 @@
       });
       pushAppBarState();
     })();
+        w.NetOpsLensSyncTab = function (i) {
+      var tabs = $$('.tab');
+      if (!tabs[i]) return;
+      var tab = tabs[i].dataset.tab;
+      stack.length = 0;
+      cur = { r: tab, a: null };
+      syncHash(cur);
+      $$('.tab').forEach(function (b) { b.classList.toggle('is-active', b.dataset.tab === tab); });
+      syncPillIndex();
+    };
     w.NetOpsLensSelect = function (i) {
       var tabs = $$('.tab');
       if (!tabs[i]) return;
