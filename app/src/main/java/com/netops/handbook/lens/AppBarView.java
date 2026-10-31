@@ -429,6 +429,8 @@ public class AppBarView extends View {
                             backdrop = out;
                             buildBlurChain();
                             long capMs = (System.nanoTime() - capT0) / 1_000_000L;
+                            if (capMs > 6) Log.i(TAG, "抓取耗时 " + capMs + "ms（" + w + "x" + h + "）");
+
                             if (capMs > 6) Log.i(TAG, "抓取耗时 " + capMs + "ms（" + w + "x" + h + "）"
                                     + (capMs > 12 ? " ⚠ 超过 12ms，滚动会掉帧" : ""));
                             backdropRev = revAtReq;
