@@ -177,6 +177,12 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             "        float3 dark = max(underC - 0.298, 0.22 * underC);\n" +
             "        col = mix(col, mix(underC, dark, 0.42), line);\n" +
             "    }\n" +
+            /* ❗基线 shader 此前直接原样输出屏幕快照（alpha=1、无 tint、无降饱和）——
+               壁纸的黄色大色块被药丸原样透出 = 「黄色药丸」（2026-10-31 真机）。
+               补 FlClash 的两步合成：① 降饱和（壁纸色不刺眼）② 中性白 tint 混合
+               （cover 0.58，Color(0x93F4F4F4).a；RGB 取 F4F4F4）。 */
+            "    col = mix(vec3(dot(col, vec3(0.299, 0.587, 0.114))), col, 0.55);\n" +
+            "    col = col * 0.42 + float3(0.957, 0.957, 0.957) * 0.58;\n" +
             "    return half4(col.r, col.g, col.b, 1.0);\n" +
             "}\n";
 
