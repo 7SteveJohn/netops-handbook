@@ -101,7 +101,7 @@
     "tabbar": {
       "light": {
         "filter": "blur(28px)",
-        "shadow": "0 0 0 .5px rgba(0,0,0,.05), inset 0 2px 6px rgba(255,255,255,.75), inset 0 -6px 14px rgba(255,255,255,.35), inset 0 0 18px rgba(255,255,255,.12), 0 8px 24px rgba(15,23,42,.10)",
+        "shadow": "0 0 0 .5px rgba(0,0,0,.05), inset 0 2px 6px rgba(255,255,255,.75), inset 0 -6px 14px rgba(255,255,255,.35), inset 0 0 18px rgba(255,255,255,.12), 0 3px 14px rgba(15,23,42,.05)",
         "specular": "rgba(255,255,255,.88)",
         "rgbTop": "255,255,255",
         "rgbBot": "245,245,247",
@@ -110,7 +110,7 @@
       },
       "dark": {
         "filter": "blur(28px)",
-        "shadow": "0 0 0 .5px rgba(255,255,255,.10), inset 0 2px 6px rgba(255,255,255,.28), inset 0 -6px 14px rgba(255,255,255,.08), inset 0 0 18px rgba(255,255,255,.05), 0 -1px 0 rgba(255,255,255,.30) inset, 0 8px 24px rgba(0,0,0,.28)",
+        "shadow": "0 0 0 .5px rgba(255,255,255,.10), inset 0 2px 6px rgba(255,255,255,.28), inset 0 -6px 14px rgba(255,255,255,.08), inset 0 0 18px rgba(255,255,255,.05), 0 -1px 0 rgba(255,255,255,.30) inset, 0 3px 14px rgba(0,0,0,.12)",
         "specular": "rgba(255,255,255,.28)",
         "rgbTop": "30,32,40",
         "rgbBot": "14,15,18",
@@ -152,7 +152,7 @@
     "optics": {
       "_note": "2026-09-28 重建模（lens-probe 四盒截图裁决，见 screenshots/lens-probe-abcd-2x）：band = bezel·min(hw,hh) 比例带（33-apple.js 下限 10px）+ smoothstep 剖面，替代旧固定 8px 窄带 + pow(ior)（边缘硬压缩条纹）。bezel=0.30 → 84px 栏 band≈13px、中央留 ~58px 平坦区不侵文字；refraction=16（feDisplacementMap scale，通道满偏≈半程 8px）。ior 已删（无消费者）。真机裁决前为离线定稿。",
       "refraction": 16,
-      "bezel": 0.30,
+      "bezel": 0.3,
       "curvature": 2.5
     },
     "rim": "inset 0 0 0 .5px rgba(255,255,255,.55), inset 0 1px 1px rgba(255,255,255,.8), inset 0 -1px 1px rgba(0,0,0,.05)",

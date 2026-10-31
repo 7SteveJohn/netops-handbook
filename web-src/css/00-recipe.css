@@ -24,7 +24,7 @@
   --gr-tabbar-a-min: 0.52;
   --gr-tabbar-a-max: 0.72;
   --gr-tabbar-filter: blur(28px);
-  --gr-tabbar-shadow: 0 0 0 .5px rgba(0,0,0,.05), inset 0 2px 6px rgba(255,255,255,.75), inset 0 -6px 14px rgba(255,255,255,.35), inset 0 0 18px rgba(255,255,255,.12), 0 8px 24px rgba(15,23,42,.10);
+  --gr-tabbar-shadow: 0 0 0 .5px rgba(0,0,0,.05), inset 0 2px 6px rgba(255,255,255,.75), inset 0 -6px 14px rgba(255,255,255,.35), inset 0 0 18px rgba(255,255,255,.12), 0 3px 14px rgba(15,23,42,.05);
   --gr-tabbar-specular: rgba(255,255,255,.88);
   --gr-sheet-tint-top: rgba(255,255,255,.92);
   --gr-sheet-tint-bot: rgba(245,245,247,.86);
@@ -61,7 +61,7 @@ html.dark {
   --gr-tabbar-a-min: 0.28;
   --gr-tabbar-a-max: 0.45;
   --gr-tabbar-filter: blur(28px);
-  --gr-tabbar-shadow: 0 0 0 .5px rgba(255,255,255,.10), inset 0 2px 6px rgba(255,255,255,.28), inset 0 -6px 14px rgba(255,255,255,.08), inset 0 0 18px rgba(255,255,255,.05), 0 -1px 0 rgba(255,255,255,.30) inset, 0 8px 24px rgba(0,0,0,.28);
+  --gr-tabbar-shadow: 0 0 0 .5px rgba(255,255,255,.10), inset 0 2px 6px rgba(255,255,255,.28), inset 0 -6px 14px rgba(255,255,255,.08), inset 0 0 18px rgba(255,255,255,.05), 0 -1px 0 rgba(255,255,255,.30) inset, 0 3px 14px rgba(0,0,0,.12);
   --gr-tabbar-specular: rgba(255,255,255,.28);
   --gr-sheet-tint-top: rgba(28,28,30,.92);
   --gr-sheet-tint-bot: rgba(20,20,22,.86);
