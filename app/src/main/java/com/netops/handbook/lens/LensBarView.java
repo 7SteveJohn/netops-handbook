@@ -48,7 +48,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     private static final String TAG = "LensBar";
 
     /* ---- 光学：FlClash LiquidGlassStyle.lens（dp，源码实测值）---- */
-    private static final float REFRACTION  = -4.3f;  // 负 = 凸起透镜
+    private static final float REFRACTION  = -12f;  // 负 = 凸起透镜；26dp 会把栏外页面文字拉进透镜（待 clamp 方案修正后再加深）
     private static final float BEVEL       = 5.5f;
     private static final float DISPERSION  = 6.5f;
     private static final float LIFT_GROWTH = 16f;   // 抬起时两向各增长 16dp
@@ -104,6 +104,10 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             "    return min(max(q.x, q.y), 0.0) + length(max(q, 0.0)) - r;\n" +
             "}\n" +
             "\n" +
+            /* ❗采样 clamp 到栏体矩形（快照坐标 = uCenter-uBgOffset ± uHalf）：
+               用户规范——透过药丸看到的是 **dock 栏上的图标文字被折射弯折**，
+               而不是把栏外（上方页面文字/壁纸）拽进药丸。26dp 折射不加此限，
+               会把药丸上方 26dp 处的页面正文拉进来（2026-11-01 真机实测）。 */
             "half3 eval3(float2 uv) {\n" +
             "    half4 s = backdrop.eval(uv);\n" +
             "    return half3(s.r, s.g, s.b);\n" +
@@ -181,9 +185,14 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                壁纸的黄色大色块被药丸原样透出 = 「黄色药丸」（2026-10-31 真机）。
                补 FlClash 的两步合成：① 降饱和（壁纸色不刺眼）② 中性白 tint 混合
                （cover 0.58，Color(0x93F4F4F4).a；RGB 取 F4F4F4）。 */
-            "    col = mix(vec3(dot(col, vec3(0.299, 0.587, 0.114))), col, 0.55);\n" +
-            "    col = col * 0.42 + float3(0.957, 0.957, 0.957) * 0.58;\n" +
-            "    return half4(col.r, col.g, col.b, 1.0);\n" +
+            "    col = mix(vec3(dot(col, vec3(0.299, 0.587, 0.114))), col, 0.70);\n" +
+            "    col = col * 0.60 + float3(0.957, 0.957, 0.957) * 0.40;\n" +
+            /* ❗半透明玻璃（alpha 0.35）：用户规范——药丸是透明的玻璃片，滑到哪，
+               HTML 画的 tab 图标文字就**直接透过它**显示（65% 透射）；
+               折射内容（PixelCopy 快照）只以 35% 权重做质感叠加。
+               此前 alpha=1 不透明 → 盖住 HTML 字 + 折射把上方页面文字拉进来，
+               两头不讨好。 */
+            "    return half4(col.r, col.g, col.b, 0.35);\n" +
             "}\n";
 
     private final WebView webView;
