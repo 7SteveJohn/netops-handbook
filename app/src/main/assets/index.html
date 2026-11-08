@@ -3391,6 +3391,12 @@ try { w.NetBridge.setSheetOpen(open); } catch (e) { }
 obs.observe(d.body, { subtree: true, attributes: true, attributeFilter: ['class'], childList: true });
 })();
 var TABBAR_KEY = 'netops_tabbar';
+var LGLASS_KEY = 'netops_lglass';
+function setGlassLevel(level) {
+if (level !== 'none' && level !== 'standard' && level !== 'ultra') return;
+lsSet(LGLASS_KEY, level);
+try { if (w.NetBridge && w.NetBridge.setGlassLevel) NetBridge.setGlassLevel(level); } catch (e) { }
+}
 function getTabbarMode() {
 try { return localStorage.getItem(TABBAR_KEY) || 'float'; } catch(e) { return 'float'; }
 }
@@ -4084,6 +4090,7 @@ var tbm = getTabbarMode();
 d.body.classList.toggle('tabbar-regular', tbm === 'regular');
 d.body.classList.toggle('tabbar-float', tbm !== 'regular');
 try { if (w.NetBridge && w.NetBridge.setDockDocked) NetBridge.setDockDocked(tbm === 'regular'); } catch (e) { }
+try { if (w.NetBridge && w.NetBridge.setGlassLevel) NetBridge.setGlassLevel(localStorage.getItem(LGLASS_KEY) || 'ultra'); } catch (e) { }
 initGlass();
 if (!deviceDegraded) initGlassLight();
 initSquish();    
@@ -4179,6 +4186,7 @@ try {
 if (kind === 'theme') setTheme(value);
 else if (kind === 'wallpaper') applyWallpaper(value, 'wp');
 else if (kind === 'dockstyle') setTabbarMode(value === 'regular' ? 'regular' : 'float');
+else if (kind === 'glasslevel') setGlassLevel(value);
 } catch (e) { }
 };
 w.NetOpsNativePushSettings = function () {
@@ -4850,6 +4858,6 @@ if (document.readyState === 'loading') {
 document.addEventListener('DOMContentLoaded', init, { once: true });
 } else { init(); }
 })();
-;window.__BUILD__='20261109-0445-d82ba4';</script>
+;window.__BUILD__='20261109-0508-c8dcc0';</script>
 </body>
 </html>
