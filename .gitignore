@@ -81,3 +81,6 @@ dist/
 /.cache-flclash/
 /vw.png
 /web-src/tools/glass-tier-demo.html
+
+# Kotlin 编译守护活性文件（构建临时垃圾）
+.kotlin/
