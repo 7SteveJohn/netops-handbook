@@ -879,7 +879,9 @@ public class MainActivity extends AppCompatActivity {
                 pageReady = true;
                 reloadTries = 0;
                 flushInsets();
-                pushTheme(isNightMode());
+                pushTheme(resolvedDark());   // ❗记忆优先（sun 记过 dark 就恒 dark）：
+                                             // isNightMode() 会把原生页推回浅色（2026-11-08
+                                             // 「切到字典/面试深色立马取消」根因）
                 if (lensBar != null) lensBar.requestFrostRefresh();   // 新页落定 → 重抓栏后霜
             }
 
@@ -1102,7 +1104,13 @@ public class MainActivity extends AppCompatActivity {
                 try {
                     webView.evaluateJavascript(js, null);
                     webView.evaluateJavascript(
-                        "(function(){return document.documentElement.className+'|theme='+localStorage.getItem('theme')})()",
+                        "(function(){var h=document.querySelector('.hero');var c=h?getComputedStyle(h):null;"
+                        + "var wl=document.querySelector('.wall');"
+                        + "return document.documentElement.className.substring(0,40)"
+                        + "+'|heroBG='+(c?c.backgroundImage.substring(0,60):'NOHERO')"
+                        + "+'|heroColor='+(c?c.color:'')"
+                        + "+'|wallFilter='+(wl?getComputedStyle(wl).filter.substring(0,60):'NOWALL')"
+                        + "+'|store='+localStorage.getItem('ui.theme')})()",
                         v -> Log.i(TAG, "JSSTATE " + v));
                 } catch (Throwable ignored) { }
             }
