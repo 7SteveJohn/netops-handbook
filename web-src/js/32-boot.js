@@ -407,6 +407,9 @@
           }).join('') +
         '</div></div></div>';
     });
+    h += '<div class="tree__group" data-accent="blue"><button class="tree__head" type="button" data-go="learn">' +
+      '<span class="tree__dot"></span><span class="tree__name">学习手册</span>' +
+      '<span class="tree__cnt">' + CORE.mods.length + '</span></button></div>';
     h += '<div class="tree__group" data-accent="rose"><button class="tree__head" type="button" data-go="fault">' +
       '<span class="tree__dot"></span><span class="tree__name">排障字典</span>' +
       '<span class="tree__cnt">' + CORE.faults.length + '</span></button></div>';
@@ -419,6 +422,9 @@
     h += '<div class="tree__group" data-accent="purple"><button class="tree__head" type="button" data-go="refs">' +
       '<span class="tree__dot"></span><span class="tree__name">速查表</span>' +
       '<span class="tree__cnt">' + EXT.refs.length + '</span></button></div>';
+    h += '<div class="tree__group" data-accent="slate"><button class="tree__head" type="button" data-go="me">' +
+      '<span class="tree__dot"></span><span class="tree__name">我的</span>' +
+      '<span class="tree__cnt">' + A.S.done.length + '</span></button></div>';
     body.innerHTML = h;
   }
 

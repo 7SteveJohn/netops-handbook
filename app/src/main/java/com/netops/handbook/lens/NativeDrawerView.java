@@ -207,6 +207,13 @@ public class NativeDrawerView extends FrameLayout {
         sub.setPadding(0, pal.dp(3), 0, pal.dp(10));
         panel.addView(sub);
 
+        /* ❗页面导航（2026-11-08 补齐）：抽屉原只有技能目录+查询工具，dock 五页缺
+           「学习/我的」两个入口——导航不对称。补「页面」段后抽屉=全页面目录
+           （FlClash 同构：底栏高频 + 抽屉全量）。 */
+        panel.addView(section("页面"));
+        panel.addView(item("学习手册", "89 个模块 · 路径与进度", () -> go.go("learn", "")));
+        panel.addView(item("我的", "进度 · 收藏 · 设置", () -> go.go("me", "")));
+
         panel.addView(section("技能目录"));
         JSONArray phases = root == null ? null : root.optJSONArray("phases");
         if (phases != null) for (int i = 0; i < phases.length(); i++) {
