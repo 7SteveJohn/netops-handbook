@@ -112,6 +112,10 @@ public class MainActivity extends AppCompatActivity {
     private boolean nativeDockPending = true;
     private com.netops.handbook.lens.NativePhaseView nativePhase;
     private com.netops.handbook.lens.NativeBackdrop nativeBackdrop;
+    /** 快照交叉淡化覆盖层（P1-3，2026-11-09）：页之上、抽屉之下，抓帧后 160ms 淡出。 */
+    private android.widget.ImageView switchOverlay;
+    /** 当前显示的原生页 keep 名（null=WebView 路由）：重复桥调用同页短路用。 */
+    private String currentNativeKeep = null;
     private com.netops.handbook.lens.NativeHomeView nativeHome;
     private com.netops.handbook.lens.NativeSearchView nativeSearch;
     private com.netops.handbook.lens.NativeMeView nativeMe;
@@ -224,6 +228,48 @@ public class MainActivity extends AppCompatActivity {
             nativeDrawer.close();
             if (lensBar != null) lensBar.setOverlaid(false);
             NetOpsShell.INSTANCE.setOverlaid(false);
+        }
+    }
+
+    /** 快照交叉淡化（2026-11-09 P1-3）：先把当前主窗 PixelCopy 成一帧盖上覆盖层，
+     *  页面在覆盖层之下瞬时切换，覆盖层 160ms 淡出。视图 alpha 直接加在玻璃卡页面上要建
+     *  1904×3040 离屏层（2026-10-28 实测 99th 200ms，已回退）；11-06 交叉淡化闪烁
+     *  （半透明页互透）被整帧快照绕开。dock/顶栏是独立置顶弹窗，永远盖在覆盖层之上
+     *  不受影响；覆盖层不可点击，命中测试穿透到下层页面。 */
+    private void switchNativeTo(String keep, Runnable showTarget) {
+        /* 同页重复桥调用短路：JS 迟到确认/路由恢复会对同一页重复 showNativeX，
+           若也走覆盖层会中途取消上一轮淡出、重抓、再淡——可见过渡被压缩成 ~40ms
+           （2026-11-09 真机诊断实证），且每重复一次白烧一次全屏 PixelCopy。 */
+        if (keep != null && keep.equals(currentNativeKeep)) {
+            hideNativePagesExcept(keep); showTarget.run(); return;
+        }
+        if (switchOverlay == null) { currentNativeKeep = keep; hideNativePagesExcept(keep); showTarget.run(); return; }
+        switchOverlay.animate().cancel();      /* 上一轮过渡未结束：撤旧层重抓当帧 */
+        switchOverlay.setVisibility(android.view.View.GONE);
+        try {
+            android.graphics.Bitmap bm = android.graphics.Bitmap.createBitmap(
+                    root.getWidth(), root.getHeight(), android.graphics.Bitmap.Config.ARGB_8888);
+            android.view.PixelCopy.request(getWindow(), bm, res -> {
+                if (res != android.view.PixelCopy.SUCCESS) {
+                    /* 抓帧失败必须留痕：静默回退会让「淡入没生效」无从排查
+                       （2026-11-09 真机诊断教训——res 失败分支曾无日志）。 */
+                    android.util.Log.w("SwitchFade", "PixelCopy res=" + res + "，回退瞬时切换");
+                    currentNativeKeep = keep;
+                    hideNativePagesExcept(keep); showTarget.run(); return;
+                }
+                switchOverlay.setImageBitmap(bm);
+                switchOverlay.setAlpha(1f);
+                switchOverlay.setVisibility(android.view.View.VISIBLE);
+                hideNativePagesExcept(keep);
+                showTarget.run();
+                currentNativeKeep = keep;
+                switchOverlay.animate().alpha(0f).setDuration(160)
+                        .withEndAction(() -> switchOverlay.setVisibility(android.view.View.GONE)).start();
+            }, new android.os.Handler(android.os.Looper.getMainLooper()));
+        } catch (Throwable t) {
+            android.util.Log.w("SwitchFade", "快照抓帧失败，回退瞬时切换", t);
+            currentNativeKeep = keep;
+            hideNativePagesExcept(keep); showTarget.run();
         }
     }
 
@@ -470,7 +516,7 @@ public class MainActivity extends AppCompatActivity {
         root.addView(nativePhase);
 
         /* 原生文档列表页（N4）：排障 / 面试 共用 NativeDocList，各自一个 Config。 */
-        nativeFault = addDocList(docConfig("排障案例", "案例", "已解决", "faults", "fault", "", "", false));
+        nativeFault = addDocList(docConfig("排障案例", "案例", "已解决", "faults", "fault", "", "", true));
         nativeIv = addDocList(docConfig("面试题库", "问题", "已准备", "interview", "iv", "IVQ", "Q", true));
 
         /* 原生命令字典页（N4）：命令对照表 + 分类筛选。 */
@@ -494,6 +540,14 @@ public class MainActivity extends AppCompatActivity {
         nativeQuiz = new com.netops.handbook.lens.NativeQuizView(this);
         nativeQuiz.setGlassSource(nativeBackdrop);
         addNativePage(nativeQuiz);
+
+        /* 快照交叉淡化覆盖层（P1-3）：z 序在全部原生页之上、抽屉之下（先于 drawer addView）。
+           不可点击 → 命中测试穿透，淡出期间触摸直达新页面。 */
+        switchOverlay = new android.widget.ImageView(this);
+        switchOverlay.setLayoutParams(new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        switchOverlay.setVisibility(android.view.View.GONE);
+        root.addView(switchOverlay);
 
         /* 抽屉最后加：z 序压在全部原生页之上（见构造处注释） */
         root.addView(nativeDrawer);
@@ -1318,7 +1372,7 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public void showNativeFault() {
             if (nativeFault == null) return;
-            runOnUiThread(() -> { hideNativePagesExcept("fault"); nativeFault.show(); });
+            runOnUiThread(() -> { switchNativeTo("fault", () -> nativeFault.show()); });
         }
 
         @JavascriptInterface
@@ -1330,7 +1384,7 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public void showNativeDict() {
             if (nativeDict == null) return;
-            runOnUiThread(() -> { hideNativePagesExcept("dict"); nativeDict.show(); });
+            runOnUiThread(() -> { switchNativeTo("dict", () -> nativeDict.show()); });
         }
 
         @JavascriptInterface
@@ -1340,25 +1394,25 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @JavascriptInterface
-        public void showNativeRefs() { if (nativeRefs != null) runOnUiThread(() -> { hideNativePagesExcept("refs"); nativeRefs.show(); }); }
+        public void showNativeRefs() { if (nativeRefs != null) runOnUiThread(() -> { switchNativeTo("refs", () -> nativeRefs.show()); }); }
 
         /** 速查单表直达（原 WebView `ref` 页的入口：搜索「速查」结果点开）。 */
         @JavascriptInterface
         public void showNativeRef(String id) {
-            if (nativeRefs != null) runOnUiThread(() -> { hideNativePagesExcept("refs"); nativeRefs.showDetail(id); });
+            if (nativeRefs != null) runOnUiThread(() -> { switchNativeTo("refs", () -> nativeRefs.showDetail(id)); });
         }
 
         @JavascriptInterface
         public void hideNativeRefs() { if (nativeRefs != null) runOnUiThread(() -> nativeRefs.hide()); }
 
         @JavascriptInterface
-        public void showNativeGlossary() { if (nativeGlossary != null) runOnUiThread(() -> { hideNativePagesExcept("glossary"); nativeGlossary.show(); }); }
+        public void showNativeGlossary() { if (nativeGlossary != null) runOnUiThread(() -> { switchNativeTo("glossary", () -> nativeGlossary.show()); }); }
 
         @JavascriptInterface
         public void hideNativeGlossary() { if (nativeGlossary != null) runOnUiThread(() -> nativeGlossary.hide()); }
 
         @JavascriptInterface
-        public void showNativeRoadmap() { if (nativeRoadmap != null) runOnUiThread(() -> { hideNativePagesExcept("roadmap"); nativeRoadmap.show(); }); }
+        public void showNativeRoadmap() { if (nativeRoadmap != null) runOnUiThread(() -> { switchNativeTo("roadmap", () -> nativeRoadmap.show()); }); }
 
         @JavascriptInterface
         public void hideNativeRoadmap() { if (nativeRoadmap != null) runOnUiThread(() -> nativeRoadmap.hide()); }
@@ -1366,7 +1420,7 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public void showNativeFav() {
             if (nativeFav == null) return;
-            runOnUiThread(() -> { hideNativePagesExcept("fav"); nativeFav.show(); });
+            runOnUiThread(() -> { switchNativeTo("fav", () -> nativeFav.show()); });
         }
 
         @JavascriptInterface
@@ -1380,13 +1434,13 @@ public class MainActivity extends AppCompatActivity {
 
         @JavascriptInterface
         public void hideAllNativePages() {
-            runOnUiThread(() -> hideNativePagesExcept(null));
+            runOnUiThread(() -> switchNativeTo(null, () -> {}));
         }
 
         @JavascriptInterface
         public void showNativeMe() {
             if (nativeMe == null) return;
-            runOnUiThread(() -> { hideNativePagesExcept("me"); nativeMe.show(); });
+            runOnUiThread(() -> { switchNativeTo("me", () -> nativeMe.show()); });
         }
 
         /** 设置面板打开时，页面层把当前状态推回来。 */
@@ -1405,19 +1459,19 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public void showNativeSearch() {
             if (nativeSearch == null) return;
-            runOnUiThread(() -> { hideNativePagesExcept("search"); nativeSearch.show(); });
+            runOnUiThread(() -> { switchNativeTo("search", () -> nativeSearch.show()); });
         }
 
         @JavascriptInterface
-        public void showNativeHome() { if (nativeHome != null) runOnUiThread(() -> { hideNativePagesExcept("home"); nativeHome.show(); }); }
+        public void showNativeHome() { if (nativeHome != null) runOnUiThread(() -> { switchNativeTo("home", () -> nativeHome.show()); }); }
 
         @JavascriptInterface
-        public void showNativeQuiz() { if (nativeQuiz != null) runOnUiThread(() -> { hideNativePagesExcept("quiz"); nativeQuiz.show(); }); }
+        public void showNativeQuiz() { if (nativeQuiz != null) runOnUiThread(() -> { switchNativeTo("quiz", () -> nativeQuiz.show()); }); }
 
         @JavascriptInterface
         public void showNativeIv() {
             if (nativeIv == null) return;
-            runOnUiThread(() -> { hideNativePagesExcept("iv"); nativeIv.show(); });
+            runOnUiThread(() -> { switchNativeTo("iv", () -> nativeIv.show()); });
         }
 
         @JavascriptInterface
@@ -1430,14 +1484,14 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public void showNativePhase(String pid) {
             if (nativePhase == null) return;
-            runOnUiThread(() -> { hideNativePagesExcept("phase"); nativePhase.show(pid); });
+            runOnUiThread(() -> { switchNativeTo("phase", () -> nativePhase.show(pid)); });
         }
 
         /** 「继续学习」/收藏跳转：直接展开目标模块卡并滚到它。 */
         @JavascriptInterface
         public void showNativePhaseFocus(String pid, String mid) {
             if (nativePhase == null) return;
-            runOnUiThread(() -> { hideNativePagesExcept("phase"); nativePhase.show(pid, mid); });
+            runOnUiThread(() -> { switchNativeTo("phase", () -> nativePhase.show(pid, mid)); });
         }
 
         @JavascriptInterface

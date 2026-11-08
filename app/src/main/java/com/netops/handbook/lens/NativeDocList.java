@@ -135,7 +135,15 @@ public class NativeDocList extends LinearLayout {
     public boolean show() {
         if (items.length() == 0) return false;
         if (getVisibility() == VISIBLE && !dirty) return true;   /* 原生已先切过来：JS 迟到的确认不再重置滚动 */
-        if (dirty || page.getChildCount() == 0) { buildPage(); dirty = false; }
+        if (dirty || page.getChildCount() == 0) {
+            long __t0 = android.os.SystemClock.uptimeMillis();
+            buildPage();
+            dirty = false;
+            /* PerfProbe：首显构建耗时（gfxinfo 在 HyperOS 上全局失效的替代口径，
+               2026-11-09 实测整机 ViewRootImpl=0）。改造前后同探针对比。 */
+            android.util.Log.i("PerfProbe", cfg.dataKey + " firstShow build="
+                    + (android.os.SystemClock.uptimeMillis() - __t0) + "ms items=" + items.length());
+        }
         scroller.scrollTo(0, sp.getInt("scroll_" + cfg.scrollKey, 0));
         animate().cancel();          /* 取消未完成的 hide 动画，否则其 endAction 会把刚显示的页面又置 GONE */
         setVisibility(VISIBLE);
