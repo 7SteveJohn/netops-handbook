@@ -442,8 +442,15 @@ public class AppBarView extends View {
         invalidate();
     }
 
+    /** 快照转场保持（2026-11-09）：true 期间暂停抓帧，收尾由 notifyBarsSwitchSettled 放行。 */
+    public void setTransitionHold(boolean hold) { transitionHold = hold; }
+    private volatile boolean transitionHold = false;
+
     private void captureBackdrop() {
-        if (detached || copyBusy || !glassOn || !hasGeometry || backdropRev == bgRev) return;
+        /* transitionHold：快照转场覆盖层存活期间不抓帧——覆盖层在主窗内，
+           抓到的是旧页/混合像素（2026-11-09 用户报「顶栏有延迟」的缝隙之一），
+           转场收尾由 MainActivity.notifyBarsSwitchSettled 统一放行+重抓。 */
+        if (detached || copyBusy || transitionHold || !glassOn || !hasGeometry || backdropRev == bgRev) return;
         if (Build.VERSION.SDK_INT < 26) return;   // PixelCopy.Window 需 26+；低版本走实色降级
         Activity act = (getContext() instanceof Activity) ? (Activity) getContext() : null;
         if (act == null || act.getWindow() == null) return;
@@ -573,8 +580,28 @@ public class AppBarView extends View {
             int fw = Math.max(2, raw.getWidth() / sf), fh = Math.max(2, raw.getHeight() / sf);
             Bitmap half = Bitmap.createBitmap(fw, fh, Bitmap.Config.ARGB_8888);
             Paint bp = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG);
+            /* 顶栏配壁纸（2026-11-09 用户报「顶栏跟壁纸不配」）：饱和提升按底图
+               亮度自适应——1.5× 是深色壁纸时代调的味，亮蓝天壁纸直接被拉成艳蓝。
+               均值取自抓帧原图顶条（栏下 sticky 无内容，即壁纸天区）；
+               ≥192（亮壁纸）饱和降到 1.05；160~192 线性过渡；暗端原味 1.5。 */
+            float sat = 1.5f;
+            {
+                int sw = raw.getWidth(), sh = Math.min(raw.getHeight(), 80);
+                int[] spix = new int[sw * sh];
+                raw.getPixels(spix, 0, sw, 0, 0, sw, sh);
+                long lumSum = 0; int lumN = 0;
+                for (int v : spix) {
+                    int r = (v >> 16) & 0xFF, g = (v >> 8) & 0xFF, b = v & 0xFF;
+                    lumSum += (r * 299 + g * 587 + b * 114) / 1000; lumN++;
+                }
+                if (lumN > 0) {
+                    float mean = lumSum / (float) lumN;
+                    if (mean >= 192f) sat = 1.05f;
+                    else if (mean >= 160f) sat = 1.5f - (mean - 160f) / 32f * 0.45f;
+                }
+            }
             ColorMatrix cm = new ColorMatrix();
-            cm.setSaturation(1.5f);
+            cm.setSaturation(sat);
             bp.setColorFilter(new ColorMatrixColorFilter(cm));
             new Canvas(half).drawBitmap(raw, null, new RectF(0, 0, fw, fh), bp);
             int k = Math.max(2, Math.round(sigma));

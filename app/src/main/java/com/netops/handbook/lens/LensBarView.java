@@ -420,7 +420,9 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
      *  一旦卡死，霜就冻结到重启（2026-10-30 顶栏同款事故）；700ms 无回响应
      *  解闩重抓。 */
     private void rebuildContentFrost() {
-        if (detached || dockVertical || !nativeDock || contentFrostBusy || window == null) return;
+        /* transitionHold：快照转场覆盖层存活期间不抓帧（覆盖层在主窗内，抓到
+           旧页像素）——转场收尾由 MainActivity.notifyBarsSwitchSettled 放行。 */
+        if (detached || dockVertical || transitionHold || !nativeDock || contentFrostBusy || window == null) return;
         if (barRect.width() <= 4 || barRect.height() <= 4) return;
         View decor = window.getDecorView();
         if (decor == null || decor.getWidth() <= 0) return;
@@ -497,6 +499,10 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             Log.w(TAG, "栏体内容快照失败", e);
         }
     }
+
+    /** 快照转场保持（2026-11-09）：true 期间暂停栏后内容抓帧，收尾统一放行。 */
+    public void setTransitionHold(boolean hold) { transitionHold = hold; }
+    private volatile boolean transitionHold = false;
 
     /** miuix blur 链的 CPU 等价实现：÷2 记录档（downScaleExpFor 对 blur4dp 的
      *  自适应档）→ vibrancy（saturation 1.5，sRGB 空间同式；brightness=0 时

@@ -249,6 +249,10 @@ public class MainActivity extends AppCompatActivity {
             root.postDelayed(this::notifyBarsSwitchSettled, 160);   /* 无覆盖层路径：页面画完再补抓 */
             return;
         }
+        /* 转场保持：覆盖层存活期两栏不抓帧（抓到的是旧页/混合像素），
+           收尾 notifyBarsSwitchSettled 统一放行+重抓。 */
+        if (lensBar != null) lensBar.setTransitionHold(true);
+        if (appbarBar != null) appbarBar.setTransitionHold(true);
         switchOverlay.animate().cancel();      /* 上一轮过渡未结束：撤旧层重抓当帧 */
         switchOverlay.setVisibility(android.view.View.GONE);
         try {
@@ -292,8 +296,14 @@ public class MainActivity extends AppCompatActivity {
      *  450ms 补抓，但用户在这 450ms 里的一次触摸仍是「不跟手」体感来源，
      *  这里在 160ms 转场结束点统一收口，两栏一次补齐。 */
     private void notifyBarsSwitchSettled() {
-        if (lensBar != null) lensBar.onBackdropChanged();
-        if (appbarBar != null) appbarBar.invalidateBackdrop();
+        if (lensBar != null) {
+            lensBar.setTransitionHold(false);
+            lensBar.onBackdropChanged();
+        }
+        if (appbarBar != null) {
+            appbarBar.setTransitionHold(false);
+            appbarBar.invalidateBackdrop();
+        }
     }
 
     /** 原生页导航统一出口：全部经 JS 路由（标题/返回栈/互斥都在 render 里收口）。 */
