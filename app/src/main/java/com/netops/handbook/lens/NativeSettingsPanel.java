@@ -223,23 +223,9 @@ public class NativeSettingsPanel extends FrameLayout {
             }
         }
 
-        sheet.addView(section("原生界面"));
-        sheet.addView(toggleRow("原生底栏", "原生层绘制底栏外观；关闭回退网页渲染", nativeDock, v -> {
-            nativeDock = v;
-            setter.apply("nativedock", v ? "1" : "0");
-            build();
-        }));
-        sheet.addView(toggleRow("原生顶栏", "原生层绘制顶栏外观；关闭回退网页渲染", nativeAppbar, v -> {
-            nativeAppbar = v;
-            setter.apply("nativeappbar", v ? "1" : "0");
-            build();
-        }));
-
-        /* ❗「全局质感」区下线（2026-11-08 用户报「选项抽象、不知道干什么」）：
-           玻璃效果开关/液态玻璃档位/通透度/模糊强度是 HTML 玻璃时代的参数，
-           原生接管后 dock/顶栏/头卡全走原生固定参数（tint 0.15/0.26、blur 3-4dp），
-           这些设置不再作用于任何可见界面。localStorage 的 glass 数据保留
-           （手机 HTML 回退模式仍读），仅 UI 下线。 */
+        /* ❗「原生界面」区下线（2026-11-08 用户：没必要留，保证恒为液态玻璃）：
+           原生 dock/顶栏恒开（JS nativeDockOn/nativeAppbarOn 已改恒 true），
+           回退网页渲染的路径仅保留代码（设备异常时手动改源），UI 不再暴露。 */
         TextView close = NativeBlocks.tv(getContext(), pal, "完成", 14, true, pal.accent);
         close.setGravity(Gravity.CENTER);
         close.setPadding(0, pal.dp(14), 0, 0);

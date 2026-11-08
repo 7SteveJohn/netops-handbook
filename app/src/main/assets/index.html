@@ -4444,7 +4444,7 @@ w.NetOpsNativePhaseHide = nativePhaseHide;
 pushLegacyState();                      
 var NATIVE_DOCK_KEY = 'netops_native_dock';
 function nativeDockOn() {
-try { return localStorage.getItem(NATIVE_DOCK_KEY) !== '0'; } catch (e) { return true; }
+return true;
 }
 function applyNativeDock(on) {
 var hasBridge = !!(w.NetBridge && w.NetBridge.setNativeDock);
@@ -4466,7 +4466,7 @@ A.setNativeDock = w.NetOpsSetNativeDock;
 var NATIVE_APPBAR_KEY = 'netops_native_appbar';
 var lastAppBarName = null, lastAppBarScrolled = null;
 function nativeAppbarOn() {
-try { return localStorage.getItem(NATIVE_APPBAR_KEY) !== '0'; } catch (e) { return true; }
+return true;    
 }
 function pushAppBarState() {
 try {
@@ -5093,6 +5093,6 @@ if (document.readyState === 'loading') {
 document.addEventListener('DOMContentLoaded', init, { once: true });
 } else { init(); }
 })();
-;window.__BUILD__='20261108-2105-50ce22';</script>
+;window.__BUILD__='20261108-2158-ae6a1d';</script>
 </body>
 </html>

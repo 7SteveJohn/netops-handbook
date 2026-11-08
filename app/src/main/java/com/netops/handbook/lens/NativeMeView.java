@@ -148,13 +148,9 @@ public class NativeMeView extends LinearLayout {
         page.addView(section("我的收藏"));
         page.addView(navRow("收藏夹", fav.isEmpty() ? "还没有收藏任何内容" : fav.size() + " 条已收藏", "fav"));
 
-        page.addView(section("资源"));
-        page.addView(navRow("速查表", refsCount() + " 张高频对照表", "refs"));
-        page.addView(navRow("术语词典", glossaryCount() + " 条", "glossary"));
-        page.addView(navRow("学习路线图", "0-12 个月成长节奏", "roadmap"));
-        page.addView(navRow("模拟测验", quizCount() + " 题", "quiz"));
-        page.addView(navRow("CLI 模拟器", "离线命令沙盒", "cli"));
-
+        /* ❗「资源」区下线（2026-11-08 用户指出重复）：速查表/术语/路线图/测验/CLI
+           五项与学习页工具箱一字不差——工具入口主区在学习页工具箱，「我的」页
+           聚焦个人数据（进度/收藏/设置）。 */
         page.addView(section("设置"));
         page.addView(navRow("外观与壁纸", "主题 · 壁纸 · 全局质感", "settings"));
 

@@ -2872,7 +2872,9 @@
     pushLegacyState();                     /* 启动即把旧状态并入原生 */
     var NATIVE_DOCK_KEY = 'netops_native_dock';
     function nativeDockOn() {
-      try { return localStorage.getItem(NATIVE_DOCK_KEY) !== '0'; } catch (e) { return true; }
+      /* 2026-11-08 恒开：原生 dock/顶栏是唯一渲染路径，设置面板开关已下线。
+         localStorage 残留 '0' 不再生效（旧版本试开关留下的脏数据）。 */
+      return true;
     }
     function applyNativeDock(on) {
       /* 门控在桥存在性上：本地浏览器闭环 / jsdom 没有 NetBridge，原生层不会
@@ -2910,7 +2912,7 @@
     var NATIVE_APPBAR_KEY = 'netops_native_appbar';
     var lastAppBarName = null, lastAppBarScrolled = null;
     function nativeAppbarOn() {
-      try { return localStorage.getItem(NATIVE_APPBAR_KEY) !== '0'; } catch (e) { return true; }
+      return true;   /* 2026-11-08 恒开（同 nativeDockOn） */
     }
     function pushAppBarState() {
       try {
