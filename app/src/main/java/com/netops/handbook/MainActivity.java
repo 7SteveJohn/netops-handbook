@@ -1566,9 +1566,15 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public void setAppBarState(String json) {
             runOnUiThread(() -> {
-                /* Compose 顶栏只消费 title/subtitle（name/sub 键），其余字段忽略 */
                 try {
                     org.json.JSONObject o = new org.json.JSONObject(json);
+                    /* ❗原生 AppBarView 的状态消费必须保留（2026-11-09 修复）：这条
+                       桥在 Compose 实验期被改成只喂 NetOpsShell（「其余字段忽略」
+                       ——bgrev/标题/主题/搜索/退位全断），Compose 回滚后没回卷，
+                       顶栏自此冻在开机状态：壁纸换了玻璃不重抓（backdropRev 永远
+                       == bgRev）、标题/返回态不更新，用户体感「切壁纸顶栏延迟、
+                       碰一下才跟上」。 */
+                    if (appbarBar != null) appbarBar.setState(json);
                     String n = o.optString("name", null);
                     String sub = o.optString("sub", null);
                     if (n != null) NetOpsShell.INSTANCE.setTitle(n);

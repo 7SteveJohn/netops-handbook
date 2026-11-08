@@ -311,7 +311,13 @@ public class AppBarView extends View {
             b = o.optBoolean("overlaid", overlaid);
             if (b != overlaid) { overlaid = b; dirty = true; }
             int rev = o.optInt("bgrev", bgRev);
-            if (rev != bgRev) { bgRev = rev; backdropRev = -1; }
+            if (rev != bgRev) {
+                bgRev = rev; backdropRev = -1;
+                /* ❗必须显式发起：captureBackdrop 的调用点只有 boot/watchdog/抓后补链/
+                   blurred==null 兜底——bgrev 变化后无人调用=霜图冻结在旧壁纸
+                   （2026-11-09 用户报「切壁纸顶栏延迟、跨代不更新」的最终根因）。 */
+                post(this::captureBackdrop);
+            }
             if (dirty) {
                 updatePopupVisibility();
                 invalidate();
@@ -435,10 +441,13 @@ public class AppBarView extends View {
     /** P2-1：霜图裁剪源矩形复用（onDraw 内 new Rect 的逐帧分配换成了 set）。 */
     private final Rect frostSrcRect = new Rect();
 
-    /** 外部强制重抓：设置面板关闭时调用——面板开着的那次抓样把半透明遮罩
-     *  和上一页头部一起采了进去（2026-10-30 用户报「玻璃里隐隐有网络学习手册 2.0」）。 */
+    /** 外部强制重抓：设置面板关闭/换壁纸时调用——面板开着的那次抓样把半透明遮罩
+     *  和上一页头部一起采了进去（2026-10-30 用户报「玻璃里隐隐有网络学习手册 2.0」）。
+     *  ❗2026-11-09：原来只置 backdropRev=-1 不发起——blurred!=null 后 onDraw 兜底
+     *  不再走抓帧分支，失效位永远无人消费（壁纸换代顶栏冻结的根因之一）。 */
     public void invalidateBackdrop() {
         backdropRev = -1;
+        post(this::captureBackdrop);
         invalidate();
     }
 
@@ -571,10 +580,12 @@ public class AppBarView extends View {
                返回 null 让主线程「保旧霜」，同时兜底分支会把 backdropRev 打回 -1，
                于是下一帧继续尝试，等页面加载完成自然抓到真实内容。 */
             if (isNearlyBlank(raw)) return null;
-            /* 顶栏霜度 3dp：sticky 后内容不滚进栏下（03-layout .appbar sticky），
-               背后只有壁纸；重霜会把云糊成白雾（用户主诉「顶部没做好」）。
-               字影问题由 sticky 根治，不再依赖重霜。 */
-            float sigma = 3f * density * LiquidGlassShaders.BLUR_RADIUS_TO_SIGMA;
+            /* 顶栏霜度：3dp→16dp（2026-11-09 用户报「顶栏跟壁纸不配」）。
+               历史两极：重霜 era「糊成白雾」降到 3dp；白横带 era 染度砍到 0.15
+               ——组合结果=顶栏近乎裸贴壁纸条（亮蓝天=艳蓝生图块）。
+               16dp 只动模糊轴（雾度/白染不动）：壁纸读得出但成「玻璃」，与
+               dock/白卡同气质；字影仍由 sticky 根治，与霜度无关。 */
+            float sigma = 16f * density * LiquidGlassShaders.BLUR_RADIUS_TO_SIGMA;
             int exp = LiquidGlassShaders.downScaleExpFor(sigma * sigma);
             int sf = 1 << exp;
             int fw = Math.max(2, raw.getWidth() / sf), fh = Math.max(2, raw.getHeight() / sf);
