@@ -36,7 +36,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.layer.GraphicsLayer
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
@@ -91,7 +90,6 @@ private fun parsedPath(d: String): Path =
  */
 @Composable
 fun NetOpsDock(backdrop: GraphicsLayer, modifier: Modifier = Modifier) {
-    android.util.Log.i("NetOpsDock", "composed selected=" + NetOpsShell.selected)
     val view = LocalView.current
     val density = LocalDensity.current
     var rootPos by remember { mutableStateOf(Offset.Zero) }
@@ -128,11 +126,10 @@ fun NetOpsDock(backdrop: GraphicsLayer, modifier: Modifier = Modifier) {
                 sizePx = it.size
             }
             // 栏体玻璃 → 药丸玻璃 → 内容（修饰符外→内的绘制顺序）
-            .background(Color(0xFFFF0000))   // TEMP 不透明红
-            .drawGlassBackdrop(backdrop, rootPos, barRect, 32.dp, 4.dp, 24.dp, 24.dp, dark)
+                        .drawGlassBackdrop(backdrop, rootPos, barRect, 32.dp, 4.dp, 24.dp, 24.dp, dark)
             .drawGlassBackdrop(backdrop, rootPos, pillRect, 24.dp, 4.dp, 10.dp, 14.dp, dark)
     ) {
-        Row(Modifier.fillMaxSize().background(Color(0x800000FF))) {
+        Row(Modifier.fillMaxSize()) {
             repeat(5) { i ->
                 val interactions = remember { MutableInteractionSource() }
                 val pressed by interactions.collectIsPressedAsState()

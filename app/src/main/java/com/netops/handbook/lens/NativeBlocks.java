@@ -298,9 +298,19 @@ public class NativeBlocks {
             glass.setRefractionOffset(p.dp(56));
             glass.setBlurRadius(0.55f);
             glass.setDispersion(0.35f);
-            glass.setTintColorRed(1f);
-            glass.setTintColorGreen(1f);
-            glass.setTintColorBlue(1f);
+            /* ❗深色 tint 必须跟深色卡（28,28,30）：原硬编码纯白 → 深色下玻璃
+               白 84% + 深色 palette 白字 = 白字白底看不见（2026-11-08 用户报
+               「网络学习手册 2.0 还是白色、标题看不见」）。glassWrap 包所有
+               原生页头卡（首页/字典/面试/路线图/CLI），一处修正全覆盖。 */
+            if (p.dark) {
+                glass.setTintColorRed(0.11f);
+                glass.setTintColorGreen(0.11f);
+                glass.setTintColorBlue(0.12f);
+            } else {
+                glass.setTintColorRed(1f);
+                glass.setTintColorGreen(1f);
+                glass.setTintColorBlue(1f);
+            }
             /* 承载文字的玻璃面必须够实：0.55/0.62 在亮壁纸（云、白墙）上会把正文吃掉
                —— 二级页头卡右半截“看起来是空白”、副标题读不出来（2026-10-28 用户报
                「显示不全」）。提到 0.82/0.84：仍能透出壁纸的明暗关系，正文回到白卡水平。 */

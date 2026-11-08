@@ -52,7 +52,6 @@ private fun parsedPath(d: String): Path = PathParser().parsePathString(d).toPath
 /** Compose 顶栏（原 AppBarView 同构）：全宽玻璃 + 双行标题 + 三键（menu/search/theme）。 */
 @Composable
 fun NetOpsTopBar(backdrop: GraphicsLayer, modifier: Modifier = Modifier) {
-    android.util.Log.i("NetOpsTopBar", "composed")
     val dark = NetOpsShell.dark
     val overlaid = NetOpsShell.overlaid
     val density = LocalDensity.current
@@ -68,7 +67,6 @@ fun NetOpsTopBar(backdrop: GraphicsLayer, modifier: Modifier = Modifier) {
             .statusBarsPadding()
             .height(54.dp)
             .onGloballyPositioned { topSize = IntSize(it.size.width, it.size.height) }
-            .background(Color(0xFF00FF00))   // TEMP 不透明绿
             // 顶栏全宽方角：radius 0（原 AppBarView 同样方角）
             .drawGlassBackdrop(backdrop, Offset.Zero,
                 Rect(0f, 0f, topSize.width.toFloat(), topSize.height.toFloat()),

@@ -1101,18 +1101,7 @@ public class MainActivity extends AppCompatActivity {
                 String js = "(function(){try{window.__netopsSysDark=" + dark + ";"
                         + "if(window.UI&&UI.theme)UI.theme.apply();"
                         + "}catch(e){}})()";
-                try {
-                    webView.evaluateJavascript(js, null);
-                    webView.evaluateJavascript(
-                        "(function(){var h=document.querySelector('.hero');var c=h?getComputedStyle(h):null;"
-                        + "var wl=document.querySelector('.wall');"
-                        + "return document.documentElement.className.substring(0,40)"
-                        + "+'|heroBG='+(c?c.backgroundImage.substring(0,60):'NOHERO')"
-                        + "+'|heroColor='+(c?c.color:'')"
-                        + "+'|wallFilter='+(wl?getComputedStyle(wl).filter.substring(0,60):'NOWALL')"
-                        + "+'|store='+localStorage.getItem('ui.theme')})()",
-                        v -> Log.i(TAG, "JSSTATE " + v));
-                } catch (Throwable ignored) { }
+                try { webView.evaluateJavascript(js, null); } catch (Throwable ignored) { }
             }
             applyBarAppearance(dark);
             if (nativeBackdrop != null) nativeBackdrop.setDark(dark);

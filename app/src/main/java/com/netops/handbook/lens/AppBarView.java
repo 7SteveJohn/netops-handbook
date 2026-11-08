@@ -102,7 +102,6 @@ public class AppBarView extends View {
     /* ---- 背景：PixelCopy（frostWorker）→ 霜链（sat1.5 + blur4dp）→ blurred ----
        原帧只作链输入即时回收，不再常驻（省一张全分辨率位图）。 */
     private Bitmap blurred;               // 霜链产物（半尺寸记录档）
-    private int dbgFrames;
     /* ---- 栏体液态玻璃（2026-11-04 起与底栏同一套 Kyant0 材质）----
        旧「QmDeve 库 AGSL(GlassAgsl) + saturate 1.65 + 渐变 tint + radial specular」
        整体退役：霜链（÷2 记录档 → sat1.5 → blur4dp 两级）+ 噪声抖动 + 栏缘
@@ -759,7 +758,6 @@ public class AppBarView extends View {
      *  逻辑留在页面侧，原生只接管观感。visibility:hidden 的元素收不到真触摸，
      *  必须程序化 click（事件处理器照常执行）。 */
     private void fire(int idx) {
-        Log.i(TAG, "fire idx=" + idx);
         if (webView == null) return;
         String id = idx == 0 ? "btnNav" : (idx == 1 ? "btnSearch" : "btnTheme");
         String js = "(function(){try{var b=document.getElementById('" + id + "');"
@@ -829,11 +827,6 @@ public class AppBarView extends View {
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        if ((dbgFrames++ & 31) == 0) {
-            Log.i(TAG, "gate nativeBar=" + nativeBar + " search=" + searchOpen
-                    + " overlaid=" + overlaid + " geom=" + hasGeometry
-                    + " glassOn=" + glassOn + " blurredNull=" + (blurred == null));
-        }
         if (nativeBar == 0 || searchOpen || overlaid) return;   // 退位期整层不画
         if (!hasGeometry) return;                                // 几何未到：全透明等待
         long t0 = System.nanoTime();

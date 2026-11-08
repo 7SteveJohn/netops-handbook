@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.viewinterop.AndroidView
@@ -29,13 +28,9 @@ fun NetOpsRoot(pages: View) {
     // record = RenderNode 指令记录，GPU 一次执行，成本远低于回读拷贝。
     val backdrop = rememberGraphicsLayer()
     Box(Modifier.fillMaxSize()) {
-        // ❗实验：dock/顶栏声明在 pages 之前（绘制顺序取反，验证 z 序假设）
-        NetOpsTopBar(backdrop, Modifier.align(Alignment.TopCenter))
-        NetOpsDock(backdrop, Modifier.align(Alignment.BottomCenter))
         AndroidView(
             factory = { pages },
-            modifier = Modifier.fillMaxSize().zIndex(-1f).drawWithContent {
-                android.util.Log.i("NetOpsRoot", "pages draw, size=" + size.width + "x" + size.height)
+            modifier = Modifier.fillMaxSize().drawWithContent {
                 backdrop.record(
                     density = androidx.compose.ui.unit.Density(density),
                     layoutDirection = layoutDirection,
@@ -44,10 +39,11 @@ fun NetOpsRoot(pages: View) {
                 ) {
                     this@drawWithContent.drawContent()
                 }
-                android.util.Log.i("NetOpsRoot", "record done, drawing content")
                 drawContent()
             },
         )
+        NetOpsTopBar(backdrop, Modifier.align(Alignment.TopCenter))
+        NetOpsDock(backdrop, Modifier.align(Alignment.BottomCenter))
     }
 }
 

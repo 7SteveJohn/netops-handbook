@@ -36,16 +36,12 @@ fun Modifier.drawGlassBackdrop(
     lensAmount: Dp,
     dark: Boolean,
 ) = drawWithContent {
-    android.util.Log.i("DockBackdrop", "glass draw dark=" + dark
-        + " rect=[" + contentRect.left + "," + contentRect.top + " " + contentRect.width + "x" + contentRect.height + "]"
-        + " rootPos=" + glassRootPos)
     val r = cornerRadius.toPx()
     val outer = Rect(glassRootPos + contentRect.topLeft, contentRect.size)  // 玻璃全屏矩形
     val localPath = Path().apply {
         addRoundRect(RoundRect(contentRect.left, contentRect.top, contentRect.right, contentRect.bottom, CornerRadius(r)))
     }
     if (Build.VERSION.SDK_INT >= 33) {
-        drawRoundRect(Color(0x80FF0000), contentRect.topLeft, contentRect.size, CornerRadius(r))   // TEMP 玻璃分支测试块
         val halfW = contentRect.width / 2f
         val halfH = contentRect.height / 2f
         val cxC = outer.left + halfW
