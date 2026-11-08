@@ -759,6 +759,7 @@ public class AppBarView extends View {
      *  逻辑留在页面侧，原生只接管观感。visibility:hidden 的元素收不到真触摸，
      *  必须程序化 click（事件处理器照常执行）。 */
     private void fire(int idx) {
+        Log.i(TAG, "fire idx=" + idx);
         if (webView == null) return;
         String id = idx == 0 ? "btnNav" : (idx == 1 ? "btnSearch" : "btnTheme");
         String js = "(function(){try{var b=document.getElementById('" + id + "');"

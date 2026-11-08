@@ -111,6 +111,7 @@ public class NativeHomeView extends LinearLayout {
     }
 
     public void setDark(boolean d) {
+        android.util.Log.i("NativeHome", "setDark " + d + " showing=" + isShowing());
         if (dark == d) return;
         dark = d; refreshPalette();
     }

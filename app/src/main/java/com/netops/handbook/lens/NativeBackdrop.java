@@ -171,15 +171,32 @@ public class NativeBackdrop extends FrameLayout {
         setVisibility(current != null && !revealedForWeb ? VISIBLE : GONE);
     }
 
+    private boolean dark = false;
+
+    /** 深色时壁纸压暗（brightness 0.36）：原生 direct 模式下壁纸由本层画，
+     *  HTML 的 .wall 滤镜管不到（2026-11-08「深色半成品」壁纸亮根因）。 */
+    public void setDark(boolean d) {
+        if (dark == d) return;
+        dark = d;
+        applyBlur(currentBlurDp);
+    }
+
     private void applyBlur(float blurDp) {
         if (android.os.Build.VERSION.SDK_INT < 31) return;
         try {
             float dp = getResources().getDisplayMetrics().density;
             float r = Math.max(0.01f, blurDp) * dp;
-            image.setRenderEffect(android.graphics.RenderEffect.createBlurEffect(
-                    r, r, android.graphics.Shader.TileMode.CLAMP));
-            ambient.setRenderEffect(RenderEffect.createBlurEffect(
-                    r, r, android.graphics.Shader.TileMode.CLAMP));
+            android.graphics.RenderEffect fx = android.graphics.RenderEffect.createBlurEffect(
+                    r, r, android.graphics.Shader.TileMode.CLAMP);
+            if (dark) {
+                android.graphics.ColorMatrix cm = new android.graphics.ColorMatrix();
+                cm.setScale(0.36f, 0.36f, 0.36f, 1f);
+                android.graphics.RenderEffect darken = android.graphics.RenderEffect.createColorFilterEffect(
+                        new android.graphics.ColorMatrixColorFilter(cm));
+                fx = android.graphics.RenderEffect.createChainEffect(fx, darken);
+            }
+            image.setRenderEffect(fx);
+            ambient.setRenderEffect(fx);
         } catch (Throwable ignored) { }
     }
 

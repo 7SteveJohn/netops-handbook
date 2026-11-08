@@ -1115,6 +1115,7 @@ public class MainActivity extends AppCompatActivity {
                 } catch (Throwable ignored) { }
             }
             applyBarAppearance(dark);
+            if (nativeBackdrop != null) nativeBackdrop.setDark(dark);
             if (lensBar != null) lensBar.setDark(dark);
             NetOpsShell.INSTANCE.setDark(dark);
             if (nativePhase != null) nativePhase.setDark(dark);
@@ -1740,6 +1741,7 @@ public class MainActivity extends AppCompatActivity {
         boolean darkNow = resolvedDark();
         pushTheme(darkNow);
         applyBarAppearance(darkNow);
+        if (nativeBackdrop != null) nativeBackdrop.setDark(darkNow);
         if (lensBar != null) {
             lensBar.setDark(darkNow);
             lensBar.reflow();
