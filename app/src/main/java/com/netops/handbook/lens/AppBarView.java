@@ -580,12 +580,10 @@ public class AppBarView extends View {
                返回 null 让主线程「保旧霜」，同时兜底分支会把 backdropRev 打回 -1，
                于是下一帧继续尝试，等页面加载完成自然抓到真实内容。 */
             if (isNearlyBlank(raw)) return null;
-            /* 顶栏霜度：3dp→16dp（2026-11-09 用户报「顶栏跟壁纸不配」）。
-               历史两极：重霜 era「糊成白雾」降到 3dp；白横带 era 染度砍到 0.15
-               ——组合结果=顶栏近乎裸贴壁纸条（亮蓝天=艳蓝生图块）。
-               16dp 只动模糊轴（雾度/白染不动）：壁纸读得出但成「玻璃」，与
-               dock/白卡同气质；字影仍由 sticky 根治，与霜度无关。 */
-            float sigma = 16f * density * LiquidGlassShaders.BLUR_RADIUS_TO_SIGMA;
+            /* 顶栏霜度 4dp：与底栏 buildFrost 同档（2026-11-09 用户报「越修越糊」
+               ——16dp 矫枉过正）。「配不配」的问题由饱和自适应（亮壁纸 1.05）
+               承担，模糊轴回到与 dock 一致；字影由 sticky 根治，与霜度无关。 */
+            float sigma = 4f * density * LiquidGlassShaders.BLUR_RADIUS_TO_SIGMA;
             int exp = LiquidGlassShaders.downScaleExpFor(sigma * sigma);
             int sf = 1 << exp;
             int fw = Math.max(2, raw.getWidth() / sf), fh = Math.max(2, raw.getHeight() / sf);
