@@ -235,40 +235,11 @@ public class NativeSettingsPanel extends FrameLayout {
             build();
         }));
 
-        sheet.addView(section("全局质感"));
-        boolean on = glass != null && glass.optBoolean("on", true);
-        sheet.addView(toggleRow("玻璃效果", "为界面添加半透明模糊质感", on, v -> {
-            try {
-                glass.put("on", v);
-                setter.apply("glass", glass.toString());
-                build();
-            } catch (Throwable ignored) { }
-        }));
-        if (on && glass != null) {
-            String mode = glass.optString("mode", "liquid");
-            sheet.addView(chipRow(new String[][]{
-                    {"liquid", "液态玻璃"}, {"frosted", "标准毛玻璃"}, {"gaussian", "纯模糊"}
-            }, mode, v -> {
-                try {
-                    glass.put("mode", v);
-                    setter.apply("glass", glass.toString());
-                    build();
-                } catch (Throwable ignored) { }
-            }));
-            sheet.addView(sliderRow("通透度", (int) Math.round(clamp(glass.optDouble("tint", 55), 10, 95)), 10, 95, "%", v -> {
-                try {
-                    glass.put("tint", v);
-                    setter.apply("glass", glass.toString());
-                } catch (Throwable ignored) { }
-            }));
-            sheet.addView(sliderRow("模糊强度", (int) Math.round(clamp(glass.optDouble("blur", 14), 8, 20)), 8, 20, "px", v -> {
-                try {
-                    glass.put("blur", v);
-                    setter.apply("glass", glass.toString());
-                } catch (Throwable ignored) { }
-            }));
-        }
-
+        /* ❗「全局质感」区下线（2026-11-08 用户报「选项抽象、不知道干什么」）：
+           玻璃效果开关/液态玻璃档位/通透度/模糊强度是 HTML 玻璃时代的参数，
+           原生接管后 dock/顶栏/头卡全走原生固定参数（tint 0.15/0.26、blur 3-4dp），
+           这些设置不再作用于任何可见界面。localStorage 的 glass 数据保留
+           （手机 HTML 回退模式仍读），仅 UI 下线。 */
         TextView close = NativeBlocks.tv(getContext(), pal, "完成", 14, true, pal.accent);
         close.setGravity(Gravity.CENTER);
         close.setPadding(0, pal.dp(14), 0, 0);
