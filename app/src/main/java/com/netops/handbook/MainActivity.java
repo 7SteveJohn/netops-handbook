@@ -562,6 +562,20 @@ public class MainActivity extends AppCompatActivity {
             appbarBar = com.netops.handbook.lens.AppBarView.attach(this, root, webView);
             appbarBar.setDark(resolvedDark());
             if (nativeBackdrop != null) appbarBar.setWallpaperSource(nativeBackdrop);
+            /* 主题键原生翻转：先 JS store.set（html.dark 翻转），再 pushTheme
+               （推 __netopsSysDark + apply()——apply 读 store 新值，幂等）。 */
+            appbarBar.themeFlip = () -> runOnUiThread(() -> {
+                boolean newDark = !resolvedDark();
+                if (webView != null) {
+                    try {
+                        webView.evaluateJavascript(
+                                "(function(){try{if(window.UI&&UI.theme)UI.theme.set('"
+                                        + (newDark ? "dark" : "light") + "')}catch(e){}})()", null);
+                    } catch (Throwable ignored) { }
+                }
+                rememberTheme(newDark);
+                pushTheme(newDark);
+            });
         } catch (Throwable t) {
             Log.w(TAG, "原生顶栏挂载失败（不影响主流程）", t);
             appbarBar = null;

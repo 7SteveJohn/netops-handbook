@@ -759,7 +759,14 @@ public class AppBarView extends View {
      *  必须程序化 click（事件处理器照常执行）。 */
     private void fire(int idx) {
         if (webView == null) return;
-        String id = idx == 0 ? "btnNav" : (idx == 1 ? "btnSearch" : "btnTheme");
+        /* 主题键走原生翻转：不依赖 HTML btnTheme 闭包（点击链路曾静默失效）。
+           顺序必须先 JS store.set 再 pushTheme——pushTheme 的 apply() 读 store，
+           反了会被旧值翻回（2026-11-08）。 */
+        if (idx == 2) {
+            themeFlip.run();
+            return;
+        }
+        String id = idx == 0 ? "btnNav" : "btnSearch";
         String js = "(function(){try{var b=document.getElementById('" + id + "');"
                 + "if(b)b.click();}catch(e){}})()";
         try {
@@ -768,6 +775,9 @@ public class AppBarView extends View {
             Log.w(TAG, "触发按钮失败", t);
         }
     }
+
+    /** 主题二态翻转（由 MainActivity 注入：fire(2) 时执行）。 */
+    public Runnable themeFlip = () -> { };
 
     @SuppressLint("ClickableViewAccessibility")
     @Override
