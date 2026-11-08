@@ -31,8 +31,6 @@ public class NativeDictView extends LinearLayout {
     private JSONArray rows = new JSONArray();
     private String[] colKeys = new String[0];
     private String[] colNames = new String[0];
-    private List<String> cats = new ArrayList<>();
-    private String cat = "全部";
 
     private boolean dark = false, direct = false;
     private final ScrollView scroller;
@@ -76,14 +74,7 @@ public class NativeDictView extends LinearLayout {
         }
         JSONArray r = dict.optJSONArray("rows");
         if (r != null) rows = r;
-        cats.clear();
-        cats.add("全部");
-        for (int i = 0; i < rows.length(); i++) {
-            JSONObject o = rows.optJSONObject(i);
-            String c = o == null ? "" : o.optString("cat");
-            if (!c.isEmpty() && !cats.contains(c)) cats.add(c);
-        }
-        android.util.Log.i("NativeDict", "setPageData rows=" + rows.length() + " cats=" + cats.size());
+        android.util.Log.i("NativeDict", "setPageData rows=" + rows.length());
     }
 
     /* ---------------- 显示 ---------------- */
@@ -150,16 +141,25 @@ public class NativeDictView extends LinearLayout {
                 page.getWidth() > 0 ? page.getWidth()
                         : getResources().getDisplayMetrics().widthPixels));
 
-        page.addView(chipsRow());
-
         int shown = 0;
+        /* 分类只有一种入口：分组折叠。此前上方还有一排 chips 做同样的事，
+           两者重复（2026-11-07 用户指出），已移除 chips。
+           分组后默认只建 7 个组标题，点开某组才建该组的卡 —— 76 条平铺实测
+           250~400ms，分组后 99th 降到 65ms。 */
+        java.util.LinkedHashMap<String, java.util.List<JSONObject>> groups =
+                new java.util.LinkedHashMap<>();
         for (int i = 0; i < rows.length(); i++) {
             JSONObject o = rows.optJSONObject(i);
             if (o == null) continue;
             String c = o.optString("cat");
-            if (!"全部".equals(cat) && !cat.equals(c)) continue;
-            page.addView(cmdCard(o));
-            shown++;
+            if (c.isEmpty()) c = "未分类";
+            java.util.List<JSONObject> g = groups.get(c);
+            if (g == null) { g = new java.util.ArrayList<>(); groups.put(c, g); }
+            g.add(o);
+        }
+        for (java.util.Map.Entry<String, java.util.List<JSONObject>> e : groups.entrySet()) {
+            page.addView(groupCard(e.getKey(), e.getValue()));
+            shown += e.getValue().size();
         }
         if (shown == 0) {
             TextView empty = NativeBlocks.tv(getContext(), pal, "没有匹配的命令", 13, false, pal.textMute);
@@ -169,31 +169,50 @@ public class NativeDictView extends LinearLayout {
         }
     }
 
-    private View chipsRow() {
-        HorizontalScrollView hs = new HorizontalScrollView(getContext());
-        hs.setHorizontalScrollBarEnabled(false);
-        LinearLayout row = new LinearLayout(getContext());
-        row.setOrientation(HORIZONTAL);
-        row.setPadding(0, 0, 0, pal.dp(10));
+    /** 分类组卡：标题行常驻，展开时才建该组命令卡。 */
+    private View groupCard(String name, java.util.List<JSONObject> list) {
+        LinearLayout card = NativeBlocks.card(getContext(), pal);
 
-        for (final String c : cats) {
-            boolean on = c.equals(cat);
-            TextView chip = NativeBlocks.tv(getContext(), pal, c, 12.5f, on, on ? Color.WHITE : pal.textSub);
-            chip.setGravity(Gravity.CENTER);
-            chip.setPadding(pal.dp(12), pal.dp(6), pal.dp(12), pal.dp(6));
-            chip.setBackground(NativeBlocks.shape(pal, on ? pal.accent : pal.chipBgOff, pal.dp(14)));
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            lp.rightMargin = pal.dp(8);
-            row.addView(chip, lp);
-            chip.setOnClickListener(v -> {
-                cat = c;
-                buildPage();
-            });
-        }
-        hs.addView(row, new HorizontalScrollView.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        return hs;
+        LinearLayout head = new LinearLayout(getContext());
+        head.setOrientation(HORIZONTAL);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+
+        LinearLayout texts = new LinearLayout(getContext());
+        texts.setOrientation(VERTICAL);
+        texts.addView(NativeBlocks.tv(getContext(), pal, name, 15.5f, true, pal.textMain));
+        TextView cnt = NativeBlocks.tv(getContext(), pal, list.size() + " 条", 12, false, pal.textMute);
+        cnt.setPadding(0, pal.dp(4), 0, 0);
+        texts.addView(cnt);
+        head.addView(texts, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        TextView arrow = NativeBlocks.tv(getContext(), pal, "›", 20, false, pal.textMute);
+        head.addView(arrow);
+
+        LinearLayout body = new LinearLayout(getContext());
+        body.setOrientation(VERTICAL);
+        body.setVisibility(GONE);
+        body.setPadding(0, pal.dp(8), 0, 0);
+
+        /* 展开时才建卡：这是折叠能省掉 90% View 的关键，常态只留组标题。 */
+        final boolean[] built = {false};
+        head.setOnClickListener(v -> {
+            if (body.getVisibility() == VISIBLE) {
+                body.setVisibility(GONE);
+                arrow.setRotation(0f);
+            } else {
+                if (!built[0]) {
+                    for (JSONObject o : list) body.addView(cmdCard(o));
+                    built[0] = true;
+                }
+                body.setVisibility(VISIBLE);
+                arrow.setRotation(90f);
+            }
+        });
+
+        card.addView(head);
+        card.addView(body);
+        return card;
     }
 
     private View cmdCard(JSONObject o) {

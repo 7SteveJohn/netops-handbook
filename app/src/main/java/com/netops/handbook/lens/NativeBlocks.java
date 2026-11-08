@@ -307,6 +307,21 @@ public class NativeBlocks {
             glass.setTintAlpha(p.dark ? 0.84f : 0.82f);
             card.setBackground(null);
             glass.addView(card);
+            /* ❗bind(source) 是延迟抓取的：首帧玻璃里还没有内容 → 全透明，
+               抓到后才变白，表现就是「切页时卡片先纯透、再变白、闪一下」
+               （2026-11-07 用户精确描述）。这里先用不透明底盖住这段窗口期，
+               220ms 后撤掉，露出真正的玻璃 —— 人眼看到的是正常卡片，不闪。 */
+            /* ❗占位底不能用白色：glassWrap 常包整张大卡（术语词典/路线图/速查表/
+               CLI 模拟器），白色占位在玻璃就绪前会是一大块白 —— 用户报「出现一大块
+               白色色块，短时间或长时间」（2026-11-07）。
+               改用**页面背景色**：与底色融为一体，即使玻璃迟迟不就绪也看不出来；
+               同时必须圆角（直角矩形同样会被看出，前者已踩过一次）。 */
+            android.graphics.drawable.GradientDrawable ph =
+                    new android.graphics.drawable.GradientDrawable();
+            ph.setColor(p.bg);
+            ph.setCornerRadius(p.dp(16));
+            glass.setBackground(ph);
+            glass.postDelayed(() -> glass.setBackground(null), 220L);
             LinearLayout holder = new LinearLayout(c);
             holder.setOrientation(LinearLayout.VERTICAL);
             holder.addView(glass, new LinearLayout.LayoutParams(

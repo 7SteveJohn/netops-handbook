@@ -3,21 +3,34 @@ package com.netops.handbook.lens;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.graphics.BlurMaskFilter;
 import android.graphics.BitmapShader;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.ColorMatrix;
+import android.graphics.ColorMatrixColorFilter;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.RenderNode;
 import android.graphics.Matrix;
 import android.graphics.Path;
+import android.graphics.PixelFormat;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffXfermode;
+import android.graphics.RadialGradient;
+import android.graphics.Xfermode;
 import android.graphics.RuntimeShader;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.view.ViewTreeObserver;
 import android.graphics.Shader;
 import android.graphics.Typeface;
 import android.app.Activity;
 import android.os.Build;
+import android.os.SystemClock;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.DisplayMetrics;
@@ -25,6 +38,7 @@ import android.util.Log;
 import android.view.Choreographer;
 import android.view.Gravity;
 import android.view.PixelCopy;
+import android.view.WindowManager;
 import android.widget.PopupWindow;
 import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
@@ -32,6 +46,9 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.webkit.WebView;
+
+import com.netops.handbook.lens.glass.BloomStrokeFx;
+import com.netops.handbook.lens.glass.LiquidGlassShaders;
 
 /**
  * 原生液体玻璃透镜层（B 路线）。
@@ -47,11 +64,12 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
 
     private static final String TAG = "LensBar";
 
-    /* ---- 光学：FlClash LiquidGlassStyle.lens（dp，源码实测值）---- */
-    private static final float REFRACTION  = -12f;  // 负 = 凸起透镜；26dp 会把栏外页面文字拉进透镜（待 clamp 方案修正后再加深）
-    private static final float BEVEL       = 5.5f;
-    private static final float DISPERSION  = 6.5f;
-    private static final float LIFT_GROWTH = 16f;   // 抬起时两向各增长 16dp
+    /* 光学常量真源 = lens/glass/LiquidGlassShaders.java（Kyant0/AndroidLiquidGlass
+       Apache-2.0 verbatim 照搬，2026-11-04 起；此前 FlClash 系自研参数全部退役）。 */
+    /* 药丸尺寸：静止就比一格宽、且上下凸出栏体（参考 iOS 26 / 酷安那种形态）。
+       此前只有 liftV>0 才加增长，静止严格一格 → 视觉上「收着」（2026-11-07 用户指出）。 */
+    private static final float PILL_REST_GROWTH = 16f;  // 静止两向各 +16dp
+    private static final float LIFT_GROWTH = 24f;       // 按压抬到 +24dp
 
     /* ---- 行为常量：全部来自 navigation_dock.dart ---- */
     private static final float LIFT_SNAP     = 0.975f;  // 升到位才允许回落
@@ -66,150 +84,101 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
        到第二个点的中间非常粘手」（2026-10-29）。10000/1.0 → ω=100，滞后 ~30ms
        ≈ 1:1 跟手，保留一点缓冲的液感；松手落格仍是 TRAVEL 的弹性。 */
     private static final SpringSpec FOLLOW  = SpringSpec.ratio(10000, 1.0);
-    private static final SpringSpec TRAVEL  = SpringSpec.durationBounce(400, 0.15);
+    /* 切页位移改**临界阻尼**：bounce 0.15 会过冲——药丸冲过目标格再弹回，
+       切「学习/排障」时表现为左右抽搐（2026-11-06 用户报）。KernelSU 同文件
+       用的是 Compose `spring(1f, 300f, 0.5f)`，dampingRatio=1.0 即无过冲。 */
+    private static final SpringSpec TRAVEL  = SpringSpec.durationBounce(320, 0);
     private static final SpringSpec FAST_TRAVEL = SpringSpec.durationBounce(140, 0.02);
     private static final SpringSpec LIFT_S  = SpringSpec.durationBounce(250, 0);
+    /* FlClash _pressSpring: mass 1 / stiffness 311 / ratio 0.593（抬起用 LIFT_S 250） */
+    /* 按压抬起用**临界阻尼**（bounce 0）：上游 pressProgress 是 tween，单调逼近；
+       0.593 阻尼比会过冲（放大过头→缩回），在通透药丸上读作「按住时抽搐」
+       （2026-11-06 用户报）。 */
+    private static final SpringSpec PRESS_S = SpringSpec.durationBounce(180, 0);
     private static final SpringSpec JELLY_S = SpringSpec.ratio(100, 0.4);
+    /* FlClash _glowIn 100ms / _glowOut 500ms */
+    private static final SpringSpec GLOW_IN  = SpringSpec.durationBounce(100, 0);
+    private static final SpringSpec GLOW_OUT = SpringSpec.durationBounce(500, 0);
 
-    /* ---- AGSL：圆角矩形 SDF → 数值梯度法线 → 位移采样 ----
-       光学公式逐项对齐 FlClash shaders/liquid_glass.frag（chen08209/FlClash,
-       GPL-3.0；此处只取测量数值与公式结构，代码为本项目自写）：
-       - 折射剖面：位移在 rim 处为 0、bevel 深度处全深、2×bevel 内收束归零，
-         之外全平 —— 取它们「outer band draws out what lies right under the
-         rim」的带形，但把向中心缓减的尾巴裁掉：它们的图标走独立重绘层，
-         折射只碰栏面底衬；我们的图标文字在背景图里，内部必须真平才锐利。
-       - 边缘霜化：rimBlur 1.5dp×rise²（rise=1−inset/bevel），rim 带内所有
-         采样过模糊盘 —— 它把色散糊成柔和色晕的关键。用 5 采样近似其
-         16 采样 Vogel 盘（reach = (σ−0.5dp)×2.078，同式）。
-       - 色散：uEdge.y 公式——沿法线镜像方向 (n.y,n.x)，侧面阻尼 0.6，
-         顶/底自 rim 向 7dp 缓收，7→10dp 平滑全收，带外为零（kPartHold/Reach）。
-       - 暗线：kLine 0.67dp、cap 0.298、强度 hairline 0.42，贴边一圈勾轮廓
-         并压住贴边色散。
-       - 端部压暗：endShade 0.045 / kEndShade 3dp；暗色模式亮度 uOptics.z=1.33。 */
-    private static final String AGSL =
-            "uniform shader backdrop;\n" +
-            "uniform float2 uCenter;\n" +
-            "uniform float2 uHalf;\n" +
-            "uniform float uRadius;\n" +
-            "uniform float uRefract;\n" +     // 折射深度 px = 4.3dp×dpr×lift
-            "uniform float uBevel;\n" +       // bevel 宽 px
-            "uniform float uDisperse;\n" +    // 色散分离量 dp = 6.5×lift
-            "uniform float uDp;\n" +
-            "uniform float2 uBgOffset;\n" +
-            "uniform float uMagnify;\n" +
-            "uniform float uBrightness;\n" +  // 暗色 1.33 / 浅色 1
-            "\n" +
-            "float sdRound(float2 p, float2 b, float r) {\n" +
-            "    float2 q = abs(p) - b + r;\n" +
-            "    return min(max(q.x, q.y), 0.0) + length(max(q, 0.0)) - r;\n" +
-            "}\n" +
-            "\n" +
-            /* ❗采样 clamp 到栏体矩形（快照坐标 = uCenter-uBgOffset ± uHalf）：
-               用户规范——透过药丸看到的是 **dock 栏上的图标文字被折射弯折**，
-               而不是把栏外（上方页面文字/壁纸）拽进药丸。26dp 折射不加此限，
-               会把药丸上方 26dp 处的页面正文拉进来（2026-11-01 真机实测）。 */
-            "half3 eval3(float2 uv) {\n" +
-            "    half4 s = backdrop.eval(uv);\n" +
-            "    return half3(s.r, s.g, s.b);\n" +
-            "}\n" +
-            "\n" +
-            /* 边缘霜化盘：中心 + 4 对角，reach 同 FlClash kFrostReach 口径 */
-            "half3 frosted(float2 uv, float reach) {\n" +
-            "    if (reach < 1.0) return eval3(uv);\n" +
-            "    half3 s = eval3(uv) * 0.36;\n" +
-            "    s += (eval3(uv + float2(reach, reach))\n" +
-            "        + eval3(uv - float2(reach, reach))\n" +
-            "        + eval3(uv + float2(reach, -reach))\n" +
-            "        + eval3(uv - float2(reach, -reach))) * 0.16;\n" +
-            "    return s;\n" +
-            "}\n" +
-            "\n" +
-            "half4 main(float2 p) {\n" +
-            "    float2 local = p - uCenter;\n" +
-            "    float2 b = uHalf;\n" +
-            "    float r = min(uRadius, min(b.x, b.y));\n" +
-            "    float d = sdRound(local, b, r);\n" +
-            "    float inset = -d;\n" +
-            "    float insetDp = inset / uDp;\n" +
-            "\n" +
-            "    float e = 0.75;\n" +
-            "    float2 g = float2(\n" +
-            "        sdRound(local + float2(e, 0.0), b, r) - sdRound(local - float2(e, 0.0), b, r),\n" +
-            "        sdRound(local + float2(0.0, e), b, r) - sdRound(local - float2(0.0, e), b, r)\n" +
-            "    );\n" +
-            "    float2 n = (length(g) > 1e-6) ? normalize(g) : float2(0.0, 0.0);\n" +
-            "\n" +
-            "    float bevel = max(min(uBevel, min(b.x, b.y) * 0.5), 1e-3);\n" +
-            "    float rise = 1.0 - clamp(inset / bevel, 0.0, 1.0);\n" +
-            "    float k = smoothstep(0.0, bevel, inset)\n" +
-            "        * (1.0 - smoothstep(bevel, 2.0 * bevel, inset));\n" +
-            "    float2 shift = n * uRefract * k;\n" +
-            "    float sig = 1.5 * rise * rise * uDp;\n" +
-            "    float reach = max(sig - 0.5 * uDp, 0.0) * 2.07846096908;\n" +
-            "\n" +
-            "    float2 uv = p - uBgOffset;\n" +
-            "    float2 cuv = uCenter - uBgOffset;\n" +
-            "    /* 镜内放大从镜缘向内渐入（rim 1.0 → 深处 uMagnify）：放大若为阶跃，\n" +
-            "       拖动时被镜缘骑跨的图标一半 1.16 倍一半原大 = 重影（2026-10-26\n" +
-            "       真机用户反馈）。渐入对应真实透镜的曲率，交界连续无撕裂。 */\n" +
-            "    float m = smoothstep(0.0, bevel * 3.0, inset);\n" +
-            "    float mag = mix(1.0, uMagnify, m);\n" +
-            "    uv = cuv + (uv - cuv) / mag;\n" +
-            "\n" +
-            "    float3 col;\n" +
-            "    if (insetDp < 10.0) {\n" +
-            "        float2 part = float2(n.y, n.x) * 0.5 * uDisperse\n" +
-            "            * (0.6 + 0.4 * abs(n.y) * max(1.0 - insetDp / 7.0, 0.0))\n" +
-            "            * (1.0 - smoothstep(7.0, 10.0, insetDp)) * uDp;\n" +
-            "        col.r = frosted(uv + shift + part, reach).r;\n" +
-            "        col.g = frosted(uv + shift, reach).g;\n" +
-            "        col.b = frosted(uv + shift - part, reach).b;\n" +
-            "    } else {\n" +
-            "        col.r = frosted(uv + shift, reach).r;\n" +
-            "        col.g = frosted(uv + shift, reach).g;\n" +
-            "        col.b = frosted(uv + shift, reach).b;\n" +
-            "    }\n" +
-            "\n" +
-            "    col *= uBrightness;\n" +
-            "    col *= 1.0 - 0.045 * abs(n.x) * exp(-insetDp / 3.0);\n" +
-            "\n" +
-            "    float line = clamp((0.67 - insetDp) * uDp + 0.5, 0.0, 1.0);\n" +
-            "    if (line > 0.0) {\n" +
-            "        half4 under = backdrop.eval(p - uBgOffset);\n" +
-            "        float3 underC;\n" +
-            "        underC.r = under.r; underC.g = under.g; underC.b = under.b;\n" +
-            "        float3 dark = max(underC - 0.298, 0.22 * underC);\n" +
-            "        col = mix(col, mix(underC, dark, 0.42), line);\n" +
-            "    }\n" +
-            /* ❗基线 shader 此前直接原样输出屏幕快照（alpha=1、无 tint、无降饱和）——
-               壁纸的黄色大色块被药丸原样透出 = 「黄色药丸」（2026-10-31 真机）。
-               补 FlClash 的两步合成：① 降饱和（壁纸色不刺眼）② 中性白 tint 混合
-               （cover 0.58，Color(0x93F4F4F4).a；RGB 取 F4F4F4）。 */
-            "    col = mix(vec3(dot(col, vec3(0.299, 0.587, 0.114))), col, 0.70);\n" +
-            "    col = col * 0.60 + float3(0.957, 0.957, 0.957) * 0.40;\n" +
-            /* ❗半透明玻璃（alpha 0.35）：用户规范——药丸是透明的玻璃片，滑到哪，
-               HTML 画的 tab 图标文字就**直接透过它**显示（65% 透射）；
-               折射内容（PixelCopy 快照）只以 35% 权重做质感叠加。
-               此前 alpha=1 不透明 → 盖住 HTML 字 + 折射把上方页面文字拉进来，
-               两头不讨好。 */
-            "    return half4(col.r, col.g, col.b, 0.35);\n" +
-            "}\n";
+    /* ---- 玻璃栈（2026-11-04 起整体照搬 Kyant0/AndroidLiquidGlass，Apache-2.0）----
+       shader 原文在 lens/glass/LiquidGlassShaders.java；结构对齐 KernelSU
+       FloatingBottomBar：栏体 = 霜链(vibrancy→blur4dp) + 栏缘 lens(24/24) +
+       tint α0.4 + BloomStroke 高光；药丸 = 清晰内容(tab 镜像+页面)过
+       折射+七彩色散 lens(10/14dp×lift, CA 0.5) + rest 面 0.1 + BloomStroke +
+       innerShadow。运动模型（本文件弹簧）仍为我方骨架，不动。 */
+    /* ---- 液态玻璃内容容器（2026-11-03 v5，pane 分层+无 shader 传参）----
+    /** 容器折射（已退役，2026-11-03 品红实验）：View.setRenderEffect
+     *  (RuntimeShader) 在本机 HyperOS/Adreno **静默不渲染**（构造成功、
+     *  绘制跳过）——保留空壳维持 MainActivity 桥契约。 */
+    public boolean attachContentContainer(ViewGroup container) {
+        return false;
+    }
+
+
+    /** 容器折射按状态挂/摘：只服务横排原生 dock。竖排 rail（平面面板）、
+     *  HTML dock、键盘/弹层在场（shader 区域会折射弹层内容）、弹窗收起
+     *  一律摘除——摘除后容器恢复直绘，零 shader 成本。 */
+    /** 容器折射按状态挂/摘（已退役：RenderEffect 本机不渲染，空壳）。 */
+    public void updateContainerEffect() {
+    }    /* ---- 栏体底衬（2026-11-03 用户定版）：中性黑底 + sfTintP 白/暗薄染 =
+       磨砂栏面最终色；**壁纸色不准上栏**（用户明确：避免背景图颜色混进 dock）。
+       壁纸霜位图链保留作扩展点（wallFrostShader 仅作就绪门控），当前不参与着色。 ---- */
+    private Bitmap wallFrost;
+    private BitmapShader wallFrostShader;
+    private boolean wallFrostPending;
+    /* ---- 栏后真实内容快照（2026-11-04 照搬链）----
+       PixelCopy 抓主窗口「栏矩形±40dp」→ contentSharpFull（全分辨率清晰层，
+       药丸折射采样源，KernelSU combinedBackdrop 的页面层等价物）→ ÷2 记录档
+       （downScaleExpFor blur4dp 档）→ vibrancy(sat1.5) → 两级降采样 blur4dp
+       → contentFrost（栏面霜）。抓取时机不变：滚动停手 250ms / 切页 / 几何 /
+       冷启动三连发。40dp 外扩 = miuix blur padding（kernel reach）+ 栏缘
+       lens 24dp 折射带的外采余量。 */
+    private Bitmap contentFrost;      // 模糊霜（半尺寸记录档）
+    private Bitmap contentSharpFull;  // 清晰层（全分辨率，药丸折射源）
+    private float contentOffX, contentOffY;   // 抓取矩形原点（本视图坐标）
+    private static final float BACKDROP_PAD_DP = 40f;  // miuix blur()/lens() padding 原值
+    private final Paint contentFrostP = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG);
+    private boolean contentFrostBusy;
+    private final Handler frostHandler = new Handler(Looper.getMainLooper());
+    /** 霜链重活（buildFrost/pane 合成）在后台线程跑，主线程只赋值+invalidate——
+     *  旋转/滚动停手后的抓图回调不再挤主线程（用户报「旋转切换卡一下」）。 */
+    private final Handler frostWorker;
+    private final Runnable frostDebounce = this::rebuildContentFrost;
+    /** 把药丸几何喂给容器 shader（容器本地坐标 = 本视图本地 + 弹窗在主窗口的偏移）。
+     *  几何变了才 invalidate 容器——拖动期容器逐帧重合成走 GPU（FBO replay +
+     *  单 pass shader，实测量级远低于旧 PixelCopy 主线程回读），静止零重绘。 */
+
+    /* ---- RuntimeShader 组（shader 原文 = LiquidGlassShaders verbatim）----
+       全部 SDK≥33 构造、try/catch 软着陆（任一失败→null→对应路退平绘）。
+       ⚠ 单层 BitmapShader 接线为 2026-11-04 诊断中改法，详见工作日志：
+       嵌套 RuntimeShader / localMatrix / 纹理刷新 / GPU 编译失败均已排除，
+       不是栏体灰条成因，勿据此继续改 shader。 */
+    private RuntimeShader shader;          // 药丸：折射+七彩色散
+    private RuntimeShader barLensShader;   // 栏缘折射（无色散）
+    private RuntimeShader bloomShader;     // BloomStroke 双光源高光
+    /* 上游 CombinedBackdrop = 页面层 + tab 镜像层录进同一纹理；这里是 CPU
+       预烘焙等价物，药丸 shader 只吃这一张位图。 */
+    private Bitmap combinedBmp;
+    private BitmapShader combinedShader;
+    /* 同帧实时 backdrop：弹窗同幅的主窗口内容 + 降采样模糊缓冲 */
+    private Bitmap liveBackdrop, liveToned;
+    private Bitmap liveSharp;      // 1/4 录制源（药丸直接用，栏体走两级降采样）
+    private Bitmap liveStep;       // 1/8 中间级（模拟 miuix blur 的两级串联）
+    private BitmapShader liveBackdropShader;
+    private long lastCaptureMs;            // 实时录制节流（30fps 上限）
+    private float lastRawLuma = -1f;       // 整图帧间低通的收敛判定
+    private int liveStillFrames = 999;
+    private final int[] winOffTmp = new int[2];
 
     private final WebView webView;
     /* 主窗口：PixelCopy 要抓它。本层必须活在**独立 Window**（PopupWindow）里，
        否则抓主窗口时会连自己画的玻璃一起抓进来 = 反馈循环。 */
     private Window window;
     private PopupWindow popup;
-    private final Paint glassPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint rimPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint fallbackPaint = new Paint(Paint.ANTI_ALIAS_FLAG);  // 背景未就绪的按压降级
+    private final Paint glassPaint = new Paint(Paint.ANTI_ALIAS_FLAG);    private final Paint fallbackPaint = new Paint(Paint.ANTI_ALIAS_FLAG);  // 背景未就绪的按压降级
     private final RectF pillRect = new RectF();
-    private final Rect srcRect = new Rect();
+    private final Path pillClipPath = new Path();   // 药丸圆角裁剪（位图直贴路径复用）
     private final float density;
-
-    private Bitmap backdrop;
-    private BitmapShader backdropShader;
-    private RuntimeShader shader;
 
     /* 几何（px）。全部由 JS 直接上报，原生层不做任何推导 —— CSS 才是几何真源 */
     private int bandW = 0, bandH = 0;
@@ -241,12 +210,15 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     private float pillCxNow, pillCyNow;           // 药丸中心（视图本地，按方向合成）
     private float pillCyPx = 0;      // 药丸中心 y（由 JS 上报，避免和 safe-area 打架）
     private float viewportH = 0;     // 页面视口物理高（=真实窗口高）；heightPixels 是挖掉手势条的安全高，两者差 213px
-    private float bgOffX = 0, bgOffY = 0;   // 背景图左上角在本 View 坐标里的位置
 
     /* 弹簧状态 */
     private Spring pos = new Spring(0);
     private final Spring lift = new Spring(0);
     private final Spring jelly = new Spring(0);
+    /* 触摸光晕（FlClash _glow 移植）：进 100ms/出 500ms，松手 reach ×4 扩散 */
+    private final Spring glow = new Spring(0);
+    private final Spring glowSpread = new Spring(0);
+    private float glowX, glowY;
     private boolean pressed = false;
     private boolean dragging = false;
     private boolean dropping = false;
@@ -258,19 +230,41 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     private long lastMoveMs = 0;
     private float velIndexPerMs = 0;
 
-    /* 抓取节流：静止时不必每帧抓 */
-    private boolean copyBusy = false;
-    private long lastCaptureMs = 0;
-    private static final long ACTIVE_CAPTURE_MS = 50;    // 交互期背景重抓 ~20fps：镜内剖切边与页面同步
     /* 仅横排底栏透镜用（竖排侧栏无透镜 → 零抓图，见 drawDockChrome）。 */
     private boolean wasActive = false;                   // 弹簧落定后补一帧空画用
-    private boolean dark = false;                        // 暗色模式（uBrightness 1.33 的开关）
+    private volatile boolean dark = false;               // 暗色模式（tint 色/配色整套开关；frostWorker 线程也读）
     private float lastSentPos = Float.MIN_VALUE;         // 上次广播的透镜位置（连续调色节流）
     private volatile boolean detached = false;           // Activity 销毁后一切回调自默
     private boolean imeShown = false;                    // 键盘弹出期透镜窗整体收起
     private boolean overlaid = false;                    // 页面底部弹层（sheet）在场期同样收起
     private boolean ticking = false;                     // 帧回调自眠：静止时不再 120Hz 空转
     private ViewGroup anchor;                            // PopupWindow 显示锚点
+
+    /* ---- BloomStroke 光源随重力旋转（miuix DeviceTilt 原语义）----
+       |g|>0.1（≈6° 倾斜）时主光方位 = atan2(gy,gx) 按 3° 步进量化；
+       否则回正上（−90°）。栏额外 −45°、药丸额外 +90°（FloatingBottomBar 原值）。 */
+    private SensorManager sensorManager;
+    private float gravityX, gravityY;
+    /* 切页后暂停实时录制：页面正在换内容，1/2 录制（10~14ms）叠加页面重绘
+       会把 draw 推到 37ms、掉到 19fps（2026-11-07 实测）。玻璃滞后半秒不可见。 */
+    private long liveCooldownUntil;
+    /* 滚动中：录制降到 1/6 换帧率（背景逐帧跟随、不跳变），停手 200ms 后
+       自动补一帧 1/2 高清。此前全程 1/2 + 30fps 节流 = 滑动时每 33ms 才跳一次，
+       表现「卡 + 变化不均匀」（2026-11-07 用户报）。 */
+    private long scrollIdleUntil;
+    /* 滚动期异步抓图：PixelCopy 由 GPU 拷贝 + 回调，不占绘制线程。
+       同步 anchor.draw 单次 17ms 必顶穿 16.7ms 预算（2026-11-07）。 */
+    private Bitmap liveRaw;
+    private boolean liveCopyInFlight;
+    /** 上一次同步录制耗时（ns）。原生页（字典/面试）实测 55ms，而 WebView 页 17ms。 */
+    private long lastSyncCapCost;
+    private boolean scrollingNow;   // 本帧是否处于滚动：绘制降质用
+    private static final float GRAVITY_DIR_THRESHOLD_SQ = 0.01f;
+    private static final float GRAVITY_ANGLE_STEP_RAD = (float) (3.0 * Math.PI / 180.0);
+    private static final float LIGHT_REF_X = 0.5f, LIGHT_REF_Y = 0.7f;
+    /* setPorterDuffXfermode 在 API 34 的 android.jar 已移除 → setXfermode + 缓存常量 */
+    private static final Xfermode XF_ADD = new PorterDuffXfermode(PorterDuff.Mode.ADD);
+    private static final Xfermode XF_CLEAR = new PorterDuffXfermode(PorterDuff.Mode.CLEAR);
 
     /* 统计 */
     private int frames = 0;
@@ -301,6 +295,8 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     private boolean nativeDock = false;
     private final RectF barRect = new RectF();      // 栏矩形（本 View 坐标 px；JS 上报）
     private Path[][] iconPaths = new Path[5][];     // 每图标 = 多条子路径（layers 第三笔 alpha .5）
+    private final Paint railFillP = new Paint(Paint.ANTI_ALIAS_FLAG);   // 竖排面板底
+    private final Paint sfTintP = new Paint(Paint.ANTI_ALIAS_FLAG);   // 栏体白/暗薄染（药丸区挖孔）
     /* 分层缓存（滑块动画期间每帧 onDraw 的成本大头）：B1=容器，B2=灰态图标+文字。
        每帧 = blit B1 + 画滑块（盖住所格灰图）+ blit B2 + 玻璃 + 选中格蓝图标。
        barRect/主题变化时重建；滑块动画每帧从「4 roundrect+12 path+5 text」
@@ -313,9 +309,31 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     private Bitmap sliderBmp;   // 含阴影的滑块（透明底），滑块-only 动画期 blit 免 saveLayer
     private final Paint blitP = new Paint(Paint.FILTER_BITMAP_FLAG);
     private final Paint barFillP = new Paint(Paint.ANTI_ALIAS_FLAG);
+    /* _LensContent 移植：抬手 warp 面板（药丸盖住格的离屏位图 → shader 深弯） */
+    private Bitmap lensTabBmp;
+    private BitmapShader lensTabShader;
+    private float tabOffX, tabOffY;
+    private int tabW, tabH;    /* 栏体投影（KernelSU dropShadow：radius 10dp，黑 α0.1 浅 / 0.2 暗，无偏移） */
+    private final Paint barShadowP = new Paint(Paint.ANTI_ALIAS_FLAG);
+    /** 栏面 pane：栏后内容霜（含 40dp 外扩边），供栏缘 lens 折射采样。
+     *  KernelSU 链里 tint α0.4 在 lens **之后**作 surface 画上，不烘进 pane。 */
+    private Bitmap barPane;
+    private BitmapShader barPaneShader;   // 栏 lens 的 content 输入（localMatrix=contentOff）
+    private Bitmap barPanePrev;      // 旧栏面（换霜后淡出用）
+    private BitmapShader barPanePrevShader;
+    private long paneFadeAt;         // 淡入起点（uptimeMillis；0=无过渡）
+    private static final long PANE_FADE_MS = 320;   // 滚动停手换霜的过渡时长
+    /* 药丸 rest 面（KernelSU onDrawSurface 原值）：浅 黑0.1 / 暗 白0.1，
+       随 lift 淡出至 0；按压期另叠 black 0.03×lift。 */
+    private final Paint pillRestP = new Paint(Paint.ANTI_ALIAS_FLAG);
+    /* 药丸挖孔路径：栏体白 tint 在药丸区让位（清玻璃比磨砂栏更透，2026-11-03） */
+    private final Path pillHolePath = new Path();
     private final Paint railSelP = new Paint(Paint.ANTI_ALIAS_FLAG);   // 竖排选中项底
     private final Paint railBarP = new Paint(Paint.ANTI_ALIAS_FLAG);   // 竖排选中竖条
-    private final Paint barStrokeP = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint barStrokeP = new Paint(Paint.ANTI_ALIAS_FLAG);   // 仅无玻璃回退分支的边缘
+    private final Paint bloomP = new Paint(Paint.ANTI_ALIAS_FLAG);   // BloomStroke 载体（BlendMode ADD）
+    private final Paint barLensP = new Paint(Paint.ANTI_ALIAS_FLAG); // 栏缘 lens 载体
+    private final Paint pillPressP = new Paint(Paint.ANTI_ALIAS_FLAG); // 药丸按压叠层（黑 0.03×lift）
     private final Paint sliderFillP = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint sliderStrokeP = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint iconP = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -343,24 +361,232 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
 
     public void setBackdropSource(NativeBackdrop src) {
         this.backdropSource = src;
-        onBackdropChanged();
+        rebuildWallFrost();
     }
 
-    private Bitmap barBackdrop;                     // 整栏背景抓图（栏矩形+pad，折射向外采样用）
-    private BitmapShader barBackdropShader;
-    private int barCapOffX, barCapOffY;             // 栏左上在背景位图内的偏移（pad 对齐）
-    private RuntimeShader barGlassShader;
-    private final Paint barGlassP = new Paint(Paint.ANTI_ALIAS_FLAG);
-    /** 竖排侧栏面板（FlClash 口径纯色半透，见 drawDockChrome）：浅色 ~70% 白、
-       暗色 ~80% 深面——暗壁纸上暗面板要更高不透明度才托得住灰图标。 */
-    private final Paint railFillP = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Rect srcBarRect = new Rect();
-    /** PixelCopy 落点（清晰原图）；barBackdrop 是它雾化后的合成结果。 */
-    private Bitmap barCapTmp;
-    private final RectF lastCapturedBar = new RectF();
-    private int lastCapturedDark = -1;
-    private boolean barCopyBusy;
-    private static String barAgsl;                  // AGSL 源码（进程内缓存一份）
+    /** 壁纸/通透度变了（NativeBackdrop 重铺）。
+     *  2026-11-04 起**空实现**：wallFrost 位图不参与任何着色（栏面由
+     *  barPane 霜 + sfTintP 薄染），重建 ~10ms CPU + 屏幕四分之一大位图纯属旋转/换壁纸热路径
+     *  上的浪费（用户报「旋转切换卡一下」）。链保留（setBackdropSource 冷启动
+     *  仍建一次），恢复壁纸霜方案时在这里重新挂三连发。 */
+    public void onBackdropChanged() {
+    }
+
+    /** 重建壁纸霜：NativeBackdrop 当前壁纸 → cover 铺满屏幕/2 尺寸 →
+     *  降采样两步近似高斯（sigma 24dp 档：downscale 比率 = 24*dp/3）。
+     *  CPU 一次 ~10ms； wallpaper 未设时回退中性灰。 */
+    private void rebuildWallFrost() {
+        if (detached || anchor == null) return;
+        int w = anchor.getWidth();
+        int h = viewportH > 0 ? (int) viewportH : anchor.getHeight();
+        if (w <= 0 || h <= 0) return;
+        int fw = w / 2, fh = h / 2;
+        Bitmap src0 = backdropSource != null ? backdropSource.getCurrentBitmap() : null;
+        Bitmap out = Bitmap.createBitmap(fw, fh, Bitmap.Config.ARGB_8888);
+        Canvas c = new Canvas(out);
+        Paint bp = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG);
+        if (src0 != null && !src0.isRecycled()) {
+            int bw = src0.getWidth(), bh = src0.getHeight();
+            float scale = Math.max((float) w / bw, (float) h / bh);
+            float dx = (w - bw * scale) * 0.5f;
+            float dy = (h - bh * scale) * 0.5f;
+            /* cover 铺满窗口坐标（再除 2 = 霜位图坐标） */
+            android.graphics.Matrix m = new android.graphics.Matrix();
+            m.setScale(scale / 2f, scale / 2f);
+            m.postTranslate(dx / 2f, dy / 2f);
+            c.drawBitmap(src0, m, bp);
+        } else {
+            c.drawColor(dark ? 0xFF202226 : 0xFFEDEDF0);
+        }
+        /* 两步降采样近似高斯：先缩到目标/8，再放大回目标/2（FILTER 双线性） */
+        int dw = Math.max(2, fw / 8), dh = Math.max(2, fh / 8);
+        Bitmap small = Bitmap.createBitmap(dw, dh, Bitmap.Config.ARGB_8888);
+        new Canvas(small).drawBitmap(out, null,
+                new RectF(0, 0, dw, dh), bp);
+        c.drawColor(0, android.graphics.PorterDuff.Mode.CLEAR);
+        c.drawBitmap(small, null, new RectF(0, 0, fw, fh), bp);
+        small.recycle();
+        wallFrost = out;
+        wallFrostShader = new BitmapShader(out,
+                Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+        invalidate();
+    }
+
+    /** 抓栏后**真实内容**（主窗口「栏矩形±40dp」，不含本弹窗——透镜在独立
+     *  Window，PixelCopy 抓主窗口天然无反馈环）。外扩 = miuix blur padding +
+     *  栏缘 lens 24dp 折射带的外采余量。回调跑在 frostWorker：buildFrost 等
+     *  位图重活离主线程，主线程只做字段赋值 + invalidate。
+     *  watchdog：PixelCopy 回调可能被丢（旋转撕 surface）——contentFrostBusy
+     *  一旦卡死，霜就冻结到重启（2026-10-30 顶栏同款事故）；700ms 无回响应
+     *  解闩重抓。 */
+    private void rebuildContentFrost() {
+        if (detached || dockVertical || !nativeDock || contentFrostBusy || window == null) return;
+        if (barRect.width() <= 4 || barRect.height() <= 4) return;
+        View decor = window.getDecorView();
+        if (decor == null || decor.getWidth() <= 0) return;
+        int pad = (int) (BACKDROP_PAD_DP * density);
+        int l = Math.max(0, (int) barRect.left - pad);
+        int t = Math.max(0, (int) barRect.top - pad);
+        int r = Math.min(decor.getWidth(), (int) Math.ceil(barRect.right) + pad);
+        int b = Math.min(decor.getHeight(), (int) Math.ceil(barRect.bottom) + pad);
+        int w = r - l, h = b - t;
+        if (w < 8 || h < 8) return;
+        final Bitmap raw = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+        /* 采样基准在主线程算好带进回调（popupOffset 读视图位置，不能去 worker） */
+        popupOffsetInMainWindow(winOff);
+        final int offX = l - winOff[0], offY = t - winOff[1];
+        contentFrostBusy = true;
+        final Handler copyHandler = frostWorker;
+        final Runnable watchdog = () -> {
+            if (contentFrostBusy && !detached) {
+                contentFrostBusy = false;
+                Log.w(TAG, "抓图回调丢失（疑似旋转撕 surface），解闩重抓");
+                scheduleFrostCapture();
+            }
+        };
+        try {
+            copyHandler.postDelayed(watchdog, 700);
+            PixelCopy.request(window, new Rect(l, t, r, b), raw, result -> {
+                copyHandler.removeCallbacks(watchdog);
+                if (detached) {
+                    contentFrostBusy = false;
+                    raw.recycle();
+                    return;
+                }
+                if (result != PixelCopy.SUCCESS) {
+                    contentFrostBusy = false;
+                    raw.recycle();
+                    return;
+                }
+                final long capT0 = System.nanoTime();
+                Bitmap frost = null;
+                try {
+                    frost = buildFrost(raw);   // CPU 重活：worker 线程（异常不裸抛，见下）
+                } catch (Throwable e) {
+                    Log.w(TAG, "霜链构建异常，沿用旧霜", e);
+                }
+                final Bitmap frostOut = frost;
+                final long capMs = (System.nanoTime() - capT0) / 1_000_000L;
+                frostHandler.post(() -> {               // 主线程：只赋值 + 重建 shader
+                    contentFrostBusy = false;
+                    if (detached) {
+                        raw.recycle();
+                        if (frostOut != null) frostOut.recycle();
+                        return;
+                    }
+                    contentOffX = offX;
+                    contentOffY = offY;
+                    if (contentSharpFull != null) contentSharpFull.recycle();
+                    contentSharpFull = raw;
+                    /* 清晰层只作 CPU 预烘焙采样源，不再挂成 shader input。 */
+                    if (frostOut != null) {
+                        if (contentFrost != null) contentFrost.recycle();
+                        contentFrost = frostOut;
+                    }   // frostOut==null：霜链异常，保旧霜（raw 照常上清晰层）
+                    captures++;
+                    copySumMs += capMs;
+                    if (capMs > copyMaxMs) copyMaxMs = capMs;
+                    buildBarPane();
+                    invalidate();
+                });
+            }, copyHandler);
+        } catch (Throwable e) {
+            contentFrostBusy = false;
+            copyHandler.removeCallbacks(watchdog);
+            raw.recycle();
+            Log.w(TAG, "栏体内容快照失败", e);
+        }
+    }
+
+    /** miuix blur 链的 CPU 等价实现：÷2 记录档（downScaleExpFor 对 blur4dp 的
+     *  自适应档）→ vibrancy（saturation 1.5，sRGB 空间同式；brightness=0 时
+     *  COLOR_CONTROLS 的 pow(2.2) 分支不生效，ColorMatrix 等价）→ 两级降采样
+     *  blur 4dp（KernelSU bar 原值；盒宽 = σ_screen = 4dp×0.45）。
+     *  ❗在 frostWorker 线程跑：全部用局部 Paint（contentFrostP 主线程绘制
+     *  在用，跨线程共享 Paint 会竞态）。 */
+    private Bitmap buildFrost(Bitmap raw) {
+        /* 记录档：σ_screen = 4dp·density·0.45 → σ² 套 downScaleExpFor */
+        float sigma = 4f * density * LiquidGlassShaders.BLUR_RADIUS_TO_SIGMA;
+        int exp = LiquidGlassShaders.downScaleExpFor(sigma * sigma);
+        int sf = 1 << exp;
+        int fw = Math.max(2, raw.getWidth() / sf), fh = Math.max(2, raw.getHeight() / sf);
+        Bitmap half = Bitmap.createBitmap(fw, fh, Bitmap.Config.ARGB_8888);
+        Paint bp = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG);
+        /* vibrancy = colorControls(0, 1, 1.5)：sRGB 饱和度（线性亮度分支只在
+           brightness≠0 时生效，本链 brightness=0）+ 亮度归一化 shim（见下） */
+        ColorMatrix cm = new ColorMatrix();
+        cm.setSaturation(1.5f);
+        /* 亮度归一化 shim（唯一保留的自研项）：霜面均值锚 236/40，防白卡页面
+           整栏跳色（2026-11-03 用户报障回归防线）；KernelSU 链无此项。 */
+        float adj = ((dark ? 40f : 236f) - frostMeanLumaOf(raw)) * 0.5f;
+        cm.postConcat(new ColorMatrix(new float[]{
+                1, 0, 0, 0, adj,
+                0, 1, 0, 0, adj,
+                0, 0, 1, 0, adj,
+                0, 0, 0, 1, 0}));
+        bp.setColorFilter(new ColorMatrixColorFilter(cm));
+        new Canvas(half).drawBitmap(raw, null, new RectF(0, 0, fw, fh), bp);
+        /* blur 4dp：半尺寸盒宽 K ↔ 全尺寸 σ ≈ K px（两级 bilinear 往返实证） */
+        int k = Math.max(2, Math.round(sigma));
+        int dw = Math.max(2, fw / k), dh = Math.max(2, fh / k);
+        Bitmap small = Bitmap.createBitmap(dw, dh, Bitmap.Config.ARGB_8888);
+        Paint bp2 = new Paint(Paint.FILTER_BITMAP_FLAG);
+        new Canvas(small).drawBitmap(half, null, new RectF(0, 0, dw, dh), bp2);
+        Bitmap out = Bitmap.createBitmap(fw, fh, Bitmap.Config.ARGB_8888);
+        new Canvas(out).drawBitmap(small, null, new RectF(0, 0, fw, fh), bp2);
+        small.recycle();
+        half.recycle();
+        return out;
+    }
+
+    /** 抓取原帧的平均亮度（shim 锚点输入；直接读 raw，稀疏 ~96 点）。 */
+    private float frostMeanLumaOf(Bitmap bmp) {
+        int w = bmp.getWidth(), h = bmp.getHeight();
+        int sx = Math.max(1, w / 12), sy = Math.max(1, h / 8);
+        float sum = 0f;
+        int n = 0;
+        for (int y = 0; y < h; y += sy) {
+            for (int x = 0; x < w; x += sx) {
+                int c = bmp.getPixel(x, y);
+                sum += 0.2126f * Color.red(c) + 0.7152f * Color.green(c) + 0.0722f * Color.blue(c);
+                n++;
+            }
+        }
+        return n > 0 ? sum / n : (dark ? 40f : 236f);
+    }
+
+    /** 栏面 pane = 抓取矩形全幅的霜（含 40dp 外扩边，栏缘折射要采栏外内容）。
+     *  上游链里 tint α0.4 在 lens 之后作 surface 画上（drawDockChrome），不烘这里。 */
+    private float paneKeyOffX = -1f, paneKeyOffY = -1f;
+
+    private void buildBarPane() {
+        if (contentFrost == null || contentFrost.getWidth() < 8) return;
+        Bitmap fresh = Bitmap.createBitmap(contentFrost.getWidth() * 2,
+                contentFrost.getHeight() * 2, Bitmap.Config.ARGB_8888);
+        new Canvas(fresh).drawBitmap(contentFrost, null,
+                new RectF(0, 0, fresh.getWidth(), fresh.getHeight()), contentFrostP);
+        /* 抓取原点变了（几何/转屏）→ 旧 pane 与新 pane 内容错位，交叉淡化会
+           「双重影」——跳过淡化直接切。原点不变的换霜（滚动停手）才淡化。 */
+        boolean originMoved = Math.abs(contentOffX - paneKeyOffX) > 0.5f
+                || Math.abs(contentOffY - paneKeyOffY) > 0.5f;
+        paneKeyOffX = contentOffX;
+        paneKeyOffY = contentOffY;
+        if (barPanePrev != null) barPanePrev.recycle();
+        if (originMoved) {
+            barPanePrev = null;
+            barPanePrevShader = null;
+        } else {
+            barPanePrev = barPane;
+            barPanePrevShader = barPaneShader;
+        }
+        barPane = fresh;
+        barPaneShader = new BitmapShader(barPane, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+        Matrix m = new Matrix();
+        m.setTranslate(contentOffX, contentOffY);
+        barPaneShader.setLocalMatrix(m);
+        paneFadeAt = SystemClock.uptimeMillis();
+        invalidate();
+    }
     /** 首次拿到真实栏几何后是否已淡入（冷启动防「由大变小」见 onDraw）。 */
     private boolean geomFadedIn = false;
     private final RectF tmpRect = new RectF();
@@ -370,7 +596,8 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         if (dark) {
             railFillP.setColor(Color.argb(204, 24, 24, 26));   // 竖排面板：暗面 ~80%
             barFillP.setColor(Color.argb(255, 28, 28, 30));   // 实色回退
-            barStrokeP.setColor(Color.argb(70, 255, 255, 255));   // 半透亮边高光（AndroidLiquidGlass 质感）
+            sfTintP.setColor(Color.argb(160, 33, 31, 38));    // KernelSU surfaceContainer(dark)，alpha 40%→55%：用户 2026-11-07「不用非常通透」
+            barStrokeP.setColor(Color.argb(70, 255, 255, 255));   // 仅无玻璃回退分支
             sliderFillP.setColor(Color.argb(255, 44, 44, 46));    // --surface-2 #2c2c2e
             sliderStrokeP.setColor(Color.argb(26, 255, 255, 255));
             iconP.setColor(Color.argb(153, 235, 235, 245));       // --tab-inactive rgba(235,235,245,.60)
@@ -379,7 +606,10 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         } else {
             railFillP.setColor(Color.argb(178, 255, 255, 255));   // 竖排面板：白 ~70%（cf1fc0d 前的已验收值）
             barFillP.setColor(Color.WHITE);                    // 实色回退
-            barStrokeP.setColor(Color.argb(120, 255, 255, 255));  // 半透白色高光边缘
+            /* KernelSU FloatingBottomBar.kt:220 `surfaceContainer.copy(0.4f)`；
+               浅色 M3 surfaceContainer = #F3EDF7 → 40% alpha。 */
+            sfTintP.setColor(Color.argb(160, 243, 237, 247));
+            barStrokeP.setColor(Color.argb(120, 255, 255, 255));  // 仅无玻璃回退分支
             /* 对照 FlClash 手机端（液态玻璃=极致）实测：选中药丸 #DEE5FC（主色 12% 叠白，不是纯白）、
                未选中图标 #424754（深灰蓝，我们原来的 #8E8E93 偏浅发灰）。 */
             sliderFillP.setColor(Color.argb(31, 37, 99, 235));    // accent #2563EB @ 12%
@@ -388,6 +618,13 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             textP.setColor(Color.rgb(66, 71, 84));
             inactiveColor = Color.rgb(66, 71, 84);
         }
+        /* 药丸 rest 面（KernelSU：浅 黑0.1 / 暗 白0.1，随 lift 淡出） */
+        pillRestP.setColor(dark ? Color.WHITE : Color.BLACK);
+        pillPressP.setColor(Color.BLACK);   // 按压叠层 black 0.03×lift（原值）
+        /* 栏体投影（dropShadow radius 10dp：浅 0.1 / 暗 0.2） */
+        barShadowP.setColor(dark ? Color.argb(51, 0, 0, 0) : Color.argb(26, 0, 0, 0));
+        barShadowP.setMaskFilter(new BlurMaskFilter(10f * density, BlurMaskFilter.Blur.NORMAL));
+        buildBarPane();
     }
 
     private int activeColor() {
@@ -450,8 +687,21 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
 
     /** 桥：页面 boot 上报原生底栏开关（localStorage netops_native_dock，默认开）。 */
     public void setNativeDock(boolean on) {
-        if (nativeDock == on) return;
+        /* ❗无 early-return：弹窗显隐必须无条件对齐——boot 时序下 attach 先
+           无条件 showPopup、JS 的 false 上报早于 attach 被丢弃，若此处
+           「值相等即返回」，补施永远走不到 dismiss，弹窗永久盖死栏区
+           （2026-11-02 真机实锤：HTML dock 被盖、红条实验不上屏）。 */
         nativeDock = on;
+        updateContainerEffect();   // HTML dock / 原生 dock 切换：容器折射跟着挂/摘
+        if (on) scheduleFrostCapture();   // 接管即抓霜（几何可能早于接管上报）
+        if (popup != null) {
+            if (on && !popup.isShowing()) showPopup();
+            else if (!on && popup.isShowing()) popup.dismiss();
+        }
+        if (webView != null) {
+            webView.invalidate();
+            webView.postInvalidateDelayed(64);
+        }
         if (on && iconPaths[0] == null) initIcons();
         ensureTicking();
         invalidate();
@@ -464,30 +714,69 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
      *  （2026-10-28：原先在此处按 getLocationOnScreen 一次性换算，分屏/小窗切换
      *  时窗口在屏幕上移动，换算基准过期 → dock 错位/失效/重影）。 */
     public void setLensBarRect(float l, float t, float w, float h) {
+        boolean moved = Math.abs(barRect.left - l) > 1 || Math.abs(barRect.top - t) > 1
+                || Math.abs(barRect.width() - w) > 1 || Math.abs(barRect.height() - h) > 1;
         barRect.set(l, t, l + w, t + h);
+        if (moved) scheduleFrostCapture();
         invalidate();
+    }
+
+    /** 冷启动霜位图三连发（壁纸解码/首帧/web 内容落定三个时间点各抓一次）。 */
+    private void scheduleFrostCapture() {
+        frostHandler.removeCallbacks(frostDebounce);
+        frostHandler.postDelayed(frostDebounce, 200L);
+        frostHandler.postDelayed(frostDebounce, 600L);
+        frostHandler.postDelayed(frostDebounce, 1200L);
+    }
+
+    /** 路由变化（WebView 导航/历史变更）后重抓栏后霜——SPA 切页无滚动信号，
+        不抓的话栏体停留在上一页的雾。 */
+    public void requestFrostRefresh() {
+        scheduleFrostCapture();
     }
 
     public LensBarView(Context context, WebView webView) {
         super(context);
         this.webView = webView;
         this.density = context.getResources().getDisplayMetrics().density;
-        setWillNotDraw(false);
-        rimPaint.setStyle(Paint.Style.STROKE);
-        rimPaint.setStrokeWidth(1f * density);
-        /* ❗描边画笔必须显式 STROKE：Paint 默认 FILL，漏设的话「画一圈边」实际是
+        android.os.HandlerThread worker = new android.os.HandlerThread("lens-frost");
+        worker.start();
+        frostWorker = new Handler(worker.getLooper());        /* ❗描边画笔必须显式 STROKE：Paint 默认 FILL，漏设的话「画一圈边」实际是
            「整块填满」——栏体先画玻璃再被这条 #E3E3E8 实色盖回去，玻璃等于白做
            （2026-10-28 用户报「液态玻璃被改了」的真因）。 */
         barStrokeP.setStyle(Paint.Style.STROKE);
         sliderStrokeP.setStyle(Paint.Style.STROKE);
-        rimPaint.setColor(Color.argb(90, 255, 255, 255));
         if (Build.VERSION.SDK_INT >= 33) {
-            shader = new RuntimeShader(AGSL);
-            glassPaint.setShader(shader);
+            /* 软着陆：RuntimeShader 构造即编译——shader 编译失败若让构造器抛出，
+               attach 的 catch 会把整个 lensBar 置 null = 底栏彻底消失；逐个退回
+               null，对应路径走平绘（回退贴片），dock 仍然可用。 */
+            try {
+                shader = new RuntimeShader(LiquidGlassShaders.REFRACTION_DISPERSION);
+                glassPaint.setShader(shader);
+            } catch (Throwable t) {
+                Log.w(TAG, "药丸 AGSL 编译失败，退回平绘路径", t);
+                shader = null;
+            }
+            barLensShader = tryShader(LiquidGlassShaders.REFRACTION, "栏缘折射");
+            bloomShader = tryShader(LiquidGlassShaders.BLOOM_STROKE_DUAL, "BloomStroke");
+            /* 镜内内容二次折射（KernelSU tabs 层单独过 lens(24dp,24dp)）。
+               ❗只能在离屏 Pass 里跑：在 onDraw 调用链内 new Canvas + RuntimeShader
+               会污染主 Canvas 状态（栏面整条变黑、药丸过曝，2026-11-06 实测）。 */
+            bloomP.setXfermode(XF_ADD);   // Compose BlendMode.Plus 同义
         }
         initIcons();
         statStartNs = System.nanoTime();
         ensureTicking();
+    }
+
+    /** RuntimeShader 软着陆构造：失败 → null（对应路径退平绘），不炸 attach。 */
+    private static RuntimeShader tryShader(String src, String tag) {
+        try {
+            return new RuntimeShader(src);
+        } catch (Throwable t) {
+            Log.w(TAG, tag + " AGSL 编译失败，对应路径退平绘", t);
+            return null;
+        }
     }
 
     /** 帧回调自眠/唤醒：有弹簧或按压才逐帧，静止完全停摆（省电）。
@@ -500,6 +789,39 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
 
     private static double nowSec() {
         return System.nanoTime() / 1e9;
+    }
+
+    /* ---- DeviceTilt：重力传感器（miuix rememberDeviceTilt 原语义）---- */
+    private final SensorEventListener tiltListener = new SensorEventListener() {
+        @Override
+        public void onSensorChanged(SensorEvent event) {
+            gravityX = event.values[0];
+            gravityY = event.values[1];
+        }
+
+        @Override
+        public void onAccuracyChanged(Sensor sensor, int accuracy) {
+        }
+    };
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        if (sensorManager == null) {
+            sensorManager = (SensorManager) getContext().getSystemService(Context.SENSOR_SERVICE);
+        }
+        Sensor g = sensorManager != null ? sensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY) : null;
+        if (sensorManager != null && g != null) {
+            sensorManager.registerListener(tiltListener, g, SensorManager.SENSOR_DELAY_UI);
+        }
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        if (sensorManager != null) {
+            sensorManager.unregisterListener(tiltListener);
+        }
+        super.onDetachedFromWindow();
     }
 
     /**
@@ -540,6 +862,8 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                 "几何已同步 一格%.1f 药丸%.1f×%.1f 首格中心(%.1f,%.1f→%.1f) 共%d格 视口高%.0f",
                 slotPx, pillWPx, pillHPx, firstCxPx, pillCyScreen, this.pillCyPx,
                 tabCount, viewportHPx));
+        /* rebuildWallFrost 已撤出几何热路径（wallFrost 不参与着色，重建 ~10ms
+           + 大位图纯浪费；壁纸霜方案重启时在 setBackdropSource 恢复）。 */
     }
 
     private final Runnable sliderCatchUp = new Runnable() {
@@ -577,7 +901,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         applyDockColors();
         chromeDark = -1;   // 强制重建缓存（含 per-tab sprites）
         java.util.Arrays.fill(tabSprites, null);
-        lastCapturedDark = -1;   // 玻璃 tint 随主题（0.55 浅 / 0.62 暗），换代重抓重录
+        scheduleFrostCapture();   // 主题切换：页面重绘后重抓（旧霜是旧配色）
         invalidate();
     }
 
@@ -643,7 +967,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
 
     /** 预热：先抓一张背景，把首次光栅化的开销摊在用户碰底栏之前。 */
     public void warmUp() {
-        post(LensBarView.this::captureBackdrop);
+        /* 2026-11-02 快照链退役：玻璃底=SF blurBehind 实时模糊，无需预热。 */
     }
 
 
@@ -664,9 +988,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             }
             if (pillH <= 0) pillH = 56f * density;
             if (pillW <= 0) pillW = slot + 8f * density;   // 药丸比一格宽 8dp，与 CSS 同
-        }
-        scheduleBarRecapture();      // 尺寸/方向变了：旧采样作废，重抓三代
-    }
+        }    }
 
     /* ================= 横屏侧栏（竖排 dock） ================= */
 
@@ -706,8 +1028,12 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         boolean vert = isLandscapeWindow();
         if (vert != dockVertical) {
             dockVertical = vert;
+            updateContainerEffect();   // 竖排 rail 无玻璃：容器折射摘除（零 shader 成本）
             chromeDark = -1;                       // 缓存（含 sprite 形状）按方向重建
-            java.util.Arrays.fill(tabSprites, null);
+            for (int i = 0; i < tabSprites.length; i++) {
+                if (tabSprites[i] != null) tabSprites[i].recycle();   // 翻转旧图即时回收
+                tabSprites[i] = null;
+            }
             if (dockVertical) {
                 computeRailGeometry();
             } else if (jsPillW > 0) {
@@ -813,11 +1139,18 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
      * target = 0.20·tanh(|v|/3) − 0.15·tanh(braking/25)，v 单位"格/秒"。
      */
     private void wobble(double now) {
-        double v = pos.velocity();
-        double acc = pos.acceleration();
-        double braking = Math.max(0.0, -acc * Math.signum(v));
-        double target = 0.20 * Math.tanh(Math.abs(v) / 3.0)
-                - 0.15 * Math.tanh(braking / 25.0);
+        /* ❗只在**拖动**时做速度形变：切页位移的速度同样很大，会让 jelly 目标
+           跳到 0.20，药丸横向拉长 20% 再按 JELLY_S(0.4 欠阻尼) 回弹数次 →
+           切「学习/排障」时左右抽搐（2026-11-06 用户报）。KernelSU 的速度形变
+           也只在按住拖动（layerBlock 内 dampedDragAnimation）生效。 */
+        double target = 0;
+        if (dragging) {
+            double v = pos.velocity();
+            double acc = pos.acceleration();
+            double braking = Math.max(0.0, -acc * Math.signum(v));
+            target = 0.20 * Math.tanh(Math.abs(v) / 3.0)
+                    - 0.15 * Math.tanh(braking / 25.0);
+        }
         if (Math.abs(target - jelly.target()) > 1e-4) {
             jelly.springTo(target, JELLY_S, now);
         }
@@ -838,11 +1171,14 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         wobble(now);
         jelly.advance(now);
         lift.advance(now);
+        glow.advance(now);
+        glowSpread.advance(now);
         dropLift(now);
     }
 
     private boolean animating() {
-        return pos.active() || jelly.active() || lift.active();
+        return pos.active() || jelly.active() || lift.active()
+                || glow.active() || glowSpread.active();
     }
 
     @Override
@@ -873,10 +1209,9 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                 lastSentPos = p;
                 callLensPos(p);
             }
-            if (lensing && !dockVertical
-                    && System.currentTimeMillis() - lastCaptureMs >= ACTIVE_CAPTURE_MS) {
-                captureBackdrop();
-            }
+            /* 2026-11-01 拖动期重抓已删：快照=整条带壁纸、与药丸位置无关
+               （见 captureByPixelCopy），拖动不改变条带内容——省掉拖动期
+               每帧 70ms 级回读。壁纸换代由 onBackdropChanged 三连发补抓。 */
             /* 脏区重合成：滑块+蓝格移动区域（玻璃期仍整层——折射面大）。
                全窗 invalidate 的合成面积 3040×440；收窄后入场动画期的
                每帧 GPU 合成大幅下降（滑块动画 legacy janky 的最后一块）。 */
@@ -946,147 +1281,6 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             webView.evaluateJavascript(js, null);
         } catch (Throwable t) {
             Log.w(TAG, "同步按压态到页面失败", t);
-        }
-    }
-
-    /**
-     * 抓 WebView 在本 View 覆盖区域内的真实像素。
-     *
-     * 为什么不用 PixelCopy：它只有 SurfaceView / Surface / Window 三个重载
-     * （API 37 也没有 View 版），而 Window 版抓的是整窗合成结果，会把本层自己
-     * 画的玻璃一起抓进来 → 反馈循环。webView.draw(离屏 Canvas) 只画 WebView
-     * 这棵子树，天然不含本层，也没有 API 门槛。代价是 software 光栅化，
-     * 耗时正是本探针要测的量。
-     */
-    private void captureBackdrop() {
-        if (detached || bandW <= 0 || bandH <= 0 || copyBusy || dockVertical) return;
-        copyBusy = true;   /* bitmap 由各条路径按自己的尺寸建（整条带 / 药丸小块） */
-        long t0 = System.nanoTime();
-        if (window != null && Build.VERSION.SDK_INT >= 26) {
-            captureByPixelCopy(t0);
-        } else {
-            captureByDraw(t0);
-        }
-    }
-
-    /**
-     * 首选：PixelCopy 直接回读合成结果（GPU 侧），不触发整页软件光栅化。
-     * 抓的是**主窗口**，本层活在 PopupWindow 的独立 Window 里，所以不会抓到自己。
-     * 坐标口径 = **主窗口本地**（PixelCopy 的 rect 就是窗口坐标；firstCx/pillCyPx
-     * 均为窗口本地，分屏/小窗下不再叠加窗口的屏幕偏移）。
-     */
-    private void captureByPixelCopy(long t0) {
-        /* 只抓药丸那一小块（+ 位移余量），不再抓整条带：
-           整条带 1272×420 ≈ 2.1MB 回读实测 70ms，缩到 ~300×250 后应该一个量级往下掉。 */
-        float cxScreen;
-        float cyScreen;
-        if (dockVertical) {
-            popupOffsetInMainWindow(pvOff);
-            cxScreen = crossCView + pvOff[0];
-            cyScreen = cellAxis((int) Math.round(pos.value()))
-                    + axisPitch * ((float) pos.value() - Math.round(pos.value())) + pvOff[1];
-        } else {
-            cxScreen = firstCx + slot * (float) pos.value();
-            cyScreen = pillCyPx > 0 ? pillCyPx : (viewportH - pillH / 2f - 22f * density);
-        }
-        int pad = (int) (40 * density);
-        int halfW = (int) (pillW / 2f + LIFT_GROWTH * density / 2f) + pad;
-        int halfH = (int) (pillH / 2f + LIFT_GROWTH * density / 2f) + pad;
-        DisplayMetrics m = getResources().getDisplayMetrics();
-        /* 底边基准 = 页面视口物理高（2800）。heightPixels 只有 2587（挖掉手势条），
-           拿它夹 srcRect 会把 2587 以下的标签整体裁出背景图，CLAMP 平铺成一片
-           匀色 —— 2026-10-26 实测"镜内图标在、文字没了"就是这个。 */
-        int maxH = viewportH > 0 ? (int) viewportH : m.heightPixels;
-        int winW = anchor != null ? anchor.getWidth() : m.widthPixels;
-        int l = Math.max(0, (int) (cxScreen - halfW));
-        int top = Math.max(0, (int) (cyScreen - halfH));
-        int r = Math.min(winW, (int) (cxScreen + halfW));
-        int bot = Math.min(maxH, (int) (cyScreen + halfH));
-        if (r - l < 4 || bot - top < 4) {
-            copyBusy = false;
-            return;
-        }
-        srcRect.set(l, top, r, bot);
-        /* uBgOffset：弹窗本地 p → 位图坐标 = p + (弹窗窗口位置 − 抓图左上) */
-        popupOffsetInMainWindow(pvOff);
-        bgOffX = l - pvOff[0];
-        bgOffY = top - pvOff[1];
-        if (backdrop == null || backdrop.getWidth() != srcRect.width()
-                || backdrop.getHeight() != srcRect.height()) {
-            backdrop = Bitmap.createBitmap(srcRect.width(), srcRect.height(), Bitmap.Config.ARGB_8888);
-            backdropShader = new BitmapShader(backdrop, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
-        }
-        issuePixelCopy(t0);
-    }
-
-    /** 发出一次 PixelCopy（srcRect/backdrop/bgOff 已就位）。 */
-    private void issuePixelCopy(long t0) {
-        try {
-            PixelCopy.request(window, srcRect, backdrop, result -> {
-                long ms = (System.nanoTime() - t0) / 1_000_000L;
-                copyBusy = false;
-                if (result == PixelCopy.SUCCESS) {
-                    copySumMs += ms;
-                    captures++;
-                    if (ms > copyMaxMs) copyMaxMs = ms;
-                    lastCaptureMs = System.currentTimeMillis();
-                    /* debug 取证：dump 最近一次抓图（R1 折射内容与页面不符排查） */
-                    if ((getContext().getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
-                        try {
-                            java.io.File f = new java.io.File(getContext().getExternalFilesDir(null), "backdrop-dump.png");
-                            java.io.FileOutputStream fo = new java.io.FileOutputStream(f);
-                            backdrop.compress(Bitmap.CompressFormat.PNG, 90, fo);
-                            fo.close();
-                        } catch (Throwable ignored) { }
-                    }
-                    invalidate();
-                } else {
-                    Log.w(TAG, "PixelCopy 失败 result=" + result + "，退回软件绘制");
-                    captureByDraw(System.nanoTime());
-                }
-            }, new Handler(Looper.getMainLooper()));
-        } catch (Throwable t) {
-            copyBusy = false;
-            Log.w(TAG, "PixelCopy 抛异常，退回软件绘制", t);
-            captureByDraw(System.nanoTime());
-        }
-    }
-
-    /** 兜底：WebView 软件光栅化。实测 95~265ms，很贵，只在 PixelCopy 不可用时用。 */
-    private void captureByDraw(long t0) {
-        if (webView == null) {
-            copyBusy = false;
-            return;
-        }
-        int[] wl = new int[2];
-        int[] vl = new int[2];
-        webView.getLocationOnScreen(wl);
-        this.getLocationOnScreen(vl);
-        int left = vl[0] - wl[0];
-        int top = vl[1] - wl[1];
-        if (left < 0 || top < 0) {
-            copyBusy = false;
-            return;
-        }
-        if (backdrop == null || backdrop.getWidth() != bandW || backdrop.getHeight() != bandH) {
-            backdrop = Bitmap.createBitmap(bandW, bandH, Bitmap.Config.ARGB_8888);
-            backdropShader = new BitmapShader(backdrop, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
-        }
-        bgOffX = 0;
-        bgOffY = 0;      /* 整条带模式：背景图左上角就是本 View 的左上角 */
-        try {
-            Canvas c = new Canvas(backdrop);
-            c.translate(-left, -top);
-            webView.draw(c);
-            long ms = (System.nanoTime() - t0) / 1_000_000L;
-            copySumMs += ms;
-            captures++;
-            if (ms > copyMaxMs) copyMaxMs = ms;
-            lastCaptureMs = System.currentTimeMillis();
-        } catch (Throwable t) {
-            Log.w(TAG, "WebView 离屏绘制失败", t);
-        } finally {
-            copyBusy = false;
         }
     }
 
@@ -1181,13 +1375,16 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                 dragging = false;
                 dropping = false;
                 downId = e.getPointerId(0);
+                glowX = e.getX();
+                glowY = e.getY();
+                glowSpread.springTo(0, FAST_TRAVEL, now);
+                glow.springTo(1, GLOW_IN, now);
                 downX = lastX = hitAxis(e.getX());
                 lastMoveMs = e.getEventTime();
                 velIndexPerMs = 0;
                 pressedIndex = Math.max(0, Math.min(count - 1, Math.round(positionAtAxis(hitAxis()))));
                 pos.springTo(pressedIndex, dockVertical ? FAST_TRAVEL : TRAVEL, now);
-                if (!dockVertical) lift.springTo(1, LIFT_S, now);
-                if (!dockVertical) lastCaptureMs = 0;   // 侧栏零截屏，底栏按下立刻重抓背景
+                if (!dockVertical) lift.springTo(1, PRESS_S, now);
                 if (!nativeDock) setPressClass(true); // 藏起 HTML 药丸（nativeDock 时已整体隐藏）
                 invalidate();
                 return true;
@@ -1205,6 +1402,8 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                     return true;
                 }
                 float x = hitAxis(e.getX(pi));
+                glowX = e.getX(pi);
+                glowY = e.getY(pi);
                 long t = e.getEventTime();
                 long dt = t - lastMoveMs;
                 if (dt > 0) {
@@ -1230,6 +1429,9 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                 if (!pressed) return false;
                 boolean up = e.getActionMasked() == MotionEvent.ACTION_UP;
                 pressed = false;
+                /* 触摸光晕熄灭：reach ×4 扩散淡出（_glowOut 500ms） */
+                glow.springTo(0, GLOW_OUT, now);
+                glowSpread.springTo(1, GLOW_OUT, now);
                 if (up) {
                     /* 松手：按 100ms 速度投影落格，最多越过手指所在格的下一格 */
                     float lead = velIndexPerMs * FLING_MS;
@@ -1268,6 +1470,21 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         if (onCommit != null) {
             try { onCommit.onCommit(index); } catch (Throwable ignored) { }
         }
+        /* ❗冷却 650ms（切页弹簧 550ms 落定 + 100ms 渲染余量）：
+           原 1200ms 是保守值，用户实测感知「还慢了半秒」（2026-11-07）。
+           冷却一结束立即补一次重绘 —— 切页后若用户不碰屏幕，没有任何
+           滚动/点击去触发 invalidate，onDraw 不会跑，captureLiveBackdrop
+           恢复了也没机会录 → dock 停留上一页渲染。 */
+        liveCooldownUntil = SystemClock.uptimeMillis() + 650;
+        frostHandler.postDelayed(() -> {
+            /* 补绘强制走同步录制：若沿用自适应（原生页 lastSyncCapCost>30 → 异步），
+               PixelCopy 29~62ms + 回调再画一帧，会让切页后的首次更新再多拖 ~100ms。 */
+            lastSyncCapCost = 0L;
+            invalidate();
+        }, 700L);
+        /* 切页后新内容落定再抓霜（内容霜跟随页面，不跟随点击瞬间的旧页面） */
+        frostHandler.removeCallbacks(frostDebounce);
+        frostHandler.postDelayed(frostDebounce, 400L);
         if (webView == null) return;
         String js;
         if (onCommit != null) {
@@ -1287,34 +1504,6 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     }
 
     /* ================= 绘制 ================= */
-
-    private void updateShaderUniforms(float cx, float cy, float hw, float hh) {
-        if (shader == null) return;
-        float liftV = (float) lift.value();
-        shader.setFloatUniform("uCenter", cx, cy);
-        shader.setFloatUniform("uHalf", hw, hh);
-        shader.setFloatUniform("uRadius", pillCorner(hw, hh));
-        /* FlClash style.scale(lift)：折射与色散都随抬起量缩放 */
-        shader.setFloatUniform("uRefract", Math.abs(REFRACTION) * density * liftV);
-        shader.setFloatUniform("uBevel", BEVEL * density);
-        shader.setFloatUniform("uDisperse", DISPERSION * liftV);
-        shader.setFloatUniform("uDp", density);
-        shader.setFloatUniform("uBgOffset", bgOffX, bgOffY);
-        /* 镜内内容放大：FlClash _lensMagnify 16%，随抬起量进出。
-           仅 nativeDock 开：HTML 底栏模式下图标文字就活在被折射的 WebView
-           背景里，放大 = 镜内多出第二套错位内容（2026-10-27 真机「学习一格
-           两份字」重影的根源），回退路径镜内保持 1:1。 */
-        shader.setFloatUniform("uMagnify", nativeDock ? 1f + 0.16f * liftV : 1f);
-        /* FlClash uOptics.z：暗色 1.33 / 浅色 1 */
-        shader.setFloatUniform("uBrightness", dark ? 1.33f : 1.0f);
-        if (backdropShader != null) {
-            try {
-                shader.setInputShader("backdrop", backdropShader);
-            } catch (Throwable t) {
-                Log.w(TAG, "setInputShader 失败", t);
-            }
-        }
-    }
 
     /* 临时探针：谁在空闲时每帧 invalidate（粘滞感排查） */
     @Override
@@ -1342,18 +1531,36 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                 geomFadedIn = true;
                 animate().alpha(1f).setDuration(140).start();
             }
+            captureLiveBackdrop();   // 同帧录主窗口内容，供栏体/药丸共用（真·实时）
             /* ---- 原生底栏：容器→滑块→玻璃→图标文字。图标在玻璃之上，
                对齐 FlClash _LensContent 的「镜内内容独立重绘」——顺带解决
                旧 P2「镜内放大靠位图采样偏软」：现在是矢量重绘恒锐。 ---- */
             boolean lensing = pressed || liftV > 0.005f;
+            /* 栏体按压胀大：KernelSU FloatingBottomBar layerBlock 的
+               `lerp(1f, 1f + 16.dp.toPx() / width, pressProgress)`。
+               只缩放绘制，不改布局与命中区（命中仍走 View 原始坐标）。 */
+            float dockS = 1f + (16f * density / Math.max(1f, bandW)) * liftV;
+            boolean dockScaled = dockS > 1.0005f;
+            if (dockScaled) {
+                canvas.save();
+                canvas.scale(dockS, dockS, bandW / 2f, bandH / 2f);
+            }
             drawDockChrome(canvas, lensing);
             /* 透镜只在横排底栏画：竖排侧栏走 FlClash 口径的平面面板（用户实证
                竖排强加玻璃「真的卡」，2026-10-29——AGSL 整轨每帧重绘 + 抓图链
                全部只服务于观感，平面绘制零成本）。 */
-            if (lensing && !dockVertical) {
+            boolean glassLive = shader != null
+                    && !dockVertical && Build.VERSION.SDK_INT >= 33;
+            if (!dockVertical) {
                 drawGlass(canvas, liftV);
             }
-            drawLensTabs(canvas);
+            /* 2026-11-01 选中格图标常驻透镜面板（composeLensTab，rest 也弯折
+               ——「透过药丸看见 Dock 字体」由玻璃下的弯折字体承担）；平绘
+               drawLensTabs 仅作无玻璃回退（旧机/快照未就绪）。 */
+            if (!glassLive) {
+                drawLensTabs(canvas);
+            }
+            if (dockScaled) canvas.restore();
         } else {
             /* 旧路径：静止态本层不画（外观由 HTML 药丸承担），只画按压透镜 */
             if (liftV <= 0.005f && !pressed) {
@@ -1389,247 +1596,40 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
      *  抓图矩形 = 栏 ± pad（折射向外弯，边缘带要采栏外壁纸——FlClash 透镜
      *  抓图带 40dp pad 同理）；位图原点=栏左上−pad，localMatrix 平移对齐
      *  content 坐标。代判定：矩形/主题变了才重抓，否则跳过。 */
-    private void maybeCaptureBarBackdrop() {
-        if (detached || !nativeDock || barCopyBusy || window == null) return;
-        if (Build.VERSION.SDK_INT < 33) return;
-        RectF barWin = dockRect();
-        if (barWin.width() <= 4 || barWin.height() <= 4) return;   // 无几何不抓
-        /* dockRect = 弹窗本地（方向正确）；PixelCopy rect = 主窗口本地 → 加弹窗窗口偏移 */
-        popupOffsetInMainWindow(pvOff);
-        float winL = barWin.left + pvOff[0];
-        float winT = barWin.top + pvOff[1];
-        int W = (int) barWin.width(), H = (int) barWin.height();
-        /* ❗比较必须同坐标系：lastCapturedBar 存的是**弹窗本地**（barSnap），这里原先
-           拿它跟主窗口坐标的 winL/winT 比 —— 两者恒差一个弹窗偏移 → 永远「过期」→
-           每帧重抓一次 PixelCopy（单次 ~20ms）→ 空闲也 60fps 重绘，全局手感发粘
-           （2026-10-28 复查：绘制 140 帧/2s、inv 140/2s）。改比 barWin。 */
-        boolean stale = barBackdrop == null
-                || Math.abs(lastCapturedBar.left - barWin.left) > 0.5f
-                || Math.abs(lastCapturedBar.top - barWin.top) > 0.5f
-                || Math.abs(lastCapturedBar.width() - barWin.width()) > 0.5f
-                || Math.abs(lastCapturedBar.height() - barWin.height()) > 0.5f
-                || lastCapturedDark != (dark ? 1 : 0);
-        if (!stale) return;
-        DisplayMetrics m = getResources().getDisplayMetrics();
-        int maxH = viewportH > 0 ? (int) viewportH : m.heightPixels;
-        int winW = anchor != null ? anchor.getWidth() : m.widthPixels;
-        int pad = (int) (32 * density);
-        int cl = Math.max(0, (int) winL - pad);
-        int ct = Math.max(0, (int) winT - pad);
-        int cr = Math.min(winW, (int) (winL + barWin.width()) + pad);
-        int cb = Math.min(maxH, (int) (winT + barWin.height()) + pad);
-        if (cr - cl < W || cb - ct < H) {
-            Log.w(TAG, "栏玻璃抓取跳过：栏超界 rect=" + cl + "," + ct + "-" + cr + "," + cb);
-            return;   // 栏连本体都被窗口边裁掉：回退实色
-        }
-        if (barBackdrop == null || barBackdrop.getWidth() != cr - cl
-                || barBackdrop.getHeight() != cb - ct) {
-            barBackdrop = Bitmap.createBitmap(cr - cl, cb - ct, Bitmap.Config.ARGB_8888);
-            barBackdropShader = new BitmapShader(barBackdrop, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
-        }
-        if (barCapTmp == null || barCapTmp.getWidth() != cr - cl
-                || barCapTmp.getHeight() != cb - ct) {
-            barCapTmp = Bitmap.createBitmap(cr - cl, cb - ct, Bitmap.Config.ARGB_8888);
-        }
-        srcBarRect.set(cl, ct, cr, cb);
-        final RectF barSnap = new RectF(barWin);
-        final int offX = pvOff[0] - cl;
-        final int offY = pvOff[1] - ct;
-
-        // 优先直取 NativeBackdrop 静态壁纸层（AndroidLiquidGlassView 官方标准源：0ms 无穿透无截屏开销）
-        if (backdropSource != null) {
-            Bitmap wallBmp = backdropSource.getCurrentBitmap();
-            if (wallBmp != null && !wallBmp.isRecycled()) {
-                int bw = wallBmp.getWidth();
-                int bh = wallBmp.getHeight();
-                float scale = Math.max((float) winW / bw, (float) maxH / bh);
-                float dx = (winW - bw * scale) * 0.5f;
-                float dy = (maxH - bh * scale) * 0.5f;
-
-                Canvas cv = new Canvas(barCapTmp);
-                cv.drawColor(0, android.graphics.PorterDuff.Mode.CLEAR);
-                android.graphics.Matrix mat = new android.graphics.Matrix();
-                mat.setScale(scale, scale);
-                mat.postTranslate(dx - cl, dy - ct);
-                Paint bp = new Paint(Paint.FILTER_BITMAP_FLAG);
-                cv.drawBitmap(wallBmp, mat, bp);
-
-                composeHaze(barCapTmp, barBackdrop);
-                lastCapturedBar.set(barSnap);
-                lastCapturedDark = dark ? 1 : 0;
-                barCapOffX = offX;
-                barCapOffY = offY;
-                if (barBackdropShader != null) {
-                    android.graphics.Matrix mm = new android.graphics.Matrix();
-                    mm.setTranslate(barCapOffX, barCapOffY);
-                    barBackdropShader.setLocalMatrix(mm);
-                }
-                return;
-            }
-        }
-
-        barCopyBusy = true;
-        try {
-            PixelCopy.request(window, srcBarRect, barCapTmp, result -> {
-                barCopyBusy = false;
-                if (result == PixelCopy.SUCCESS) {
-                    composeHaze(barCapTmp, barBackdrop);
-                    lastCapturedBar.set(barSnap);
-                    lastCapturedDark = dark ? 1 : 0;
-                    barCapOffX = offX;
-                    barCapOffY = offY;
-                    if (barBackdropShader != null) {
-                        /* setLocalMatrix 的 M 把画布坐标映到位图坐标（canvas p 采样
-                           M·p）：弹窗本地 p 对应位图 p+off → 平移 +off。写成 −off 会
-                           采样到负坐标被 CLAMP 成首行涂抹色（2026-10-28 真机实测
-                           整条栏一色 227 的根因）。 */
-                        android.graphics.Matrix mm = new android.graphics.Matrix();
-                        mm.setTranslate(barCapOffX, barCapOffY);
-                        barBackdropShader.setLocalMatrix(mm);
-                    }
-                    invalidate();   // 新底落位 → 之后的直画用新采样
-                } else {
-                    /* 失败即弃位图：透明位图上屏 = 玻璃凭空消失（alpha0 全透）；
-                       回退实色，等壁纸/主题/解锁可见性换代再重抓 */
-                    barBackdrop = null;
-                    barBackdropShader = null;
-                }
-            }, new Handler(Looper.getMainLooper()));
-        } catch (Throwable t2) {
-            barCopyBusy = false;
-            barBackdrop = null;
-            barBackdropShader = null;
-            Log.w(TAG, "栏玻璃抓取抛异常，回退实色", t2);
-        }
-    }
-
-    @Override
-    public void onVisibilityAggregated(boolean isVisible) {
-        super.onVisibilityAggregated(isVisible);
-        /* 解锁/回前台：主窗口表面刚恢复（锁屏期 PixelCopy 报 no backing surface，
-           抓图全部失败），强制重抓一次——否则玻璃停留在透明/实色回退态 */
-        if (isVisible && nativeDock && !barCopyBusy) {
-            scheduleBarRecapture();   // 解锁/回前台：壁纸刚恢复，三连发重抓
-        }
-    }
 
     /** 栏体玻璃就绪判定 + uniforms 组装（每帧调用；未换代时仅重复设值，开销可忽略）。
      *  返回 false = 抓图未就绪/低版本/组装失败 → 回退实色。
      *  **直画不走 RenderNode**：录制一次长期重放的用法在真机 popup 窗里
      *  inputShader 采样失效（输出 alpha=0 全透明）；透镜的直画模式在此 view
      *  久经验证，栏体同款。 */
-    private boolean ensureBarGlass(RectF bar, float r) {
-        if (Build.VERSION.SDK_INT < 33 || !nativeDock) return false;
-        if (barBackdrop == null || barBackdropShader == null) return false;
-        int W = (int) bar.width(), H = (int) bar.height();
-        /* 竖排栏是整窗高，抓图矩形的上下 pad 被窗口边裁掉 → 位图恰好 W×H，
-           不能要求 +2 余量（否则竖排永远走实色回退） */
-        if (barBackdrop.getWidth() < W || barBackdrop.getHeight() < H) return false;
-        try {
-            if (barGlassShader == null) {
-                barGlassShader = new RuntimeShader(loadBarAgsl(getResources()));
-            }
-            /* 配方=FlClash 底栏（pill）实测值（FlClash液态玻璃源码研读 §3.1）：
-               tint #F4F4F4@58% 浅 / surfaceContainerHighest@48% 深（≈#363636，暗色
-               下是「提亮中和」而不是白 tint 发奶）；饱和度 2.10/1.925——液态玻璃
-               的通透感全靠它，1.0+白tint 会退化成磨砂白面板（2026-10-28 用户
-               「跟 FlClash/酷安不一样」报因）。折射向外弯（正值，FlClash
-               「凸起透镜向外弯」口径），带/位移按栏高夹紧。 */
-            float minDim = Math.min(W, H);
-            float band = Math.min(18f * density, minDim * 0.28f);
-            float amount = Math.min(22f * density, minDim * 0.45f);
-            barGlassShader.setFloatUniform("size", new float[]{W, H});
-            barGlassShader.setFloatUniform("offset", new float[]{0f, 0f});
-            barGlassShader.setFloatUniform("cornerRadii", new float[]{r, r, r, r});
-            barGlassShader.setFloatUniform("refractionHeight", band);
-            barGlassShader.setFloatUniform("refractionAmount", -amount); // 负值：AndroidLiquidGlassView 官方标准向内凸透镜折射
-            barGlassShader.setFloatUniform("depthEffect", 0.35f);
-            barGlassShader.setFloatUniform("chromaticAberration", 0.40f);
-            barGlassShader.setFloatUniform("contrast", 0.05f);
-            barGlassShader.setFloatUniform("whitePoint", 0.02f);
-            barGlassShader.setFloatUniform("chromaMultiplier", dark ? 1.85f : 2.05f);
-            if (dark) {
-                barGlassShader.setFloatUniform("tintColor", new float[]{0.18f, 0.18f, 0.20f});
-                barGlassShader.setFloatUniform("tintAlpha", 0.42f);
-            } else {
-                barGlassShader.setFloatUniform("tintColor", new float[]{0.96f, 0.96f, 0.98f});
-                barGlassShader.setFloatUniform("tintAlpha", 0.36f); // 36% 纯净乳白染色，透出 64% 饱和壁纸原色
-            }
-            barGlassShader.setInputShader("content", barBackdropShader);
-            barGlassP.setShader(barGlassShader);
-            barGlassP.setAlpha(255); // 全强度渲染：由 AGSL 内部 mix 决定透光率，不垫实白底板
-            return true;
-        } catch (Throwable t) {
-            Log.w(TAG, "栏体玻璃组装失败，回退实色", t);
-            barGlassP.setShader(null);
-            return false;
-        }
-    }
 
-    private static String loadBarAgsl(android.content.res.Resources res) {
-        if (barAgsl != null) return barAgsl;
-        try (java.io.InputStream is = res.openRawResource(com.netops.handbook.R.raw.liquidglass_effect);
-             java.io.BufferedReader br = new java.io.BufferedReader(new java.io.InputStreamReader(is))) {
-            StringBuilder sb = new StringBuilder();
-            String line;
-            while ((line = br.readLine()) != null) sb.append(line).append('\n');
-            barAgsl = sb.toString();
-        } catch (Throwable t) {
-            throw new IllegalStateException("读栏体玻璃 AGSL 失败", t);
-        }
-        return barAgsl;
-    }
-
-    /** 壁纸/通透度变了（NativeBackdrop 重铺）：栏后像素换代，玻璃条需重抓。
-     *  把代基准清空让 stale 判定成立；壁纸解码异步，三连发等它落定
-     *  （沿用 remeasureLensSoon 的节奏）。 */
-    public void onBackdropChanged() {
-        lastCapturedBar.setEmpty();
-        lastCapturedDark = -1;
-        android.os.Handler h = new Handler(Looper.getMainLooper());
-        h.postDelayed(this::maybeCaptureBarBackdrop, 400L);
-        h.postDelayed(this::maybeCaptureBarBackdrop, 900L);
-        h.postDelayed(this::maybeCaptureBarBackdrop, 1500L);
-    }
-
-    /** FlClash 底栏 haze（研读 §2-④ / §3.1）：**28% 清晰原图 + 72% 过 15.6dp 模糊**，
-     *  不是单档模糊。这里用「降采样再双线性放大」近似高斯（一次性、每代一次），
-     *  合成结果直接喂给着色器当 content —— 文字被糊掉、只剩色块，才是 iOS 底栏的手感。
-     *  之前只有 tint 没有 haze，采样的是**清晰**背景，正文原样透出来（用户报「像半透明白板」）。 */
-    private void composeHaze(Bitmap src, Bitmap dst) {
-        if (src == null || dst == null) return;
-        try {
-            int w = src.getWidth(), h = src.getHeight();
-            int div = Math.max(4, Math.round(15.6f * density / 3f));   // ≈ 15.6dp 的模糊半径
-            int sw = Math.max(1, w / div), sh = Math.max(1, h / div);
-            Bitmap small = Bitmap.createBitmap(sw, sh, Bitmap.Config.ARGB_8888);
-            new Canvas(small).drawBitmap(src, null, new Rect(0, 0, sw, sh),
-                    new Paint(Paint.FILTER_BITMAP_FLAG));
-            Canvas c = new Canvas(dst);
-            c.drawColor(0, android.graphics.PorterDuff.Mode.CLEAR);
-            Paint p = new Paint(Paint.FILTER_BITMAP_FLAG);
-            c.drawBitmap(small, null, new Rect(0, 0, w, h), p);
-            small.recycle();
-        } catch (Throwable t) {
-            Log.w(TAG, "haze 合成失败，退回清晰底图", t);
-            try {
-                Canvas c = new Canvas(dst);
-                c.drawBitmap(src, 0f, 0f, null);
-            } catch (Throwable ignored) { }
-        }
-    }
-
+    /** 栏体 haze：全图「降采样再双线性放大」近似高斯（一次性、每代一次），合成结果
+     *  直接喂给着色器当 content —— 文字被糊掉、只剩色块，才是 iOS 底栏的手感。
+     *  2026-11-01 挡背景色两轮迭代：24dp 模糊下壁纸仍留**可辨认轮廓**（真机
+     *  栏后透出人物双腿剪影，用户驳回「这叫磨砂玻璃？」）——磨砂的验收线是
+     *  「认不出任何内容，只剩明暗洗」，半径拉到 60dp。栏体 tint 0.48 只做
+     *  乳白薄染，玻璃感来自 haze 明暗洗 + 边缘折射，不靠透出内容。
+     *  与 ensureBarGlass 的 tint/chroma 配套：0.70×chroma1.60≈1.12 ≈ 原饱和度，
+     *  背景色不再被放艳；明度收口保证深色壁纸不把栏体拖出发黑区。
+     *  之前只有 tint 没有 haze，采样的是**清晰**背景，
+     *  正文原样透出来（用户报「像半透明白板」）。 */
+    
     /** 栏体采样源补抓（三连发）：冷启动那次抓到的是白屏/半成品，几何不变化就一直用着。 */
-    private void scheduleBarRecapture() {
-        lastCapturedBar.setEmpty();
-        lastCapturedDark = -1;
-        android.os.Handler h = new Handler(Looper.getMainLooper());
-        h.postDelayed(this::maybeCaptureBarBackdrop, 500L);
-        h.postDelayed(this::maybeCaptureBarBackdrop, 1500L);
-        h.postDelayed(this::maybeCaptureBarBackdrop, 3000L);
-    }
-
+    
     /** 分层缓存重建：B1=容器；B2=灰态图标+文字（透明底）。barRect/主题变化时调。 */
+    /* ---- SF blurBehind 窗口：挂一次、每帧对齐、卸载即收 ---- */
+
+    /** 挂载 blur 窗口（只试一次）。**两扇窗口**（2026-11-03 通透感重构）：
+     *  单扇时 blurBehind 糊住整条栏含药丸区——挖掉白 tint 也只是「无 tint 的糊」
+     *  =雾蒙蒙（用户实测）。两扇左右分布、中间让出药丸「清孔」：孔内=原始内容
+     *  （+容器折射弯折）=FlClash 透镜「镜内锐利镜外霜」的真结构；孔外=糊+白 tint。
+     *  窗口 rect 随药丸移动逐帧对齐（静止零开销）。失败/系统关闭退役为快照管线。 */
+    
+    /** 两扇 blur 窗口对齐：左扇=[栏左, 孔左)，右扇=[孔右, 栏右]（孔=药丸±1px，
+     *  与 sfTintP 挖孔同缝，1px 缝被药丸玻璃+镜缘光学盖住）。rect 无变化零开销；
+     *  拖动期每帧两次 updateViewLayout（真机 gfxinfo 实测无回归后再放行）。 */
+    
+    
     private void rebuildChrome() {
         RectF bar = dockRect();
         int W = Math.max(1, (int) bar.width()), H = Math.max(1, (int) bar.height());
@@ -1639,6 +1639,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             /* HARDWARE 位图不可写：末尾会把 chromeB1 转成 HARDWARE 常驻纹理，
                若本次重建尺寸不变而复用旧对象，new Canvas(硬件位图) 会直接抛异常
                （2026-10-27 位置/药丸中心重建门启用后真机崩溃：Canvas.<init>）。 */
+            if (chromeB1 != null) chromeB1.recycle();   // 旧图（含被 HARDWARE 替换前的软件图）及时回收
             chromeB1 = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888);
             chromeDark = dark ? 1 : 0;
         }
@@ -1658,12 +1659,14 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                 /* dx 把格心（crossCView 含栏左距）平到 sprite 宽度中点 */
                 drawTabsOn(new Canvas(sp), bar.width() / 2f - crossCView,
                         -(cellAxis(i) - axisPitch / 2f), i, inactiveColor, true);
+                if (tabSprites[i] != null) tabSprites[i].recycle();   // 旋转/换尺寸的旧图及时回收
                 tabSprites[i] = sp;
             } else {
                 float gx = firstCx + slot * i - slot / 2f;
                 Bitmap sp = Bitmap.createBitmap(Math.max(4, (int) (slot + 20 * density)),
                         Math.max(4, (int) bar.height()), Bitmap.Config.ARGB_8888);
                 drawTabsOn(new Canvas(sp), -gx, -bar.top, i, inactiveColor, true);
+                if (tabSprites[i] != null) tabSprites[i].recycle();
                 tabSprites[i] = sp;
             }
         }
@@ -1675,13 +1678,15 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
            滑块动画期每帧整栏上传。 */
         int sw = (int) ((pillW + LIFT_GROWTH * density) / 2f * 2f + 24f * density);
         int sh = (int) ((pillH + LIFT_GROWTH * density) / 2f * 2f + 24f * density);
-        sliderBmp = Bitmap.createBitmap(Math.max(4, sw), Math.max(4, sh), Bitmap.Config.ARGB_8888);
-        Canvas c3 = new Canvas(sliderBmp);
+        Bitmap newSlider = Bitmap.createBitmap(Math.max(4, sw), Math.max(4, sh), Bitmap.Config.ARGB_8888);
+        Canvas c3 = new Canvas(newSlider);
         float bw = pillW / 2f, bh = pillH / 2f;
         RectF sr3 = new RectF(sw / 2f - bw, sh / 2f - bh, sw / 2f + bw, sh / 2f + bh);
         float rr = pillCorner(bw, bh);
         Paint shadowP = new Paint(Paint.ANTI_ALIAS_FLAG);
-        shadowP.setColor(Color.argb(38, 15, 23, 42));
+        /* FlClash _lensShadows：black@0.055 + blur 5（我们原 15% 硬边影过重） */
+        shadowP.setColor(Color.argb(14, 15, 23, 42));
+        shadowP.setMaskFilter(new BlurMaskFilter(3f * density, BlurMaskFilter.Blur.NORMAL));
         c3.drawRoundRect(sr3.left, sr3.top + density, sr3.right, sr3.bottom + 2f * density, rr, rr, shadowP);
         c3.drawRoundRect(sr3, rr, rr, sliderFillP);
         sliderStrokeP.setStrokeWidth(density);
@@ -1692,12 +1697,22 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         try {
             if (Build.VERSION.SDK_INT >= 26) {
                 Bitmap h1 = chromeB1.copy(Bitmap.Config.HARDWARE, false);
-                Bitmap h3 = sliderBmp.copy(Bitmap.Config.HARDWARE, false);
-                if (h1 != null) chromeB1 = h1;
-                if (h3 != null) sliderBmp = h3;
+                Bitmap h3 = newSlider.copy(Bitmap.Config.HARDWARE, false);
+                if (h1 != null) {
+                    chromeB1.recycle();   // 被替换的软件图（含上一代 HARDWARE 纹理）及时回收
+                    chromeB1 = h1;
+                }
+                if (h3 != null) {
+                    if (sliderBmp != null) sliderBmp.recycle();
+                    sliderBmp = h3;
+                }
             }
         } catch (Throwable t) {
             Log.w(TAG, "HARDWARE 位图转换失败，保持软件位图", t);
+        }
+        if (sliderBmp != newSlider) {
+            if (sliderBmp != null) sliderBmp.recycle();
+            sliderBmp = newSlider;
         }
     }
 
@@ -1737,21 +1752,63 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                 || Math.abs(chromePillCy - pillCy()) > 0.5f) {
             rebuildChrome();
         }
-        /* 栏体：竖排 = FlClash 口径的**纯色半透面板**（FlClash NavigationSidebar
-           本无玻璃面板，垫一层半透只为壁纸上的图标可读）—— 无 AGSL、无抓图、
-           无透镜，每帧只剩几个 drawRoundRect + 位图 blit。用户实证竖排强加
-           玻璃「真的卡」（2026-10-29），玻璃观感让位流畅。横排 = 玻璃路径不动。 */
-        maybeCaptureBarBackdrop();
-        boolean hasGlass = ensureBarGlass(bar, dockRadius(bar));
-        if (hasGlass) {
-            int sv = canvas.save();
-            canvas.translate(bar.left, bar.top);
-            float rr2 = dockRadius(bar);
-            float bw2 = bar.width(), bh2 = bar.height();
-            canvas.drawRoundRect(0, 0, bw2, bh2, rr2, rr2, barGlassP);
-            barStrokeP.setStrokeWidth(density);
-            canvas.drawRoundRect(0, 0, bw2, bh2, rr2, rr2, barStrokeP);
-            canvas.restoreToCount(sv);
+        /* 药丸几何先算（栏体挖孔与玻璃/图标同帧同源）；玻璃可用判定提前。 */
+        composePillCenter();
+        float cx = pillCxNow;
+        float cy = pillCyNow;
+        float s = (float) jelly.value();
+        float g = (PILL_REST_GROWTH
+                + (LIFT_GROWTH - PILL_REST_GROWTH) * (float) lift.value()) * density;
+        float hw;
+        float hh;
+        if (dockVertical) {
+            hw = (pillW + g) / 2f * (1f - s * 1.4f);
+            hh = (pillH + g) / 2f * (1f + s);
+        } else {
+            hw = (pillW + g) / 2f * (1f + s);
+            hh = (pillH + g) / 2f * (1f - s * 1.4f);
+        }
+        boolean glassLive = shader != null
+                && !dockVertical && Build.VERSION.SDK_INT >= 33;
+        /* 药丸挖孔（2026-11-03 三轮改判）：清玻璃的本质=比磨砂栏**更透**。栏体
+           62% 白 tint 若在药丸下连续，透过药丸看到的是「白上叠白」=雾蒙蒙磨砂
+           （用户实测「像磨砂玻璃，没有液态通透感」）。挖孔后药丸内=容器 shader
+           的清晰弯折内容 + 药丸自身薄 tint（唯一霜层）——「见 Dock 字体不见
+           背景图」由 lensTab 全强度文字 + 折射承担，不靠栏体白 tint。
+           （前次回撤的前提——lensTab 不可靠/容器折射是死代码——均已不成立。） */
+        /* 栏体：竖排 = FlClash 口径的**纯色半透面板**（用户实证竖排强加玻璃
+           「真的卡」，玻璃观感让位流畅）。横排 = **壁纸霜直铺**（wallFrost 位图
+           shader，窗口坐标 1:1——霜位图=屏幕/2，localMatrix 缩 0.5 平移 pvOff/2）
+           + 白 tint 薄染。药丸不再挖孔：药丸 AGSL 采样同一霜源，天然无缝。 */
+        if (glassLive) {
+            /* 视图坐标系直画（shader 采样基准 = 视图坐标，与药丸链一致）。
+               z 序照搬上游 drawBackdrop：投影 → 霜链(lens) → surface tint → highlight。 */
+            float br2 = dockRadius(bar);
+            canvas.drawRoundRect(bar.left, bar.top, bar.right, bar.bottom, br2, br2, barShadowP);
+            if (barPane != null && barLensShader != null) {
+                float t = paneFadeAt == 0 ? 1f
+                        : Math.min(1f, (SystemClock.uptimeMillis() - paneFadeAt) / (float) PANE_FADE_MS);
+                if (barPanePrev != null && barPanePrevShader != null && t < 1f) {
+                    drawBarGlass(canvas, bar, br2, barPanePrevShader, 255);
+                    drawBarGlass(canvas, bar, br2, barPaneShader, (int) (255f * t));
+                    postInvalidateOnAnimation();
+                } else {
+                    if (barPanePrev != null) {   // 淡出完成：旧 pane 退役（不再等到下次重建）
+                        barPanePrev.recycle();
+                        barPanePrev = null;
+                        barPanePrevShader = null;
+                    }
+                    drawBarGlass(canvas, bar, br2, barPaneShader, 255);
+                }
+            } else {
+                /* 霜未就绪：不画黑底（叠 tint 后正是 98 灰故障）。
+                   栏面交给下面 sfTintP 的半透明薄染。 */
+            }
+            /* surface tint：上游 onDrawSurface 的 containerColor α0.4，画在 lens 之后 */
+            canvas.drawRoundRect(bar.left, bar.top, bar.right, bar.bottom, br2, br2, sfTintP);
+            /* 栏缘高光：KernelSU `highlight = { baseHighlight.value.copy(alpha = 0.75f) }`
+               （iosIndicatorSpecular：White α0.12 / innerBlur 2dp / dualPeak 双光源）。 */
+            drawBloomStroke(canvas, bar.left, bar.top, bar.right, bar.bottom, br2, 0.75f, 0f);
         } else {
             int bs = canvas.save();
             canvas.translate(bar.left, bar.top);
@@ -1763,28 +1820,19 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             canvas.restoreToCount(bs);
         }
 
-        composePillCenter();
         /* 滑块先画（在图标之下）：拖到两格中间时滑块从图标后面滑过，
            图标始终完整可见（HTML tab-pill 的 z 序，2026-10-27 用户反馈「遮挡其中一个」）。 */
-        float cx = pillCxNow;
-        float cy = pillCyNow;
-        float s = (float) jelly.value();
-        float g = LIFT_GROWTH * density * (float) lift.value();
-        float hw;
-        float hh;
-        if (dockVertical) {
-            hw = (pillW + g) / 2f * (1f - s * 1.4f);
-            hh = (pillH + g) / 2f * (1f + s);
-        } else {
-            hw = (pillW + g) / 2f * (1f + s);
-            hh = (pillH + g) / 2f * (1f - s * 1.4f);
-        }
         if (dockVertical) {
             drawRailSelection(canvas);
-        } else if (!lensing && sliderBmp != null) {
-            /* 滑块-only 动画：形变量（jelly/lift）微小，直接 blit 固定尺寸缓存 */
-            canvas.drawBitmap(sliderBmp, cx - sliderBmp.getWidth() / 2f,
-                    cy - sliderBmp.getHeight() / 2f, blitP);
+        } else if (!glassLive && !lensing && sliderBmp != null) {
+            /* 无玻璃能力（旧机/快照未就绪）的回退贴片；玻璃可用时静止/滑行/
+               按压全走下方实时路径——材质同一，不再「静止平涂贴片+按压玻璃」两张皮 */
+            canvas.drawBitmap(sliderBmp, Math.round(cx - sliderBmp.getWidth() / 2f),
+                    Math.round(cy - sliderBmp.getHeight() / 2f), blitP);
+        } else if (glassLive) {
+            /* 药丸全部外观（glass 链 + rest 面 + 高光 + 内阴影）改在 drawGlass 里
+               画——上游 z 序 = backdrop 链 → surface → highlight，surface 必须在
+               折射输出**之上**，留在 chrome 段会被玻璃盖掉。 */
         } else {
             tmpRect.set(cx - hw, cy - hh, cx + hw, cy + hh);
             float sr = pillCorner(hw, hh);
@@ -1801,17 +1849,23 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             canvas.drawRoundRect(tmpRect, sr, sr, sliderStrokeP);
         }
 
-        composePillCenter();
         /* 灰态图标+文字：per-tab blit（跳过选中格——选中格由 drawLensTabs 以蓝态画在玻璃上） */
         RectF bar2 = dockRect();
         float act = pressed ? (float) pos.value() : selectedIndex;
         int actIdx = Math.max(0, Math.min(count - 1, Math.round(act)));
         for (int i = 0; i < count && i < 5; i++) {
-            if (tabSprites[i] == null || i == actIdx) continue;
+            if (tabSprites[i] == null) continue;
             if (dockVertical) {
+                if (i == actIdx) continue;
                 canvas.drawBitmap(tabSprites[i], bar2.left, cellAxis(i) - axisPitch / 2f, blitP);
             } else {
-                canvas.drawBitmap(tabSprites[i], firstCx + slot * i - slot / 2f, bar2.top, blitP);
+                /* 玻璃可用时：药丸盖住的格（含滑行跨越格）由透镜面板重绘（rest 态
+                   也是 1:1 清晰内容），平绘 sprite 若再画一层=双影 */
+                if (glassLive
+                        && Math.abs(firstCx + slot * i - cx) < slot * 0.5f + 2f * density) {
+                    continue;
+                }
+                canvas.drawBitmap(tabSprites[i], Math.round(firstCx + slot * i - slot / 2f), bar2.top, blitP);
             }
         }
     }
@@ -1904,9 +1958,351 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         }
     }
 
-    /** 按压透镜玻璃（原 onDraw 的 shader 段抽出，几何/降级逻辑原样）。 */
+    /** _LensContent 移植（FlClash navigation_dock）：抬手时把药丸盖住的格
+     *  （选中蓝态 + 跨格灰态）烘进离屏面板，喂给 shader 做 lensContent 级
+     *  深弯（refraction 14dp / bevel 11.2dp）——图标在清玻璃下被放大弯折。
+     *  平绘的 drawLensTabs 同帧按 (1−lift) 淡出，两者交接。rest 态绑定 1×1
+     *  透明兜底，保证 shader input 恒有合法绑定。 */
+    private void composeLensTab(float cx, float cy, float hw, float hh, float liftV) {
+        /* 放大在**烘焙端**完成（FlClash _LensContent 矢量放大重绘同语义）：
+           内容按 mag 预缩放画进位图、shader 1:1 采样——此前在 shader 里对 1x
+           位图做 1.16 倍双线性上采样=模糊，采样相位还随药丸移动逐帧变化=颗粒
+           （2026-11-03 用户实测「滚过文字发虚带颗粒」）。矢量按放大率重绘恒锐。 */
+        /* 静止也给 1.08 的放大：参考形态里药丸内的图标本来就比邻格大一档，
+           只有按压才放大（KernelSU lerp(1,1.2)）会显得静止态「平」（2026-11-07）。 */
+        float mag = 1f + 0.2f * liftV;   // KernelSU：静止 1.0，按压到 1.2
+        int pad = (int) ((mag > 1.01f ? 16f : 12f) * density);
+        int w = (int) (hw * 2f) + pad * 2 + 2;
+        int h = (int) (hh * 2f) + pad * 2 + 2;
+        if (w < 4 || h < 4) {
+            lensTabShader = null;
+            return;
+        }
+        boolean lensing = pressed || (float) lift.value() > 0.005f;
+        float active = lensing ? (float) pos.value() : selectedIndex;
+        int blue = Math.max(0, Math.min(count - 1, Math.round(active)));
+        int other = -1;
+        if (active != blue) {
+            other = Math.max(0, Math.min(count - 1, (int) Math.floor(active)));
+            if (other == blue) other = Math.max(0, Math.min(count - 1, (int) Math.ceil(active)));
+            if (other == blue) other = -1;
+        }
+        /* 取整对齐（2026-11-03 真机「文字糊」第二根因）：uTabOff 带小数时，
+           shader 的 tabUv = p - uTabOff 小数部分偏离 0.5 → 双线性采样永远落在
+           两枚纹素之间 = 整层文字发虚。取整后 tabUv 小数恰为 0.5 = 纹素中心，
+           1:1 像素映射。绘制偏移与 uTabOff 必须同源同值。 */
+        float ox = (float) Math.floor(cx - hw - pad);
+        float oy = (float) Math.floor(cy - hh - pad);
+        /* 面板**随药丸移动逐帧重烘**（2026-11-03 真机「停两格中间彩虹糊」根因）：
+           内容锚在药丸上，药丸一动 tabOff 必须换——脏检查只许跳过「格子/尺寸/
+           主题/偏移」全都没变的情况。重烘成本 ~0.1ms（2 图标+文字），远比错位
+           静帧+边缘越界拉丝便宜。位图/shader 对象仅在 metaDirty 时重建。 */
+        boolean metaDirty = lensTabBmp == null || lensTabBmp.getWidth() != w
+                || lensTabBmp.getHeight() != h
+                || lensTabKeyBlue != blue || lensTabKeyOther != other
+                || lensTabKeyDark != (dark ? 1 : 0);
+        boolean moved = Math.abs(lensTabKeyOx - ox) > 0.5f
+                || Math.abs(lensTabKeyOy - oy) > 0.5f;
+        if (!metaDirty && !moved && lensTabShader != null) return;
+        lensTabKeyBlue = blue;
+        lensTabKeyOther = other;
+        lensTabKeyDark = dark ? 1 : 0;
+        lensTabKeyOx = ox;
+        lensTabKeyOy = oy;
+        if (lensTabBmp == null || lensTabBmp.getWidth() != w || lensTabBmp.getHeight() != h) {
+            lensTabBmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+            lensTabShader = null;   // 新位图 → 旧 shader 引用失效，必须重建
+        }
+        lensTabBmp.eraseColor(0);
+        Canvas c = new Canvas(lensTabBmp);
+        tabOffX = ox;
+        tabOffY = oy;
+        tabW = w;
+        tabH = h;
+        float pcx = cx - ox;
+        float pcy = cy - oy;
+        c.save();
+        c.translate(pcx, pcy);
+        c.scale(mag, mag);
+        c.translate(-pcx, -pcy);
+        drawTabsOn(c, -ox, -oy, blue, 0, false);
+        if (other >= 0 && other != blue) {
+            drawTabsOn(c, -ox, -oy, other, iconP.getColor(), true);
+        }
+        c.restore();
+        if (lensTabShader == null) {
+            lensTabShader = new BitmapShader(lensTabBmp, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+        }
+        /* 镜内二次折射不再尝试：RuntimeShader 只能跑在**硬件** Canvas 上，
+           而离屏位图必须是 `new Canvas(Bitmap)`（软件画布）→ 必然抛
+           "Software rendering doesn't support RuntimeShader"（2026-11-06 实测崩溃）。
+           在 View 架构下这条能力不存在，要做得换 HardwareRenderer/RenderNode 重写绘制管线。 */
+    }
+
+    private int lensTabKeyBlue = -1, lensTabKeyOther = -1, lensTabKeyDark = -1;
+    private float lensTabKeyOx = -1f, lensTabKeyOy = -1f;
+
+    /** 同帧实时 backdrop：把主窗口 View 树录进离屏位图，替代 PixelCopy 离散快照。
+     *  dock 在独立 Window、不在 anchor 子 View 里 → 录制天然不含自己，无自反馈。
+     *  1/8 降采样再放大 = 轻量模糊：保留颜色/明暗流动，去掉可读文字（页面文字
+     *  直接进玻璃正是此前按压色块的来源）。静止时 onDraw 不跑，零开销。 */
+    /** 滚动期异步抓背景。dock 在独立 PopupWindow，抓主窗口天然不含自己，无自反馈。 */
+    private void requestLivePixelCopy() {
+        if (liveCopyInFlight || window == null || anchor == null) return;
+        int w = Math.round(bandW), h = Math.round(bandH);
+        if (w < 4 || h < 4) return;
+        if (liveRaw == null || liveRaw.getWidth() != w || liveRaw.getHeight() != h) {
+            liveRaw = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+        }
+        popupOffsetInMainWindow(winOffTmp);
+        Rect src = new Rect(winOffTmp[0], winOffTmp[1], winOffTmp[0] + w, winOffTmp[1] + h);
+        /* ❗必须裁到窗口内：View 比可见 dock 大一圈（BACKDROP_PAD 40dp 外扩），
+           底部有一部分在屏幕外。srcRect 越界时 PixelCopy 会抓到黑边甚至直接失败，
+           表现就是「底栏乱渲染」（2026-11-07 用户报）。
+           越界区域保留上一帧内容 —— 那部分本来就不显示。 */
+        android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
+        if (!src.intersect(new Rect(0, 0, dm.widthPixels, dm.heightPixels))
+                || src.width() < 4 || src.height() < 4) {
+            liveCopyInFlight = false;
+            return;
+        }
+        liveCopyInFlight = true;
+        try {
+            PixelCopy.request(window, src, liveRaw, result -> {
+                liveCopyInFlight = false;
+                if (result != PixelCopy.SUCCESS) return;
+                if (liveSharp == null || liveSharp.isRecycled()) return;
+                liveSharp.eraseColor(0);
+                new Canvas(liveSharp).drawBitmap(liveRaw, null,
+                        new RectF(0, 0, liveSharp.getWidth(), liveSharp.getHeight()),
+                        new Paint(Paint.FILTER_BITMAP_FLAG));
+                invalidate();       // 下一帧合成链就会用上新数据
+            }, frostHandler);
+        } catch (Throwable t) {
+            liveCopyInFlight = false;
+            Log.w(TAG, "PixelCopy 请求失败", t);
+        }
+    }
+
+    private void captureLiveBackdrop() {
+        if (anchor == null || bandW < 4 || bandH < 4) return;
+        /* 30fps 上限：anchor.draw() 要重绘整棵主窗口（含 WebView），切页转场时
+           与页面绘制抢主线程会「非常卡」（2026-11-06 用户报）。 */
+        long nowMs = SystemClock.uptimeMillis();
+        /* 滚动中不限速（每帧跟手），静止时 30fps 足矣 */
+        scrollingNow = nowMs < scrollIdleUntil;
+        /* 录制成本是硬成本（anchor.draw 里 WebView 要渲染整页，不随目标尺寸降低，
+           实测 1/2 与 1/6 都是 17ms）。所以滚动时只能降频率换帧率：
+           15fps 更新背景 + 其余帧复用 → 帧率回到 50fps 以上（2026-11-07）。 */
+        if (nowMs - lastCaptureMs < (scrollingNow ? 40 : 33)) return;
+        /* 药丸位移动画期（切页/拖动）不录制，沿用上一帧：录制 12ms + 药丸重绘
+           叠加就顶穿 16.7ms 预算，表现为「局部丢帧」（2026-11-06 用户报）。
+           采样按新 tabOff 取旧图，内容只是滞后一帧，肉眼不可见。 */
+        /* 录制精度提到 1/2 后单次更贵：按压/抬升动画期也一律沿用上一帧，
+           否则按压时每帧录制会顶穿预算。静止态才重录。 */
+        /* 位移动画 / 按压 / 拖动期**一律不录**，且这组判断必须排在滚动判断之前：
+           点按切页时 WebView 会触发滚动信号（scrollingNow 变 true），若写成
+           `!scrollingNow && (...)` 就会让整条跳过逻辑失效 —— 切页时页面正在重绘，
+           录制实测 **56~59ms/帧**，必然卡死（2026-11-07 用户报点按卡顿）。 */
+        if ((pos.active() || lift.active() || pressed || dragging) && liveSharp != null) return;
+        /* 切页冷却只对「滚动」让路：滚动中要跟手，冷却期也该继续更新背景 */
+        if (!scrollingNow && nowMs < liveCooldownUntil && liveSharp != null) return;
+        lastCaptureMs = nowMs;
+        int w = Math.round(bandW), h = Math.round(bandH);
+        /* 精度分档：滚动中 1/6（≈4ms，可每帧跟上），静止 1/2（≈16ms，一次到位） */
+        int div = 2;   // 固定 1/2：切档会让 liveSharp 尺寸突变、背景瞬间换图（2026-11-07 回滚）
+        int sharpW = Math.max(2, w / div), sharpH = Math.max(2, h / div);
+        boolean rebuild = liveBackdrop == null
+                || liveBackdrop.getWidth() != w || liveBackdrop.getHeight() != h
+                || liveSharp == null || liveSharp.isRecycled()
+                || liveSharp.getWidth() != sharpW || liveSharp.getHeight() != sharpH;
+        if (rebuild) {
+            if (liveBackdrop != null) liveBackdrop.recycle();
+            if (liveStep != null) liveStep.recycle();
+            if (liveToned != null) liveToned.recycle();
+            if (liveSharp != null) liveSharp.recycle();
+            liveBackdrop = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+            /* 三级：1/4 录制 → 1/8 中间级 → 1/16 终点，串联两次降采样。
+               ❗miuix blur(4dp) 是「全分辨率 → 1/2 → 1/10」**两级**串联
+               （downScaleExpFor(σ²)=1 → sf=2，再 k=round(σ)=5）。此前我们一级
+               1/11 双线性只取 2×2、丢掉 9/10 信息 → 混叠成块与横向条纹，
+               这就是「玻璃模糊状态」复刻不出来的原因（2026-11-06 用户指出）。 */
+            liveSharp = Bitmap.createBitmap(sharpW, sharpH,
+                    Bitmap.Config.ARGB_8888);
+            /* 中间级恒定 = 清晰源的一半：静止档 1/4、滚动档 1/12（= 栏体终点，
+               两者同尺寸时降采样退化为复制，仍然正确） */
+            liveStep = Bitmap.createBitmap(Math.max(2, sharpW / 2), Math.max(2, sharpH / 2),
+                    Bitmap.Config.ARGB_8888);
+            /* 终点 1/12：miuix blur(4dp) 应从**全分辨率**降 10 倍
+               （σ=4.95px → sf=2、k=round(σ)=5）。我们录制只有 1/4（主线程成本所限），
+               再降 3 倍凑到总 12 倍，等效模糊量最接近上游的 10 倍。 */
+            int sw = Math.max(2, w / 18), sh = Math.max(2, h / 18);   // 磨砂：18 倍降采样，字形完全消失
+            liveToned = Bitmap.createBitmap(sw, sh, Bitmap.Config.ARGB_8888);
+        }
+        /* ❗滚动期改用 PixelCopy 异步抓图：同步 `anchor.draw` 单次 17ms
+           （WebView 要渲染整页，与分辨率 / clip / 分帧都无关），必顶穿预算。
+           ❗**不 return**：合成段必须每帧照跑，否则 combinedBmp/liveBackdrop
+           状态与绘制时序错位，药丸会整个消失（2026-11-07 实测踩过）。 */
+        /* 自适应：上一次同步录制超过 30ms（原生页场景）就改用异步，
+           否则每帧 55ms 直接把切页后的几秒拖成卡顿（2026-11-07 用户报字典/面试）。 */
+        boolean useAsync = scrollingNow || lastSyncCapCost > 30_000_000L;
+        if (useAsync) {
+            requestLivePixelCopy();
+        } else {
+            liveSharp.eraseColor(0);
+            Canvas off = new Canvas(liveSharp);
+            popupOffsetInMainWindow(winOffTmp);
+            off.save();
+            off.scale((float) liveSharp.getWidth() / w, (float) liveSharp.getHeight() / h);
+            off.translate(-winOffTmp[0], -winOffTmp[1]);
+            /* ❗必须按 dock 矩形裁剪：否则 anchor.draw 会遍历整棵 pagesLayer，
+               原生页（字典 76 行 / 面试 53 题，大量子 View）实测 55ms，而
+               WebView 页只有 17ms —— 这就是「切到字典/面试特别卡」的原因。
+               裁剪后 ViewGroup 会跳过与 dock 不相交的 child（2026-11-07）。 */
+            off.clipRect(winOffTmp[0], winOffTmp[1], winOffTmp[0] + w, winOffTmp[1] + h);
+            long __c0 = System.nanoTime();
+            try {
+                anchor.draw(off);   // 同帧录制主窗口内容（含壁纸/原生页/WebView）
+                lastSyncCapCost = System.nanoTime() - __c0;
+            } catch (Throwable t) {
+                Log.w(TAG, "实时 backdrop 录制失败，沿用上一帧", t);
+                off.restore();
+                return;
+            }
+            off.restore();
+        }
+        /* 降采样第一级：1/4 → 1/8（对应 miuix 的 sf=2 档） */
+        liveStep.eraseColor(0);
+        new Canvas(liveStep).drawBitmap(liveSharp, null,
+                new RectF(0, 0, liveStep.getWidth(), liveStep.getHeight()),
+                new Paint(Paint.FILTER_BITMAP_FLAG));
+        /* 亮度归一化：复用 buildFrost 的 shim（霜面均值锚 236/40）+ vibrancy
+           saturation 1.5。漏接这层会让「我的」页整栏跳深灰（实测 167,168,174）。
+           半量补偿只锚绝对亮度，页面色相/相对明暗仍实时跟随，不生硬割裂。 */
+        /* 整图帧间低通：logcat 实证切页时 raw 一帧从 59 跳到 139 后 38 帧不变，
+           只对亮度标量阻尼没用——底图仍每帧直录、玻璃瞬间变脸。这里让整张
+           liveToned 以 α=0.12 叠新帧，在 ~600ms 内渐变；亮度锚也基于混合后
+           的图，天然平滑，不再需要单独的标量阻尼。 */
+        /* 照抄 KernelSU：Vibrancy.kt 的 colorControls(brightness=0, contrast=1,
+           saturation=1.5) —— contrast 1.0 即**不调整**（我上一轮照 FlClash 用 2.1/1.4
+           是混了两家参数）。 */
+        float rawLuma = frostMeanLumaOf(liveStep);
+        boolean first = lastRawLuma < 0f;
+        ColorMatrix cm = new ColorMatrix();
+        cm.setSaturation(1.5f);
+        /* ColorMatrix 只作用在 1/24 小图上：挂在全尺寸放大那步实测
+           draw 均 38ms/帧，挪回小图后恢复 ~13ms（与无滤镜同量级）。 */
+        Paint toneP = new Paint(Paint.FILTER_BITMAP_FLAG);
+        toneP.setColorFilter(new ColorMatrixColorFilter(cm));
+        /* 帧间低通（α=0.12 叠新帧、~40 帧收敛）只服务于「内容跳变」场景：
+           切页后 1.2s 冷却期内用它做渐变，避免玻璃瞬间变脸。
+           其余情况（含滚动停手后的补帧）必须直录 —— 否则每次更新都要 666ms
+           才收敛，用户感知就是「dock 背景延迟半秒到一秒」（2026-11-07 报）。 */
+        boolean jumpy = !first && nowMs < liveCooldownUntil;
+        toneP.setAlpha(jumpy ? (int) (255f * 0.12f) : 255);
+        if (first) liveToned.eraseColor(0);
+        /* 降采样第二级 + tone：1/8 → 1/16（对应 miuix 的 k=5 档） */
+        new Canvas(liveToned).drawBitmap(liveStep, null,
+                new RectF(0, 0, liveToned.getWidth(), liveToned.getHeight()), toneP);
+        /* 内容变化后至少自驱动 40 帧让混合收敛，收敛后自眠 */
+        if (first || Math.abs(rawLuma - lastRawLuma) > 0.5f) liveStillFrames = 0;
+        else liveStillFrames++;
+        lastRawLuma = rawLuma;
+        /* haze 是 FlClash 独有；KernelSU 没有 haze，只有一层 blur(4dp)。
+           删掉 28/72 混合，直接放大 tone 后的霜图。 */
+        Paint bp = new Paint(Paint.FILTER_BITMAP_FLAG);
+        liveBackdrop.eraseColor(0);
+        new Canvas(liveBackdrop).drawBitmap(liveToned, null, new RectF(0, 0, w, h), bp);
+        liveBackdropShader = new BitmapShader(liveBackdrop,
+                Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+        if (liveStillFrames < 40) postInvalidateOnAnimation();   // 混合未收敛，继续下一帧
+    }
+
+    /** 药丸 lens 的 content = 「同帧实时模糊的主窗口内容 + 淡蓝紫 tint + 放大 tab 镜像」。
+     *  ❗不用 contentSharpFull 离散快照（会串页面文字、按动成色块）；改用
+     *  captureLiveBackdrop() 每帧同帧录制并 1/8 降采样，只留颜色/明暗流动。
+     *  底色经实时位图 + tint 铺满，REFRACTION_DISPERSION 不会采到透明像素。
+     *  药丸与栏体共用同一张 liveBackdrop，颜色连续、不生硬割裂。 */
+    private boolean buildCombined(float r, float liftV) {
+        /* 优先用折射后的图层；首帧还没有（滞后一帧）就退回原图 */
+        Bitmap tabs = lensTabBmp;
+        if (tabs == null || tabs.isRecycled()) return false;
+        int w = tabW, h = tabH;
+        if (w < 4 || h < 4) return false;
+        /* 滚动中沿用上一帧：combinedBmp 是 464×214 的整块重绘 + 位图采样，
+           每帧重算约 10ms，叠加录制与两处 shader 必超预算（2026-11-07 实测
+           draw 均 28ms / 31fps）。滚动时药丸位置不变，滞后一帧无感。 */
+        if (combinedBmp == null || combinedBmp.getWidth() != w || combinedBmp.getHeight() != h) {
+            if (combinedBmp != null) combinedBmp.recycle();
+            combinedBmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+        }
+        combinedBmp.eraseColor(0);
+        Canvas c = new Canvas(combinedBmp);
+        float pl = pillRect.left - tabOffX, pt = pillRect.top - tabOffY;
+        float pr = pillRect.right - tabOffX, pb = pillRect.bottom - tabOffY;
+        /* ❗不在整图上裁剪药丸形状：裁剪会让药丸外全是透明像素，AGSL 在
+           pillRect 边缘采样到透明 → 只在内圈输出颜色，形成「内外两层胶囊」
+           （2026-11-05 用户报）。底色铺满整图，tab 镜像才按形状裁剪。 */
+        /* 药丸 = 玻璃：取 1/8 清晰版背景（栏体才是 1/24 磨砂），无白底、无色相。
+           玻璃能看清背后内容、只在边缘弯折，糊成一片的是磨砂而非玻璃
+           （2026-11-06 用户报「下面有字体时太模糊」）。 */
+        /* ❗药丸不经过 blur：KernelSU 药丸的 effects 只有 lens()，折射的是
+           `combinedBackdrop`（未模糊的 backdrop + tabs 层）。栏体才 blur(4dp)。
+           此前用栏体的 liveBackdrop 铺药丸，等于把栏体的模糊套给药丸（用户指出
+           「模糊值是底部 dock 栏的，不是药丸的」）。 */
+        /* 药丸两态的内容源：
+           静止 = 磨砂（liveBackdrop 1/18，与栏体同一份，读不出背后文字）
+           按住 = 通透（liveSharp 1/2 清晰源，按 liftV 淡入覆盖磨砂层）
+           ❗两层叠加而不是二选一：换源会整块突变，按 liftV 淡入才连续。
+           此前只有一个磨砂源，导致「按住也糊」——通透感彻底消失（2026-11-07 用户报）。 */
+        if (liveBackdrop != null && !liveBackdrop.isRecycled()) {
+            c.drawBitmap(liveBackdrop, -tabOffX, -tabOffY,
+                    new Paint(Paint.FILTER_BITMAP_FLAG));
+        }
+        if (liftV > 0.01f && liveSharp != null && !liveSharp.isRecycled()) {
+            float k = (float) liveSharp.getWidth() / bandW;
+            Paint sharpP = new Paint(Paint.FILTER_BITMAP_FLAG);
+            sharpP.setAlpha((int) (255f * Math.min(1f, liftV)));
+            c.drawBitmap(liveSharp,
+                    new Rect((int) (tabOffX * k), (int) (tabOffY * k),
+                            (int) ((tabOffX + w) * k), (int) ((tabOffY + h) * k)),
+                    new RectF(0, 0, w, h), sharpP);
+        }
+        if (liveBackdrop == null || liveBackdrop.isRecycled()) {
+            c.drawColor(dark ? 0xFF2C2C2E : 0xFFDEE5FC);
+        }
+        /* 中性灰阶 tint（R=G=B），不许带色相：药丸只比栏面略亮一档来定形，
+           选中态由蓝色图标承担。此前用 accent 蓝 9% 会整块偏蓝（用户报「偏色」）。 */
+        Paint baseP = new Paint(Paint.ANTI_ALIAS_FLAG);
+        /* 底色 α 26 → 100（用户 2026-11-07：只要不糊就行、不用非常通透）：
+           背后内容被压淡到 6 成，模糊感不再显现；折射/色散仍可见。 */
+        /* 底色随按压进度变化：静止 α150 磨砂（与栏体同材质）、按住降到 α50 通透，
+           这正是 KernelSU 的两态 —— lens() 只在 pressProgress>0 时才折射。 */
+        int baseA = (int) (150 - 100 * Math.min(1f, liftV));
+        baseP.setColor(dark ? Color.argb(baseA, 74, 74, 80) : Color.argb(baseA, 252, 252, 252));
+        c.drawRect(0f, 0f, w, h, baseP);
+        pillClipPath.reset();
+        pillClipPath.addRoundRect(pl, pt, pr, pb, r, r, Path.Direction.CW);
+        int sv = c.save();
+        c.clipPath(pillClipPath);
+        c.drawBitmap(tabs, 0f, 0f, null);
+        c.restoreToCount(sv);
+        /* 位图像素坐标 = 视图坐标 - tabOff；与栏体 barPaneShader 同一接线口径 */
+        combinedShader = new BitmapShader(combinedBmp,
+                Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+        Matrix m = new Matrix();
+        m.setTranslate(tabOffX, tabOffY);
+        combinedShader.setLocalMatrix(m);
+        return true;
+    }
+
+    /** 按压透镜玻璃（照搬 KernelSU 药丸层）：lens(10/14dp×lift, depth, CA0.5) 折射
+     *  「清晰页面 + tab 镜像」合成内容，随后 surface（rest 0.1 / press 0.03）→
+     *  BloomStroke → innerShadow → 触摸光晕。rest 态 refractionHeight=0 时
+     *  shader 自然退化为 1:1 透传（上游同语义），静止常驻。 */
     private void drawGlass(Canvas canvas, float liftV) {
-        float g = LIFT_GROWTH * density * liftV;
+        /* 静止 12dp 基础增长 + 按压再增量 12dp（到 24dp） */
+        float g = (PILL_REST_GROWTH + (LIFT_GROWTH - PILL_REST_GROWTH) * liftV) * density;
         float s = (float) jelly.value();
         composePillCenter();
         float cx = pillCxNow;
@@ -1925,28 +2321,151 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         pillRect.set(cx - hw, cy - hh, cx + hw, cy + hh);
         float r = pillCorner(hw, hh);
 
-        if (shader != null && backdrop != null && Build.VERSION.SDK_INT >= 33) {
-            updateShaderUniforms(cx, cy, hw, hh);
-            /* 玻璃随 lift 淡入（0.4 就到全显，压住淡出期的空档）。
-               HTML 底栏模式透明度封顶 50%：本层活在独立 Window、永远盖在
-               WebView 之上，全显的不透明玻璃会把栏内图标文字整块吃掉
-               （2026-10-27 真机「滑到中间遮挡文字」）。镜内 1:1 之后，透过
-               玻璃的实况内容与折射采样逐像素对齐，透镜只贡献霜边/折射/色散。 */
-            float alphaK = Math.min(1f, liftV * 2.5f);
-            if (!nativeDock) alphaK = Math.min(alphaK, 0.5f);
-            glassPaint.setAlpha((int) (255f * alphaK));
-            rimPaint.setAlpha((int) (90f * alphaK));
-            int save = canvas.save();
-            canvas.clipRect(0, 0, bandW, bandH);
-            canvas.drawRoundRect(pillRect, r, r, glassPaint);
-            canvas.drawRoundRect(pillRect, r, r, rimPaint);
-            canvas.restoreToCount(save);
+        boolean glassReady = shader != null && Build.VERSION.SDK_INT >= 33;
+        if (glassReady) {
+            composeLensTab(cx, cy, hw, hh, liftV);
+            if (lensTabShader != null && buildCombined(r, liftV)) {
+                /* Kyant0 药丸 lens 恢复接线：content = 自足不透明底 + tab 镜像，
+                   不含页面快照。静止 refractionHeight=0 退化为 1:1 透传；
+                   按压才出 10/14dp 折射 + 0.5 色散。 */
+                shader.setInputShader("content", combinedShader);
+                shader.setFloatUniform("size", hw * 2f, hh * 2f);
+                shader.setFloatUniform("offset", hw - cx, hh - cy);
+                shader.setFloatUniform("cornerRadii", r, r, r, r);
+                /* 照抄 KernelSU FloatingBottomBar.kt:447-451：
+                   lens(refractionHeight = 10dp×progress, refractionAmount = 14dp×progress,
+                        depthEffect = true, chromaticAberration = 0.5f)。
+                   上一轮改成 FlClash 的 −4.3/5.5 是混了两家，已回滚。 */
+                /* 静止就有折射（6dp 带 / 9dp 位移），按压升到 12/18 —— 参考形态的
+                   静止药丸边缘本来就有弯折与彩虹边；此前 `10*liftV` 让静止折射量
+                   归零、退化成 1:1 透传，是「没有玻璃质感」的直接原因（2026-11-07）。 */
+                shader.setFloatUniform("refractionHeight", 10f * density * liftV);
+                shader.setFloatUniform("refractionAmount", -14f * density * liftV);
+                shader.setFloatUniform("depthEffect", 0f);   // 关掉中心深度项：水滴中心是平的，只有边缘一圈弯折
+                shader.setFloatUniform("chromaticAberration", 0.28f);   // 收细彩虹边（参考图只有极细一圈）
+                float alphaK = nativeDock ? 1f : Math.min(1f, liftV * 2.5f);
+                if (!nativeDock) alphaK = Math.min(alphaK, 0.5f);
+                /* ❗静止 refractionHeight=0 时 shader 里 `-sd / refractionHeight`
+                   除零 → 药丸边缘一圈 NaN，表现为「内层小胶囊」的双层边界
+                   （2026-11-05 用户报）。静止直接 1:1 直贴 combinedBmp，
+                   只有按压 liftV>0（分母非零）才走折射/色散链。 */
+                int save = canvas.save();
+                canvas.clipRect(0, 0, bandW, bandH);
+                /* 静止也走折射链：refractionHeight 现在恒 ≥14dp（非零），
+                   当年 `-sd / refractionHeight` 除零产生 NaN、边缘一圈「内层小胶囊」
+                   的前提已不成立。此前静止走平绘 = **完全不折射**，
+                   这才是「药丸没有玻璃质感」的根因（2026-11-07）。 */
+                if (liftV > 0.01f && r > 0f) {   // 静止走平绘：KernelSU 静止 lens() 直接 return，纯磨砂
+                    glassPaint.setShader(shader);
+                    glassPaint.setAlpha(255);
+                    canvas.drawRoundRect(pillRect, r, r, glassPaint);
+                } else {
+                    /* 静止 1:1 直贴：shader 采样时 tabOff 取整、pillRect 是小数坐标，
+                       半像素错位会在药丸边缘拉出一圈灰带（误读为「双层」）。
+                       直贴按整数偏移放置 combinedBmp，边缘只有 1px 抗锯齿。 */
+                    Path pView = new Path();
+                    pView.addRoundRect(pillRect, r, r, Path.Direction.CW);
+                    int sv3 = canvas.save();
+                    canvas.clipPath(pView);
+                    canvas.drawBitmap(combinedBmp, tabOffX, tabOffY, null);
+                    canvas.restoreToCount(sv3);
+                }
+                /* surface：rest 黑(浅)/白(暗) 0.1×(1−lift) + 按压黑 0.03×lift */
+                /* rest surface 不再压暗：半透明底已经比栏面亮 5 级，再叠 4% 黑
+                   会把它拉回与栏面同色甚至更暗（又回到凹陷/双层观感）。 */
+                int restA = 0;
+                if (restA > 2) {
+                    pillRestP.setAlpha(restA);
+                    canvas.drawRoundRect(pillRect, r, r, pillRestP);
+                }
+                int pressA = (int) (255f * 0.03f * liftV);
+                if (pressA > 2) {
+                    pillPressP.setAlpha(pressA);
+                    canvas.drawRoundRect(pillRect, r, r, pillPressP);
+                }
+                /* 药丸内阴影不画：KernelSU 源码 :471-477 虽有 innerShadow(8dp, Black α0.15,
+                   alpha=pressProgress)，但实机在通透药丸上就是一条灰影，用户明确不要
+                   （2026-11-06）。以观感为准，不以此条为「必须对齐」。 */
+                /* 药丸边缘不再画独立白描边：1dp 白环与内部淡蓝紫 tint 色差明显，
+                   像素上虽只有一次过渡，视觉却读成「白胶囊套蓝紫胶囊」两层
+                   （2026-11-05 用户报）。边缘交给栏面自身的明暗过渡。 */
+                /* 药丸内阴影已移除：上游 8dp/黑15% 的「上缘影」靠实心白底衬托，
+                   通透药丸上无论 8dp 还是 3dp 都会留一条灰带（2026-11-05 用户反复
+                   指出）。药丸边缘改为完全依靠折射/色散与栏面的清晰度差。 */
+                /* 触摸光晕（我方保留子系统）：径向 ADD 叠在玻璃上 */
+                float glowV = (float) glow.value();
+                if (glowV > 0.01f) {
+                    float spreadV = (float) glowSpread.value();
+                    float gr = Math.max(1f, 28f * density * (1f + 3f * spreadV));
+                    float gs = 0.06f * glowV * glowV * (nativeDock ? 1f : alphaK);
+                    int ca = (int) (255f * gs * 0.8f);
+                    int ea = (int) (255f * gs * 0.56f);
+                    if (ca > 2) {
+                        RadialGradient rg = new RadialGradient(glowX, glowY, gr,
+                                new int[]{Color.argb(Math.min(255, ca), 255, 255, 255),
+                                          Color.argb(Math.min(255, ea), 255, 255, 255)},
+                                new float[]{0f, 1f}, Shader.TileMode.CLAMP);
+                        Paint gp = new Paint(Paint.ANTI_ALIAS_FLAG);
+                        gp.setShader(rg);
+                        gp.setXfermode(XF_ADD);
+                        canvas.drawRoundRect(pillRect, r, r, gp);
+                    }
+                }
+                /* 药丸边缘高光：KernelSU 的 `pillHighlight` alpha = pressProgress（静止为 0），
+                   但它的静止定形由 `drawBackdrop` 的 hairline/rim 承担；我们没有那一层，
+                   静止态药丸就只剩一块颜色、没有玻璃边缘。这里给一个 0.32 的常驻底光，
+                   按压时再升到 1.0 —— 边缘光不影响"糊"的观感，是不牺牲清晰度的定形手段。 */
+                drawBloomStroke(canvas, pillRect.left, pillRect.top, pillRect.right, pillRect.bottom,
+                        r, Math.max(0.32f, liftV), 90f);
+                canvas.restoreToCount(save);
+            }
         } else {
             /* 背景未就绪时的按压降级：半透明药丸，保证按下有反馈 */
             fallbackPaint.setColor(Color.argb(60, 255, 255, 255));
             canvas.drawRoundRect(pillRect, r, r, fallbackPaint);
         }
     }
+
+    /** 栏体玻璃一帧：noise(child=pane) → 栏缘 lens（24dp/24dp）两级链一次画成。
+     *  cornerRadii 折射族约定 = [TL, TR, BR, BL]（四角同值无歧义）。
+     *  视图坐标直画（无 translate）：centeredCoord=(coord+offset)−halfSize 要等于
+     *  coord−栏中心 ⇒ offset = −栏左上（❗不是 0——SDF 零点必须对准栏中心）。 */
+    private void drawBarGlass(Canvas canvas, RectF bar, float r, BitmapShader pane, int alpha) {
+        /* 不再按滚动状态降质：分段计时证明栏体 shader 本身 <1ms，降质只带来
+           「松手瞬间画面突变」（2026-11-07 用户报）。真正的瓶颈是录制，见
+           captureLiveBackdrop 的频率控制。 */
+        /* ❗必须把 shader 挂到 Paint：漏挂时 Paint 用默认 BLACK 画整块，
+           叠 sfTintP 40% 白 = (98,98,98) 纯灰（2026-11-05 平板实测根因）。
+           pane 是 barLensShader 的 content 输入，不是 Paint 的 shader。 */
+        barLensP.setShader(barLensShader);
+        barLensShader.setInputShader("content",
+                liveBackdropShader != null ? liveBackdropShader : pane);
+        barLensShader.setFloatUniform("size", bar.width(), bar.height());
+        barLensShader.setFloatUniform("offset", -bar.left, -bar.top);
+        barLensShader.setFloatUniform("cornerRadii", r, r, r, r);
+        barLensShader.setFloatUniform("refractionHeight", 24f * density);
+        barLensShader.setFloatUniform("refractionAmount", -24f * density);
+        barLensShader.setFloatUniform("depthEffect", 0f);
+        barLensP.setAlpha(alpha);
+        canvas.drawRoundRect(bar.left, bar.top, bar.right, bar.bottom, r, r, barLensP);
+    }
+
+    /** BloomStroke 双光源高光：实现在 glass/BloomStrokeFx（顶栏共用）。
+     *  ❗必须把画布原点平移到矩形左上再调：shader 里 `halfView` 同时被当作
+     *  「中心点」（abs(fragCoord-halfView)）和「半尺寸」（xy < halfView-R），
+     *  只有在「坐标从 0 开始」时两个语义才重合（miuix 画在独立 layer 正是如此）。
+     *  全屏坐标下传中心值，会让整条栏被判成内部返回透明、只剩两端条带算高光，
+     *  → 左右圆角内侧纯黑竖条（2026-11-06 定位）。 */
+    private void drawBloomStroke(Canvas canvas, float l, float t, float rt, float b,
+                                 float radius, float alpha, float extraDegrees) {
+        if (bloomShader == null || alpha <= 0.01f) return;
+        int sv = canvas.save();
+        canvas.translate(l, t);
+        BloomStrokeFx.draw(bloomShader, bloomP, canvas, 0f, 0f, rt - l, b - t,
+                radius, alpha, extraDegrees, gravityX, gravityY, density);
+        canvas.restoreToCount(sv);
+    }
+
 
     /**
      * 挂到 Activity：本层活在 **PopupWindow 的独立 Window** 里。
@@ -1958,6 +2477,17 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         LensBarView v = new LensBarView(act, webView);
         v.window = act.getWindow();
         v.anchor = root;
+        /* 2026-11-03 P0 栏后内容霜：窗口级滚动信号（OnScrollChangedListener 对整个
+           ViewTree 生效，WebView 与原生页滚动都触发）→ 停手 250ms 抓一次。
+           滚动期间不抓：PixelCopy 单次实测 29~62ms，滚动中抓=主线程搬像素。 */
+        root.getViewTreeObserver().addOnScrollChangedListener(() -> {
+            /* 滚动逐帧驱动 dock 重绘 → captureLiveBackdrop 同帧跟随页面。
+               此前这里只排 250ms 的旧抓图，onDraw 不跑，玻璃在滚动中是冻结的。 */
+            v.scrollIdleUntil = android.os.SystemClock.uptimeMillis() + 120L;
+            v.invalidate();
+            v.frostHandler.removeCallbacks(v.frostDebounce);
+            v.frostHandler.postDelayed(v.frostDebounce, 250L);
+        });
         float dp0 = act.getResources().getDisplayMetrics().density;
         boolean vert0 = act.getResources().getConfiguration()
                 .screenWidthDp > act.getResources().getConfiguration().screenHeightDp;
@@ -1965,11 +2495,14 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         int h0 = vert0 ? ViewGroup.LayoutParams.MATCH_PARENT : (int) (120 * dp0);
         v.popup = new PopupWindow(v, w0, h0, false);
         v.popupVertical = vert0;
+        /* 2026-11-01 SF 实时磨砂分层：blur 窗走 PANEL(子层1)，本弹窗升
+           SUB_PANEL(子层2) —— 层序 app 内容(0) < blur(1) < chrome(2)，SF 只糊
+           背后的 Activity 合成结果，chrome 不被波及（实测 1002=MEDIA_OVERLAY
+           在本机映射 SUB_PANEL，反压 chrome=整条被糊成雾）。 */
+        v.popup.setWindowLayoutType(WindowManager.LayoutParams.TYPE_APPLICATION_SUB_PANEL);
         v.popup.setClippingEnabled(false);
         v.popup.setBackgroundDrawable(null);
-        /* 保底预热：即使几何上报这条路失败，也要先有一张背景，
-           否则药丸永远不会画出来（noBg 降级只是半透明，没有折射内容）。 */
-        v.postDelayed(v::captureBackdrop, 1200);
+        /* 2026-11-02 快照链退役：玻璃底=SF blurBehind 实时模糊，无需预抓。 */
         /* 滑块绘制路径预热（nativeDock）：冷启动后首次切页的滑块弹簧动画要付
            onDraw/blit 路径的 JIT 全额成本（实测首次切页 legacy janky 8.65% vs
            热态 3%）—— 几何同步后滑块无声地动 3% 再弹回，把路径跑热，
@@ -2025,23 +2558,33 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         /* MATCH_PARENT 在 showAtLocation 时按屏幕定格；分屏/小窗必须显式给
            窗口宽，否则弹窗比窗口宽、dock 溢出到别人的半屏里。 */
         float dp = anchor.getResources().getDisplayMetrics().density;
-        if (vert) {
-            popupVertical = true;
-            popup.setWidth((int) (RAIL_W_DP * dp));   // 只含栏宽；左距交给窗口 x 偏移
-            /* 窗口从顶栏下沿起（不是 0）：**触摸窗不能盖住顶栏**，否则左侧菜单键
-               落在窗里被 dock 吃掉（2026-10-28 顶栏铺满后 ☰ 移到最左，点不动）。 */
-            popup.setHeight(Math.max(1, winH - (int) railTop));
-        } else {
-            popupVertical = false;
-            popup.setWidth(Math.max(1, winW));
-            popup.setHeight((int) (120f * dp));
+        int newW = vert ? (int) (RAIL_W_DP * dp) : Math.max(1, winW);
+        int newH = vert ? Math.max(1, winH - (int) railTop) : (int) (120f * dp);
+        int newX = vert ? (int) (RAIL_LEFT_DP * density) : 0;
+        int newY = vert ? (int) railTop : 0;
+        if (popup.isShowing() && vert == popupVertical) {
+            /* 同形态（gravity 不变）走 update() 平滑改尺寸/位置——dismiss+show
+               会整窗拆建（surface 释放→重分配→输入空窗），旋转/分屏切换的
+               「卡一下」主源。翻转（横排↔竖排）gravity 变了，update() 无法改
+               gravity，仍走 dismiss+show。update 失败退回旧路径。 */
+            try {
+                popup.update(newX, newY, newW, newH);
+                popupVertical = vert;
+                lastPopupWidth = winW;
+                lastPopupHeight = winH;
+                lastPopupTop = railTop;
+                return;
+            } catch (Throwable t) {
+                Log.w(TAG, "popup.update 失败，退回 dismiss+show", t);
+            }
         }
+        popupVertical = vert;
+        popup.setWidth(newW);
+        popup.setHeight(newH);
         if (popup.isShowing()) {
             try { popup.dismiss(); } catch (Throwable ignored) { }
         }
-        showPopup();
-        scheduleBarRecapture();      // 弹窗尺寸/位置换代：栏体采样源跟着换
-    }
+        showPopup();    }
 
     private void showPopup() {
         if (popup == null || popup.isShowing() || detached || anchor == null) return;
@@ -2151,18 +2694,31 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         } else {
             showPopup();
         }
+        updateContainerEffect();   // 键盘/弹层在场：shader 区域会折射到弹层内容，摘除
     }
 
     /** Activity 销毁时收掉：帧回调、延迟任务、弹窗一次清干净，否则会 window leak
      *  且旧实例在 Choreographer 上永久空转（旋转重建场景会逐次累积）。 */
     public void detach() {
         detached = true;
+        updateContainerEffect();   // 摘除容器折射（空壳 no-op）
+        frostWorker.getLooper().quit();   // 后台霜链线程随 View 退出（防 Activity 重建累积）
         ticking = false;
         removeCallbacks(null);   // 预热/几何补测的 postDelayed 一并撤掉（detached 后本就是空操作）
         Choreographer.getInstance().removeFrameCallback(this);
         try {
             anchor.getViewTreeObserver().removeOnGlobalLayoutListener(anchorLayoutListener);
         } catch (Throwable ignored) { }
+        if (combinedBmp != null) {
+            combinedBmp.recycle();
+            combinedBmp = null;
+            combinedShader = null;
+        }
+        if (liveBackdrop != null) { liveBackdrop.recycle(); liveBackdrop = null; }
+        if (liveStep != null) { liveStep.recycle(); liveStep = null; }
+        if (liveToned != null) { liveToned.recycle(); liveToned = null; }
+        if (liveSharp != null) { liveSharp.recycle(); liveSharp = null; }
+        liveBackdropShader = null;
         pressed = false;
         dragging = false;
         dropping = false;

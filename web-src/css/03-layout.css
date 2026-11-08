@@ -13,7 +13,12 @@
 
 /* ---------------- 顶部应用栏 ---------------- */
 .appbar {
-  position: relative;
+  /* ❗sticky 而非 relative：原生顶栏是覆盖层（PopupWindow），页面滚动时 relative 的
+     .appbar 会跟着滚走，正文随即滚进原生顶栏下方，被录进顶栏霜图 → 栏内出现灰色字影，
+     而且顶栏透出的是白色卡片、与壁纸不搭（2026-11-07 用户「你看你这个跟背景搭吗」）。
+     sticky 让顶栏占位恒定，内容不越界，栏后始终只有壁纸。 */
+  position: sticky;
+  top: 0;
   z-index: 40;
   flex: 0 0 auto;
   padding-top: var(--sa-top);

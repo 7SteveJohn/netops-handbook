@@ -2,11 +2,21 @@ import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
 }
 
 android {
     namespace = "com.netops.handbook"
-    compileSdk = 34
+    compileSdk = 36
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
+    kotlinOptions { jvmTarget = "11" }
+
+    buildFeatures { compose = true }
 
     defaultConfig {
         applicationId = "com.netops.handbook"
@@ -62,6 +72,11 @@ android {
 dependencies {
     implementation(libs.appcompat)
     implementation("androidx.dynamicanimation:dynamicanimation:1.0.0")
+    implementation(platform(libs.compose.bom))
+    implementation(libs.compose.ui)
+    implementation(libs.compose.foundation)
+    implementation(libs.compose.material3)
+    implementation(libs.activity.compose)
 
     testImplementation(libs.junit)
 

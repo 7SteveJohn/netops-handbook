@@ -138,36 +138,44 @@ public class NativeSimpleList extends LinearLayout {
         page.removeAllViews();
         page.setPadding(pal.dp(14), pal.dp(10), pal.dp(14), pal.dp(24));
 
-        LinearLayout head = NativeBlocks.card(getContext(), pal);
-        head.addView(NativeBlocks.tv(getContext(), pal, title, 19, true, pal.textMain));
+        /* ❗一张大卡装所有行，只套 1 层 LiquidGlassView。
+           此前每行各套一层玻璃（字典 76 行 = 76 个 LiquidGlassView，各自跑
+           模糊 + 折射 + 色散）→ gfxinfo 99th **350ms**，用户报「切到字典明显卡」。
+           分组大卡既省掉 75 层玻璃，视觉上也更接近 iOS 的分组列表（2026-11-07）。 */
+        LinearLayout group = NativeBlocks.card(getContext(), pal);
+        group.addView(NativeBlocks.tv(getContext(), pal, title, 19, true, pal.textMain));
         if (subtitle != null && !subtitle.isEmpty()) {
             TextView sub = NativeBlocks.tv(getContext(), pal, subtitle, 12.5f, false, pal.textMute);
             sub.setPadding(0, pal.dp(6), 0, 0);
-            head.addView(sub);
+            group.addView(sub);
         }
-        LinearLayout.LayoutParams hlp = NativeBlocks.matchP();
-        hlp.bottomMargin = pal.dp(10);
-        head.setLayoutParams(hlp);
-        page.addView(NativeBlocks.glassWrap(getContext(), pal, head, glassSource, direct,
-                page.getWidth() > 0 ? page.getWidth()
-                        : getResources().getDisplayMetrics().widthPixels));
 
         for (int i = 0; i < items.length(); i++) {
             JSONObject o = items.optJSONObject(i);
             if (o == null) continue;
-            LinearLayout card = NativeBlocks.card(getContext(), pal);
-            card.addView(NativeBlocks.tv(getContext(), pal, o.optString("t"), 14.5f, true, pal.textMain));
+            View div = new View(getContext());
+            div.setBackgroundColor(pal.dark ? 0x1AFFFFFF : 0x14000000);
+            group.addView(div, new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, Math.max(1, pal.dp(0.7f))));
+
+            LinearLayout row = new LinearLayout(getContext());
+            row.setOrientation(LinearLayout.VERTICAL);
+            row.setPadding(0, pal.dp(11), 0, pal.dp(11));
+            row.addView(NativeBlocks.tv(getContext(), pal, o.optString("t"), 14.5f, true, pal.textMain));
             String d = o.optString("d");
             if (!d.isEmpty()) {
                 TextView body = NativeBlocks.tv(getContext(), pal, d, 13, false, pal.textSub);
                 body.setLineSpacing(pal.dp(4), 1f);
                 body.setPadding(0, pal.dp(6), 0, 0);
-                card.addView(body);
+                row.addView(body);
             }
-            LinearLayout.LayoutParams lp = NativeBlocks.matchP();
-            lp.bottomMargin = pal.dp(8);
-            card.setLayoutParams(lp);
-            page.addView(card);
+            group.addView(row);
         }
+
+        LinearLayout.LayoutParams glp = NativeBlocks.matchP();
+        group.setLayoutParams(glp);
+        page.addView(NativeBlocks.glassWrap(getContext(), pal, group, glassSource, direct,
+                page.getWidth() > 0 ? page.getWidth()
+                        : getResources().getDisplayMetrics().widthPixels));
     }
 }

@@ -105,8 +105,8 @@
         "specular": "rgba(255,255,255,.88)",
         "rgbTop": "255,255,255",
         "rgbBot": "245,245,247",
-        "alphaMin": 0.52,
-        "alphaMax": 0.72
+        "alphaMin": 0.72,
+        "alphaMax": 0.86
       },
       "dark": {
         "filter": "blur(28px)",

@@ -1557,6 +1557,10 @@
     root.style.setProperty('--glass-sheet-top-k', 'rgba(44,44,46,' + sheetA.toFixed(3) + ')');
     root.style.setProperty('--glass-sheet-bot-k', 'rgba(32,32,36,' + sheetB.toFixed(3) + ')');
     d.body.classList.toggle('glass-on', g.on);
+    /* ❗glass-on 挂在 body 上，而 pushAppBarState 的 MutationObserver 只盯 app 子树，
+       类变化不会触发重推 → 原生顶栏读到旧的 glass:false 就一直铺白底
+       （2026-11-07 用户报「顶栏变白、重启才恢复」）。这里 toggle 后直接补推一次。 */
+    if (typeof pushAppBarState === 'function') pushAppBarState();
     /* 增强对比度：换文字 token（CSS 侧 html.hi-contrast）+ 用更厚的板（floor 走 hi） */
     root.classList.toggle('hi-contrast', !!(g.on && g.hiContrast));
     d.body.classList.toggle('glass-liquid', g.on && em === 'liquid');
@@ -2835,12 +2839,15 @@
           var g = JSON.parse(value);
           saveGlass(g); applyGlass(g);
         }
+        else if (kind === 'nativedock') w.NetOpsSetNativeDock(value === '1');
+        else if (kind === 'nativeappbar') w.NetOpsSetNativeAppbar(value === '1');
       } catch (e) { }
     };
     w.NetOpsNativePushSettings = function () {
       try {
         var g = getGlass() || glassDefaults;
-        w.NetBridge.setSettingsState(U.theme.get(), lsGet(WP_KEY) || 'none', JSON.stringify(g));
+        w.NetBridge.setSettingsState(U.theme.get(), lsGet(WP_KEY) || 'none', JSON.stringify(g),
+            nativeDockOn(), nativeAppbarOn());
       } catch (e) { }
     };
     w.NetOpsNativeState = function (id, kind, on) {
@@ -2863,10 +2870,19 @@
     }
     function applyNativeDock(on) {
       /* 门控在桥存在性上：本地浏览器闭环 / jsdom 没有 NetBridge，原生层不会
-         存在 —— 类照加就会把底栏藏成空气。真机壳内桥恒在，此门控恒真。 */
+         存在 —— 类照加就会把底栏藏成空气。真机壳内桥恒在，此门控恒真。
+         横竖屏分工：竖屏=横排原生 dock（SF blurBehind 栏体 + AGSL 清玻璃
+         药丸 + 容器折射 RenderEffect）；横屏=竖排 rail（FlClash 平面口径）。
+         形态切换由原生 reflow/updateOrientation 处理，JS 只报开关。 */
       var hasBridge = !!(w.NetBridge && w.NetBridge.setNativeDock);
-      d.body.classList.toggle('native-dock-on', !!on && hasBridge);
-      try { if (hasBridge) w.NetBridge.setNativeDock(!!on); } catch (e) { }
+      var railOn = !!on && hasBridge;
+      d.body.classList.toggle('native-dock-on', railOn);
+      /* 翻转后强制整页重组合：栏区在滚动损伤区之外，WebView 表面可能持旧帧
+         （原生 invalidate 双发之外的 JS 侧兜底）。 */
+      var de = d.documentElement;
+      de.style.transform = 'translateZ(0)';
+      w.requestAnimationFrame(function () { de.style.transform = ''; });
+      try { if (hasBridge) w.NetBridge.setNativeDock(railOn); } catch (e) { }
     }
     applyNativeDock(nativeDockOn());
     w.NetOpsSetNativeDock = function (on) {

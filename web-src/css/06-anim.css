@@ -1181,7 +1181,10 @@ html.dark .tap-target::after{
 /* ===== R1 原生底栏接管（2026-10-27）=====
    native-dock-on：底栏外观由 LensBarView（PopupWindow 原生层）绘制。
    用 visibility 而非 display:none —— 保留布局，requestGeometry 依旧能量到
-   几何真源；回退 = 去掉 body 类，HTML 底栏原样回来。 */
+   几何真源；回退 = 去掉 body 类，HTML 底栏原样回来。
+   2026-11-01：栏体实时磨砂改走原生 SF blurBehind 窗口（LensBarView 侧）——
+   曾试 .tabbar 自挂 backdrop-filter：CDP 实锤样式全对却不上屏（WebView
+   绘制层对该表面不可靠），CSS 侧无解，HTML 栏照旧整体隐藏。 */
 body.native-dock-on .tabbar { visibility: hidden !important; }
 /* ---- R2 原生顶栏（2026-10-27）：同 R1 的分工 ----
    整条 .appbar 由顶部锚定的 AppBarView（独立 PopupWindow）绘制，含 searchwrap
@@ -1194,15 +1197,13 @@ body.native-dock-on .tabbar { visibility: hidden !important; }
 body.native-appbar-on .appbar { visibility: hidden !important; }
 body.native-appbar-on.is-appbar-q .appbar,
 body.native-appbar-on.is-appbar-overlay .appbar { visibility: visible !important; }
-/* 内容不滚入栏后（FlClash 结构）：胶囊栏时代内容允许穿到栏后，靠 HTML 玻璃
-   的 blur 垫着；原生接管后容器近实色、透镜直接折射栏后像素 —— 正文透出/
-   被放大进透镜是「吓人」观感的根源（2026-10-27 用户反馈）。多留 30px 呼吸。 */
+/* 内容区与栏区的关系（2026-11-02 改判）：FlClash 的玻璃之所以液态，是因为
+   应用内容就在玻璃下面流动、被实时折射——10-27 的「内容不入栏后」让玻璃
+   底下只剩静态壁纸=怎么调都是死的。现 SF blurBehind 实时糊掉栏后内容
+   （σ≈40），文字成雾、不可辨；透镜面板只弯折 tab 图标。故撤 margin，
+   内容回流栏后（padding-bottom 保留，末卡仍可滚出栏区点按）。 */
 body.native-dock-on .scroll {
-  /* 内容区收短（FlClash 结构）：float 栏 64dp 高悬浮，margin 让 .scroll 底边
-     上移到栏顶 —— 内容滚动全程都不进入栏后，栏后=WebView 背景壁纸层，
-     透镜折射到的永远是干净的壁纸/背景色（padding 方案只管滚到底，管不了途中）。 */
   padding-bottom: calc(var(--sa-bottom) + 8px);
-  margin-bottom: calc(64px + var(--sa-bottom) + 10px);
 }
 
 /* ===== 卡片手风琴展开：grid-template-rows 0fr→1fr（双向 100% 可靠） =====
@@ -2165,15 +2166,19 @@ body.wp-qq.has-wallpaper .appbar::after{ display: none; }
    实锤「双层」观感）；且液态玻璃架构只预模糊壁纸层、内容层 0 blur——
    tabbar 浮在**未模糊内容**上方，任何通透都必透字。故液态玻璃档统一近实色
    （.96，有无壁纸一致），白/暗双主题各自适配。 */
-body.glass-on.glass-liquid .tabbar{
+/* 2026-11-01：nativeDock 重分层后内容不再入栏后（.scroll 收短到栏顶之上）、
+   壁纸层自带预模糊 —— 本规则当年「backdrop-filter 每帧重栅格掉帧」「通透必
+   透字」的两个前提都不复存在。native-dock-on 竖屏栏体改走实时磨砂（R1 重
+   分层规则），本近实色兜底仅在**非原生**底栏模式生效。 */
+body.glass-on.glass-liquid:not(.native-dock-on) .tabbar{
   background: rgba(255,255,255,.96) !important;
   border-color: rgba(255,255,255,.55) !important;
   box-shadow:
     0 4px 16px rgba(0,0,0,.08),
     inset 0 1px 0 rgba(255,255,255,.5) !important;
 }
-html.dark body.glass-on.glass-liquid .tabbar,
-body.dark body.glass-on.glass-liquid .tabbar{
+html.dark body.glass-on.glass-liquid:not(.native-dock-on) .tabbar,
+body.dark body.glass-on.glass-liquid:not(.native-dock-on) .tabbar{
   background: rgba(24,26,32,.96) !important;
   border-color: rgba(255,255,255,.14) !important;
   box-shadow:

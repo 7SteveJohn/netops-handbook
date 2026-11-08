@@ -13,22 +13,33 @@ import android.graphics.LinearGradient;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
-import android.graphics.RadialGradient;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffXfermode;
 import android.graphics.Rect;
 import android.graphics.RectF;
+import android.graphics.RuntimeShader;
 import android.graphics.Shader;
 import android.graphics.Typeface;
+import android.graphics.Xfermode;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.MotionEvent;
+import android.os.SystemClock;
 import android.view.PixelCopy;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.WebView;
 import android.widget.PopupWindow;
+
+import com.netops.handbook.lens.glass.BloomStrokeFx;
+import com.netops.handbook.lens.glass.LiquidGlassShaders;
 
 import org.json.JSONObject;
 
@@ -88,24 +99,37 @@ public class AppBarView extends View {
     private int bgRev = 0;                // 壁纸版本号：变化才重抓背景
     private int nativeBar = 1;            // 1=接管（画），0=退位（全不画）
 
-    /* ---- 背景：PixelCopy → ÷2×4 下采样 → 上采样 blit 即模糊 ---- */
-    private Bitmap backdrop;              // 抓到的原始背景（栏矩形区域）
-    private Bitmap blurred;               // 下采样链产物
-    /* ---- 栏体液态玻璃（库 AGSL，2026-10-31 与底栏同一份）----
-       顶栏原实现只有「模糊位图 + tint」——没有折射/色散，所以没有液态玻璃观感。
-       现在把下采样模糊图喂给同一个 liquidglass_effect：弯折 + 色散 + 提饱和。 */
-    private android.graphics.RuntimeShader glassShader;
-    private BitmapShader hazedShader;
-    private Bitmap hazedSrc;          // hazedShader 当前绑定的位图（BitmapShader 无 getBitmap）
+    /* ---- 背景：PixelCopy（frostWorker）→ 霜链（sat1.5 + blur4dp）→ blurred ----
+       原帧只作链输入即时回收，不再常驻（省一张全分辨率位图）。 */
+    private Bitmap blurred;               // 霜链产物（半尺寸记录档）
+    private int dbgFrames;
+    /* ---- 栏体液态玻璃（2026-11-04 起与底栏同一套 Kyant0 材质）----
+       旧「QmDeve 库 AGSL(GlassAgsl) + saturate 1.65 + 渐变 tint + radial specular」
+       整体退役：霜链（÷2 记录档 → sat1.5 → blur4dp 两级）+ 噪声抖动 + 栏缘
+       REFRACTION(24dp/24dp) + BloomStroke（重力 −45°）+ surface tint α0.4，
+       与 LensBarView 底栏完全同源——上下两栏一种材质。 */
+    private RuntimeShader glassShader;      // 栏缘折射（LiquidGlassShaders.REFRACTION）
+    /* 噪声抖动随霜链完成；栏缘折射只吃单层位图（零嵌套 input shader）。 */
+    private RuntimeShader bloomShader;      // BloomStroke 双光源
     private final Paint glassP = new Paint(Paint.ANTI_ALIAS_FLAG);
     private boolean glassShaderFailed = false;
     private int backdropRev = -1;         // blurred 对应的 bgRev（-1=失效重抓）
+    /* 滚动期：和底栏同一套——每 40ms 重抓一次背景（anchor.draw 同步，~17ms），
+       让顶栏玻璃实时跟随栏下内容；停手 200ms 后自然停。 */
+    private long scrollIdleUntil, lastScrollCapMs;
+    private boolean scrollingNow;
     private final Paint blurP = new Paint(Paint.FILTER_BITMAP_FLAG);
-    private final ColorMatrixColorFilter saturateFilter;   // --glass-saturate 165%，常量
+    private final Paint bloomP = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private float capOffX, capOffY;       // 抓取矩形原点（本视图坐标；霜映射基准）
+    /** 霜链重活（buildFrostBitmap）后台线程，主线程只赋值 + invalidate（同底栏）。 */
+    private final Handler frostWorker;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    /* BloomStroke 光源随重力（同 LensBarView 的 DeviceTilt） */
+    private SensorManager sensorManager;
+    private float gravityX, gravityY;
 
     /* ---- 绘制 ---- */
     private final Paint tintP = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint specularP = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint shadowP = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint hairlineP = new Paint(Paint.ANTI_ALIAS_FLAG);  // is-scrolled 发丝线
     private final Paint borderP = new Paint(Paint.ANTI_ALIAS_FLAG);    // 非玻璃模式 1px 底边
@@ -114,8 +138,6 @@ public class AppBarView extends View {
     private final Paint nameP = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint subP = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint fallbackP = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private LinearGradient gradTint;      // 缓存：applyColors()/applySelfGeometry() 时置空重建
-    private RadialGradient gradSpec;
     private LinearGradient gradShadow;
 
     /* 图标 path（web-src/html/sprite.svg 原文，24×24 viewBox，22dp 呈现）。
@@ -132,21 +154,38 @@ public class AppBarView extends View {
     private Path[][] iconPaths = new Path[5][];
 
     /* 配色（对齐 01-tokens.css，dark 由 setDark 整套切换） */
-    private int cSurface, cTintTop, cTintBot, cText, cText2, cText3, cHairline, cBorder, cShadowBase;
+    private int cSurface, cTint, cText, cText2, cText3, cHairline, cBorder, cShadowBase;
 
     private int pressedBtn = -1;          // 按压中的按钮 idx（按压反馈：底色 + 缩放）
+
+    /* setPorterDuffXfermode 在 API 34 的 android.jar 已移除 → setXfermode + 缓存常量 */
+    private static final Xfermode XF_ADD = new PorterDuffXfermode(PorterDuff.Mode.ADD);
 
     public AppBarView(Context context, WebView webView) {
         super(context);
         this.webView = webView;
         this.density = context.getResources().getDisplayMetrics().density;
         setWillNotDraw(false);
-        ColorMatrix cm = new ColorMatrix();
-        cm.setSaturation(1.65f);
-        saturateFilter = new ColorMatrixColorFilter(cm);
-        blurP.setColorFilter(saturateFilter);
+        android.os.HandlerThread worker = new android.os.HandlerThread("appbar-frost");
+        worker.start();
+        frostWorker = new Handler(worker.getLooper());
+        if (Build.VERSION.SDK_INT >= 33) {
+            glassShader = tryShader(LiquidGlassShaders.REFRACTION, "顶栏折射");
+            bloomShader = tryShader(LiquidGlassShaders.BLOOM_STROKE_DUAL, "顶栏 BloomStroke");
+            bloomP.setXfermode(XF_ADD);
+        }
         initIcons();
         applyColors();
+    }
+
+    /** RuntimeShader 软着陆构造：失败 → null（对应路径退位图绘制）。 */
+    private static RuntimeShader tryShader(String src, String tag) {
+        try {
+            return new RuntimeShader(src);
+        } catch (Throwable t) {
+            Log.w(TAG, tag + " AGSL 编译失败，回退模糊位图", t);
+            return null;
+        }
     }
 
     /* ================= 挂载 ================= */
@@ -161,6 +200,9 @@ public class AppBarView extends View {
         p.setElevation(0);
         v.popup = p;
         v.showPopup();
+        /* 提前抓一次背景：否则首帧 onDraw 时 blurred 还是 null，会先铺兜底色再等
+           异步补抓 —— 那几十毫秒正是「顶栏突然变白」的窗口（2026-11-07）。 */
+        v.postDelayed(v::captureBackdrop, 120L);
         return v;
     }
 
@@ -199,6 +241,7 @@ public class AppBarView extends View {
     /** Activity 销毁时收掉：窗、延迟任务一次清干净（window leak 防护，R1 同款）。 */
     public void detach() {
         detached = true;
+        if (frostWorker != null) frostWorker.getLooper().quit();   // 后台霜链线程随 View 退出
         removeCallbacks(null);
         if (popup != null && popup.isShowing()) {
             try { popup.dismiss(); } catch (Throwable ignored) { }
@@ -206,6 +249,18 @@ public class AppBarView extends View {
     }
 
     /* ================= 桥接入口（MainActivity 转发） ================= */
+
+    /** 壁纸层（NativeBackdrop，root 直挂、在 WebView 之下）。
+     *  顶栏霜图只录它 —— WebView 的 body 是白底，录整个 View 树会把白底也录进来，
+     *  顶栏就成了发白横带（2026-11-07 用户截图）。 */
+    private android.view.ViewGroup wallpaperSource;
+    public void setWallpaperSource(android.view.ViewGroup v) { wallpaperSource = v; }
+
+    /** 滚动中由 MainActivity 的滚动监听驱动：顶栏玻璃实时跟随栏下内容。 */
+    public void setScrolling() {
+        scrollIdleUntil = SystemClock.uptimeMillis() + 200L;
+        invalidate();
+    }
 
     /** R2 开关（设置页「原生顶栏」）。关 = 全不画，HTML 顶栏原样。 */
     public void setNativeBar(boolean on) {
@@ -223,13 +278,10 @@ public class AppBarView extends View {
 
     public void setDark(boolean d) {
         boolean changed = (dark != d);
-        if (changed) { glassShader = null; }   // tint uniform 随主题变，重建一次
         if (dark == d) return;
         dark = d;
         applyColors();
-        backdropRev = -1;   // 配色整套变化 → 重抓背景 + 重建渐变缓存
-        gradTint = null;
-        gradSpec = null;
+        backdropRev = -1;   // 配色整套变化 → 重抓背景 + 重建霜链
         gradShadow = null;
         invalidate();
     }
@@ -337,8 +389,6 @@ public class AppBarView extends View {
             }
         } catch (Throwable ignored) { }
         backdropRev = -1;   // 几何变了 → 背景区域变了 → 重抓
-        gradTint = null;
-        gradSpec = null;
         gradShadow = null;
         invalidate();
         Log.i(TAG, String.format(
@@ -381,7 +431,7 @@ public class AppBarView extends View {
      *  否则只发 DOWN 不发 UP，内容层永远收不到 click（2026-10-31 实测）。 */
     private boolean passthrough = false;
 
-    private boolean copyBusy = false;     /* PixelCopy 在途标志：onDraw 兜底路径没有它
+    private volatile boolean copyBusy = false;     /* PixelCopy 在途标志：onDraw 兜底路径没有它     /* PixelCopy 在途标志：onDraw 兜底路径没有它
                                               会每帧发一次抓图请求（抓图风暴） */
 
     /** 外部强制重抓：设置面板关闭时调用——面板开着的那次抓样把半透明遮罩
@@ -398,14 +448,20 @@ public class AppBarView extends View {
         if (act == null || act.getWindow() == null) return;
         int[] vl = new int[2];
         getLocationOnScreen(vl);
-        int l = Math.max(0, (int) barRect.left + vl[0]);
-        int top = Math.max(0, (int) barRect.top + vl[1]);
-        int sw = getResources().getDisplayMetrics().widthPixels;
-        int r = Math.min(sw, l + (int) barRect.width() + 1);
-        int bot = top + (int) barRect.height() + 1;
+        /* 外扩 24dp（= 栏缘折射带）：折射要采栏外内容，CLAMP 边缘会成拉丝。
+           源=主 Activity 窗口，顶栏视图虽只到栏底，窗口坐标能取到栏外。 */
+        int pad = (int) (24f * density);
+        android.view.View decor = act.getWindow().getDecorView();
+        int l = Math.max(0, (int) barRect.left + vl[0] - pad);
+        int top = Math.max(0, (int) barRect.top + vl[1] - pad);
+        int r = Math.min(decor.getWidth(), (int) barRect.left + vl[0] + (int) barRect.width() + 1 + pad);
+        int bot = Math.min(decor.getHeight(), (int) barRect.top + vl[1] + (int) barRect.height() + 1 + pad);
         int w = Math.max(4, r - l), h = Math.max(4, bot - top);
+        /* 抓取原点换到本视图坐标（霜 localMatrix 的映射基准；外扩被边界裁掉时
+           原点可为负，BitmapShader 映射天然支持） */
+        final int capOffL = l - vl[0], capOffT = top - vl[1];
         final int revAtReq = bgRev;   /* 在途期间 bgrev 再变 → 完成后补抓（丢更新竞态） */
-        final Handler copyHandler = new Handler(Looper.getMainLooper());
+        final Handler copyHandler = frostWorker;   // 回调落后台线程：霜链重活不占主帧
         final Runnable watchdog = () -> {
             /* PixelCopy 回调可能被丢（切后台/旋转时 surface 撕掉）——copyBusy 一旦
                卡死，玻璃就冻结在最后一次成功采样直到重启（2026-10-30 真机实测）。
@@ -420,26 +476,55 @@ public class AppBarView extends View {
             Bitmap out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
             copyBusy = true;
             copyHandler.postDelayed(watchdog, 700);
-            PixelCopy.request(act.getWindow(), new Rect(l, top, l + w, top + h), out,
-                    result -> {
-                        copyBusy = false;
+            /* ❗改成和底栏同源：直接用 anchor.draw 同步录 View 树，不再走 PixelCopy。
+               PixelCopy 依赖窗口 surface，实测在真机上经常拿不到（result 非 SUCCESS
+               或回调丢失），霜图永远为 null → 顶栏只能铺兜底色，就是用户看到的那块白
+               （2026-11-07 用户点破：「底栏都已经实时渲染，顶栏为什么不能」）。
+               anchor.draw 不依赖 surface，底栏已长期验证可用；录制只在几何/主题/壁纸
+               变化时发生（顶栏背景是静态的），一次约十几毫秒，可接受。 */
+            try {
+                Canvas capCanvas = new Canvas(out);
+                capCanvas.translate(-l, -top);
+                if (wallpaperSource != null) wallpaperSource.draw(capCanvas);
+                else anchor.draw(capCanvas);
+            } catch (Throwable t) {
+                Log.w(TAG, "anchor.draw 录顶栏背景失败", t);
+                copyBusy = false;
+                out.recycle();
+                return;
+            }
+            copyHandler.post(() -> {
                         copyHandler.removeCallbacks(watchdog);
-                        if (detached) return;
-                        if (result == PixelCopy.SUCCESS) {
-                            backdrop = out;
-                            buildBlurChain();
-                            long capMs = (System.nanoTime() - capT0) / 1_000_000L;
-                            if (capMs > 6) Log.i(TAG, "抓取耗时 " + capMs + "ms（" + w + "x" + h + "）");
-
-                            if (capMs > 6) Log.i(TAG, "抓取耗时 " + capMs + "ms（" + w + "x" + h + "）"
-                                    + (capMs > 12 ? " ⚠ 超过 12ms，滚动会掉帧" : ""));
+                        if (detached) {
+                            copyBusy = false;
+                            out.recycle();
+                            return;
+                        }
+                        final long buildT0 = System.nanoTime();
+                        final Bitmap frost = buildFrostBitmap(out);
+                        out.recycle();   // 原帧只作霜链输入，不留驻（省一张全分辨率常驻）
+                        final long buildMs = (System.nanoTime() - buildT0) / 1_000_000L;
+                        copyBusy = false;   // 解闩先于主线程赋值：间隙期的新请求不被吞
+                        mainHandler.post(() -> {   // 主线程：只赋值 + 重建 shader
+                            if (detached) {
+                                if (frost != null) frost.recycle();
+                                return;
+                            }
+                            capOffX = capOffL;
+                            capOffY = capOffT;
+                            if (frost != null) {
+                                if (blurred != null) blurred.recycle();
+                                blurred = frost;
+                            }   // frost==null：霜链失败，保旧霜（rev 仍推进防重抓风暴）
+                            buildGlassShader();
+                            if (buildMs + (System.nanoTime() - capT0) / 1_000_000L > 6) {
+                                Log.i(TAG, "抓取+霜链 " + w + "x" + h + " 霜链" + buildMs + "ms");
+                            }
                             backdropRev = revAtReq;
                             invalidate();
                             if (bgRev != revAtReq) post(this::captureBackdrop);
-                        } else {
-                            Log.w(TAG, "PixelCopy 失败 result=" + result + "，顶栏退回实色");
-                        }
-                    }, copyHandler);
+                        });
+            });
         } catch (Throwable t) {
             copyBusy = false;
             copyHandler.removeCallbacks(watchdog);
@@ -447,70 +532,90 @@ public class AppBarView extends View {
         }
     }
 
-    /** ÷2 四连下采样（每次双线性 ≈ 2×2 均值），blit 上采样时再补一层双线性
-     *  —— 合成低通对齐 --glass-blur 20px 的观感（AGSL 高斯留作打磨项）。 */
-    private void buildBlurChain() {
-        try {
-            Bitmap cur = backdrop;
-            for (int i = 0; i < 4 && cur.getWidth() > 8 && cur.getHeight() > 4; i++) {
-                Bitmap half = Bitmap.createBitmap(Math.max(1, cur.getWidth() / 2),
-                        Math.max(1, cur.getHeight() / 2), Bitmap.Config.ARGB_8888);
-                Canvas c = new Canvas(half);
-                Matrix m = new Matrix();
-                m.setScale(0.5f, 0.5f);
-                c.drawBitmap(cur, m, new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG));
-                if (cur != backdrop) cur.recycle();
-                cur = half;
+    /** 霜链（与底栏 buildFrost 同构的 CPU 等价实现）：÷2 记录档 →
+     *  vibrancy(sat 1.5) → 两级降采样 blur 4dp。顶栏背景以壁纸为主
+     *  （设计约束：内容不滚进顶栏底下），不做亮度归一化 shim。
+     *  ❗在 frostWorker 线程跑：局部 Paint（blurP 主线程回退绘制在用）；
+     *  纯函数无字段突变，调用方负责位图生命周期。 */
+    /** 采样 64 点判断是否近乎纯白（加载页/空白页）。 */
+    private static boolean isNearlyBlank(Bitmap b) {
+        int w = b.getWidth(), h = b.getHeight();
+        if (w < 8 || h < 8) return true;
+        long sum = 0;
+        int n = 0;
+        for (int i = 1; i <= 8; i++) {
+            for (int j = 1; j <= 8; j++) {
+                int c = b.getPixel(w * i / 9, h * j / 9);
+                int r = (c >> 16) & 0xFF, g = (c >> 8) & 0xFF, bl = c & 0xFF;
+                sum += (r * 299 + g * 587 + bl * 114) / 1000L;
+                n++;
             }
-            if (blurred != null && blurred != cur) blurred.recycle();
-            blurred = cur;
-            hazedShader = null; hazedSrc = null;   // 位图换了：BitmapShader 必须按新图重建
-            buildGlassShader();
+        }
+        return n > 0 && (sum / n) >= 247;
+    }
+
+    private Bitmap buildFrostBitmap(Bitmap raw) {
+        try {
+            if (raw == null || raw.isRecycled()) return blurred;
+            /* ❗抓到「几乎全白」的图不要采用 —— 那是 WebView 的加载页（OFFLINE READY）。
+               attach 后 120ms 就抓，此时页面还没渲染完，霜图会是一张白图，
+               顶栏就永远铺着白雾；而 bgRev 不变又不会重抓（2026-11-07 用户截图证实）。
+               返回 null 让主线程「保旧霜」，同时兜底分支会把 backdropRev 打回 -1，
+               于是下一帧继续尝试，等页面加载完成自然抓到真实内容。 */
+            if (isNearlyBlank(raw)) return null;
+            /* 顶栏霜度 3dp：sticky 后内容不滚进栏下（03-layout .appbar sticky），
+               背后只有壁纸；重霜会把云糊成白雾（用户主诉「顶部没做好」）。
+               字影问题由 sticky 根治，不再依赖重霜。 */
+            float sigma = 3f * density * LiquidGlassShaders.BLUR_RADIUS_TO_SIGMA;
+            int exp = LiquidGlassShaders.downScaleExpFor(sigma * sigma);
+            int sf = 1 << exp;
+            int fw = Math.max(2, raw.getWidth() / sf), fh = Math.max(2, raw.getHeight() / sf);
+            Bitmap half = Bitmap.createBitmap(fw, fh, Bitmap.Config.ARGB_8888);
+            Paint bp = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG);
+            ColorMatrix cm = new ColorMatrix();
+            cm.setSaturation(1.5f);
+            bp.setColorFilter(new ColorMatrixColorFilter(cm));
+            new Canvas(half).drawBitmap(raw, null, new RectF(0, 0, fw, fh), bp);
+            int k = Math.max(2, Math.round(sigma));
+            int dw = Math.max(2, fw / k), dh = Math.max(2, fh / k);
+            Bitmap small = Bitmap.createBitmap(dw, dh, Bitmap.Config.ARGB_8888);
+            Paint bp2 = new Paint(Paint.FILTER_BITMAP_FLAG);
+            new Canvas(small).drawBitmap(half, null, new RectF(0, 0, dw, dh), bp2);
+            Bitmap out = Bitmap.createBitmap(fw, fh, Bitmap.Config.ARGB_8888);
+            new Canvas(out).drawBitmap(small, null, new RectF(0, 0, fw, fh), bp2);
+            small.recycle();
+            half.recycle();
+            return out;
         } catch (Throwable t) {
-            Log.w(TAG, "模糊链构建失败", t);
-            blurred = null;
+            /* ❗返回 null（不能返回 blurred——主线程会先 recycle 旧图再赋值，
+               返回旧图 = 赋值一个已回收位图）。主线程见 null 保旧霜。 */
+            Log.w(TAG, "霜链构建失败，沿用旧霜", t);
+            return null;
         }
     }
 
-    /** 组装栏体玻璃：content = 已雾化的模糊图（÷16），折射/色散配方同底栏。 */
+    /** 组装栏体玻璃：noise(frost) → 栏缘 REFRACTION（24dp/24dp，同底栏 drawBarGlass）。
+     *  方角栏 cornerRadii=0；霜半尺寸，localMatrix 把视图坐标映到霜像素。 */
     private void buildGlassShader() {
         if (glassShaderFailed || blurred == null || barRect.width() <= 4) return;
-        if (Build.VERSION.SDK_INT < 33) { glassShaderFailed = true; return; }
+        if (Build.VERSION.SDK_INT < 33 || glassShader == null) return;
         try {
-            if (hazedShader == null || hazedSrc != blurred) {
-                hazedShader = new BitmapShader(blurred, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
-                hazedSrc = blurred;
-            }
-            if (glassShader == null) {
-                String agsl = GlassAgsl.load(getResources());
-                if (agsl == null) { glassShaderFailed = true; return; }
-                glassShader = new android.graphics.RuntimeShader(agsl);
-            }
-            float W = barRect.width(), H = barRect.height();
-            float band = Math.min(18f * density, H * 0.28f);
-            float amount = Math.min(22f * density, H * 0.45f);
-            glassShader.setFloatUniform("size", new float[]{W, H});
-            glassShader.setFloatUniform("offset", new float[]{0f, 0f});
-            glassShader.setFloatUniform("cornerRadii", new float[]{0f, 0f, 0f, 0f});
-            glassShader.setFloatUniform("refractionHeight", band);
-            glassShader.setFloatUniform("refractionAmount", -amount);
-            glassShader.setFloatUniform("depthEffect", 0.35f);
-            glassShader.setFloatUniform("chromaticAberration", 0.40f);
-            glassShader.setFloatUniform("contrast", 0.05f);
-            glassShader.setFloatUniform("whitePoint", 0.02f);
-            glassShader.setFloatUniform("chromaMultiplier", dark ? 1.85f : 2.05f);
-            if (dark) {
-                glassShader.setFloatUniform("tintColor", new float[]{0.18f, 0.18f, 0.20f});
-                glassShader.setFloatUniform("tintAlpha", 0.42f);
-            } else {
-                glassShader.setFloatUniform("tintColor", new float[]{0.96f, 0.96f, 0.98f});
-                glassShader.setFloatUniform("tintAlpha", 0.36f);
-            }
-            /* 模糊图与栏同域但小 16 倍：矩阵把画布坐标映到模糊图坐标 */
+            BitmapShader frostShader = new BitmapShader(blurred, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
             Matrix mm = new Matrix();
-            mm.setScale(blurred.getWidth() / Math.max(1f, W), blurred.getHeight() / Math.max(1f, H));
-            hazedShader.setLocalMatrix(mm);
-            glassShader.setInputShader("content", hazedShader);
+            mm.setScale(2f, 2f);
+            mm.postTranslate(capOffX, capOffY);
+            frostShader.setLocalMatrix(mm);
+            /* 霜链已在 CPU 侧完成；只挂单层位图（零嵌套 input shader）。 */
+            glassShader.setInputShader("content", frostShader);
+            float W = barRect.width(), H = barRect.height();
+            glassShader.setFloatUniform("size", W, H);
+            /* centeredCoord=(coord+offset)−halfSize 要等于 coord−栏中心
+               ⇒ offset = −栏左上（❗负号：视图坐标直画，SDF 零点对准栏中心） */
+            glassShader.setFloatUniform("offset", -barRect.left, -barRect.top);
+            glassShader.setFloatUniform("cornerRadii", 0f, 0f, 0f, 0f);
+            glassShader.setFloatUniform("refractionHeight", 24f * density);
+            glassShader.setFloatUniform("refractionAmount", -24f * density);
+            glassShader.setFloatUniform("depthEffect", 0f);
             glassP.setShader(glassShader);
             invalidate();
         } catch (Throwable t) {
@@ -526,8 +631,7 @@ public class AppBarView extends View {
     private void applyColors() {
         if (dark) {
             cSurface = Color.argb(255, 28, 28, 30);          // --surface #1c1c1e
-            cTintTop = Color.argb(77, 58, 58, 64);           // --glass-tint-top rgba(58,58,64,.30)
-            cTintBot = Color.argb(56, 32, 32, 36);           // --glass-tint-bot rgba(32,32,36,.22)
+            cTint = Color.argb(66, 28, 28, 30);              // 深色 α0.26：同比例减淡
             cText = Color.argb(255, 245, 245, 247);          // --text #f5f5f7
             cText2 = Color.argb(255, 199, 199, 204);         // --text-2 #c7c7cc
             cText3 = Color.argb(255, 142, 142, 147);         // --text-3 #8e8e93
@@ -536,8 +640,7 @@ public class AppBarView extends View {
             cShadowBase = Color.argb(97, 0, 0, 0);           // --glass-shadow rgba(0,0,0,.38) 首 stop
         } else {
             cSurface = Color.WHITE;                          // --surface #ffffff
-            cTintTop = Color.argb(51, 255, 255, 255);        // --glass-tint-top rgba(255,255,255,.20)
-            cTintBot = Color.argb(36, 250, 250, 252);        // --glass-tint-bot rgba(250,250,252,.14)
+            cTint = Color.argb(38, 244, 244, 244);           // α0.15：40% 白叠明亮蓝天=白横带（用户主诉），减到 0.15 保通透
             cText = Color.argb(255, 29, 29, 31);             // --text #1d1d1f
             cText2 = Color.argb(255, 81, 81, 84);            // --text-2 #515154
             cText3 = Color.argb(255, 134, 134, 139);         // --text-3 #86868b
@@ -552,6 +655,11 @@ public class AppBarView extends View {
         borderP.setColor(cBorder);
         pressP.setColor(dark ? Color.argb(23, 255, 255, 255) : Color.argb(13, 0, 0, 0));
         fallbackP.setColor(cSurface);
+        /* ❗兜底不画死白：blurred 还没抓到（首帧/重抓失败）时若铺 100% 白，
+           顶栏会突然变成一块白板（2026-11-07 用户报「小概率变白底」）。
+           留 12% 透光，视觉上是浅色玻璃而不是换了块板。 */
+        fallbackP.setAlpha(224);
+        tintP.setColor(cTint);   // surface tint α0.4（画在折射之后，与底栏同序）
         nameP.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));   // CSS 800 → Roboto 700 就近
         nameP.setTextSize(15.5f * density);
         subP.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
@@ -720,28 +828,51 @@ public class AppBarView extends View {
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
+        if ((dbgFrames++ & 31) == 0) {
+            Log.i(TAG, "gate nativeBar=" + nativeBar + " search=" + searchOpen
+                    + " overlaid=" + overlaid + " geom=" + hasGeometry
+                    + " glassOn=" + glassOn + " blurredNull=" + (blurred == null));
+        }
         if (nativeBar == 0 || searchOpen || overlaid) return;   // 退位期整层不画
         if (!hasGeometry) return;                                // 几何未到：全透明等待
         long t0 = System.nanoTime();
 
-        /* 1. 背景：模糊壁纸 + tint 渐变（玻璃开）；实色 surface（玻璃关）。
-              背景静态（内容不滚进顶栏底下），只按 bgRev/主题/几何重抓。 */
+        /* 1. 背景：Kyant0 材质链（霜→噪声→栏缘折射 + tint α0.4 + BloomStroke）；
+              实色 surface（玻璃关）。背景静态（内容不滚进顶栏底下），
+              只按 bgRev/主题/几何重抓。z 序照搬上游：霜链 → surface → highlight。 */
         if (glassOn) {
+            /* ❗不做滚动实时重抓：.appbar 改 sticky 后内容不会滚进顶栏下方，
+               栏后是静态壁纸 —— 没有可实时渲染的变化，重抓只白花 17ms/次的帧预算
+               （实测 99th 从 65ms 涨回 200ms）。背景更新仍走 bgRev 触发
+               （切页 / 主题 / 壁纸变化），这才是「实时」真正有意义的地方。 */
             if (glassP.getShader() != null) {
-                int gs = canvas.save();
-                canvas.translate(barRect.left, barRect.top);
-                canvas.drawRect(0, 0, barRect.width(), barRect.height(), glassP);
-                canvas.restoreToCount(gs);
+                canvas.drawRect(barRect, glassP);
+                canvas.drawRect(barRect, tintP);
+                if (bloomShader != null) {
+                    BloomStrokeFx.draw(bloomShader, bloomP, canvas,
+                            barRect.left, barRect.top, barRect.right, barRect.bottom,
+                            0f, 0.75f, -45f, gravityX, gravityY, density);
+                }
             } else if (blurred != null) {
-                canvas.drawBitmap(blurred, null, barRect, blurP);
+                /* 霜含 24dp 外扩（视图原点在霜的 (−capOffX,−capOffY)/2 处）：
+                   回退绘制必须裁出栏对应子区，整张拉伸会错位 */
+                Rect src = new Rect(
+                        Math.round((barRect.left - capOffX) / 2f),
+                        Math.round((barRect.top - capOffY) / 2f),
+                        Math.round((barRect.right - capOffX) / 2f),
+                        Math.round((barRect.bottom - capOffY) / 2f));
+                canvas.drawBitmap(blurred, src, barRect, blurP);
+                canvas.drawRect(barRect, tintP);
             } else {
-                captureBackdrop();   // 首帧未就绪：实色垫底 + 异步补抓
+                /* ❗blurred 为空 = 霜图没抓到。此时必须把 backdropRev 打回 -1 才可能重抓：
+                   captureBackdrop 的入口条件是 `backdropRev == bgRev → return`，而失败路径
+                   也会把 backdropRev 推进到 revAtReq（见 :492「rev 仍推进防重抓风暴」），
+                   于是 bgRev 不变 → 永远跳过 → 白底常驻，重启才恢复（2026-11-07 用户报
+                   「还是会复现」）。copyBusy 会挡住并发请求，不会洪泛。 */
+                backdropRev = -1;
+                captureBackdrop();
                 canvas.drawRect(barRect, fallbackP);
             }
-            ensureGradient();
-            canvas.drawRect(barRect, tintP);
-            ensureSpecular();
-            canvas.drawRect(barRect, specularP);
             /* 玻璃海拔阴影：栏底向下的长影（glass-shadow 0 8px 28px 的顶栏份） */
             float shH = 28f * density;
             ensureShadow(shH);
@@ -768,24 +899,38 @@ public class AppBarView extends View {
         if (ms > 8) Log.i(TAG, "onDraw " + ms + "ms");   // 正常 <2ms；异常留痕
     }
 
-    private void ensureGradient() {
-        if (gradTint == null) {
-            gradTint = new LinearGradient(0, barRect.top, 0, barRect.bottom,
-                    cTintTop, cTintBot, Shader.TileMode.CLAMP);
-            tintP.setShader(gradTint);
+    /* BloomStroke 光源随重力：传感器监听（同 LensBarView 的 DeviceTilt） */
+
+    private final SensorEventListener tiltListener = new SensorEventListener() {
+        @Override
+        public void onSensorChanged(SensorEvent event) {
+            gravityX = event.values[0];
+            gravityY = event.values[1];
+        }
+
+        @Override
+        public void onAccuracyChanged(Sensor sensor, int accuracy) {
+        }
+    };
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        if (sensorManager == null) {
+            sensorManager = (SensorManager) getContext().getSystemService(Context.SENSOR_SERVICE);
+        }
+        Sensor g = sensorManager != null ? sensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY) : null;
+        if (sensorManager != null && g != null) {
+            sensorManager.registerListener(tiltListener, g, SensorManager.SENSOR_DELAY_UI);
         }
     }
 
-    /** 镜面高光（静态版）：radial 高光压在 tint 上，对齐 ::after 的存在感。
-     *  动态跟随 --mx/--my 是打磨项，v1 不追。 */
-    private void ensureSpecular() {
-        if (gradSpec == null) {
-            gradSpec = new RadialGradient(barRect.width() * 0.30f, barRect.top,
-                    barRect.height() * 1.6f,
-                    Color.argb(26, 255, 255, 255), Color.argb(0, 255, 255, 255),
-                    Shader.TileMode.CLAMP);
-            specularP.setShader(gradSpec);
+    @Override
+    protected void onDetachedFromWindow() {
+        if (sensorManager != null) {
+            sensorManager.unregisterListener(tiltListener);
         }
+        super.onDetachedFromWindow();
     }
 
     private void ensureShadow(float h) {

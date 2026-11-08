@@ -1,6 +1,7 @@
 package com.netops.handbook;
 
 import android.annotation.SuppressLint;
+import com.netops.handbook.lens.NetOpsShell;
 import android.content.ComponentCallbacks2;
 import android.content.ContentValues;
 import android.content.Intent;
@@ -105,6 +106,10 @@ public class MainActivity extends AppCompatActivity {
 
     private WebView webView;
     private FrameLayout root;
+    /** 液态玻璃内容容器：壁纸+WebView，挂折射 RenderEffect（2026-11-02）。 */
+    private FrameLayout contentContainer;
+    /** JS 开关在 attach 前上报时的缓存态（boot 时序：attach 后补施）。 */
+    private boolean nativeDockPending = true;
     private com.netops.handbook.lens.NativePhaseView nativePhase;
     private com.netops.handbook.lens.NativeBackdrop nativeBackdrop;
     private com.netops.handbook.lens.NativeHomeView nativeHome;
@@ -195,6 +200,9 @@ public class MainActivity extends AppCompatActivity {
 
     /** 原生页互斥：显示一个之前先收起其它（否则透明底页面会互相透出——2026-10-27 实测
      *  首页透过阶段页的半透明卡). keep = 要保留的类型名，null = 全收。 */
+    /* 交叉淡化已回退：13 个原生页的根 View 是半透明底，旧页 alpha 降下来时
+       壁纸/下层直接透出 → 切页「疯狂闪烁」（2026-11-06 用户报）。原 hide()
+       立即 GONE 正是为躲这个。要做平滑转场，得先给页面补不透明底，另立任务。 */
     private void hideNativePagesExcept(String keep) {
         if (!"phase".equals(keep) && nativePhase != null) nativePhase.hide();
         if (!"fault".equals(keep) && nativeFault != null) nativeFault.hide();
@@ -215,6 +223,7 @@ public class MainActivity extends AppCompatActivity {
         if (nativeDrawer != null && nativeDrawer.isOpen()) {
             nativeDrawer.close();
             if (lensBar != null) lensBar.setOverlaid(false);
+            NetOpsShell.INSTANCE.setOverlaid(false);
         }
     }
 
@@ -288,7 +297,7 @@ public class MainActivity extends AppCompatActivity {
 
     private com.netops.handbook.lens.NativeDocList.Config docConfig(
             String title, String unit, String doneLabel, String dataKey, String scrollKey,
-            String chipFrom, String chipTo) {
+            String chipFrom, String chipTo, boolean grouped) {
         com.netops.handbook.lens.NativeDocList.Config c = new com.netops.handbook.lens.NativeDocList.Config();
         c.title = title;
         c.unit = unit;
@@ -299,6 +308,7 @@ public class MainActivity extends AppCompatActivity {
         c.actionOff = "标记" + doneLabel;
         c.chipFrom = chipFrom;
         c.chipTo = chipTo;
+        c.grouped = grouped;
         return c;
     }
 
@@ -353,7 +363,16 @@ public class MainActivity extends AppCompatActivity {
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
         webView.setBackgroundColor(bg);
-        root.addView(webView);
+        /* 2026-11-02 液态玻璃内容容器：壁纸+WebView 包进一层，整层挂
+           RenderEffect(RuntimeShader)——shader 的 uContent=本层实时内容，
+           药丸区域内折射、区域外原样（Kyant0/AndroidLiquidGlass 机制移植，
+           GPU 逐帧零回读）。挂载点见 attach 时 lensBar.attachContentContainer。 */
+        contentContainer = new FrameLayout(this);
+        contentContainer.setLayoutParams(new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        root.addView(contentContainer);
+        NetOpsShell.INSTANCE.setDark(resolvedDark());   // 首帧主题色（onDarkChange 只在变化时触发）
+        contentContainer.addView(webView);
         /* 原生收藏夹页（N2 收尾）。 */
         nativeFav = new com.netops.handbook.lens.NativeFavView(this);
         addNativePage(nativeFav);
@@ -404,6 +423,7 @@ public class MainActivity extends AppCompatActivity {
         /* 面板开合 → 侧栏退位（侧栏是独立弹窗，永远压在面板上） */
         settingsPanel.setOnOpen(open -> {
             if (lensBar != null) lensBar.setOverlaid(open);
+            NetOpsShell.INSTANCE.setOverlaid(open);
             /* 面板开着的那次背景抓样把半透明遮罩采了进去（玻璃里见上页白卡幽灵字），
                关面板强制重抓一次（2026-10-30 用户报顶栏通透发脏）。 */
             if (!open && appbarBar != null) appbarBar.invalidateBackdrop();
@@ -413,7 +433,7 @@ public class MainActivity extends AppCompatActivity {
         nativeDrawer = new com.netops.handbook.lens.NativeDrawerView(this,
                 com.netops.handbook.lens.NativeBlocks.palette(this, resolvedDark(), false),
                 (route, arg) -> nativeGo(route, arg),
-                () -> { if (lensBar != null) lensBar.setOverlaid(false); });
+                () -> { if (lensBar != null) lensBar.setOverlaid(false); NetOpsShell.INSTANCE.setOverlaid(false); });
         nativeDrawer.setLayoutParams(new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         /* addView 顺序 = z 序：抽屉必须**最后**加（见下方 addView(nativeDrawer)），
@@ -450,8 +470,8 @@ public class MainActivity extends AppCompatActivity {
         root.addView(nativePhase);
 
         /* 原生文档列表页（N4）：排障 / 面试 共用 NativeDocList，各自一个 Config。 */
-        nativeFault = addDocList(docConfig("排障案例", "案例", "已解决", "faults", "fault", "", ""));
-        nativeIv = addDocList(docConfig("面试题库", "问题", "已准备", "interview", "iv", "IVQ", "Q"));
+        nativeFault = addDocList(docConfig("排障案例", "案例", "已解决", "faults", "fault", "", "", false));
+        nativeIv = addDocList(docConfig("面试题库", "问题", "已准备", "interview", "iv", "IVQ", "Q", true));
 
         /* 原生命令字典页（N4）：命令对照表 + 分类筛选。 */
         nativeDict = new com.netops.handbook.lens.NativeDictView(this);
@@ -508,6 +528,8 @@ public class MainActivity extends AppCompatActivity {
         try {
             lensBar = LensBarView.attach(this, root, webView);
             lensBar.setDark(resolvedDark());
+            if (contentContainer != null) lensBar.attachContentContainer(contentContainer);
+            runOnUiThread(() -> { if (lensBar != null) lensBar.setNativeDock(nativeDockPending); });
             if (nativeBackdrop != null) lensBar.setBackdropSource(nativeBackdrop);
             /* 侧栏松手 → 原生立刻切页（不等 JS 路由的 16~204ms） */
             lensBar.setOnCommit(i -> runOnUiThread(() -> {
@@ -539,10 +561,15 @@ public class MainActivity extends AppCompatActivity {
         try {
             appbarBar = com.netops.handbook.lens.AppBarView.attach(this, root, webView);
             appbarBar.setDark(resolvedDark());
+            if (nativeBackdrop != null) appbarBar.setWallpaperSource(nativeBackdrop);
         } catch (Throwable t) {
             Log.w(TAG, "原生顶栏挂载失败（不影响主流程）", t);
             appbarBar = null;
         }
+        /* ❗attach 后补算几何：applyAppBarSelfGeometry 只在 insets 变化时触发，
+           若首次回调早于 attach（appbarBar 为 null 被跳过），hasGeometry 永远 false →
+           顶栏一帧不画、露出 CSS 顶栏白块（2026-11-07 定位）。 */
+        applyAppBarSelfGeometry();
 
         boolean restored = false;
         if (state != null) {
@@ -660,13 +687,9 @@ public class MainActivity extends AppCompatActivity {
         final android.os.Handler dh = new android.os.Handler(android.os.Looper.getMainLooper());
         final Runnable[] bgRefresh = {null};   // 停止滚动后延迟触发的那一次重抓
         android.view.ViewTreeObserver.OnScrollChangedListener l = () -> {
-            /* ❗PixelCopy 实测 44~62ms/次（1904×249，2026-10-31 真机）——滚动中重抓
-               等于每 120ms 让主线程搬 44ms 像素，这才是「顶栏/底栏优化都慢」的真凶。
-               改为**停止滚动 250ms 后抓一次**：滚动过程玻璃停留在上一帧（视觉可接受），
-               停下来立刻换成当前位置的真实内容。 */
-            if (bgRefresh[0] != null) dh.removeCallbacks(bgRefresh[0]);
-            bgRefresh[0] = () -> appbarBar.invalidateBackdrop();
-            dh.postDelayed(bgRefresh[0], 250);
+            /* ❗顶栏已改用 anchor.draw 同步录制（~17ms，与底栏同源），
+               滚动中可以像底栏一样实时重抓（AppBarView 内部 40ms 节流）。 */
+            appbarBar.setScrolling();
         };
         java.util.ArrayDeque<android.view.View> stack = new java.util.ArrayDeque<>();
         stack.push(page);
@@ -857,6 +880,14 @@ public class MainActivity extends AppCompatActivity {
                 reloadTries = 0;
                 flushInsets();
                 pushTheme(isNightMode());
+                if (lensBar != null) lensBar.requestFrostRefresh();   // 新页落定 → 重抓栏后霜
+            }
+
+            @Override
+            public void doUpdateVisitedHistory(WebView view, String url, boolean isReload) {
+                /* SPA 路由（pushState）不发 onPageFinished——历史变更时补抓霜，
+                   否则栏体停在上一页的雾（2026-11-03 P3）。 */
+                if (lensBar != null) lensBar.requestFrostRefresh();
             }
 
             @SuppressWarnings("deprecation")
@@ -1063,6 +1094,7 @@ public class MainActivity extends AppCompatActivity {
         runOnUiThread(() -> {
             applyBarAppearance(dark);
             if (lensBar != null) lensBar.setDark(dark);
+            NetOpsShell.INSTANCE.setDark(dark);
             if (nativePhase != null) nativePhase.setDark(dark);
             if (nativeFault != null) nativeFault.setDark(dark);
             if (nativeIv != null) nativeIv.setDark(dark);
@@ -1182,8 +1214,7 @@ public class MainActivity extends AppCompatActivity {
         /** 页面自己切了 tab（例如深链/返回）时回传，避免两边选中态不一致。 */
         @JavascriptInterface
         public void setSelectedIndex(int index) {
-            if (lensBar == null) return;
-            runOnUiThread(() -> lensBar.setSelectedIndex(index));
+            runOnUiThread(() -> NetOpsShell.INSTANCE.setSelected(index));
         }
 
         /** 阶段页全量数据走 assets/native-data.json（loadNativeData 解析后直接喂给视图），
@@ -1332,14 +1363,15 @@ public class MainActivity extends AppCompatActivity {
 
         /** 设置面板打开时，页面层把当前状态推回来。 */
         @JavascriptInterface
-        public void setSettingsState(String theme, String wallpaper, String glassJson) {
+        public void setSettingsState(String theme, String wallpaper, String glassJson,
+                                     boolean nativeDock, boolean nativeAppbar) {
             if (settingsPanel == null) return;
             try {
                 org.json.JSONObject g = new org.json.JSONObject(glassJson);
                 boolean dk = resolvedDark();
                 runOnUiThread(() -> {
                     settingsPanel.setDark(dk);
-                    settingsPanel.updateState(theme, wallpaper, g);
+                    settingsPanel.updateState(theme, wallpaper, g, nativeDock, nativeAppbar);
                 });
             } catch (Throwable ignored) { }
         }
@@ -1392,8 +1424,12 @@ public class MainActivity extends AppCompatActivity {
          *  开 = LensBarView 画全部底栏外观、HTML 底栏 visibility:hidden；关 = 回退 HTML。 */
         @JavascriptInterface
         public void setNativeDock(boolean on) {
+            /* 2026-11-02 boot 时序：JS 在 attach 前就上报开关（lensBar 尚为
+               null）——缓存 pending 态，attach 后补施；否则 attach 无条件
+               showPopup 会把竖屏 HTML dock 永久盖死（真机实锤）。 */
+            nativeDockPending = on;
             if (lensBar == null) return;
-            runOnUiThread(() -> lensBar.setNativeDock(on));
+            runOnUiThread(() -> NetOpsShell.INSTANCE.setNativeBar(on));
         }
 
         /* ---- R2 原生顶栏桥 ---- */
@@ -1402,16 +1438,25 @@ public class MainActivity extends AppCompatActivity {
          *  开 = AppBarView 画全部顶栏外观、HTML 顶栏 visibility:hidden；关 = 回退 HTML。 */
         @JavascriptInterface
         public void setNativeAppbar(boolean on) {
-            if (appbarBar == null) return;
-            runOnUiThread(() -> appbarBar.setNativeBar(on));
+            runOnUiThread(() -> NetOpsShell.INSTANCE.setNativeBar(on));
         }
 
         /** 顶栏状态推送（标题/导航键/主题键/滚动/搜索/抽屉/玻璃/壁纸版本）。
          *  32-boot 的 MutationObserver 合并 30ms 后调用，JSON 很小，UI 线程直接解析。 */
         @JavascriptInterface
         public void setAppBarState(String json) {
-            if (appbarBar == null) return;
-            runOnUiThread(() -> appbarBar.setState(json));
+            runOnUiThread(() -> {
+                /* Compose 顶栏只消费 title/subtitle（name/sub 键），其余字段忽略 */
+                try {
+                    org.json.JSONObject o = new org.json.JSONObject(json);
+                    String n = o.optString("name", null);
+                    String sub = o.optString("sub", null);
+                    if (n != null) NetOpsShell.INSTANCE.setTitle(n);
+                    if (sub != null) NetOpsShell.INSTANCE.setSubtitle(sub);
+                    NetOpsShell.INSTANCE.setOverlaid(o.optBoolean("overlaid", false));
+                    NetOpsShell.INSTANCE.setNativeBar(o.optBoolean("nativebar", NetOpsShell.INSTANCE.getNativeBar()));
+                } catch (Throwable ignored) { }
+            });
         }
 
         /** 栏矩形上报（CSS×dpr 物理像素）——原生底栏容器/触摸判定的几何真源。 */

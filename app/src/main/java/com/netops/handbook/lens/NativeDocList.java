@@ -42,6 +42,9 @@ public class NativeDocList extends LinearLayout {
         public String scrollKey = "doc";
         public String dataKey = "faults";     // native-data.json 顶层键
         public String chipFrom = "", chipTo = "";  // chip 文本替换（面试：IVQ→Q）
+        /** 按 cat 分组折叠。条目多（面试 53 题）时开启：平铺要建 500+ View，
+         *  整页布局 250~350ms；分组后默认只建 7~8 个组标题。 */
+        public boolean grouped = false;
     }
 
     private final Config cfg;
@@ -195,10 +198,71 @@ public class NativeDocList extends LinearLayout {
                 page.getWidth() > 0 ? page.getWidth()
                         : getResources().getDisplayMetrics().widthPixels));
 
-        for (int i = 0; i < items.length(); i++) {
-            JSONObject o = items.optJSONObject(i);
-            if (o != null) page.addView(itemCard(o));
+        if (cfg.grouped) {
+            /* 分组折叠：只建组标题，点开才建该组卡片（2026-11-07）。 */
+            java.util.LinkedHashMap<String, java.util.List<JSONObject>> groups =
+                    new java.util.LinkedHashMap<>();
+            for (int i = 0; i < items.length(); i++) {
+                JSONObject o = items.optJSONObject(i);
+                if (o == null) continue;
+                String c = o.optString("cat");
+                if (c.isEmpty()) c = "未分类";
+                java.util.List<JSONObject> g = groups.get(c);
+                if (g == null) { g = new java.util.ArrayList<>(); groups.put(c, g); }
+                g.add(o);
+            }
+            for (java.util.Map.Entry<String, java.util.List<JSONObject>> e : groups.entrySet()) {
+                page.addView(groupCard(e.getKey(), e.getValue()));
+            }
+        } else {
+            for (int i = 0; i < items.length(); i++) {
+                JSONObject o = items.optJSONObject(i);
+                if (o != null) page.addView(itemCard(o));
+            }
         }
+    }
+
+    /** 分组卡：标题常驻，展开时才建该组条目卡。 */
+    private View groupCard(String name, java.util.List<JSONObject> list) {
+        LinearLayout card = NativeBlocks.card(getContext(), pal);
+        LinearLayout head = new LinearLayout(getContext());
+        head.setOrientation(HORIZONTAL);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+
+        LinearLayout texts = new LinearLayout(getContext());
+        texts.setOrientation(VERTICAL);
+        texts.addView(NativeBlocks.tv(getContext(), pal, name, 15.5f, true, pal.textMain));
+        TextView cnt = NativeBlocks.tv(getContext(), pal, list.size() + " 题", 12, false, pal.textMute);
+        cnt.setPadding(0, pal.dp(4), 0, 0);
+        texts.addView(cnt);
+        head.addView(texts, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        TextView arrow = NativeBlocks.tv(getContext(), pal, "›", 20, false, pal.textMute);
+        head.addView(arrow);
+
+        LinearLayout body = new LinearLayout(getContext());
+        body.setOrientation(VERTICAL);
+        body.setVisibility(GONE);
+        body.setPadding(0, pal.dp(8), 0, 0);
+
+        final boolean[] built = {false};
+        head.setOnClickListener(v -> {
+            if (body.getVisibility() == VISIBLE) {
+                body.setVisibility(GONE);
+                arrow.setRotation(0f);
+            } else {
+                if (!built[0]) {
+                    for (JSONObject o : list) body.addView(itemCard(o));
+                    built[0] = true;
+                }
+                body.setVisibility(VISIBLE);
+                arrow.setRotation(90f);
+            }
+        });
+        card.addView(head);
+        card.addView(body);
+        return card;
     }
 
     private View itemCard(JSONObject o) {

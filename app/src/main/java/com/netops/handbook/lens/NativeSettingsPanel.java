@@ -46,6 +46,7 @@ public class NativeSettingsPanel extends FrameLayout {
     private String theme = "auto";
     private String wallpaper = "none";
     private JSONObject glass;
+    private boolean nativeDock = true, nativeAppbar = true;
     private JSONArray wallpapers = new JSONArray();
 
     /* 质感控件（状态推送后重建） */
@@ -109,10 +110,13 @@ public class NativeSettingsPanel extends FrameLayout {
     }
 
     /** JS 推当前状态 → 重建 UI。 */
-    public void updateState(String theme, String wallpaper, JSONObject glass) {
+    public void updateState(String theme, String wallpaper, JSONObject glass,
+                            boolean nativeDock, boolean nativeAppbar) {
         this.theme = theme;
         this.wallpaper = wallpaper;
         this.glass = glass;
+        this.nativeDock = nativeDock;
+        this.nativeAppbar = nativeAppbar;
         build();
     }
 
@@ -218,6 +222,18 @@ public class NativeSettingsPanel extends FrameLayout {
                 }
             }
         }
+
+        sheet.addView(section("原生界面"));
+        sheet.addView(toggleRow("原生底栏", "原生层绘制底栏外观；关闭回退网页渲染", nativeDock, v -> {
+            nativeDock = v;
+            setter.apply("nativedock", v ? "1" : "0");
+            build();
+        }));
+        sheet.addView(toggleRow("原生顶栏", "原生层绘制顶栏外观；关闭回退网页渲染", nativeAppbar, v -> {
+            nativeAppbar = v;
+            setter.apply("nativeappbar", v ? "1" : "0");
+            build();
+        }));
 
         sheet.addView(section("全局质感"));
         boolean on = glass != null && glass.optBoolean("on", true);
