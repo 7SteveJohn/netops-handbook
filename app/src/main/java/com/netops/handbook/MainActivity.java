@@ -504,6 +504,7 @@ public class MainActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     if (settingsPanel != null) {
                         settingsPanel.setDockDocked(dockDocked);   /* 面板按钮态=当前底栏样式 */
+                        settingsPanel.setGlassLevel(com.netops.handbook.lens.NativeBlocks.GLASS_LEVEL);
                         settingsPanel.show();
                         pushSettingsState();
                     }
@@ -1682,6 +1683,19 @@ public class MainActivity extends AppCompatActivity {
                     lensBar.postDelayed(lensBar::requestGeometry, 450);
                 }
                 if (settingsPanel != null) settingsPanel.setDockDocked(d);
+            });
+        }
+
+        /** 液态玻璃三档镜像（netops_lglass）：ultra 全效 / standard 砍色散+阴影 /
+         *  none 纯磨砂（平绘回退）。JS 真源，切换即刷 dock/顶栏。 */
+        @JavascriptInterface
+        public void setGlassLevel(String level) {
+            runOnUiThread(() -> {
+                if (!"none".equals(level) && !"standard".equals(level) && !"ultra".equals(level)) return;
+                com.netops.handbook.lens.NativeBlocks.GLASS_LEVEL = level;
+                if (lensBar != null) lensBar.onGlassLevelChanged();
+                if (appbarBar != null) appbarBar.invalidateBackdrop();
+                if (settingsPanel != null) settingsPanel.setGlassLevel(level);
             });
         }
 

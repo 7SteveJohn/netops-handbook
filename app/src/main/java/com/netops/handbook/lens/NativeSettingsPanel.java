@@ -44,6 +44,15 @@ public class NativeSettingsPanel extends FrameLayout {
         if (getVisibility() == VISIBLE) build();
     }
 
+    /* 液态玻璃三档镜像（netops_lglass 的 JS 真源；ultra/standard/none）。 */
+    private String glassLevel = "ultra";
+
+    public void setGlassLevel(String level) {
+        if (level == null || level.equals(glassLevel)) return;
+        glassLevel = level;
+        if (getVisibility() == VISIBLE) build();
+    }
+
     public interface Set {
         void apply(String kind, String value);
     }
@@ -243,6 +252,16 @@ public class NativeSettingsPanel extends FrameLayout {
         }, dockDocked ? "regular" : "float", v -> {
             dockDocked = "regular".equals(v);
             setter.apply("dockstyle", v);   /* → JS setTabbarMode → body 类 + 桥镜像回环 */
+        }));
+
+        /* 液态玻璃三档（2026-11-09，FlClash 对齐）：无=纯磨砂平绘 / 标准=砍色散+阴影 /
+           极致=全效。JS 真源（netops_lglass），经桥镜像回环刷新。 */
+        sheet.addView(section("液态玻璃"));
+        sheet.addView(chipRow(new String[][]{
+                {"none", "无"}, {"standard", "标准"}, {"ultra", "极致"}
+        }, glassLevel, v -> {
+            glassLevel = v;
+            setter.apply("glasslevel", v);   /* → JS 存储镜像 → 桥回环刷 dock/顶栏 */
         }));
 
         TextView album = NativeBlocks.tv(getContext(), pal,

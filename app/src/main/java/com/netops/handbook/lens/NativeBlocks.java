@@ -26,6 +26,15 @@ import org.json.JSONObject;
  */
 public class NativeBlocks {
 
+    /** 液态玻璃三档（2026-11-09 面板「液态玻璃」行，FlClash 对齐）：
+     *  ultra=全效（默认）/ standard=砍色散+阴影 / none=纯磨砂（平绘回退）。
+     *  JS 真源（netops_lglass）经桥镜像；draw 位点直读，变更走各视图重建。 */
+    public static String GLASS_LEVEL = "ultra";
+
+    public static boolean glassNone() { return "none".equals(GLASS_LEVEL); }
+
+    public static boolean glassStandard() { return "standard".equals(GLASS_LEVEL); }
+
     static class Palette {
         float density;
         boolean dark, direct;
@@ -285,6 +294,8 @@ public class NativeBlocks {
     static LinearLayout glassWrap(Context c, Palette p, LinearLayout card,
                                   android.view.ViewGroup source, boolean direct, int widthPx) {
         if (!direct || source == null || android.os.Build.VERSION.SDK_INT < 33) return card;
+        /* 液态玻璃三档（2026-11-09）：无=头卡退平卡；标准=砍色散。 */
+        if (NativeBlocks.glassNone()) return card;
         try {
             int cw = Math.max(1, widthPx - p.dp(28));
             card.measure(android.view.View.MeasureSpec.makeMeasureSpec(cw, android.view.View.MeasureSpec.EXACTLY),
@@ -297,7 +308,7 @@ public class NativeBlocks {
             glass.setRefractionHeight(p.dp(18));
             glass.setRefractionOffset(p.dp(56));
             glass.setBlurRadius(0.55f);
-            glass.setDispersion(0.35f);
+            glass.setDispersion(NativeBlocks.glassStandard() ? 0f : 0.35f);
             /* ❗深色 tint 必须跟深色卡（28,28,30）：原硬编码纯白 → 深色下玻璃
                白 84% + 深色 palette 白字 = 白字白底看不见（2026-11-08 用户报
                「网络学习手册 2.0 还是白色、标题看不见」）。glassWrap 包所有

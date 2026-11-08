@@ -638,6 +638,8 @@ public class AppBarView extends View {
     /** 组装栏体玻璃：noise(frost) → 栏缘 REFRACTION（24dp/24dp，同底栏 drawBarGlass）。
      *  方角栏 cornerRadii=0；霜半尺寸，localMatrix 把视图坐标映到霜像素。 */
     private void buildGlassShader() {
+        /* 「无」档：不组装折射 shader——onDraw 走 blurred 霜图+染色的平绘回退 */
+        if (NativeBlocks.glassNone()) { glassShader = null; return; }
         if (glassShaderFailed || blurred == null || barRect.width() <= 4) return;
         if (Build.VERSION.SDK_INT < 33 || glassShader == null) return;
         try {
@@ -894,7 +896,7 @@ public class AppBarView extends View {
             if (glassP.getShader() != null) {
                 canvas.drawRect(barRect, glassP);
                 canvas.drawRect(barRect, tintP);
-                if (bloomShader != null) {
+                if (bloomShader != null && !NativeBlocks.glassNone()) {
                     BloomStrokeFx.draw(bloomShader, bloomP, canvas,
                             barRect.left, barRect.top, barRect.right, barRect.bottom,
                             0f, 0.75f, -45f, gravityX, gravityY, density);

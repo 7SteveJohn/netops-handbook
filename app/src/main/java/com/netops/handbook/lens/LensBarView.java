@@ -1058,6 +1058,15 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     }
     private boolean docked = false;
 
+    /** 液态玻璃三档变更（桥 setGlassLevel）：药丸 uniform 每帧直读无需重建，
+     *  B1 容器位图与栏体缓存重建一次保一致。 */
+    public void onGlassLevelChanged() {
+        rebuildChrome();
+        invalidate();
+    }
+    /** 「无」档平绘载体（drawBarGlass 的 pane 直贴，提字段免每帧分配）。 */
+    private final Paint barPlainP = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+
     /** 方向推断 + 轨道几何。竖排几何完全由原生自算，不吃 JS 的横排 HTML 栏矩形。 */
     private void updateOrientation() {
         boolean vert = isLandscapeWindow();
@@ -1722,7 +1731,9 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         /* FlClash _lensShadows：black@0.055 + blur 5（我们原 15% 硬边影过重） */
         shadowP.setColor(Color.argb(14, 15, 23, 42));
         shadowP.setMaskFilter(new BlurMaskFilter(3f * density, BlurMaskFilter.Blur.NORMAL));
-        c3.drawRoundRect(sr3.left, sr3.top + density, sr3.right, sr3.bottom + 2f * density, rr, rr, shadowP);
+        /* 药丸投影随档位：standard/none 砍（与栏体投影同一语义） */
+        if (!NativeBlocks.glassNone() && !NativeBlocks.glassStandard())
+            c3.drawRoundRect(sr3.left, sr3.top + density, sr3.right, sr3.bottom + 2f * density, rr, rr, shadowP);
         c3.drawRoundRect(sr3, rr, rr, sliderFillP);
         sliderStrokeP.setStrokeWidth(density);
         c3.drawRoundRect(sr3, rr, rr, sliderStrokeP);
@@ -1819,7 +1830,9 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             /* 视图坐标系直画（shader 采样基准 = 视图坐标，与药丸链一致）。
                z 序照搬上游 drawBackdrop：投影 → 霜链(lens) → surface tint → highlight。 */
             float br2 = dockRadius(bar);
-            canvas.drawRoundRect(bar.left, bar.top, bar.right, bar.bottom, br2, br2, barShadowP);
+            /* 栏体投影：standard/none 砍（FlClash standard 语义「底栏阴影」） */
+            if (!NativeBlocks.glassNone() && !NativeBlocks.glassStandard())
+                canvas.drawRoundRect(bar.left, bar.top, bar.right, bar.bottom, br2, br2, barShadowP);
             if (barPane != null && barLensShader != null) {
                 float t = paneFadeAt == 0 ? 1f
                         : Math.min(1f, (SystemClock.uptimeMillis() - paneFadeAt) / (float) PANE_FADE_MS);
@@ -2367,7 +2380,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         pillRect.set(cx - hw, cy - hh, cx + hw, cy + hh);
         float r = pillCorner(hw, hh);
 
-        boolean glassReady = shader != null && Build.VERSION.SDK_INT >= 33;
+        boolean glassReady = shader != null && !NativeBlocks.glassNone() && Build.VERSION.SDK_INT >= 33;
         if (glassReady) {
             composeLensTab(cx, cy, hw, hh, liftV);
             if (lensTabShader != null && buildCombined(r, liftV)) {
@@ -2388,7 +2401,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                 shader.setFloatUniform("refractionHeight", 10f * density * liftV);
                 shader.setFloatUniform("refractionAmount", -14f * density * liftV);
                 shader.setFloatUniform("depthEffect", 0f);   // 关掉中心深度项：水滴中心是平的，只有边缘一圈弯折
-                shader.setFloatUniform("chromaticAberration", 0.28f);   // 收细彩虹边（参考图只有极细一圈）
+                shader.setFloatUniform("chromaticAberration", NativeBlocks.glassStandard() ? 0f : 0.28f);   // 标准/无档砍色散（FlClash standard 语义）
                 float alphaK = nativeDock ? 1f : Math.min(1f, liftV * 2.5f);
                 if (!nativeDock) alphaK = Math.min(alphaK, 0.5f);
                 /* ❗静止 refractionHeight=0 时 shader 里 `-sd / refractionHeight`
@@ -2466,8 +2479,11 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                 canvas.restoreToCount(save);
             }
         } else {
-            /* 背景未就绪时的按压降级：半透明药丸，保证按下有反馈 */
-            fallbackPaint.setColor(Color.argb(60, 255, 255, 255));
+            /* 背景未就绪时的按压降级：半透明药丸，保证按下有反馈。
+               「无」档（netops_lglass=none）常驻此路径：alpha 提到 200——
+               23% 白在浅霜上不可见 = 选中指示丢失（2026-11-09 真机截图实证）；
+               实感白胶囊 = FlClash 贴底态的选中语义，图标保持灰态。 */
+            fallbackPaint.setColor(Color.argb(NativeBlocks.glassNone() ? 200 : 60, 255, 255, 255));
             canvas.drawRoundRect(pillRect, r, r, fallbackPaint);
         }
     }
@@ -2477,6 +2493,14 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
      *  视图坐标直画（无 translate）：centeredCoord=(coord+offset)−halfSize 要等于
      *  coord−栏中心 ⇒ offset = −栏左上（❗不是 0——SDF 零点必须对准栏中心）。 */
     private void drawBarGlass(Canvas canvas, RectF bar, float r, BitmapShader pane, int alpha) {
+        /* 「无」档（netops_lglass=none）：整条平绘——pane 直贴（无栏缘折射），
+           bloom/药丸折射由各自位点门控。平绘 Paint 提字段复用（每帧调用）。 */
+        if (NativeBlocks.glassNone()) {
+            barPlainP.setShader(pane);
+            barPlainP.setAlpha(alpha);
+            canvas.drawRoundRect(bar.left, bar.top, bar.right, bar.bottom, r, r, barPlainP);
+            return;
+        }
         /* 不再按滚动状态降质：分段计时证明栏体 shader 本身 <1ms，降质只带来
            「松手瞬间画面突变」（2026-11-07 用户报）。真正的瓶颈是录制，见
            captureLiveBackdrop 的频率控制。 */
@@ -2504,7 +2528,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
      *  → 左右圆角内侧纯黑竖条（2026-11-06 定位）。 */
     private void drawBloomStroke(Canvas canvas, float l, float t, float rt, float b,
                                  float radius, float alpha, float extraDegrees) {
-        if (bloomShader == null || alpha <= 0.01f) return;
+        if (bloomShader == null || NativeBlocks.glassNone() || alpha <= 0.01f) return;
         int sv = canvas.save();
         canvas.translate(l, t);
         BloomStrokeFx.draw(bloomShader, bloomP, canvas, 0f, 0f, rt - l, b - t,

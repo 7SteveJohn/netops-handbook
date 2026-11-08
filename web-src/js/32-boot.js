@@ -1611,6 +1611,17 @@
   /* ---- 悬浮底栏模式（floating vs regular） ---- */
   var TABBAR_KEY = 'netops_tabbar';
 
+  /* ---- 液态玻璃三档（2026-11-09 面板行，FlClash 对齐）----
+     ultra=全效（默认）/ standard=砍色散+阴影 / none=纯磨砂平绘。
+     JS 真源存储，经桥镜像到原生（dock/顶栏/头卡 draw 位点直读）。 */
+  var LGLASS_KEY = 'netops_lglass';
+
+  function setGlassLevel(level) {
+    if (level !== 'none' && level !== 'standard' && level !== 'ultra') return;
+    lsSet(LGLASS_KEY, level);
+    try { if (w.NetBridge && w.NetBridge.setGlassLevel) NetBridge.setGlassLevel(level); } catch (e) { }
+  }
+
   function getTabbarMode() {
     try { return localStorage.getItem(TABBAR_KEY) || 'float'; } catch(e) { return 'float'; }
   }
@@ -2446,6 +2457,8 @@
     d.body.classList.toggle('tabbar-float', tbm !== 'regular');
     /* 开机同步原生镜像（贴底=方角栏）：setDockDocked 幂等，桥未就绪静默跳过。 */
     try { if (w.NetBridge && w.NetBridge.setDockDocked) NetBridge.setDockDocked(tbm === 'regular'); } catch (e) { }
+    /* 液态玻璃三档开机同步（同上幂等语义） */
+    try { if (w.NetBridge && w.NetBridge.setGlassLevel) NetBridge.setGlassLevel(localStorage.getItem(LGLASS_KEY) || 'ultra'); } catch (e) { }
     /* 液态玻璃：降级判定 + 立即应用。必须在这里跑——「我的」页是懒建的，
        原先只有进一次「我的」才会触发，导致冷启动时玻璃停在样式表默认值上。 */
     initGlass();
@@ -2582,6 +2595,7 @@
         if (kind === 'theme') setTheme(value);
         else if (kind === 'wallpaper') applyWallpaper(value, 'wp');
         else if (kind === 'dockstyle') setTabbarMode(value === 'regular' ? 'regular' : 'float');
+        else if (kind === 'glasslevel') setGlassLevel(value);
       } catch (e) { }
     };
     w.NetOpsNativePushSettings = function () {
