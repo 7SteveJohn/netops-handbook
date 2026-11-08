@@ -1295,6 +1295,7 @@ public class MainActivity extends AppCompatActivity {
             runOnUiThread(() -> {
                 if (nativeBackdrop != null) nativeBackdrop.setWallpaper(direct ? wpFile : "", blurDp);
                 if (lensBar != null) lensBar.onBackdropChanged();   // 栏体玻璃采样源换代，重抓
+                if (nativeHome != null) nativeHome.setDirectMode(direct);
                 if (nativePhase != null) nativePhase.setDirectMode(direct);
                 if (nativeFault != null) nativeFault.setDirectMode(direct);
                 if (nativeIv != null) nativeIv.setDirectMode(direct);
