@@ -7,7 +7,6 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
-import android.widget.SeekBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
@@ -24,7 +23,7 @@ import org.json.JSONObject;
  * 交互值域对齐 Web 版：
  *   theme = auto | light | dark
  *   wallpaper = 'none' 或 WALLPAPERS[].id
- *   glass = { on, mode: liquid|frosted|gaussian, blur: 8-20, tint: 10-95 }
+ *   （2026-11-08 恒开收口：glass/原生开关载荷已随设置 UI 下线，面板只收 theme/wallpaper。）
  */
 public class NativeSettingsPanel extends FrameLayout {
 
@@ -45,8 +44,6 @@ public class NativeSettingsPanel extends FrameLayout {
     /* 当前状态（JS 推进来） */
     private String theme = "auto";
     private String wallpaper = "none";
-    private JSONObject glass;
-    private boolean nativeDock = true, nativeAppbar = true;
     private JSONArray wallpapers = new JSONArray();
 
     /* 质感控件（状态推送后重建） */
@@ -110,13 +107,9 @@ public class NativeSettingsPanel extends FrameLayout {
     }
 
     /** JS 推当前状态 → 重建 UI。 */
-    public void updateState(String theme, String wallpaper, JSONObject glass,
-                            boolean nativeDock, boolean nativeAppbar) {
+    public void updateState(String theme, String wallpaper) {
         this.theme = theme;
         this.wallpaper = wallpaper;
-        this.glass = glass;
-        this.nativeDock = nativeDock;
-        this.nativeAppbar = nativeAppbar;
         build();
     }
 
@@ -274,64 +267,5 @@ public class NativeSettingsPanel extends FrameLayout {
         return row;
     }
 
-    private View toggleRow(String title, String sub, boolean on, BoolConsumer onToggle) {
-        LinearLayout row = new LinearLayout(getContext());
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        LinearLayout col = new LinearLayout(getContext());
-        col.setOrientation(LinearLayout.VERTICAL);
-        col.addView(NativeBlocks.tv(getContext(), pal, title, 14, true, pal.textMain));
-        TextView s = NativeBlocks.tv(getContext(), pal, sub, 11, false, pal.textMute);
-        s.setPadding(0, pal.dp(2), 0, 0);
-        col.addView(s);
-        row.addView(col, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-
-        TextView sw = NativeBlocks.tv(getContext(), pal, on ? "开" : "关", 12.5f, true,
-                on ? Color.WHITE : pal.textSub);
-        sw.setGravity(Gravity.CENTER);
-        sw.setPadding(pal.dp(14), pal.dp(6), pal.dp(14), pal.dp(6));
-        sw.setBackground(NativeBlocks.shape(pal, on ? pal.accent : pal.chipBgOff, pal.dp(13)));
-        row.addView(sw);
-        sw.setOnClickListener(v -> onToggle.accept(!on));
-        return row;
-    }
-
-    private View sliderRow(String title, int value, int min, int max, String unit, java.util.function.IntConsumer onChange) {
-        LinearLayout col = new LinearLayout(getContext());
-        col.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout head = new LinearLayout(getContext());
-        head.setOrientation(LinearLayout.HORIZONTAL);
-        head.setGravity(Gravity.CENTER_VERTICAL);
-        head.addView(NativeBlocks.tv(getContext(), pal, title, 14, true, pal.textMain),
-                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        TextView val = NativeBlocks.tv(getContext(), pal, value + unit, 12.5f, false, pal.accent);
-        head.addView(val);
-        col.addView(head);
-
-        SeekBar bar = new SeekBar(getContext());
-        bar.setMax(max - min);
-        bar.setProgress(value - min);
-        bar.getThumb().setTint(pal.accent);
-        bar.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(pal.hairline));
-        bar.setProgressTintList(android.content.res.ColorStateList.valueOf(pal.accent));
-        bar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override public void onProgressChanged(SeekBar s, int progress, boolean fromUser) {
-                if (!fromUser) return;
-                int v = progress + min;
-                val.setText(v + unit);
-                onChange.accept(v);
-            }
-            @Override public void onStartTrackingTouch(SeekBar s) { }
-            @Override public void onStopTrackingTouch(SeekBar s) { }
-        });
-        LinearLayout.LayoutParams blp = NativeBlocks.matchP();
-        blp.topMargin = pal.dp(6);
-        col.addView(bar, blp);
-        return col;
-    }
-
-    private double clamp(double v, double min, double max) { return Math.max(min, Math.min(max, v)); }
-
     interface StringConsumer { void accept(String v); }
-    interface BoolConsumer { void accept(boolean v); }
 }

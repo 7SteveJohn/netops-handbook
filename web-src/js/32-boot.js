@@ -277,7 +277,7 @@
       if (searchIsOpen()) { closeSearch(); return; }
       scroll.scrollTo({ top: 0, behavior: 'smooth' }); return;
     }
-    /* 切主标签前关闭所有 sheet（避免 wpSheet / glassSheet DOM 被 V.*() innerHTML 覆盖后
+    /* 切主标签前关闭所有 sheet（避免 wpSheet DOM 被 V.*() innerHTML 覆盖后
        留下半开/错位状态——用户 2026-08-12 "我的页快速下滑触发 bug" 反馈的根因）。
        注意：不关闭 drawer（侧滑菜单）。 */
     try { if (U.sheet.isOpen && U.sheet.isOpen()) U.sheet.close(); } catch (e) {}
@@ -297,7 +297,7 @@
   /* 返回一层。true = 已消费；false = 已在根，交还给宿主（Android 可退出） */
   function back() {
     if (U.sheet.isOpen()) { U.sheet.close(); return true; }
-    if (closeAnyCustomSheet()) { return true; } /* 关闭壁纸/玻璃自定义弹窗 */
+    if (closeAnyCustomSheet()) { return true; } /* 关闭壁纸自定义弹窗 */
     if (drawerCtl && drawerCtl.isOpen && drawerCtl.isOpen()) { drawerCtl.close(); return true; }
     /* 展开卡片（二级菜单 DOM 展开，非 stack 导航）：所有返回路径统一先收卡片
        （2026-09-25：此前只有左滑手势关卡片，物理返回键在展开卡片上第一下没反应） */
@@ -577,28 +577,6 @@
       /* 重置 */
       if (t.closest('[data-reset]')) { confirmReset(); return; }
 
-      /* 原生底栏开关（R1）：切换即重画，无需刷新 */
-      var nd = t.closest('[data-toggle-nativedock]');
-      if (nd) {
-        var ndOn = !w.NetOpsNativeDockOn();
-        w.NetOpsSetNativeDock(ndOn);
-        var sw = $('#swNativeDock');
-        if (sw) sw.classList.toggle('is-on', ndOn);
-        U.toast(ndOn ? '原生底栏已开启' : '已回退网页底栏', 'ok');
-        return;
-      }
-
-      /* 原生顶栏开关（R2）：同上 */
-      var na = t.closest('[data-toggle-nativeappbar]');
-      if (na) {
-        var naOn = !A.nativeAppbarOn();
-        w.NetOpsSetNativeAppbar(naOn);
-        var swa = $('#swNativeAppbar');
-        if (swa) swa.classList.toggle('is-on', naOn);
-        U.toast(naOn ? '原生顶栏已开启' : '已回退网页顶栏', 'ok');
-        return;
-      }
-
       /* 动画开关 */
       var tm = t.closest('[data-toggle-motion]');
       if (tm) {
@@ -715,8 +693,8 @@
   /* ---------------- 按压形变（"按住能拉扯"的活玻璃） ----------------
      位移跟手、沿拖动方向拉伸（另一轴反向压缩，看着才像软体），松手用弹簧过冲回位。
      只碰 transform；浏览器一旦接管滚动会发 pointercancel，我们顺势回位，绝不和滚动抢。
-     幅度/时长是手感参数，只能真机上手调，所以做成可实时改的 store 值：
-     长按「全局质感」弹窗标题 0.6 秒开调参面板（隐藏入口，不占正式界面）。 */
+     幅度/时长是手感参数，做成可实时改的 store 值（调参面板入口已随玻璃设置
+     UI 于 2026-11-08 下线；数值仍在 store 里随 JSON 备份走）。 */
   /* 2026-10-27：.list__item / .card__head 退出形变——它们贴着容器边，按下缩放/拖拽位移
    会让直角按压背景与圆角容器错位露底色（用户实证「矩形色块跟底面背景不一致」，
    与 2026-10-26 直铺模式关形变同根）。独立浮动的按钮/筹码/卡片保留手感。
@@ -1369,7 +1347,6 @@
   function getGlass() {
     try { var s = localStorage.getItem(GLASS_KEY); return s ? JSON.parse(s) : null; } catch(e) { return null; }
   }
-  function saveGlass(g) { lsSet(GLASS_KEY, JSON.stringify(g)); }
 
   /* 设备降级状态：低电/旧设备自动切到模式 B（标准毛玻璃）。
      deviceDegraded ：硬件层（内存/CPU/省电偏好），启动时判定一次，不自动恢复；
@@ -1578,209 +1555,6 @@
     }
   }
 
-  /** 通透度读数：被可读性下限抬过时如实标出实际值，不再显示一个对不上界面的数字 */
-  function tintLabel(g) {
-    var ct = w.__glassTint;
-    if (!ct) return (g && g.tint || 55) + '%';
-    return ct.clamped ? ct.want + '% · 实际 ' + ct.eff + '%' : ct.want + '%';
-  }
-
-  /** 渲染玻璃设置面板（双模式段控：A 液态玻璃 / B 标准毛玻璃 + 高斯省电档） */
-  function renderGlassPanel() {
-    var body = $('#glassBody');
-    if (!body) return;
-    var g = getGlass() || glassDefaults;
-    var em = effectiveGlassMode(g);          /* 实际生效模式（可能已被降级覆盖） */
-    var degraded = (deviceDegraded || batteryDegraded) && !userOverrideGlass;
-
-    var h = '';
-
-    /* 总开关 + 模式 + 模糊强度（始终显示，无需壁纸） */
-    h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0">' +
-      '<div><div class="t-sm bold">玻璃效果</div><div class="t-xs t-mute">为界面添加半透明模糊质感</div></div>' +
-      '<span class="switch' + (g.on ? ' is-on' : '') + '" id="glassSw_on"></span></div>';
-
-    if (g.on) {
-      /* 双模式段控：A 液态玻璃（默认）/ B 标准毛玻璃 + 高斯模糊省电档 */
-      var modes = [
-        { k: 'liquid',   ico: '💧', name: '液态玻璃',   desc: '镜面高光 + 边缘光折射 · 苹果风格，观感最佳（默认）' },
-        { k: 'frosted',  ico: '🌫️', name: '标准毛玻璃', desc: 'iOS 风哑光磨砂 · 柔和暖调，更轻量省电' },
-        { k: 'gaussian', ico: '◯',  name: '高斯模糊',   desc: '近乎不透明 · 最省电，适合旧设备/户外护眼' }
-      ];
-      h += '<div style="margin-top:14px"><div class="t-xs bold" style="margin-bottom:8px;color:var(--text-2)">全局质感（单选）</div>';
-      h += '<div style="display:flex;gap:8px;background:var(--surf-2);border-radius:var(--r-md);padding:6px">';
-      modes.forEach(function (m) {
-        var on = em === m.k;
-        h += '<button type="button" class="chip' + (on ? ' is-active' : '') + '" data-glass="mode" data-gval="' + m.k + '"' +
-          ' style="flex:1 1 0;flex-direction:column;height:auto;padding:9px 6px;gap:3px;font-size:11.5px;line-height:1.3">' +
-          '<span style="font-size:18px">' + m.ico + '</span>' +
-          '<span style="font-weight:700">' + m.name + '</span></button>';
-      });
-      h += '</div>';
-
-      /* 降级说明条 */
-      if (degraded) {
-        h += '<div class="t-xs" style="margin-top:10px;padding:9px 10px;border-radius:var(--r-sm);' +
-          'background:var(--warn-soft);color:var(--warn);line-height:1.55">' +
-          '⚡ 已为' + (batteryDegraded && !deviceDegraded ? '低电量' : '当前设备') + '自动切换为「标准毛玻璃」以省电。' +
-          (userOverrideGlass ? '（你已手动覆盖，本会话保持你的选择）' : '手动选择任意质感即可临时覆盖省电流式。') + '</div>';
-      }
-
-      /* 滑块语义随模式切换：液态玻璃 → 通透度(%不透明度)；毛玻璃/高斯 → 模糊强度(px)。
-        三种模式都带模糊（由 .wall 背景层统一提供），通透度由 g.tint 控制；滑块不锁死，切模式即时换语义 */
-      var isLiquid = (g.on && effectiveGlassMode(g) === 'liquid');
-      var sKey = isLiquid ? 'tint' : 'blur';
-      var sMin = isLiquid ? 10 : 8;
-      var sMax = isLiquid ? 95 : 20;
-      var sVal = isLiquid ? (g.tint || 55) : g.blur;
-      var sLbl = isLiquid ? '通透度' : '模糊强度';
-      var sSfx = isLiquid ? '%' : 'px';
-      h += '<div style="margin-top:16px"><div class="row" style="justify-content:space-between;margin-bottom:8px">' +
-        '<span class="t-xs bold" style="color:var(--text-2)">' + sLbl + '</span>' +
-        '<span class="t-xs mono" style="color:var(--accent)" id="glassVal_' + sKey + '">' +
-          (sKey === 'tint' ? tintLabel(g) : sVal + sSfx) + '</span></div>' +
-        '<input type="range" class="glass-slider" min="' + sMin + '" max="' + sMax + '" step="' + (isLiquid ? 5 : 1) + '" value="' + sVal + '" data-glass="' + sKey + '" style="width:100%"></div>' +
-      (isLiquid ?
-        '<div class="t-xs" style="margin-top:8px;padding:8px 10px;border-radius:var(--r-sm);background:var(--accent-soft);color:var(--accent-text);line-height:1.55">' +
-        '通透度 = 浮层不透明度（越低越透，壁纸越清晰）。背景已统一预模糊，且低于可读性下限时会自动兜住，再透也不会把字埋掉。</div>' :
-        '');
-
-      /* 增强对比度：玻璃板下限从 AA 的 4.5:1 抬到长时间阅读的 7:1 */
-      h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 0 2px">' +
-        '<div><div class="t-sm bold">增强对比度</div>' +
-        '<div class="t-xs t-mute">把说明文字换成更强对比的一档，与背景对比从 4.5:1 提到 7:1（长时间阅读推荐值），必要时玻璃板同步加厚</div></div>' +
-        '<span class="switch' + (g.hiContrast ? ' is-on' : '') + '" id="glassSw_hi"></span></div>';
-
-      /* 按压形变手感调参。隐藏入口：长按本弹窗标题 0.6 秒 —— 这是给我自己
-         调手感用的，不该占正式界面；数值存 store，所以自动进 JSON 备份。 */
-      function sqRow(k, name, unit, min, max, step, val) {
-        return '<div style="margin-top:10px"><div class="row" style="justify-content:space-between">' +
-          '<span class="t-xs" style="color:var(--text-2)">' + name + '</span>' +
-          '<span class="t-xs mono" style="color:var(--accent)" id="sqVal_' + k + '">' + val + unit + '</span></div>' +
-          '<input type="range" class="glass-slider" min="' + min + '" max="' + max + '" step="' + step +
-          '" value="' + val + '" data-sq="' + k + '" style="width:100%"></div>';
-      }
-      h += '<div id="sqTune" style="display:none;margin-top:14px;padding:12px;border-radius:var(--r-md);background:var(--surf-2)">' +
-        '<div class="t-xs bold" style="color:var(--text-2)">按压形变手感（调试）</div>' +
-        sqRow('max', '跟手位移上限', 'px', 0, 20, 1, SQT.max) +
-        sqRow('press', '按下压缩', '%', 0, 15, 1, Math.round((1 - SQT.press) * 100)) +
-        sqRow('stretch', '沿拖动方向拉伸', '%', 0, 20, 1, Math.round(SQT.stretch * 100)) +
-        sqRow('squash', '垂直轴反向压缩', '%', 0, 20, 1, Math.round(SQT.squash * 100)) +
-        sqRow('back', '回弹时长', 'ms', 120, 1200, 20, SQT.back) +
-        '<div class="row" style="gap:10px;margin-top:12px;align-items:center">' +
-        '<span class="chip" id="sqDemo">按住我试</span>' +
-        '<button type="button" class="btn btn--soft t-xs" id="sqReset" style="padding:6px 10px">复位</button></div>' +
-        '<div class="t-xs mono" id="sqOut" style="margin-top:10px;word-break:break-all"></div></div>';
-
-      h += '<div class="t-xs t-mute" style="margin-top:14px;padding:10px;background:var(--surf-2);border-radius:var(--r-sm);line-height:1.65">' +
-        (isLiquid ? '提示：设一张背景壁纸后，通透度变化更明显。滑块拉到很透时，为保证文字可读，板厚会停在按这张壁纸算出的下限上。' :
-                   '提示：设一张背景壁纸后效果更明显。推荐 12-16px 平衡观感与流畅度。') + '</div>';
-    }
-
-    body.innerHTML = h;
-
-    /* 绑定事件：开关 */
-    var swOn = body.querySelector('#glassSw_on');
-    if (swOn) swOn.parentElement.addEventListener('click', function () {
-      g.on = !g.on; saveGlass(g); applyGlass(g);
-      renderGlassPanel();
-      updateGlassLabel(g);
-      U.toast(g.on ? '玻璃效果已开启' : '玻璃效果已关闭', 'ok');
-    });
-
-    /* 绑定事件：增强对比度 */
-    var swHi = body.querySelector('#glassSw_hi');
-    if (swHi) swHi.parentElement.addEventListener('click', function () {
-      g.hiContrast = !g.hiContrast; saveGlass(g); applyGlass(g);
-      renderGlassPanel(); updateGlassLabel(g);
-      U.toast(g.hiContrast ? '已增强对比度：玻璃板加厚' : '已恢复默认通透度', 'ok');
-    });
-
-    /* 绑定事件：形变手感调参（滑块即时生效，演示块当场可拉扯） */
-    var tune = body.querySelector('#sqTune');
-    if (tune) {
-      var out = body.querySelector('#sqOut');
-      if (out) { out.style.marginTop = '10px'; out.textContent = JSON.stringify(SQT); }
-      body.querySelectorAll('[data-sq]').forEach(function (input) {
-        var k = input.getAttribute('data-sq');
-        input.addEventListener('input', function () {
-          var raw = parseFloat(input.value), s2 = getSqt();
-          if (k === 'max') s2.max = raw;
-          else if (k === 'back') s2.back = raw;
-          else if (k === 'press') s2.press = 1 - raw / 100;
-          else s2[k] = raw / 100;
-          U.store.set('sqtune', s2);
-          var cur = applySqt();
-          var lbl = body.querySelector('#sqVal_' + k);
-          if (lbl) lbl.textContent = input.value + (k === 'max' ? 'px' : k === 'back' ? 'ms' : '%');
-          if (out) out.textContent = JSON.stringify(cur);
-        });
-      });
-      var rst = body.querySelector('#sqReset');
-      if (rst) rst.addEventListener('click', function () {
-        U.store.set('sqtune', SQT_DEF); applySqt(); renderGlassPanel();
-        U.toast('形变参数已复位', 'ok');
-      });
-    }
-    /* 隐藏入口：长按弹窗标题 0.6 秒 */
-    var gTitle = d.querySelector('#glassSheet .sheet__title');
-    if (gTitle && !gTitle.__sqBound) {
-      gTitle.__sqBound = true;
-      var lp = 0;
-      gTitle.addEventListener('pointerdown', function () {
-        clearTimeout(lp);
-        lp = setTimeout(function () {
-          var t2 = body.querySelector('#sqTune');
-          if (!t2) return;
-          var show = t2.style.display === 'none';
-          t2.style.display = show ? 'block' : 'none';
-          if (show) U.toast(squishBlocked()
-            ? '调参面板已展开，但当前设备/设置停用了形变（检查「动画效果」与省电状态）'
-            : '调参面板已展开：按住下面那块试手感', 'ok', 3200);
-        }, 600);
-      }, { passive: true });
-      ['pointerup', 'pointermove', 'pointercancel', 'pointerleave'].forEach(function (ev) {
-        gTitle.addEventListener(ev, function () { clearTimeout(lp); }, { passive: true });
-      });
-    }
-
-    /* 绑定事件：段控 */
-    body.querySelectorAll('[data-glass="mode"]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var val = this.getAttribute('data-gval');
-        g.mode = val;
-        /* 用户手动选择毛玻璃/高斯才允许省电降级；选液态 = 解除覆盖(尊重通透感) */
-        userOverrideGlass = (val === 'liquid');
-        saveGlass(g); applyGlass(g); renderGlassPanel(); updateGlassLabel(g);
-      });
-    });
-
-    /* 绑定事件：滑块（requestAnimationFrame 节流，避免拖动时连续 input 事件
-       频繁重绘导致 WebView 闪屏）。必须按 [data-glass] 收窄 —— 调参面板的滑块
-       同样用 .glass-slider 复用外观，早期版本会把它们一起绑上，key 取到 null
-       后 `$('#glassVal_null').textContent` 直接抛异常。 */
-    body.querySelectorAll('.glass-slider[data-glass]').forEach(function (input) {
-      var key = input.getAttribute('data-glass');
-      var raf = 0, lastText = '';
-      function applyFlush() {
-        raf = 0;
-        var val = parseInt(input.value, 10);
-        g[key] = val;
-        var txt = key === 'tint' ? tintLabel(g) : val + 'px';
-        var out2 = $('#glassVal_' + key);
-        if (out2 && txt !== lastText) { out2.textContent = txt; lastText = txt; }
-        saveGlass(g); applyGlass(g);
-      }
-      function apply() {
-        if (raf) return;
-        raf = requestAnimationFrame(applyFlush);
-      }
-      /* 结束时强制 flush 一次,避免最后一帧没更新 */
-      function applyNow() { if (raf) { cancelAnimationFrame(raf); raf = 0; } applyFlush(); }
-      input.addEventListener('input', apply);
-      input.addEventListener('change', applyNow);
-    });
-  }
 
   /* ---- 通用 Sheet 关闭增强（Fix 3: 遮罩点击 / 返回键 / 防重复打开） ---- */
   var openCustomSheet = null; /* 记录当前打开的自定义 sheet */
@@ -1810,17 +1584,16 @@
   }
   /** 检查是否有自定义 sheet 打开（供 back() 调用） */
   function closeAnyCustomSheet() {
-    var wp = $('#wpSheet'), gl = $('#glassSheet');
+    var wp = $('#wpSheet');
     if (wp && wp.classList.contains('is-open')) { wp.classList.remove('is-open'); return true; }
-    if (gl && gl.classList.contains('is-open')) { gl.classList.remove('is-open'); return true; }
     return false;
   }
 
   /* ---- 底部弹层开合 → 原生透镜窗收起（2026-10-26）----
-     原生透镜窗是独立窗口永远置顶，药丸触摸带会吃掉 sheet 底部控件（全局质感
-     的玻璃开关）的点击。sheet 开合时推送给 NetBridge.setSheetOpen，原生收起/
+     原生透镜窗是独立窗口永远置顶，药丸触摸带会吃掉 sheet 底部控件（壁纸选择/
+     相册导入按钮等）的点击。sheet 开合时推送给 NetBridge.setSheetOpen，原生收起/
      还原透镜窗。桌面浏览器 / 旧包无此方法则静默跳过。
-     ⚠ wpSheet/glassSheet 是「我的」页渲染时 innerHTML 动态注入的（31-views），
+     ⚠ wpSheet 是「我的」页渲染时 innerHTML 动态注入的（31-views），
      boot 时还不存在、且每次切页会被重建 —— 必须 document 级 subtree 观察，
      单点覆盖创建与所有开合来源（遮罩/grab/返回键/切页都只动 is-open 类）。 */
   (function watchSheetForLens() {
@@ -1949,19 +1722,11 @@
   }
 
   function initGlass() {
-    var lbl = $('#glassLbl');
-    var sheet = $('#glassSheet');
-    /* 门禁只认弹窗节点（静态 HTML 里就有）。#glassLbl 属于「我的」页，
-       那页是首次进入才构建的——拿它当门禁会让冷启动整段玻璃初始化被跳过，
-       表现为「开 App 时玻璃没生效，进一次我的才对」。 */
-    if (!sheet) return;
-
-    /* 硬件层降级：启动时判定一次（低端机自动回退到模式 B） */
+    /* 2026-11-08 恒开收口：玻璃设置 UI（我的页质感行/弹窗/调参面板）已随
+       原生化整体下线，这里只保留引擎侧——启动应用玻璃参数 + 硬件/电量降级
+       （降级在 applyGlass→effectiveGlassMode 内生效），设置入口不再存在。 */
     deviceDegraded = shouldDegrade();
-
-    var g = getGlass() || glassDefaults;
-    applyGlass(g);
-    updateGlassLabel(g);
+    applyGlass(getGlass() || glassDefaults);
 
     /* 电量层降级：监听 DeviceBattery（不支持则跳过）；低电且未充电自动切 B */
     if (navigator.getBattery) {
@@ -1969,45 +1734,12 @@
         function sync() {
           batteryDegraded = (b.level <= 0.2 && !b.charging);
           applyGlass(getGlass() || glassDefaults);
-          updateGlassLabel(getGlass() || glassDefaults);
-          if (batteryDegraded && !userOverrideGlass) {
-            U.toast('低电量：已切换为标准毛玻璃以省电', 'ok');
-          }
         }
         b.addEventListener('levelchange', sync);
         b.addEventListener('chargingchange', sync);
         sync();
       }).catch(function () {});
     }
-
-    /* 若硬件层降级，启动后轻提示一次（仅一次，避免刷屏） */
-    if (deviceDegraded) {
-      setTimeout(function () {
-        if (!userOverrideGlass) U.toast('当前设备已自动采用标准毛玻璃', 'ok');
-      }, 400);
-    }
-
-    /* 点击「个性化」行打开弹窗（该行只有「我的」页构建后才存在） */
-    if (lbl) lbl.closest('.list__item').addEventListener('click', function (e) {
-      if (sheet.classList.contains('is-open')) return;
-      e.stopPropagation();
-      sheet.classList.add('is-open');
-      openCustomSheet = sheet;
-      renderGlassPanel();
-    });
-
-    /* 关闭弹窗：拖拽条 + 遮罩 */
-    setupSheetBackdrop(sheet);
-  }
-
-  function updateGlassLabel(g) {
-    var lbl = $('#glassLbl');
-    if (!lbl) return;
-    if (!g || !g.on) { lbl.textContent = '关闭'; return; }
-    var em = effectiveGlassMode(g);
-    var m = em === 'liquid' ? '液态玻璃' : em === 'gaussian' ? '高斯模糊' : '标准毛玻璃';
-    lbl.textContent = m + (em === 'liquid' ? ' · 通透' + tintLabel(g) : ' · 模糊' + g.blur + 'px') +
-      (g.hiContrast ? ' · 增强对比' : '');
   }
 
   /* ---------------- 搜索 ---------------- */
@@ -2597,8 +2329,8 @@
       peek.style.transform = 'translateY(-50%) scaleY(' + (0.4 + 0.6 * k) + ')';
     }
     function customSheetOpen() {
-      var wp = $('#wpSheet'), gl = $('#glassSheet');
-      return (wp && wp.classList.contains('is-open')) || (gl && gl.classList.contains('is-open'));
+      var wp = $('#wpSheet');
+      return wp && wp.classList.contains('is-open');
     }
     function canBack() {
       if (U.sheet.isOpen()) return true;
@@ -2839,21 +2571,16 @@
     /* 原生设置面板回写：真源仍在本层（存 localStorage → apply） */
     w.NetOpsNativeSet = function (kind, value) {
       try {
+        /* 2026-11-08 恒开收口：glass/nativedock/nativeappbar 三分支随设置 UI
+           下线删除（原生侧 NativeSettingsPanel 只 emit theme/wallpaper）。 */
         if (kind === 'theme') setTheme(value);
         else if (kind === 'wallpaper') applyWallpaper(value, 'wp');
-        else if (kind === 'glass') {
-          var g = JSON.parse(value);
-          saveGlass(g); applyGlass(g);
-        }
-        else if (kind === 'nativedock') w.NetOpsSetNativeDock(value === '1');
-        else if (kind === 'nativeappbar') w.NetOpsSetNativeAppbar(value === '1');
       } catch (e) { }
     };
     w.NetOpsNativePushSettings = function () {
       try {
-        var g = getGlass() || glassDefaults;
-        w.NetBridge.setSettingsState(U.theme.get(), lsGet(WP_KEY) || 'none', JSON.stringify(g),
-            nativeDockOn(), nativeAppbarOn());
+        /* 2026-11-08 减参 5→2：glass/两开关三参随设置 UI 下线（原生 updateState 同步） */
+        w.NetBridge.setSettingsState(U.theme.get(), lsGet(WP_KEY) || 'none');
       } catch (e) { }
     };
     w.NetOpsNativeState = function (id, kind, on) {

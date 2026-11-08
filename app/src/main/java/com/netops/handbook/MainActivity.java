@@ -1391,15 +1391,13 @@ public class MainActivity extends AppCompatActivity {
 
         /** 设置面板打开时，页面层把当前状态推回来。 */
         @JavascriptInterface
-        public void setSettingsState(String theme, String wallpaper, String glassJson,
-                                     boolean nativeDock, boolean nativeAppbar) {
+        public void setSettingsState(String theme, String wallpaper) {
             if (settingsPanel == null) return;
             try {
-                org.json.JSONObject g = new org.json.JSONObject(glassJson);
                 boolean dk = resolvedDark();
                 runOnUiThread(() -> {
                     settingsPanel.setDark(dk);
-                    settingsPanel.updateState(theme, wallpaper, g, nativeDock, nativeAppbar);
+                    settingsPanel.updateState(theme, wallpaper);
                 });
             } catch (Throwable ignored) { }
         }

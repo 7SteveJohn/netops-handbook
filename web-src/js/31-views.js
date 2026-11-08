@@ -10,7 +10,7 @@
 
   var V = {};
 
-  /* 壁纸/玻璃设置弹窗的静态外壳：由 boot() 挂到 <body> 下（不在 view 内），
+  /* 壁纸设置弹窗的静态外壳：由 boot() 挂到 <body> 下（不在 view 内），
      避免 .view.is-active 的 view-spring-in 入场动画（transform: scale/translateY）
      破坏 fixed 定位子元素——用户 2026-08-12「点我的快速下滑 sheet 错位」根因。 */
   w.SHEET_MARKUP =
@@ -24,10 +24,7 @@
           '<button type="button" id="wpCustomBtn" class="btn btn--primary btn--block" style="height:46px;font-size:14px">' +
             '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="vertical-align:-3px;margin-right:4px"><rect x="3" y="4" width="18" height="16" rx="2.5" stroke="#fff" stroke-width="1.8" fill="none"/><circle cx="8.5" cy="9.5" r="2" fill="#fff" opacity=".7"/></svg> 从相册选择图片</button>' +
           '<button type="button" id="wpClearBtn" class="btn btn--soft btn--block" style="margin-top:8px;height:38px">清除壁纸</button>' +
-        '</div></div>' +
-      '<div id="glassSheet" class="sheet"><div class="sheet__grab"></div>' +
-        '<div class="sheet__head"><span class="sheet__title">个性化</span></div>' +
-        '<div class="sheet__body" id="glassBody"></div></div>';
+        '</div></div>';
 
   /* 页面外壳 */
   function page(inner) { return '<div class="page">' + inner + '</div>'; }
@@ -302,15 +299,6 @@
     h += sec('i-bookmark', '我的收藏');
     h += '<div class="list">' + li('i-star', '收藏夹', favN ? favN + ' 条已收藏' : '还没有收藏任何内容', 'fav') + '</div>';
 
-    h += sec('i-compass', '资源');
-    h += '<div class="list">' +
-      li('i-book', '速查表', EXT.refs.length + ' 张高频对照表', 'refs') +
-      li('i-help', '术语词典', EXT.glossary.length + ' 条', 'glossary') +
-      li('i-flag', '学习路线图', '0-12 个月成长节奏', 'roadmap') +
-      li('i-award', '模拟测验', QUIZ.length + ' 题 · 已测 ' + A.S.quizRuns + ' 次', 'quiz') +
-      li('i-terminal', 'CLI 模拟器', '离线命令沙盒', 'cli') +
-    '</div>';
-
     h += sec('i-settings', '设置');
     h += '<div class="list">' +
       '<div class="list__item" data-noripple><span class="list__ico" style="background:linear-gradient(135deg,#f5f3ff 0%,#ede9fe 100%);color:var(--c-purple-600)">' + icon('i-moon', 'icon--sm') + '</span>' +
@@ -319,10 +307,6 @@
       '<div class="list__item" data-noripple><span class="list__ico" style="background:linear-gradient(135deg,#e8f0fe 0%,#f0e6ff 100%);color:var(--accent)">' +
         '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="margin-top:-1px"><rect x="3" y="4" width="18" height="16" rx="2.5" stroke="currentColor" stroke-width="1.8" fill="none"/><circle cx="8.5" cy="9.5" r="2" fill="currentColor" opacity=".7"/><path d="M4 17l4.5-4.5L12 14l4-5 4 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></span>' +
         '<span class="grow"><span class="list__t">背景壁纸</span><span class="list__d" id="wallpaperLbl">默认</span></span>' +
-        '<svg class="icon icon--sm t-mute" aria-hidden="true"><use href="#i-chev-right"/></svg></div>' +
-      /* 全局质感（双模式：液态玻璃 A / 标准毛玻璃 B） */
-      '<div class="list__item" data-noripple><span class="list__ico" style="background:linear-gradient(135deg,#e6f6ee 0%,#e8f0fe 100%);color:var(--ok)">' + icon('i-layers', 'icon--sm') + '</span>' +
-        '<span class="grow"><span class="list__t">全局质感</span><span class="list__d" id="glassLbl">默认</span></span>' +
         '<svg class="icon icon--sm t-mute" aria-hidden="true"><use href="#i-chev-right"/></svg></div>' +
       '<div class="list__item" data-toggle-motion><span class="list__ico" style="background:linear-gradient(135deg,#fce7f3 0%,#fdf2f8 100%);color:var(--c-rose-500)">' + icon('i-activity', 'icon--sm') + '</span>' +
         '<span class="grow"><span class="list__t">动画效果</span><span class="list__d">关闭可提升低端机流畅度</span></span>' +
@@ -334,14 +318,6 @@
       '<div class="list__item" data-noripple id="tabbarModeRow"><span class="list__ico" style="background:linear-gradient(135deg,#fef3e0 0%,#fff8e1 100%);color:var(--warn)">' + icon('i-activity', 'icon--sm') + '</span>' +
         '<span class="grow"><span class="list__t">底栏状态</span><span class="list__d" id="tabbarModeLbl">悬浮胶囊</span></span>' +
         '<span class="switch' + (A.getTabbarMode() === 'float' ? ' is-on' : '') + '" id="swTabbar"></span></div>' +
-      /* R1 原生底栏开关：关 = 回退 HTML 底栏（透镜不变，仍原生） */
-      '<div class="list__item" data-toggle-nativedock><span class="list__ico" style="background:linear-gradient(135deg,#e0e7ff 0%,#dbeafe 100%);color:var(--c-indigo-600,#4f46e5)">' + icon('i-layers', 'icon--sm') + '</span>' +
-        '<span class="grow"><span class="list__t">原生底栏</span><span class="list__d">原生层绘制底栏外观；关闭回退网页渲染</span></span>' +
-        '<span class="switch' + (A.nativeDockOn() ? ' is-on' : '') + '" id="swNativeDock"></span></div>' +
-      /* R2 原生顶栏开关：关 = 回退 HTML 顶栏；搜索/抽屉期间两模式都让位 HTML */
-      '<div class="list__item" data-toggle-nativeappbar><span class="list__ico" style="background:linear-gradient(135deg,#f3e8ff 0%,#e9d5ff 100%);color:var(--c-violet-600,#7c3aed)">' + icon('i-menu', 'icon--sm') + '</span>' +
-        '<span class="grow"><span class="list__t">原生顶栏</span><span class="list__d">原生层绘制顶栏外观；关闭回退网页渲染</span></span>' +
-        '<span class="switch' + (A.nativeAppbarOn() ? ' is-on' : '') + '" id="swNativeAppbar"></span></div>' +
       '<button class="list__item" type="button" data-export="all"><span class="list__ico" style="background:linear-gradient(135deg,#e8f0fe 0%,#dbeafe 100%);color:var(--c-blue-600)">' + icon('i-download', 'icon--sm') + '</span>' +
         '<span class="grow"><span class="list__t">导出全部笔记</span><span class="list__d">生成 Markdown 文件</span></span>' +
         '<svg class="icon icon--sm t-mute" aria-hidden="true"><use href="#i-chev-right"/></svg></button>' +
