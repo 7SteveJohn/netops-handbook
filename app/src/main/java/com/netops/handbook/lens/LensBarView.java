@@ -1594,6 +1594,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                竖排强加玻璃「真的卡」，2026-10-29——AGSL 整轨每帧重绘 + 抓图链
                全部只服务于观感，平面绘制零成本）。 */
             boolean glassLive = shader != null
+                    && !NativeBlocks.glassNone()
                     && !dockVertical && Build.VERSION.SDK_INT >= 33;
             if (!dockVertical) {
                 drawGlass(canvas, liftV);
