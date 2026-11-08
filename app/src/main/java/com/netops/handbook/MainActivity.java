@@ -243,7 +243,12 @@ public class MainActivity extends AppCompatActivity {
         if (keep != null && keep.equals(currentNativeKeep)) {
             hideNativePagesExcept(keep); showTarget.run(); return;
         }
-        if (switchOverlay == null) { currentNativeKeep = keep; hideNativePagesExcept(keep); showTarget.run(); return; }
+        if (switchOverlay == null) {
+            currentNativeKeep = keep;
+            hideNativePagesExcept(keep); showTarget.run();
+            root.postDelayed(this::notifyBarsSwitchSettled, 160);   /* 无覆盖层路径：页面画完再补抓 */
+            return;
+        }
         switchOverlay.animate().cancel();      /* 上一轮过渡未结束：撤旧层重抓当帧 */
         switchOverlay.setVisibility(android.view.View.GONE);
         try {
@@ -255,7 +260,9 @@ public class MainActivity extends AppCompatActivity {
                        （2026-11-09 真机诊断教训——res 失败分支曾无日志）。 */
                     android.util.Log.w("SwitchFade", "PixelCopy res=" + res + "，回退瞬时切换");
                     currentNativeKeep = keep;
-                    hideNativePagesExcept(keep); showTarget.run(); return;
+                    hideNativePagesExcept(keep); showTarget.run();
+                    root.postDelayed(this::notifyBarsSwitchSettled, 160);
+                    return;
                 }
                 switchOverlay.setImageBitmap(bm);
                 switchOverlay.setAlpha(1f);
@@ -264,13 +271,29 @@ public class MainActivity extends AppCompatActivity {
                 showTarget.run();
                 currentNativeKeep = keep;
                 switchOverlay.animate().alpha(0f).setDuration(160)
-                        .withEndAction(() -> switchOverlay.setVisibility(android.view.View.GONE)).start();
+                        .withEndAction(() -> {
+                            switchOverlay.setVisibility(android.view.View.GONE);
+                            notifyBarsSwitchSettled();
+                        }).start();
             }, new android.os.Handler(android.os.Looper.getMainLooper()));
         } catch (Throwable t) {
             android.util.Log.w("SwitchFade", "快照抓帧失败，回退瞬时切换", t);
             currentNativeKeep = keep;
             hideNativePagesExcept(keep); showTarget.run();
+            root.postDelayed(this::notifyBarsSwitchSettled, 160);
         }
+    }
+
+    /** 切页收尾：转场覆盖层一撤就强制顶/底栏重抓（2026-11-09 用户报「切完玻璃
+     *  不跟手、碰一下才刷新」的根因修复）。两段事实：①转场 160ms 内玻璃若触发
+     *  抓帧，PixelCopy 抓到的是覆盖层上的旧页像素（覆盖层在主窗内）；②原生页
+     *  切换在 JS 侧没有 dock 的触发链——setNativeDockBgRev 只在壁纸换代时由
+     *  paintWallpaper 调用，标题变化的 bgrev bump 不走 dock 桥。appbar 虽有
+     *  450ms 补抓，但用户在这 450ms 里的一次触摸仍是「不跟手」体感来源，
+     *  这里在 160ms 转场结束点统一收口，两栏一次补齐。 */
+    private void notifyBarsSwitchSettled() {
+        if (lensBar != null) lensBar.onBackdropChanged();
+        if (appbarBar != null) appbarBar.invalidateBackdrop();
     }
 
     /** 原生页导航统一出口：全部经 JS 路由（标题/返回栈/互斥都在 render 里收口）。 */
