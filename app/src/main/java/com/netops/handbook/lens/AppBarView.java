@@ -430,8 +430,10 @@ public class AppBarView extends View {
      *  否则只发 DOWN 不发 UP，内容层永远收不到 click（2026-10-31 实测）。 */
     private boolean passthrough = false;
 
-    private volatile boolean copyBusy = false;     /* PixelCopy 在途标志：onDraw 兜底路径没有它     /* PixelCopy 在途标志：onDraw 兜底路径没有它
-                                              会每帧发一次抓图请求（抓图风暴） */
+    private volatile boolean copyBusy = false;     /* PixelCopy 在途标志：onDraw 兜底路径没有它
+                                                      会每帧发一次抓图请求（抓图风暴） */
+    /** P2-1：霜图裁剪源矩形复用（onDraw 内 new Rect 的逐帧分配换成了 set）。 */
+    private final Rect frostSrcRect = new Rect();
 
     /** 外部强制重抓：设置面板关闭时调用——面板开着的那次抓样把半透明遮罩
      *  和上一页头部一起采了进去（2026-10-30 用户报「玻璃里隐隐有网络学习手册 2.0」）。 */
@@ -859,13 +861,15 @@ public class AppBarView extends View {
                 }
             } else if (blurred != null) {
                 /* 霜含 24dp 外扩（视图原点在霜的 (−capOffX,−capOffY)/2 处）：
-                   回退绘制必须裁出栏对应子区，整张拉伸会错位 */
-                Rect src = new Rect(
+                   回退绘制必须裁出栏对应子区，整张拉伸会错位。
+                   P2-1（2026-11-09）：Rect 提字段复用——minSdk 24 旧机此分支每帧
+                   4 次 Math.round + new Rect，绘制线程常态命中。 */
+                frostSrcRect.set(
                         Math.round((barRect.left - capOffX) / 2f),
                         Math.round((barRect.top - capOffY) / 2f),
                         Math.round((barRect.right - capOffX) / 2f),
                         Math.round((barRect.bottom - capOffY) / 2f));
-                canvas.drawBitmap(blurred, src, barRect, blurP);
+                canvas.drawBitmap(blurred, frostSrcRect, barRect, blurP);
                 canvas.drawRect(barRect, tintP);
             } else {
                 /* ❗blurred 为空 = 霜图没抓到。此时必须把 backdropRev 打回 -1 才可能重抓：

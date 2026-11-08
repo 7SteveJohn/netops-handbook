@@ -517,7 +517,11 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         ColorMatrix cm = new ColorMatrix();
         cm.setSaturation(1.5f);
         /* 亮度归一化 shim（唯一保留的自研项）：霜面均值锚 236/40，防白卡页面
-           整栏跳色（2026-11-03 用户报障回归防线）；KernelSU 链无此项。 */
+           整栏跳色（2026-11-03 用户报障回归防线）；KernelSU 链无此项。
+           P2-2 诊断（2026-11-09 真机实测）：本系数只进 barPane（药丸透镜内容
+           输入），竖屏栏面本体走 SF blurBehind 不经此链——0.5→0.85 实测栏面
+           亮度零变化（我的页前后逐像素全同）。栏面亮暗页差 ~60 级的真杠杆 =
+           sfTintP 染色，改动需看图拍板，维持 0.5 不动。 */
         float adj = ((dark ? 40f : 236f) - frostMeanLumaOf(raw)) * 0.5f;
         cm.postConcat(new ColorMatrix(new float[]{
                 1, 0, 0, 0, adj,

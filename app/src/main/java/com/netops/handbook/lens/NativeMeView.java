@@ -152,7 +152,7 @@ public class NativeMeView extends LinearLayout {
            五项与学习页工具箱一字不差——工具入口主区在学习页工具箱，「我的」页
            聚焦个人数据（进度/收藏/设置）。 */
         page.addView(section("设置"));
-        page.addView(navRow("外观与壁纸", "主题 · 壁纸 · 全局质感", "settings"));
+        page.addView(navRow("外观与壁纸", "主题 · 壁纸", "settings"));
 
         page.addView(footer());
     }
