@@ -215,9 +215,9 @@ body.tabbar-regular .tabbar::before {
   border-top: .5px solid var(--border);
   box-shadow: 0 -1px 0 var(--hairline, rgba(0,0,0,.07));
 }
-/* 常规模式下 tab 恢复原高度 */
+/* 常规模式下 tab 恢复原高度（2026-11-09 M3 对齐：NavigationBar 80dp） */
 body.tabbar-regular .tab {
-  height: var(--tabbar-h);
+  height: 80px;
 }
 body.tabbar-regular .tabbar {
   padding-left: var(--sa-left);

@@ -1053,10 +1053,11 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     public void setDocked(boolean d) {
         if (docked == d) return;
         docked = d;
-        rebuildChrome();   /* B1 容器位图的圆角烤在缓存里，必须重建 */
+        rebuildChrome();   /* B1 容器位图的圆角/实色烤在缓存里，必须重建 */
         invalidate();
     }
     private boolean docked = false;
+    private boolean chromeDocked = false;   /* B1 重建门的贴底维度（与 chromeDark 同构） */
 
     /** 液态玻璃三档变更（桥 setGlassLevel）：药丸 uniform 每帧直读无需重建，
      *  B1 容器位图与栏体缓存重建一次保一致。 */
@@ -1066,6 +1067,8 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     }
     /** 「无」档平绘载体（drawBarGlass 的 pane 直贴，提字段免每帧分配）。 */
     private final Paint barPlainP = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+    /** 贴底 M3 指示器载体（图标背后 64×32dp 胶囊）。 */
+    private final Paint indicatorP = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     /** 方向推断 + 轨道几何。竖排几何完全由原生自算，不吃 JS 的横排 HTML 栏矩形。 */
     private void updateOrientation() {
@@ -1680,21 +1683,33 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         int W = Math.max(1, (int) bar.width()), H = Math.max(1, (int) bar.height());
         if (chromeB1 == null || chromeB1.getWidth() != W || chromeB1.getHeight() != H
                 || chromeB1.getConfig() == Bitmap.Config.HARDWARE
-                || chromeDark != (dark ? 1 : 0)) {
+                || chromeDark != (dark ? 1 : 0) || chromeDocked != docked) {
             /* HARDWARE 位图不可写：末尾会把 chromeB1 转成 HARDWARE 常驻纹理，
                若本次重建尺寸不变而复用旧对象，new Canvas(硬件位图) 会直接抛异常
                （2026-10-27 位置/药丸中心重建门启用后真机崩溃：Canvas.<init>）。 */
             if (chromeB1 != null) chromeB1.recycle();   // 旧图（含被 HARDWARE 替换前的软件图）及时回收
             chromeB1 = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888);
             chromeDark = dark ? 1 : 0;
+            chromeDocked = docked;
         }
         chromeRect.set(bar);
         chromePillCy = pillCy();
         Canvas c1 = new Canvas(chromeB1);
         float r = dockRadius(bar);
-        c1.drawRoundRect(0, 0, W, H, r, r, barFillP);
-        barStrokeP.setStrokeWidth(density);
-        c1.drawRoundRect(0, 0, W, H, r, r, barStrokeP);
+        if (docked) {
+            /* 原生贴底（FlClash docked = M3 NavigationBar）：实色 surface
+               （var(--surface) 同值）+ 顶缘发丝线——玻璃管线整体退场，档位不作用于栏体。 */
+            Paint solid = new Paint(Paint.ANTI_ALIAS_FLAG);
+            solid.setColor(dark ? Color.argb(255, 28, 28, 30) : Color.WHITE);
+            c1.drawRoundRect(0, 0, W, H, r, r, solid);
+            Paint hl = new Paint();
+            hl.setColor(dark ? Color.argb(26, 255, 255, 255) : Color.argb(18, 0, 0, 0));
+            c1.drawRect(0, 0, W, density, hl);
+        } else {
+            c1.drawRoundRect(0, 0, W, H, r, r, barFillP);
+            barStrokeP.setStrokeWidth(density);
+            c1.drawRoundRect(0, 0, W, H, r, r, barStrokeP);
+        }
         /* per-tab 灰态小图：sprite 原点 = 格左缘/栏顶（横）或栏左缘/格顶（竖）。
            宽度取格宽（文字仅 2 字不会溢出）。 */
         for (int i = 0; i < count && i < 5; i++) {
@@ -1815,8 +1830,9 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             hw = (pillW + g) / 2f * (1f + s);
             hh = (pillH + g) / 2f * (1f - s * 1.4f);
         }
-        boolean glassLive = shader != null
-                && !dockVertical && Build.VERSION.SDK_INT >= 33;
+            boolean glassLive = shader != null
+                    && !docked
+                    && !dockVertical && Build.VERSION.SDK_INT >= 33;
         /* 药丸挖孔（2026-11-03 三轮改判）：清玻璃的本质=比磨砂栏**更透**。栏体
            62% 白 tint 若在药丸下连续，透过药丸看到的是「白上叠白」=雾蒙蒙磨砂
            （用户实测「像磨砂玻璃，没有液态通透感」）。挖孔后药丸内=容器 shader
@@ -1873,6 +1889,17 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
            图标始终完整可见（HTML tab-pill 的 z 序，2026-10-27 用户反馈「遮挡其中一个」）。 */
         if (dockVertical) {
             drawRailSelection(canvas);
+        } else if (docked) {
+            /* 原生贴底（FlClash docked = M3 NavigationBar）：指示器 = 图标背后的
+               64×32dp 胶囊（secondaryContainer ≈ 应用 accent-soft），选中图标着
+               主色由下方 drawLensTabs 平绘承担。跟随弹簧与悬浮态一致。 */
+            float indCx = firstCx + slot * (float) pos.value();
+            float indCy = pillCy() - (22f * density + 2f * density + 12f * density) / 2f
+                    + 11f * density;
+            indicatorP.setColor(dark ? Color.argb(46, 10, 132, 255) : Color.argb(28, 37, 99, 235));
+            canvas.drawRoundRect(indCx - 32f * density, indCy - 16f * density,
+                    indCx + 32f * density, indCy + 16f * density,
+                    16f * density, 16f * density, indicatorP);
         } else if (!glassLive && !lensing && sliderBmp != null) {
             /* 无玻璃能力（旧机/快照未就绪）的回退贴片；玻璃可用时静止/滑行/
                按压全走下方实时路径——材质同一，不再「静止平涂贴片+按压玻璃」两张皮 */
