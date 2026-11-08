@@ -22,8 +22,8 @@ android {
         applicationId = "com.netops.handbook"
         minSdk = 24
         targetSdk = 34
-        versionCode = 7
-        versionName = "2.1.0"
+        versionCode = 8
+        versionName = "2.1.3"
     }
 
     signingConfigs {

@@ -1718,10 +1718,7 @@ w.SHEET_MARKUP =
 '<button type="button" id="wpCustomBtn" class="btn btn--primary btn--block" style="height:46px;font-size:14px">' +
 '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="vertical-align:-3px;margin-right:4px"><rect x="3" y="4" width="18" height="16" rx="2.5" stroke="#fff" stroke-width="1.8" fill="none"/><circle cx="8.5" cy="9.5" r="2" fill="#fff" opacity=".7"/></svg> 从相册选择图片</button>' +
 '<button type="button" id="wpClearBtn" class="btn btn--soft btn--block" style="margin-top:8px;height:38px">清除壁纸</button>' +
-'</div></div>' +
-'<div id="glassSheet" class="sheet"><div class="sheet__grab"></div>' +
-'<div class="sheet__head"><span class="sheet__title">个性化</span></div>' +
-'<div class="sheet__body" id="glassBody"></div></div>';
+'</div></div>';
 function page(inner) { return '<div class="page">' + inner + '</div>'; }
 var GRID = '<svg class="hero__grid" aria-hidden="true" width="100%" height="100%">' +
 '<defs><pattern id="hg" width="22" height="22" patternUnits="userSpaceOnUse">' +
@@ -1961,14 +1958,6 @@ stCell(A.S.quizBest + '%', '测验最佳', null) +
 '</div>';
 h += sec('i-bookmark', '我的收藏');
 h += '<div class="list">' + li('i-star', '收藏夹', favN ? favN + ' 条已收藏' : '还没有收藏任何内容', 'fav') + '</div>';
-h += sec('i-compass', '资源');
-h += '<div class="list">' +
-li('i-book', '速查表', EXT.refs.length + ' 张高频对照表', 'refs') +
-li('i-help', '术语词典', EXT.glossary.length + ' 条', 'glossary') +
-li('i-flag', '学习路线图', '0-12 个月成长节奏', 'roadmap') +
-li('i-award', '模拟测验', QUIZ.length + ' 题 · 已测 ' + A.S.quizRuns + ' 次', 'quiz') +
-li('i-terminal', 'CLI 模拟器', '离线命令沙盒', 'cli') +
-'</div>';
 h += sec('i-settings', '设置');
 h += '<div class="list">' +
 '<div class="list__item" data-noripple><span class="list__ico" style="background:linear-gradient(135deg,#f5f3ff 0%,#ede9fe 100%);color:var(--c-purple-600)">' + icon('i-moon', 'icon--sm') + '</span>' +
@@ -1977,9 +1966,6 @@ h += '<div class="list">' +
 '<div class="list__item" data-noripple><span class="list__ico" style="background:linear-gradient(135deg,#e8f0fe 0%,#f0e6ff 100%);color:var(--accent)">' +
 '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="margin-top:-1px"><rect x="3" y="4" width="18" height="16" rx="2.5" stroke="currentColor" stroke-width="1.8" fill="none"/><circle cx="8.5" cy="9.5" r="2" fill="currentColor" opacity=".7"/><path d="M4 17l4.5-4.5L12 14l4-5 4 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></span>' +
 '<span class="grow"><span class="list__t">背景壁纸</span><span class="list__d" id="wallpaperLbl">默认</span></span>' +
-'<svg class="icon icon--sm t-mute" aria-hidden="true"><use href="#i-chev-right"/></svg></div>' +
-'<div class="list__item" data-noripple><span class="list__ico" style="background:linear-gradient(135deg,#e6f6ee 0%,#e8f0fe 100%);color:var(--ok)">' + icon('i-layers', 'icon--sm') + '</span>' +
-'<span class="grow"><span class="list__t">全局质感</span><span class="list__d" id="glassLbl">默认</span></span>' +
 '<svg class="icon icon--sm t-mute" aria-hidden="true"><use href="#i-chev-right"/></svg></div>' +
 '<div class="list__item" data-toggle-motion><span class="list__ico" style="background:linear-gradient(135deg,#fce7f3 0%,#fdf2f8 100%);color:var(--c-rose-500)">' + icon('i-activity', 'icon--sm') + '</span>' +
 '<span class="grow"><span class="list__t">动画效果</span><span class="list__d">关闭可提升低端机流畅度</span></span>' +
@@ -1991,12 +1977,6 @@ h += '<div class="list">' +
 '<div class="list__item" data-noripple id="tabbarModeRow"><span class="list__ico" style="background:linear-gradient(135deg,#fef3e0 0%,#fff8e1 100%);color:var(--warn)">' + icon('i-activity', 'icon--sm') + '</span>' +
 '<span class="grow"><span class="list__t">底栏状态</span><span class="list__d" id="tabbarModeLbl">悬浮胶囊</span></span>' +
 '<span class="switch' + (A.getTabbarMode() === 'float' ? ' is-on' : '') + '" id="swTabbar"></span></div>' +
-'<div class="list__item" data-toggle-nativedock><span class="list__ico" style="background:linear-gradient(135deg,#e0e7ff 0%,#dbeafe 100%);color:var(--c-indigo-600,#4f46e5)">' + icon('i-layers', 'icon--sm') + '</span>' +
-'<span class="grow"><span class="list__t">原生底栏</span><span class="list__d">原生层绘制底栏外观；关闭回退网页渲染</span></span>' +
-'<span class="switch' + (A.nativeDockOn() ? ' is-on' : '') + '" id="swNativeDock"></span></div>' +
-'<div class="list__item" data-toggle-nativeappbar><span class="list__ico" style="background:linear-gradient(135deg,#f3e8ff 0%,#e9d5ff 100%);color:var(--c-violet-600,#7c3aed)">' + icon('i-menu', 'icon--sm') + '</span>' +
-'<span class="grow"><span class="list__t">原生顶栏</span><span class="list__d">原生层绘制顶栏外观；关闭回退网页渲染</span></span>' +
-'<span class="switch' + (A.nativeAppbarOn() ? ' is-on' : '') + '" id="swNativeAppbar"></span></div>' +
 '<button class="list__item" type="button" data-export="all"><span class="list__ico" style="background:linear-gradient(135deg,#e8f0fe 0%,#dbeafe 100%);color:var(--c-blue-600)">' + icon('i-download', 'icon--sm') + '</span>' +
 '<span class="grow"><span class="list__t">导出全部笔记</span><span class="list__d">生成 Markdown 文件</span></span>' +
 '<svg class="icon icon--sm t-mute" aria-hidden="true"><use href="#i-chev-right"/></svg></button>' +
@@ -2647,24 +2627,6 @@ if (imp) imp.click();
 return;
 }
 if (t.closest('[data-reset]')) { confirmReset(); return; }
-var nd = t.closest('[data-toggle-nativedock]');
-if (nd) {
-var ndOn = !w.NetOpsNativeDockOn();
-w.NetOpsSetNativeDock(ndOn);
-var sw = $('#swNativeDock');
-if (sw) sw.classList.toggle('is-on', ndOn);
-U.toast(ndOn ? '原生底栏已开启' : '已回退网页底栏', 'ok');
-return;
-}
-var na = t.closest('[data-toggle-nativeappbar]');
-if (na) {
-var naOn = !A.nativeAppbarOn();
-w.NetOpsSetNativeAppbar(naOn);
-var swa = $('#swNativeAppbar');
-if (swa) swa.classList.toggle('is-on', naOn);
-U.toast(naOn ? '原生顶栏已开启' : '已回退网页顶栏', 'ok');
-return;
-}
 var tm = t.closest('[data-toggle-motion]');
 if (tm) {
 var v = U.motion.get() === 'on' ? 'off' : 'on';
@@ -3258,7 +3220,6 @@ hiContrast: false
 function getGlass() {
 try { var s = localStorage.getItem(GLASS_KEY); return s ? JSON.parse(s) : null; } catch(e) { return null; }
 }
-function saveGlass(g) { lsSet(GLASS_KEY, JSON.stringify(g)); }
 var deviceDegraded = false, batteryDegraded = false, userOverrideGlass = true;    
 function shouldDegrade() {
 try {
@@ -3393,173 +3354,6 @@ if (g.on) {
 root.style.setProperty('--glass-saturate', em === 'gaussian' ? '100%' : '180%');
 }
 }
-function tintLabel(g) {
-var ct = w.__glassTint;
-if (!ct) return (g && g.tint || 55) + '%';
-return ct.clamped ? ct.want + '% · 实际 ' + ct.eff + '%' : ct.want + '%';
-}
-function renderGlassPanel() {
-var body = $('#glassBody');
-if (!body) return;
-var g = getGlass() || glassDefaults;
-var em = effectiveGlassMode(g);           
-var degraded = (deviceDegraded || batteryDegraded) && !userOverrideGlass;
-var h = '';
-h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0">' +
-'<div><div class="t-sm bold">玻璃效果</div><div class="t-xs t-mute">为界面添加半透明模糊质感</div></div>' +
-'<span class="switch' + (g.on ? ' is-on' : '') + '" id="glassSw_on"></span></div>';
-if (g.on) {
-var modes = [
-{ k: 'liquid',   ico: '💧', name: '液态玻璃',   desc: '镜面高光 + 边缘光折射 · 苹果风格，观感最佳（默认）' },
-{ k: 'frosted',  ico: '🌫️', name: '标准毛玻璃', desc: 'iOS 风哑光磨砂 · 柔和暖调，更轻量省电' },
-{ k: 'gaussian', ico: '◯',  name: '高斯模糊',   desc: '近乎不透明 · 最省电，适合旧设备/户外护眼' }
-];
-h += '<div style="margin-top:14px"><div class="t-xs bold" style="margin-bottom:8px;color:var(--text-2)">全局质感（单选）</div>';
-h += '<div style="display:flex;gap:8px;background:var(--surf-2);border-radius:var(--r-md);padding:6px">';
-modes.forEach(function (m) {
-var on = em === m.k;
-h += '<button type="button" class="chip' + (on ? ' is-active' : '') + '" data-glass="mode" data-gval="' + m.k + '"' +
-' style="flex:1 1 0;flex-direction:column;height:auto;padding:9px 6px;gap:3px;font-size:11.5px;line-height:1.3">' +
-'<span style="font-size:18px">' + m.ico + '</span>' +
-'<span style="font-weight:700">' + m.name + '</span></button>';
-});
-h += '</div>';
-if (degraded) {
-h += '<div class="t-xs" style="margin-top:10px;padding:9px 10px;border-radius:var(--r-sm);' +
-'background:var(--warn-soft);color:var(--warn);line-height:1.55">' +
-'⚡ 已为' + (batteryDegraded && !deviceDegraded ? '低电量' : '当前设备') + '自动切换为「标准毛玻璃」以省电。' +
-(userOverrideGlass ? '（你已手动覆盖，本会话保持你的选择）' : '手动选择任意质感即可临时覆盖省电流式。') + '</div>';
-}
-var isLiquid = (g.on && effectiveGlassMode(g) === 'liquid');
-var sKey = isLiquid ? 'tint' : 'blur';
-var sMin = isLiquid ? 10 : 8;
-var sMax = isLiquid ? 95 : 20;
-var sVal = isLiquid ? (g.tint || 55) : g.blur;
-var sLbl = isLiquid ? '通透度' : '模糊强度';
-var sSfx = isLiquid ? '%' : 'px';
-h += '<div style="margin-top:16px"><div class="row" style="justify-content:space-between;margin-bottom:8px">' +
-'<span class="t-xs bold" style="color:var(--text-2)">' + sLbl + '</span>' +
-'<span class="t-xs mono" style="color:var(--accent)" id="glassVal_' + sKey + '">' +
-(sKey === 'tint' ? tintLabel(g) : sVal + sSfx) + '</span></div>' +
-'<input type="range" class="glass-slider" min="' + sMin + '" max="' + sMax + '" step="' + (isLiquid ? 5 : 1) + '" value="' + sVal + '" data-glass="' + sKey + '" style="width:100%"></div>' +
-(isLiquid ?
-'<div class="t-xs" style="margin-top:8px;padding:8px 10px;border-radius:var(--r-sm);background:var(--accent-soft);color:var(--accent-text);line-height:1.55">' +
-'通透度 = 浮层不透明度（越低越透，壁纸越清晰）。背景已统一预模糊，且低于可读性下限时会自动兜住，再透也不会把字埋掉。</div>' :
-'');
-h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 0 2px">' +
-'<div><div class="t-sm bold">增强对比度</div>' +
-'<div class="t-xs t-mute">把说明文字换成更强对比的一档，与背景对比从 4.5:1 提到 7:1（长时间阅读推荐值），必要时玻璃板同步加厚</div></div>' +
-'<span class="switch' + (g.hiContrast ? ' is-on' : '') + '" id="glassSw_hi"></span></div>';
-function sqRow(k, name, unit, min, max, step, val) {
-return '<div style="margin-top:10px"><div class="row" style="justify-content:space-between">' +
-'<span class="t-xs" style="color:var(--text-2)">' + name + '</span>' +
-'<span class="t-xs mono" style="color:var(--accent)" id="sqVal_' + k + '">' + val + unit + '</span></div>' +
-'<input type="range" class="glass-slider" min="' + min + '" max="' + max + '" step="' + step +
-'" value="' + val + '" data-sq="' + k + '" style="width:100%"></div>';
-}
-h += '<div id="sqTune" style="display:none;margin-top:14px;padding:12px;border-radius:var(--r-md);background:var(--surf-2)">' +
-'<div class="t-xs bold" style="color:var(--text-2)">按压形变手感（调试）</div>' +
-sqRow('max', '跟手位移上限', 'px', 0, 20, 1, SQT.max) +
-sqRow('press', '按下压缩', '%', 0, 15, 1, Math.round((1 - SQT.press) * 100)) +
-sqRow('stretch', '沿拖动方向拉伸', '%', 0, 20, 1, Math.round(SQT.stretch * 100)) +
-sqRow('squash', '垂直轴反向压缩', '%', 0, 20, 1, Math.round(SQT.squash * 100)) +
-sqRow('back', '回弹时长', 'ms', 120, 1200, 20, SQT.back) +
-'<div class="row" style="gap:10px;margin-top:12px;align-items:center">' +
-'<span class="chip" id="sqDemo">按住我试</span>' +
-'<button type="button" class="btn btn--soft t-xs" id="sqReset" style="padding:6px 10px">复位</button></div>' +
-'<div class="t-xs mono" id="sqOut" style="margin-top:10px;word-break:break-all"></div></div>';
-h += '<div class="t-xs t-mute" style="margin-top:14px;padding:10px;background:var(--surf-2);border-radius:var(--r-sm);line-height:1.65">' +
-(isLiquid ? '提示：设一张背景壁纸后，通透度变化更明显。滑块拉到很透时，为保证文字可读，板厚会停在按这张壁纸算出的下限上。' :
-'提示：设一张背景壁纸后效果更明显。推荐 12-16px 平衡观感与流畅度。') + '</div>';
-}
-body.innerHTML = h;
-var swOn = body.querySelector('#glassSw_on');
-if (swOn) swOn.parentElement.addEventListener('click', function () {
-g.on = !g.on; saveGlass(g); applyGlass(g);
-renderGlassPanel();
-updateGlassLabel(g);
-U.toast(g.on ? '玻璃效果已开启' : '玻璃效果已关闭', 'ok');
-});
-var swHi = body.querySelector('#glassSw_hi');
-if (swHi) swHi.parentElement.addEventListener('click', function () {
-g.hiContrast = !g.hiContrast; saveGlass(g); applyGlass(g);
-renderGlassPanel(); updateGlassLabel(g);
-U.toast(g.hiContrast ? '已增强对比度：玻璃板加厚' : '已恢复默认通透度', 'ok');
-});
-var tune = body.querySelector('#sqTune');
-if (tune) {
-var out = body.querySelector('#sqOut');
-if (out) { out.style.marginTop = '10px'; out.textContent = JSON.stringify(SQT); }
-body.querySelectorAll('[data-sq]').forEach(function (input) {
-var k = input.getAttribute('data-sq');
-input.addEventListener('input', function () {
-var raw = parseFloat(input.value), s2 = getSqt();
-if (k === 'max') s2.max = raw;
-else if (k === 'back') s2.back = raw;
-else if (k === 'press') s2.press = 1 - raw / 100;
-else s2[k] = raw / 100;
-U.store.set('sqtune', s2);
-var cur = applySqt();
-var lbl = body.querySelector('#sqVal_' + k);
-if (lbl) lbl.textContent = input.value + (k === 'max' ? 'px' : k === 'back' ? 'ms' : '%');
-if (out) out.textContent = JSON.stringify(cur);
-});
-});
-var rst = body.querySelector('#sqReset');
-if (rst) rst.addEventListener('click', function () {
-U.store.set('sqtune', SQT_DEF); applySqt(); renderGlassPanel();
-U.toast('形变参数已复位', 'ok');
-});
-}
-var gTitle = d.querySelector('#glassSheet .sheet__title');
-if (gTitle && !gTitle.__sqBound) {
-gTitle.__sqBound = true;
-var lp = 0;
-gTitle.addEventListener('pointerdown', function () {
-clearTimeout(lp);
-lp = setTimeout(function () {
-var t2 = body.querySelector('#sqTune');
-if (!t2) return;
-var show = t2.style.display === 'none';
-t2.style.display = show ? 'block' : 'none';
-if (show) U.toast(squishBlocked()
-? '调参面板已展开，但当前设备/设置停用了形变（检查「动画效果」与省电状态）'
-: '调参面板已展开：按住下面那块试手感', 'ok', 3200);
-}, 600);
-}, { passive: true });
-['pointerup', 'pointermove', 'pointercancel', 'pointerleave'].forEach(function (ev) {
-gTitle.addEventListener(ev, function () { clearTimeout(lp); }, { passive: true });
-});
-}
-body.querySelectorAll('[data-glass="mode"]').forEach(function (btn) {
-btn.addEventListener('click', function () {
-var val = this.getAttribute('data-gval');
-g.mode = val;
-userOverrideGlass = (val === 'liquid');
-saveGlass(g); applyGlass(g); renderGlassPanel(); updateGlassLabel(g);
-});
-});
-body.querySelectorAll('.glass-slider[data-glass]').forEach(function (input) {
-var key = input.getAttribute('data-glass');
-var raf = 0, lastText = '';
-function applyFlush() {
-raf = 0;
-var val = parseInt(input.value, 10);
-g[key] = val;
-var txt = key === 'tint' ? tintLabel(g) : val + 'px';
-var out2 = $('#glassVal_' + key);
-if (out2 && txt !== lastText) { out2.textContent = txt; lastText = txt; }
-saveGlass(g); applyGlass(g);
-}
-function apply() {
-if (raf) return;
-raf = requestAnimationFrame(applyFlush);
-}
-function applyNow() { if (raf) { cancelAnimationFrame(raf); raf = 0; } applyFlush(); }
-input.addEventListener('input', apply);
-input.addEventListener('change', applyNow);
-});
-}
 var openCustomSheet = null;  
 function setupSheetBackdrop(sheet) {
 if (!sheet || sheet.__backdropBound) return;
@@ -3581,9 +3375,8 @@ openCustomSheet = null;
 });
 }
 function closeAnyCustomSheet() {
-var wp = $('#wpSheet'), gl = $('#glassSheet');
+var wp = $('#wpSheet');
 if (wp && wp.classList.contains('is-open')) { wp.classList.remove('is-open'); return true; }
-if (gl && gl.classList.contains('is-open')) { gl.classList.remove('is-open'); return true; }
 return false;
 }
 (function watchSheetForLens() {
@@ -3689,50 +3482,19 @@ window.openSpeedSheet();
 }
 }
 function initGlass() {
-var lbl = $('#glassLbl');
-var sheet = $('#glassSheet');
-if (!sheet) return;
 deviceDegraded = shouldDegrade();
-var g = getGlass() || glassDefaults;
-applyGlass(g);
-updateGlassLabel(g);
+applyGlass(getGlass() || glassDefaults);
 if (navigator.getBattery) {
 navigator.getBattery().then(function (b) {
 function sync() {
 batteryDegraded = (b.level <= 0.2 && !b.charging);
 applyGlass(getGlass() || glassDefaults);
-updateGlassLabel(getGlass() || glassDefaults);
-if (batteryDegraded && !userOverrideGlass) {
-U.toast('低电量：已切换为标准毛玻璃以省电', 'ok');
-}
 }
 b.addEventListener('levelchange', sync);
 b.addEventListener('chargingchange', sync);
 sync();
 }).catch(function () {});
 }
-if (deviceDegraded) {
-setTimeout(function () {
-if (!userOverrideGlass) U.toast('当前设备已自动采用标准毛玻璃', 'ok');
-}, 400);
-}
-if (lbl) lbl.closest('.list__item').addEventListener('click', function (e) {
-if (sheet.classList.contains('is-open')) return;
-e.stopPropagation();
-sheet.classList.add('is-open');
-openCustomSheet = sheet;
-renderGlassPanel();
-});
-setupSheetBackdrop(sheet);
-}
-function updateGlassLabel(g) {
-var lbl = $('#glassLbl');
-if (!lbl) return;
-if (!g || !g.on) { lbl.textContent = '关闭'; return; }
-var em = effectiveGlassMode(g);
-var m = em === 'liquid' ? '液态玻璃' : em === 'gaussian' ? '高斯模糊' : '标准毛玻璃';
-lbl.textContent = m + (em === 'liquid' ? ' · 通透' + tintLabel(g) : ' · 模糊' + g.blur + 'px') +
-(g.hiContrast ? ' · 增强对比' : '');
 }
 function searchIsOpen() {
 var wrap = $('#searchWrap');
@@ -4231,8 +3993,8 @@ peek.style.opacity = String(k * .8);
 peek.style.transform = 'translateY(-50%) scaleY(' + (0.4 + 0.6 * k) + ')';
 }
 function customSheetOpen() {
-var wp = $('#wpSheet'), gl = $('#glassSheet');
-return (wp && wp.classList.contains('is-open')) || (gl && gl.classList.contains('is-open'));
+var wp = $('#wpSheet');
+return wp && wp.classList.contains('is-open');
 }
 function canBack() {
 if (U.sheet.isOpen()) return true;
@@ -4414,19 +4176,11 @@ w.NetOpsNativeSet = function (kind, value) {
 try {
 if (kind === 'theme') setTheme(value);
 else if (kind === 'wallpaper') applyWallpaper(value, 'wp');
-else if (kind === 'glass') {
-var g = JSON.parse(value);
-saveGlass(g); applyGlass(g);
-}
-else if (kind === 'nativedock') w.NetOpsSetNativeDock(value === '1');
-else if (kind === 'nativeappbar') w.NetOpsSetNativeAppbar(value === '1');
 } catch (e) { }
 };
 w.NetOpsNativePushSettings = function () {
 try {
-var g = getGlass() || glassDefaults;
-w.NetBridge.setSettingsState(U.theme.get(), lsGet(WP_KEY) || 'none', JSON.stringify(g),
-nativeDockOn(), nativeAppbarOn());
+w.NetBridge.setSettingsState(U.theme.get(), lsGet(WP_KEY) || 'none');
 } catch (e) { }
 };
 w.NetOpsNativeState = function (id, kind, on) {
@@ -5093,6 +4847,6 @@ if (document.readyState === 'loading') {
 document.addEventListener('DOMContentLoaded', init, { once: true });
 } else { init(); }
 })();
-;window.__BUILD__='20261108-2158-ae6a1d';</script>
+;window.__BUILD__='20261109-0029-f7c21c';</script>
 </body>
 </html>
