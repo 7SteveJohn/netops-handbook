@@ -35,6 +35,15 @@ public class NativeSettingsPanel extends FrameLayout {
      *  2026-11-09 回归——自定义壁纸入口随 HTML 壁纸弹窗一起在原生化时丢失。 */
     public interface OnAlbum { void onAlbum(); }
 
+    /* 底栏样式镜像（MainActivity 经桥同步；netops_tabbar 的 JS 真源）。 */
+    private boolean dockDocked = false;
+
+    public void setDockDocked(boolean d) {
+        if (dockDocked == d) return;
+        dockDocked = d;
+        if (getVisibility() == VISIBLE) build();
+    }
+
     public interface Set {
         void apply(String kind, String value);
     }
@@ -228,6 +237,14 @@ public class NativeSettingsPanel extends FrameLayout {
         /* 自定义壁纸入口（2026-11-09 回归）：HTML 壁纸弹窗的相册按钮随我的页
            原生化丢失，此处接回——点击走桥的 REQ_PICK_IMAGE 管线（解码/压缩/
            base64 回传 JS 全部现成）。 */
+        sheet.addView(section("底栏样式"));
+        sheet.addView(chipRow(new String[][]{
+                {"float", "悬浮胶囊"}, {"regular", "原生贴底"}
+        }, dockDocked ? "regular" : "float", v -> {
+            dockDocked = "regular".equals(v);
+            setter.apply("dockstyle", v);   /* → JS setTabbarMode → body 类 + 桥镜像回环 */
+        }));
+
         TextView album = NativeBlocks.tv(getContext(), pal,
                 "custom".equals(wallpaper) ? "更换自定义壁纸（从相册选取）" : "从相册选取自定义壁纸",
                 12.5f, false, pal.accent);

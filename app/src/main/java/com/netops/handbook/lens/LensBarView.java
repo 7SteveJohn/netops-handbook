@@ -724,6 +724,10 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
      *  （2026-10-28：原先在此处按 getLocationOnScreen 一次性换算，分屏/小窗切换
      *  时窗口在屏幕上移动，换算基准过期 → dock 错位/失效/重影）。 */
     public void setLensBarRect(float l, float t, float w, float h) {
+        /* 底栏恒底锚（悬浮/贴底两态都是）：矩形落进上半窗 = CSS 过渡中途量到的
+           废矩形（2026-11-09 实证：切贴底时探针在过渡期采到 top≈0，弹窗整体
+           搬到顶栏后面=「dock 消失」）——拒收，保留上一份好几何等重测。 */
+        if (viewportH > 0 && t + h < viewportH * 0.6f) return;
         boolean moved = Math.abs(barRect.left - l) > 1 || Math.abs(barRect.top - t) > 1
                 || Math.abs(barRect.width() - w) > 1 || Math.abs(barRect.height() - h) > 1;
         barRect.set(l, t, l + w, t + h);
@@ -1033,14 +1037,26 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     }
 
     /** 栏体圆角：横排=栏高/2（胶囊），竖排=轨宽/2（竖向胶囊）。
-     *  竖排栏高 = 整窗高，拿高度算半径会退化成满圆角。 */
+     *  竖排栏高 = 整窗高，拿高度算半径会退化成满圆角。
+     *  2026-11-09 贴底样式（netops_tabbar=regular）：满宽方角栏——统一 14dp
+     *  圆角（底角贴屏幕圆角曲线，顶角与卡片同族），替代半高胶囊。 */
     private float dockRadius(RectF bar) {
         /* 横排底栏：半高 = 胶囊（FlClash pill 就是这个语义，横向短条两端自然是半圆）。
            竖排侧栏**不能**照搬这条：栏高 ~1630px，半高半径 121px 会让两端变成半圆，
            整条看着像一根竖着的椭圆（2026-10-28 用户报）。侧栏是面板，用固定 16dp 圆角（与原生卡片同族）。 */
         float half = Math.min(bar.width(), bar.height()) / 2f;
-        return dockVertical ? Math.min(10f * density, half) : half;
+        if (dockVertical) return Math.min(10f * density, half);
+        return docked ? 14f * density : half;
     }
+
+    /** 贴底样式旗标（JS netops_tabbar 经桥同步）：改圆角语义 + 失效栏体缓存。 */
+    public void setDocked(boolean d) {
+        if (docked == d) return;
+        docked = d;
+        rebuildChrome();   /* B1 容器位图的圆角烤在缓存里，必须重建 */
+        invalidate();
+    }
+    private boolean docked = false;
 
     /** 方向推断 + 轨道几何。竖排几何完全由原生自算，不吃 JS 的横排 HTML 栏矩形。 */
     private void updateOrientation() {

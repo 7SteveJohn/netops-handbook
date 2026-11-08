@@ -345,6 +345,10 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    /** 底栏样式镜像（netops_tabbar=regular → 贴底方角；float → 悬浮胶囊）。
+     *  JS 是真源（localStorage），经 setDockDocked 桥同步；面板开合时以此刷新按钮态。 */
+    private boolean dockDocked = false;
+
     private void addNativePage(android.view.View v) {
         v.setLayoutParams(new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
@@ -499,6 +503,7 @@ public class MainActivity extends AppCompatActivity {
             if ("settings".equals(route)) {
                 runOnUiThread(() -> {
                     if (settingsPanel != null) {
+                        settingsPanel.setDockDocked(dockDocked);   /* 面板按钮态=当前底栏样式 */
                         settingsPanel.show();
                         pushSettingsState();
                     }
@@ -1663,6 +1668,22 @@ public class MainActivity extends AppCompatActivity {
         /** 打开系统相册选图，结果通过 base64 回传给 JS（用于自定义背景壁纸）。 */
         @JavascriptInterface
         public void pickImage() { launchAlbumPicker(); }
+
+        /** 底栏样式镜像（2026-11-09 面板「底栏样式」行回归）：JS 真源
+         *  （netops_tabbar）切换时通知——贴底=方角满宽栏，悬浮=胶囊。 */
+        @JavascriptInterface
+        public void setDockDocked(boolean d) {
+            runOnUiThread(() -> {
+                dockDocked = d;
+                if (lensBar != null) {
+                    lensBar.setDocked(d);
+                    /* CSS 过渡（--t-base 300ms）中途探针会采到废矩形——已在
+                       setLensBarRect 拒收；过渡结束后重探一次，落定贴底几何。 */
+                    lensBar.postDelayed(lensBar::requestGeometry, 450);
+                }
+                if (settingsPanel != null) settingsPanel.setDockDocked(d);
+            });
+        }
 
         /** 2026-08-12 19:16：网页侧"双按退出确认"确认后调用 —— 真正退出应用。
             与物理返回键的防误触(Java 侧)不同，这是给左滑手势退出用的专门桥。 */

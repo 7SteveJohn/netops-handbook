@@ -3399,6 +3399,7 @@ lsSet(TABBAR_KEY, mode || 'float');
 d.body.classList.toggle('tabbar-regular', mode === 'regular');
 d.body.classList.toggle('tabbar-float', mode !== 'regular');
 updateTabbarLabel(mode);
+try { if (w.NetBridge && w.NetBridge.setDockDocked) NetBridge.setDockDocked(mode === 'regular'); } catch (e) { }
 }
 function updateTabbarLabel(mode) {
 var lbl = $('#tabbarModeLbl');
@@ -4082,6 +4083,7 @@ while (_sd.firstChild) d.body.appendChild(_sd.firstChild);
 var tbm = getTabbarMode();
 d.body.classList.toggle('tabbar-regular', tbm === 'regular');
 d.body.classList.toggle('tabbar-float', tbm !== 'regular');
+try { if (w.NetBridge && w.NetBridge.setDockDocked) NetBridge.setDockDocked(tbm === 'regular'); } catch (e) { }
 initGlass();
 if (!deviceDegraded) initGlassLight();
 initSquish();    
@@ -4176,6 +4178,7 @@ w.NetOpsNativeSet = function (kind, value) {
 try {
 if (kind === 'theme') setTheme(value);
 else if (kind === 'wallpaper') applyWallpaper(value, 'wp');
+else if (kind === 'dockstyle') setTabbarMode(value === 'regular' ? 'regular' : 'float');
 } catch (e) { }
 };
 w.NetOpsNativePushSettings = function () {
@@ -4847,6 +4850,6 @@ if (document.readyState === 'loading') {
 document.addEventListener('DOMContentLoaded', init, { once: true });
 } else { init(); }
 })();
-;window.__BUILD__='20261109-0029-f7c21c';</script>
+;window.__BUILD__='20261109-0445-d82ba4';</script>
 </body>
 </html>

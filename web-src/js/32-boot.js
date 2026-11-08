@@ -1619,6 +1619,9 @@
     d.body.classList.toggle('tabbar-regular', mode === 'regular');
     d.body.classList.toggle('tabbar-float', mode !== 'regular');
     updateTabbarLabel(mode);
+    /* 原生镜像（2026-11-09 面板「底栏样式」行回归）：贴底=方角满宽栏，
+       悬浮=胶囊——原生 dockRadius 按此选形。 */
+    try { if (w.NetBridge && w.NetBridge.setDockDocked) NetBridge.setDockDocked(mode === 'regular'); } catch (e) { }
     /* 药丸为纯 CSS 百分比定位（--pill-i × 自身宽度），模式切换/视口变化自适配，无需 JS */
   }
 
@@ -2441,6 +2444,8 @@
     var tbm = getTabbarMode();
     d.body.classList.toggle('tabbar-regular', tbm === 'regular');
     d.body.classList.toggle('tabbar-float', tbm !== 'regular');
+    /* 开机同步原生镜像（贴底=方角栏）：setDockDocked 幂等，桥未就绪静默跳过。 */
+    try { if (w.NetBridge && w.NetBridge.setDockDocked) NetBridge.setDockDocked(tbm === 'regular'); } catch (e) { }
     /* 液态玻璃：降级判定 + 立即应用。必须在这里跑——「我的」页是懒建的，
        原先只有进一次「我的」才会触发，导致冷启动时玻璃停在样式表默认值上。 */
     initGlass();
@@ -2572,9 +2577,11 @@
     w.NetOpsNativeSet = function (kind, value) {
       try {
         /* 2026-11-08 恒开收口：glass/nativedock/nativeappbar 三分支随设置 UI
-           下线删除（原生侧 NativeSettingsPanel 只 emit theme/wallpaper）。 */
+           下线删除（原生侧 NativeSettingsPanel 只 emit theme/wallpaper）。
+           2026-11-09 新增 dockstyle：面板「底栏样式」行（悬浮胶囊/原生贴底）。 */
         if (kind === 'theme') setTheme(value);
         else if (kind === 'wallpaper') applyWallpaper(value, 'wp');
+        else if (kind === 'dockstyle') setTabbarMode(value === 'regular' ? 'regular' : 'float');
       } catch (e) { }
     };
     w.NetOpsNativePushSettings = function () {
