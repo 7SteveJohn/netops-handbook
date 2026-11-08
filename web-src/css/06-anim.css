@@ -2123,6 +2123,12 @@ body.wp-qq.has-wallpaper .stat {
   border: none !important;
   box-shadow: none !important;
 }
+/* 深色模式壁纸暗化（2026-11-08）：无深色壁纸素材，用 brightness 压暗匹配深色 UI，
+   否则浅色壁纸上铺深色卡片=「深色半成品」分裂观感。 */
+html.dark body.has-wallpaper .wall,
+html.dark body.wp-qq.has-wallpaper .wall{
+  filter: blur(var(--bg-blur)) saturate(.8) brightness(.36) !important;
+}
 body.wp-qq.has-wallpaper .wall{
   /* --bg-blur 同时驱动 .wall 的 inset 出血（02-base 公式），糊多少就自动多铺
      3σ，避免屏幕四周出现透明窄边。糊化与洗白跟随通透度（JS 写 --wp-blur/

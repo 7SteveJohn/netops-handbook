@@ -1092,6 +1092,20 @@ public class MainActivity extends AppCompatActivity {
 
     private void pushTheme(boolean dark) {
         runOnUiThread(() -> {
+            /* 推系统深色真源（__netopsSysDark）并触发 JS 重算：JS theme 是用户偏好真源
+               （auto 跟随本值 / dark|light 用户手选优先）。WebView 的 matchMedia 恒 light
+               （不跟随系统），必须由 App 推系统值（2026-11-08「深色半成品」根因之一）。 */
+            if (webView != null) {
+                String js = "(function(){try{window.__netopsSysDark=" + dark + ";"
+                        + "if(window.UI&&UI.theme)UI.theme.apply();"
+                        + "}catch(e){}})()";
+                try {
+                    webView.evaluateJavascript(js, null);
+                    webView.evaluateJavascript(
+                        "(function(){return document.documentElement.className+'|theme='+localStorage.getItem('theme')})()",
+                        v -> Log.i(TAG, "JSSTATE " + v));
+                } catch (Throwable ignored) { }
+            }
             applyBarAppearance(dark);
             if (lensBar != null) lensBar.setDark(dark);
             NetOpsShell.INSTANCE.setDark(dark);
@@ -1713,10 +1727,13 @@ public class MainActivity extends AppCompatActivity {
         if (nativeBackdrop != null) {
             nativeBackdrop.notifyOrientationChanged(isLandscape);
         }
-        // 系统深浅色切换时同步系统栏；网页侧 auto 模式由 CSS media query 自行响应
-        applyBarAppearance(resolvedDark());
+        // ❗系统深浅切换统一走 pushTheme（含推 JS html.dark + __netopsDark——
+        //   WebView 的 matchMedia 恒 light，不推=HTML 卡片停在浅色，2026-11-08 实锤）
+        boolean darkNow = resolvedDark();
+        pushTheme(darkNow);
+        applyBarAppearance(darkNow);
         if (lensBar != null) {
-            lensBar.setDark(resolvedDark());
+            lensBar.setDark(darkNow);
             lensBar.reflow();
             lensBar.onBackdropChanged(); // 旋转后壁纸切换，通知玻璃层重采样
         }

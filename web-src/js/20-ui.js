@@ -84,6 +84,9 @@
   /* ---------------- 主题 ---------------- */
   var THEMES = ['auto', 'light', 'dark'];
   function sysDark() {
+    /* App 桥推送的真源优先（WebView 的 matchMedia 不跟随系统深色，恒 light——
+       2026-11-08 平板实锤：系统深色下 HTML 卡片仍白，与原生层分裂）。 */
+    if (w.__netopsSysDark !== undefined) return !!w.__netopsSysDark;
     try { return w.matchMedia && w.matchMedia('(prefers-color-scheme: dark)').matches; } catch (e) { return false; }
   }
   function applyTheme(t) {
