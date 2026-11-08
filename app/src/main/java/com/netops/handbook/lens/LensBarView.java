@@ -745,6 +745,15 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         scheduleFrostCapture();
     }
 
+    /** 快照转场收口（MainActivity.notifyBarsSwitchSettled 调用）：解除活抓冷却
+     *  并补抓霜。冷却的转场保护职责已由 transitionHold 承担——收口即解除，
+     *  用户紧接着的按住拖拽立即拿到新页采样（2026-11-09「按住药丸来回拖动
+     *  dock 滞后 1-2s」的组成部分）。 */
+    public void onSwitchSettled() {
+        liveCooldownUntil = 0L;
+        requestFrostRefresh();
+    }
+
     public LensBarView(Context context, WebView webView) {
         super(context);
         this.webView = webView;
@@ -2110,13 +2119,24 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
            采样按新 tabOff 取旧图，内容只是滞后一帧，肉眼不可见。 */
         /* 录制精度提到 1/2 后单次更贵：按压/抬升动画期也一律沿用上一帧，
            否则按压时每帧录制会顶穿预算。静止态才重录。 */
-        /* 位移动画 / 按压 / 拖动期**一律不录**，且这组判断必须排在滚动判断之前：
-           点按切页时 WebView 会触发滚动信号（scrollingNow 变 true），若写成
-           `!scrollingNow && (...)` 就会让整条跳过逻辑失效 —— 切页时页面正在重绘，
-           录制实测 **56~59ms/帧**，必然卡死（2026-11-07 用户报点按卡顿）。 */
-        if ((pos.active() || lift.active() || pressed || dragging) && liveSharp != null) return;
-        /* 切页冷却只对「滚动」让路：滚动中要跟手，冷却期也该继续更新背景 */
-        if (!scrollingNow && nowMs < liveCooldownUntil && liveSharp != null) return;
+        /* 位移动画 / 按压 / 拖动期的录制策略（2026-11-09 重写，用户报「按住药丸
+           来回拖动，dock 显示上一页背景 1-2s 才切换」）：按住态显示层切到
+           liveSharp（按住=通透），旧逻辑按住期一律不录 → liveSharp 冻在切页前
+           的画面，松手后还要等冷却+弹簧耗尽才恢复。改为分场景——
+             · 手指按住拖拽（页面静止，录制 ~17ms）：80ms 节拍低速跟拍并绕开
+               冷却（与滚动 40ms 同一经济学：17ms / 4~5 帧摊一次）；
+             · 切页动画/转场期（页面重绘中，录制实测 56~59ms/帧）：维持一律
+               不录——点按切页时 WebView 会触发滚动信号（scrollingNow 变 true），
+               若放开这路必然卡死（2026-11-07 用户报点按卡顿），故此判断仍须
+               排在滚动判断之前。 */
+        boolean fingerDown = pressed || dragging;
+        boolean pageSwitching = transitionHold || (pos.active() && !fingerDown);
+        if (pageSwitching && liveSharp != null) return;
+        long minGap = fingerDown ? 80 : (scrollingNow ? 40 : 33);
+        if (nowMs - lastCaptureMs < minGap) return;
+        /* 冷却只拦「无交互」期：按住拖拽期页面静止、录制安全，绕开冷却
+           （冷却的转场保护职责已由 transitionHold 承担）。 */
+        if (!scrollingNow && !fingerDown && nowMs < liveCooldownUntil && liveSharp != null) return;
         lastCaptureMs = nowMs;
         int w = Math.round(bandW), h = Math.round(bandH);
         /* 精度分档：滚动中 1/6（≈4ms，可每帧跟上），静止 1/2（≈16ms，一次到位） */

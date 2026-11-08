@@ -298,10 +298,10 @@ public class MainActivity extends AppCompatActivity {
     private void notifyBarsSwitchSettled() {
         if (lensBar != null) {
             lensBar.setTransitionHold(false);
-            /* ❗必须走 requestFrostRefresh（三连发防抖）——onBackdropChanged 是
-               空方法（壁纸霜链已退役），之前在这里调它=收口触发一直是空操作，
-               dock 的霜冻在上一页（2026-11-09 用户报「dock 白色/上一个页面的字」）。 */
-            lensBar.requestFrostRefresh();
+            /* onSwitchSettled = 解除活抓冷却 + requestFrostRefresh（三连发防抖）。
+               onBackdropChanged 是空方法（壁纸霜链已退役）勿用——2026-11-09 曾
+               因调它导致收口触发空操作。 */
+            lensBar.onSwitchSettled();
         }
         if (appbarBar != null) {
             appbarBar.setTransitionHold(false);
