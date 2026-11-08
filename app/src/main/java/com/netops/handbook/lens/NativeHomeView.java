@@ -157,7 +157,8 @@ public class NativeHomeView extends LinearLayout {
             }
         }
         page.addView(sectionTitle("工具箱"));
-        page.addView(toolRow("搜索", "全库搜模块 / 排障 / 面试 / 命令 / 术语", "search"));
+        /* 搜索入口不在此列：顶栏右上角已有搜索键（AppBarView fire(1)），重复入口下线
+           （2026-11-08 用户指出）。工具箱 5 项与 HTML 侧（31-views 工具箱）对齐。 */
         page.addView(toolRow("速查表", refsCount() + " 张 · 端口 / 掩码 / OSPF / BGP", "refs"));
         page.addView(toolRow("学习路线图", "0-12 个月成长节奏与目标", "roadmap"));
         page.addView(toolRow("术语词典", glossaryCount() + " 条云原生与数通黑话", "glossary"));
