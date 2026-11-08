@@ -309,6 +309,23 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    /** 打开系统相册选图（原生设置面板「从相册选取」与 HTML 壁纸弹窗桥共用；
+     *  结果统一走 onActivityResult REQ_PICK_IMAGE：解码压缩 → base64 → JS。 */
+    private void launchAlbumPicker() {
+        runOnUiThread(() -> {
+            try {
+                Intent intent = new Intent(Intent.ACTION_PICK,
+                        android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+                startActivityForResult(intent, REQ_PICK_IMAGE);
+            } catch (Exception e) {
+                // 部分设备可能没有相册应用，降级为通用选择器
+                Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+                intent.setType("image/*");
+                startActivityForResult(Intent.createChooser(intent, "选择背景图片"), REQ_PICK_IMAGE);
+            }
+        });
+    }
+
     /** 原生页导航统一出口：全部经 JS 路由（标题/返回栈/互斥都在 render 里收口）。 */
     private void nativeGo(String route, String arg) {
         if (webView == null) return;
@@ -510,6 +527,7 @@ public class MainActivity extends AppCompatActivity {
                关面板强制重抓一次（2026-10-30 用户报顶栏通透发脏）。 */
             if (!open && appbarBar != null) appbarBar.invalidateBackdrop();
         });
+        settingsPanel.setOnAlbum(this::launchAlbumPicker);   /* 从相册选取（REQ_PICK_IMAGE 管线共用） */
 
         /* 原生抽屉：最顶层 overlay。开合联动 dock（setOverlaid），否则药丸压住抽屉。 */
         nativeDrawer = new com.netops.handbook.lens.NativeDrawerView(this,
@@ -1644,20 +1662,7 @@ public class MainActivity extends AppCompatActivity {
 
         /** 打开系统相册选图，结果通过 base64 回传给 JS（用于自定义背景壁纸）。 */
         @JavascriptInterface
-        public void pickImage() {
-            runOnUiThread(() -> {
-                try {
-                    Intent intent = new Intent(Intent.ACTION_PICK,
-                            android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
-                    startActivityForResult(intent, REQ_PICK_IMAGE);
-                } catch (Exception e) {
-                    // 部分设备可能没有相册应用，降级为通用选择器
-                    Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
-                    intent.setType("image/*");
-                    startActivityForResult(Intent.createChooser(intent, "选择背景图片"), REQ_PICK_IMAGE);
-                }
-            });
-        }
+        public void pickImage() { launchAlbumPicker(); }
 
         /** 2026-08-12 19:16：网页侧"双按退出确认"确认后调用 —— 真正退出应用。
             与物理返回键的防误触(Java 侧)不同，这是给左滑手势退出用的专门桥。 */
@@ -1776,6 +1781,10 @@ public class MainActivity extends AppCompatActivity {
                 }
                 final String js = "if(window.NetOpsOnWallpaper) NetOpsOnWallpaper('" + dataUrl + "');";
                 if (webView != null) webView.post(() -> { if (webView != null) webView.evaluateJavascript(js, null); });
+                /* 面板若开着，刷新按钮态（「从相册选取」→「更换自定义壁纸」）：
+                   JS 侧 applyWallpaper 已同步写完 WP_KEY='custom'，FIFO 队列里
+                   pushSettingsState 读到的必是新值。 */
+                runOnUiThread(() -> pushSettingsState());
             });
         }
     }

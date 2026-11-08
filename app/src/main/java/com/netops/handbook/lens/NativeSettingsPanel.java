@@ -31,6 +31,10 @@ public class NativeSettingsPanel extends FrameLayout {
      *  否则侧栏压在面板左半，壁纸选项被挡（2026-10-28 用户报）。 */
     public interface OnOpen { void onOpen(boolean open); }
 
+    /** 相册选图回调：打开系统相册（复用桥的 REQ_PICK_IMAGE 管线，结果经 base64 回传 JS）。
+     *  2026-11-09 回归——自定义壁纸入口随 HTML 壁纸弹窗一起在原生化时丢失。 */
+    public interface OnAlbum { void onAlbum(); }
+
     public interface Set {
         void apply(String kind, String value);
     }
@@ -114,8 +118,10 @@ public class NativeSettingsPanel extends FrameLayout {
     }
 
     private OnOpen onOpen;
+    private OnAlbum onAlbum;
 
     public void setOnOpen(OnOpen l) { onOpen = l; }
+    public void setOnAlbum(OnAlbum l) { onAlbum = l; }
 
     public void show() {
         android.util.Log.i("NativeSettings", "show");
@@ -219,6 +225,21 @@ public class NativeSettingsPanel extends FrameLayout {
         /* ❗「原生界面」区下线（2026-11-08 用户：没必要留，保证恒为液态玻璃）：
            原生 dock/顶栏恒开（JS nativeDockOn/nativeAppbarOn 已改恒 true），
            回退网页渲染的路径仅保留代码（设备异常时手动改源），UI 不再暴露。 */
+        /* 自定义壁纸入口（2026-11-09 回归）：HTML 壁纸弹窗的相册按钮随我的页
+           原生化丢失，此处接回——点击走桥的 REQ_PICK_IMAGE 管线（解码/压缩/
+           base64 回传 JS 全部现成）。 */
+        TextView album = NativeBlocks.tv(getContext(), pal,
+                "custom".equals(wallpaper) ? "更换自定义壁纸（从相册选取）" : "从相册选取自定义壁纸",
+                12.5f, false, pal.accent);
+        album.setGravity(Gravity.CENTER);
+        album.setPadding(0, pal.dp(12), 0, pal.dp(12));
+        album.setBackground(NativeBlocks.shape(pal, pal.chipBgOff, pal.dp(12)));
+        album.setOnClickListener(v -> { if (onAlbum != null) onAlbum.onAlbum(); });
+        LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        alp.topMargin = pal.dp(12);
+        sheet.addView(album, alp);
+
         TextView close = NativeBlocks.tv(getContext(), pal, "完成", 14, true, pal.accent);
         close.setGravity(Gravity.CENTER);
         close.setPadding(0, pal.dp(14), 0, 0);

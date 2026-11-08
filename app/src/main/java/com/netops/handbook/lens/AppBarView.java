@@ -502,7 +502,11 @@ public class AppBarView extends View {
             try {
                 Canvas capCanvas = new Canvas(out);
                 capCanvas.translate(-l, -top);
-                if (wallpaperSource != null) wallpaperSource.draw(capCanvas);
+                /* 自定义壁纸走 WebView .wall（原生壁纸层对自定义为 GONE）——
+                   采样源不可见时回退整窗录制，否则霜图采到空层=顶栏丢壁纸
+                   （2026-11-09 相册壁纸回归时补）。 */
+                if (wallpaperSource != null && wallpaperSource.getVisibility() == android.view.View.VISIBLE)
+                    wallpaperSource.draw(capCanvas);
                 else anchor.draw(capCanvas);
             } catch (Throwable t) {
                 Log.w(TAG, "anchor.draw 录顶栏背景失败", t);
