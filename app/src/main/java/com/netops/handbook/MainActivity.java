@@ -298,7 +298,10 @@ public class MainActivity extends AppCompatActivity {
     private void notifyBarsSwitchSettled() {
         if (lensBar != null) {
             lensBar.setTransitionHold(false);
-            lensBar.onBackdropChanged();
+            /* ❗必须走 requestFrostRefresh（三连发防抖）——onBackdropChanged 是
+               空方法（壁纸霜链已退役），之前在这里调它=收口触发一直是空操作，
+               dock 的霜冻在上一页（2026-11-09 用户报「dock 白色/上一个页面的字」）。 */
+            lensBar.requestFrostRefresh();
         }
         if (appbarBar != null) {
             appbarBar.setTransitionHold(false);
@@ -789,8 +792,12 @@ public class MainActivity extends AppCompatActivity {
         final Runnable[] bgRefresh = {null};   // 停止滚动后延迟触发的那一次重抓
         android.view.ViewTreeObserver.OnScrollChangedListener l = () -> {
             /* ❗顶栏已改用 anchor.draw 同步录制（~17ms，与底栏同源），
-               滚动中可以像底栏一样实时重抓（AppBarView 内部 40ms 节流）。 */
+               滚动中可以像底栏一样实时重抓（AppBarView 内部 40ms 节流）。
+               dock 同链补喂（2026-11-09 用户报「我的页滑动时 dock 里还是
+               上一个页面的字」）：原生页滚动从来没有 dock 的重抓信号，
+               requestFrostRefresh 三连发防抖自带「停手 200ms」语义。 */
             appbarBar.setScrolling();
+            if (lensBar != null) lensBar.requestFrostRefresh();
         };
         java.util.ArrayDeque<android.view.View> stack = new java.util.ArrayDeque<>();
         stack.push(page);
