@@ -265,14 +265,8 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
        ❗声明须在 liveCopyInFlight 之后：字段初始化器简单名前向引用非法。 */
     int scrollSteps;
     long scrollFirstMs, scrollLastMs;
-    /** 滚动中 dock 低频跟拍的节流戳：10fps invalidate（2026-11-10 实时渲染定案）。 */
+    /** 滚动中 dock 低频跟拍的节流戳：25fps invalidate（2026-11-10 实时渲染定案）。 */
     long lastScrollInvalidateMs;
-    /** 滚动中栏后霜图跟拍的节流戳：10fps 直发 rebuildContentFrost（2026-11-10）。 */
-    long lastFrostDispatchMs;
-    /** ❗独立 Runnable：不能复用 frostDebounce —— hookAppbarScroll 每帧滚动都
-     *  requestFrostRefresh → scheduleFrostCapture 的 removeCallbacks(frostDebounce)
-     *  会把直发任务撤掉（实测 2.2s 滚动只拍到 3 次）。busy 闩锁防重入。 */
-    private final Runnable frostLiveCap = this::rebuildContentFrost;
     private final Runnable scrollProbe = () -> {
         long now = android.os.SystemClock.uptimeMillis();
         android.util.Log.i("PerfProbe", "scroll summary steps=" + scrollSteps
@@ -445,9 +439,9 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         if (detached || dockVertical || transitionHold || !nativeDock || contentFrostBusy || window == null) return;
         /* ❗2026-11-10 实时渲染打磨：滚动中**允许**抓霜（旧「滚动期零抓帧」作废）。
            前提 = 霜链已全部在 frostWorker 后台（PixelCopy 回调 + buildFrost 均不占
-           主线程），主线程只剩赋值 + buildBarPane（3-8ms）；10fps 节流在滚动监听的
-           直发处（lastFrostDispatchMs）。旧守卫 scrollIdleUntil 拦截已删 —— 它是
-           用户「做不到 KernelSU 那种实时」的直接原因：滚动中玻璃停在旧霜。 */
+           主线程），主线程只剩赋值 + buildBarPane（3-8ms）。但注意：栏体 AGSL 的
+           content 输入是 liveBackdropShader（实时磨砂，见 drawBarGlass），contentFrost
+           只在停手补高清帧 —— 滚动中不抓，省下的主线程预算全部让给 liveSharp 链。 */
         if (barRect.width() <= 4 || barRect.height() <= 4) return;
         View decor = window.getDecorView();
         if (decor == null || decor.getWidth() <= 0) return;
@@ -2222,7 +2216,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         /* 录制成本是硬成本（anchor.draw 里 WebView 要渲染整页，不随目标尺寸降低，
            实测 1/2 与 1/6 都是 17ms）。所以滚动时只能降频率换帧率：
            15fps 更新背景 + 其余帧复用 → 帧率回到 50fps 以上（2026-11-07）。 */
-        if (nowMs - lastCaptureMs < (scrollingNow ? 40 : 33)) return;
+        if (nowMs - lastCaptureMs < 33) return;   // 30fps 上限统一（滚动/静止同值，实拍频率由 minGap 控制）
         /* 药丸位移动画期（切页/拖动）不录制，沿用上一帧：录制 12ms + 药丸重绘
            叠加就顶穿 16.7ms 预算，表现为「局部丢帧」（2026-11-06 用户报）。
            采样按新 tabOff 取旧图，内容只是滞后一帧，肉眼不可见。 */
@@ -2243,7 +2237,10 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         if (pageSwitching && liveSharp != null) return;
         /* ❗静止期 1000ms 兜底：静止画面不变，1Hz 足够；250ms 时「停手→再划」
            的接缝里仍可能撞上一次采样（2026-11-09 用户报「卡一下」）。 */
-        long minGap = fingerDown ? 80 : (scrollingNow ? 100 : 1000);
+        /* ❗2026-11-10 提频：滚动中 40ms（25fps）——栏体 AGSL 的 content 输入是
+           liveBackdropShader（本层每拍更新的实时磨砂），这一拍的节奏就是用户看到的
+           「实时渲染」节奏；旧 100ms 档 = 用户报「晚 0.5s、快滑跟不上」。 */
+        long minGap = fingerDown ? 80 : (scrollingNow ? 40 : 1000);
         if (nowMs - lastCaptureMs < minGap) return;
         /* 冷却只拦「无交互」期：按住拖拽期页面静止、录制安全，绕开冷却
            （冷却的转场保护职责已由 transitionHold 承担）。 */
@@ -2639,25 +2636,16 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             if (v.scrollSteps == 0) v.scrollFirstMs = v.scrollIdleUntil - 120L;
             v.scrollLastMs = android.os.SystemClock.uptimeMillis();
             v.scrollSteps++;
-            /* ❗滚动中低频跟拍（2026-11-10 用户拍板「实时渲染别删」）：dock 以
-               10fps invalidate → onDraw → captureLiveBackdrop 走**异步 PixelCopy**
-               （回调落后台，不占滚动帧），玻璃里卡片/壁纸在滚动中仍然流动。
-               代价是玻璃 10fps 跳变（磨砂糊下可接受）——换取用户要的「实时」。
-               同步 anchor.draw 滚动中仍然禁用（55ms 必顶穿滚动帧预算），
-               由下方 captureLiveBackdrop 的 useAsync 分支保证。 */
+            /* ❗滚动中 25fps invalidate（2026-11-10 二次打磨）：栏体 AGSL 的 content
+               输入 = liveBackdropShader（captureLiveBackdrop 每拍更新的实时磨砂，
+               见 drawBarGlass:2593），这一拍的节拍就是「实时渲染」的节拍。
+               40ms ≈ 25fps；PixelCopy roundtrip 9-15ms < 40ms，GPU 链不堆积。
+               ❗不再直发 contentFrost 霜链（1a37d13 加的，白占主线程）——栏体实时
+               源是 liveBackdrop，contentFrost 只在停手 800ms 补高清帧（下方）。 */
             long nowMs = android.os.SystemClock.uptimeMillis();
-            if (nowMs - v.lastScrollInvalidateMs >= 100L) {
+            if (nowMs - v.lastScrollInvalidateMs >= 40L) {
                 v.lastScrollInvalidateMs = nowMs;
                 v.invalidate();
-            }
-            /* ❗滚动中栏后霜图 10fps 直发（2026-11-10 实时渲染打磨）：霜链已在
-               frostWorker 后台（PixelCopy 回调 + buildFrost 不占主线程），主线程
-               只剩赋值 + buildBarPane（3-8ms）。玻璃随滚动流动 = 用户要的
-               KernelSU 式实时；fa0f70c 的「滚动期冻结」作废。 */
-            if (nowMs - v.lastFrostDispatchMs >= 100L) {
-                v.lastFrostDispatchMs = nowMs;
-                v.frostHandler.removeCallbacks(v.frostLiveCap);
-                v.frostHandler.post(v.frostLiveCap);
             }
             v.removeCallbacks(v.resumeInvalidate);
             /* 恢复延后到 400ms：130ms 落在「滑停→立刻再划」的间隙里，恢复动作
