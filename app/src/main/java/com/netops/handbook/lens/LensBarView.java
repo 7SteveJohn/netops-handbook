@@ -437,6 +437,9 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         /* transitionHold：快照转场覆盖层存活期间不抓帧（覆盖层在主窗内，抓到
            旧页像素）——转场收尾由 MainActivity.notifyBarsSwitchSettled 放行。 */
         if (detached || dockVertical || transitionHold || !nativeDock || contentFrostBusy || window == null) return;
+        /* ❗滚动中零抓帧（终极版，2026-11-09）：霜图 PixelCopy 20-60ms 主线程，
+           断续滑动的 250ms 间隙里反复触发，把 fling 帧预算挤爆（67ms/步 实证）。 */
+        if (SystemClock.uptimeMillis() < scrollIdleUntil) return;
         if (barRect.width() <= 4 || barRect.height() <= 4) return;
         View decor = window.getDecorView();
         if (decor == null || decor.getWidth() <= 0) return;
@@ -2185,6 +2188,10 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
 
     private void captureLiveBackdrop() {
         if (anchor == null || bandW < 4 || bandH < 4) return;
+        /* ❗滚动中零采样（终极版，2026-11-09）：探针实证滚动期 67ms/步（正常 7.7ms），
+           霜图/恢复采样两个定时器在 fling 帧间插队挤爆预算。滚动中 dock 静帧
+           （磨砂糊无感），停手 130ms 后 resumeInvalidate 恢复一帧。 */
+        if (scrollingNow) return;
         /* 30fps 上限：anchor.draw() 要重绘整棵主窗口（含 WebView），切页转场时
            与页面绘制抢主线程会「非常卡」（2026-11-06 用户报）。 */
         long nowMs = SystemClock.uptimeMillis();
