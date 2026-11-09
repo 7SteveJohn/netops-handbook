@@ -223,11 +223,26 @@ public class NativeDocList extends LinearLayout {
                 page.addView(groupCard(e.getKey(), e.getValue()));
             }
         } else {
+            NativeBlocks.Flow flow = new NativeBlocks.Flow(page, isLandscape());
             for (int i = 0; i < items.length(); i++) {
                 JSONObject o = items.optJSONObject(i);
-                if (o != null) page.addView(itemCard(o));
+                if (o != null) flow.add(itemCard(o, flow));
             }
+            flow.commit();
         }
+    }
+
+    private boolean lastLand = false;   /* onConfigurationChanged 显式下发（View 的
+        resources config 更新晚于回调，自读会拿到旧方向——2026-11-09 实证） */
+
+    private boolean isLandscape() { return lastLand; }
+
+    /** 旋转后强制重建（深浅不变时 setDark 不触发 build，单列⇄双列切换收不到）。
+     *  land 由 MainActivity 从 newConfig 显式传入。 */
+    public void onOrientationChanged(boolean land) {
+        lastLand = land;
+        dirty = true;
+        if (isShowing()) buildPage();
     }
 
     /** 分组卡：标题常驻，展开时才建该组条目卡。 */
@@ -261,7 +276,10 @@ public class NativeDocList extends LinearLayout {
                 arrow.setRotation(0f);
             } else {
                 if (!built[0]) {
-                    for (JSONObject o : list) body.addView(itemCard(o));
+                    /* 组内条目横屏双列（2026-11-09）：一次建齐，Flow 管分列与展开跨行。 */
+                    NativeBlocks.Flow flow = new NativeBlocks.Flow(body, isLandscape());
+                    for (JSONObject o : list) flow.add(itemCard(o, flow));
+                    flow.commit();
                     built[0] = true;
                 }
                 body.setVisibility(VISIBLE);
@@ -273,7 +291,7 @@ public class NativeDocList extends LinearLayout {
         return card;
     }
 
-    private View itemCard(JSONObject o) {
+    private View itemCard(JSONObject o, NativeBlocks.Flow flow) {
         String id = o.optString("id");
         LinearLayout card = NativeBlocks.card(getContext(), pal);
         boolean isDone = done.contains(id), isFav = fav.contains(id);
@@ -305,6 +323,8 @@ public class NativeDocList extends LinearLayout {
                 body.animate().alpha(1f).setDuration(180).start();
                 arrowOut[0].setRotation(-90f);
             }
+            /* 横屏展开跨行（同 NativePhaseView）；open 是点击前状态。 */
+            if (flow != null) flow.setWide(card, !open);
         });
 
         LinearLayout.LayoutParams lp = NativeBlocks.matchP();

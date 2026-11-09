@@ -1929,18 +1929,18 @@ public class MainActivity extends AppCompatActivity {
         if (settingsPanel != null) {
             settingsPanel.build();
         }
+        boolean land = newConfig.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
         if (nativePhase != null) {
             nativePhase.setDark(resolvedDark());
-            nativePhase.onOrientationChanged();   /* 单列⇄双列重建 */
+            nativePhase.onOrientationChanged(land);   /* 单列⇄双列重建 */
         }
-        if (nativeFault != null) nativeFault.setDark(resolvedDark());
-        if (nativeIv != null) nativeIv.setDark(resolvedDark());
-        if (nativeDict != null) nativeDict.setDark(resolvedDark());
-        if (nativeRefs != null) nativeRefs.setDark(resolvedDark());
-        if (nativeGlossary != null) nativeGlossary.setDark(resolvedDark());
+        if (nativeFault != null) { nativeFault.setDark(resolvedDark()); nativeFault.onOrientationChanged(land); }
+        if (nativeIv != null) { nativeIv.setDark(resolvedDark()); nativeIv.onOrientationChanged(land); }
+        /* nativeDict(NativeDictView)/nativeRefs(NativeRefsView)/nativeGlossary(NativeSimpleList)
+           是独立类，双列改造下一批（本期只覆盖 DocList 系与 Phase/Home）。 */
         if (nativeRoadmap != null) nativeRoadmap.setDark(resolvedDark());
         if (nativeQuiz != null) nativeQuiz.setDark(resolvedDark());
-        if (nativeHome != null) nativeHome.setDark(resolvedDark());
+        if (nativeHome != null) { nativeHome.setDark(resolvedDark()); nativeHome.onOrientationChanged(land); }
         if (nativeSearch != null) nativeSearch.setDark(resolvedDark());
         if (nativeFav != null) nativeFav.setDark(resolvedDark());
         if (nativeMe != null) nativeMe.setDark(resolvedDark());

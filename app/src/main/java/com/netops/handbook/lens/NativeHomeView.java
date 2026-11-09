@@ -150,20 +150,32 @@ public class NativeHomeView extends LinearLayout {
         page.addView(heroCard());
         page.addView(progressCard(pct, doneTotal, modTotal));
         page.addView(sectionTitle("学习路径"));
+        boolean land = lastLand;
         if (phases != null) {
+            NativeBlocks.Flow flow = new NativeBlocks.Flow(page, land);
             for (int i = 0; i < phases.length(); i++) {
                 JSONObject p = phases.optJSONObject(i);
-                if (p != null) page.addView(phaseCard(p, i + 1));
+                if (p != null) flow.add(phaseCard(p, i + 1));
             }
         }
         page.addView(sectionTitle("工具箱"));
         /* 搜索入口不在此列：顶栏右上角已有搜索键（AppBarView fire(1)），重复入口下线
            （2026-11-08 用户指出）。工具箱 5 项与 HTML 侧（31-views 工具箱）对齐。 */
-        page.addView(toolRow("速查表", refsCount() + " 张 · 端口 / 掩码 / OSPF / BGP", "refs"));
-        page.addView(toolRow("学习路线图", "0-12 个月成长节奏与目标", "roadmap"));
-        page.addView(toolRow("术语词典", glossaryCount() + " 条云原生与数通黑话", "glossary"));
-        page.addView(toolRow("模拟测验", quizCount() + " 道选择题", "quiz"));
-        page.addView(toolRow("CLI 模拟器", "离线练习 VRP / Linux 常用命令", "cli"));
+        NativeBlocks.Flow tools = new NativeBlocks.Flow(page, land);
+        tools.add(toolRow("速查表", refsCount() + " 张 · 端口 / 掩码 / OSPF / BGP", "refs"));
+        tools.add(toolRow("学习路线图", "0-12 个月成长节奏与目标", "roadmap"));
+        tools.add(toolRow("术语词典", glossaryCount() + " 条云原生与数通黑话", "glossary"));
+        tools.add(toolRow("模拟测验", quizCount() + " 道选择题", "quiz"));
+        tools.add(toolRow("CLI 模拟器", "离线练习 VRP / Linux 常用命令", "cli"));
+    }
+
+    /** 旋转后强制重建（深浅不变时 setDark 不触发 build，单列⇄双列切换收不到）。 */
+    private boolean lastLand = false;
+
+    public void onOrientationChanged(boolean land) {
+        lastLand = land;
+        dirty = true;
+        if (isShowing()) buildPage();
     }
 
     private int refsCount() { JSONArray a = root.optJSONArray("refs"); return a == null ? 0 : a.length(); }
@@ -177,8 +189,10 @@ public class NativeHomeView extends LinearLayout {
         TextView title = NativeBlocks.tv(getContext(), pal, "网络学习手册 2.0", 22, true, pal.textMain);
         title.setPadding(0, pal.dp(6), 0, 0);
         card.addView(title);
+        boolean land = lastLand;
         TextView desc = NativeBlocks.tv(getContext(), pal,
-                "从零基础数通到云原生架构 · 排障字典 · 面试题库\n辅助工具，配合教材与真机实验使用\n纯离线运行，无需任何网络连接",
+                land ? "从零基础数通到云原生架构 · 排障字典 · 面试题库 · 纯离线运行"
+                     : "从零基础数通到云原生架构 · 排障字典 · 面试题库\n辅助工具，配合教材与真机实验使用\n纯离线运行，无需任何网络连接",
                 12.5f, false, pal.textMute);
         desc.setLineSpacing(pal.dp(4), 1f);
         desc.setPadding(0, pal.dp(8), 0, 0);

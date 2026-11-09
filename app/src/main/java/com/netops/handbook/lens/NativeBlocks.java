@@ -116,6 +116,88 @@ public class NativeBlocks {
                 ViewGroup.LayoutParams.WRAP_CONTENT);
     }
 
+    /** 横屏双列流式容器（2026-11-09 横屏适配）：land=false 退化为普通竖排 addView；
+     *  land=true 每两张卡包一行，等宽 weight、间距 7dp、行距 10dp。
+     *  ❗展开跨行（is-wide 语义，对齐 HTML 侧 .plist .is-wide）：双列窄卡里展开
+     *    正文（命令/表格）没法读——setWide(card, true) 把该卡重排为满宽独占一行，
+     *    收起恢复双列。用法：循环 add() 后必须 commit() 一次做最终布局。 */
+    static class Flow {
+        private final LinearLayout rowsWrap;
+        private final boolean land;
+        private final float density;
+        private final java.util.List<View> cards = new java.util.ArrayList<>();
+        private final java.util.List<Boolean> wide = new java.util.ArrayList<>();
+        private boolean committed = false;
+
+        Flow(LinearLayout parent, boolean land) {
+            this.land = land;
+            this.density = parent.getResources().getDisplayMetrics().density;
+            rowsWrap = new LinearLayout(parent.getContext());
+            rowsWrap.setOrientation(LinearLayout.VERTICAL);
+            parent.addView(rowsWrap, matchP());
+        }
+
+        void add(View card) {
+            cards.add(card);
+            wide.add(Boolean.FALSE);
+        }
+
+        /** 卡片展开/收起后调用：展开卡满宽独占一行，未展开的继续双列。 */
+        void setWide(View card, boolean w) {
+            int idx = cards.indexOf(card);
+            android.util.Log.i("Flow", "setWide idx=" + idx + " w=" + w + " land=" + land
+                    + " committed=" + committed + " cards=" + cards.size());
+            if (idx < 0) return;
+            wide.set(idx, w);
+            relayout();
+        }
+
+        /** 构建完成后调用：从 add 列表一次性布局（避免逐卡 O(n²) 重排）。 */
+        void commit() {
+            committed = true;
+            relayout();
+        }
+
+        private void relayout() {
+            if (!committed && land) return;   // 构建期只挂列表，commit 一次成型
+            /* ❗先摘卡再清容器：卡片此刻还挂在旧 row 里，直接 rowsWrap.addView 会
+               IllegalStateException「child already has a parent」（2026-11-09 实测崩溃）。 */
+            for (View c : cards) {
+                if (c.getParent() instanceof android.view.ViewGroup) {
+                    ((android.view.ViewGroup) c.getParent()).removeView(c);
+                }
+            }
+            rowsWrap.removeAllViews();
+            LinearLayout row = null;
+            int i = 0;
+            for (int k = 0; k < cards.size(); k++) {
+                View card = cards.get(k);
+                boolean w = wide.get(k);
+                if (!land || w) {
+                    LinearLayout.LayoutParams lp = matchP();
+                    lp.bottomMargin = (int) (10 * density);
+                    rowsWrap.addView(card, lp);
+                    row = null;
+                    i = 0;
+                } else {
+                    if (i % 2 == 0) {
+                        row = new LinearLayout(rowsWrap.getContext());
+                        row.setOrientation(LinearLayout.HORIZONTAL);
+                        rowsWrap.addView(row, matchP());
+                    }
+                    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                            0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+                    lp.bottomMargin = (int) (10 * density);
+                    if (i % 2 == 0) lp.rightMargin = (int) (7 * density);
+                    else lp.leftMargin = (int) (7 * density);
+                    card.setLayoutParams(lp);
+                    row.addView(card);
+                    i++;
+                }
+            }
+        }
+    }
+
     static LinearLayout card(Context c, Palette p) {
         LinearLayout card = new LinearLayout(c);
         card.setOrientation(LinearLayout.VERTICAL);

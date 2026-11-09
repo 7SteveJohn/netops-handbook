@@ -194,9 +194,12 @@ public class NativePhaseView extends LinearLayout {
 
     /** 旋转后强制重建：深浅不变时 setDark 直接 return，单列⇄双列切换收不到
      *  （2026-11-09 横屏双列配套）。 */
-    public void onOrientationChanged() {
+    private boolean lastLand = false;
+
+    public void onOrientationChanged(boolean land) {
+        lastLand = land;
         dirty = true;
-        if (current != null && isShowing()) buildPage();
+        if (isShowing()) buildPage();
     }
 
     private void refreshPalette() {
@@ -213,35 +216,22 @@ public class NativePhaseView extends LinearLayout {
         page.addView(headerCard(current));
 
         /* 横屏双列（2026-11-09 用户拍板）：单栏满宽在横屏一行拖 50+ 字、滚动翻倍。
-           两卡并排等宽（weight 1），高度各自 WRAP 顶部对齐；展开的正文卡也随列宽走。 */
-        boolean land = getResources().getConfiguration().orientation
-                == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
-        LinearLayout row = null;
+           展开跨行：正文卡（命令/表格）点开时满宽独占一行（is-wide 语义），
+           否则双列窄卡里正文没法读。 */
+        boolean land = lastLand;
+        NativeBlocks.Flow flow = new NativeBlocks.Flow(page, land);
         View focusView = null;
         for (int i = 0; i < current.mods.length(); i++) {
             JSONObject m = current.mods.optJSONObject(i);
             if (m == null) continue;
-            View card = moduleCard(m);
+            View card = moduleCard(m, flow);
             if (pendingFocus != null && pendingFocus.equals(m.optString("id"))) focusView = card;
-            if (land) {
-                if (i % 2 == 0) {
-                    row = new LinearLayout(getContext());
-                    row.setOrientation(HORIZONTAL);
-                    page.addView(row, NativeBlocks.matchP());
-                }
-                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                        0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-                lp.bottomMargin = pal.dp(10);
-                if (i % 2 == 0) lp.rightMargin = pal.dp(7); else lp.leftMargin = pal.dp(7);
-                card.setLayoutParams(lp);
-                row.addView(card);
-            } else {
-                page.addView(card);
-            }
+            flow.add(card);
         }
+        flow.commit();
         if (focusView != null) {
             final View fv = focusView;
-            scroller.post(() -> scroller.smoothScrollTo(0, Math.max(0, fv.getTop() - pal.dp(20))));
+            scroller.postDelayed(() -> scroller.smoothScrollTo(0, Math.max(0, fv.getTop() - pal.dp(20))), 80);
         }
     }
 
@@ -289,7 +279,7 @@ public class NativePhaseView extends LinearLayout {
                         : getResources().getDisplayMetrics().widthPixels);
     }
 
-    private View moduleCard(JSONObject m) {
+    private View moduleCard(JSONObject m, NativeBlocks.Flow flow) {
         String id = m.optString("id");
         LinearLayout card = NativeBlocks.card(getContext(), pal);
         boolean isDone = done.contains(id), isFav = fav.contains(id);
@@ -325,6 +315,9 @@ public class NativePhaseView extends LinearLayout {
                 body.animate().alpha(1f).setDuration(180).start();
                 arrowOut[0].setRotation(-90f);
             }
+            /* 横屏展开跨行：正文卡独占满宽，收起回双列（竖屏 Flow 恒单列无感）。
+               ❗open 是点击前状态，点击后目标态 = !open。 */
+            if (flow != null) flow.setWide(card, !open);
         });
 
         LinearLayout.LayoutParams lp = NativeBlocks.matchP();
