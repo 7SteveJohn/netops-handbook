@@ -267,6 +267,12 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     long scrollFirstMs, scrollLastMs;
     /** 滚动中 dock 低频跟拍的节流戳：10fps invalidate（2026-11-10 实时渲染定案）。 */
     long lastScrollInvalidateMs;
+    /** 滚动中栏后霜图跟拍的节流戳：10fps 直发 rebuildContentFrost（2026-11-10）。 */
+    long lastFrostDispatchMs;
+    /** ❗独立 Runnable：不能复用 frostDebounce —— hookAppbarScroll 每帧滚动都
+     *  requestFrostRefresh → scheduleFrostCapture 的 removeCallbacks(frostDebounce)
+     *  会把直发任务撤掉（实测 2.2s 滚动只拍到 3 次）。busy 闩锁防重入。 */
+    private final Runnable frostLiveCap = this::rebuildContentFrost;
     private final Runnable scrollProbe = () -> {
         long now = android.os.SystemClock.uptimeMillis();
         android.util.Log.i("PerfProbe", "scroll summary steps=" + scrollSteps
@@ -437,9 +443,11 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         /* transitionHold：快照转场覆盖层存活期间不抓帧（覆盖层在主窗内，抓到
            旧页像素）——转场收尾由 MainActivity.notifyBarsSwitchSettled 放行。 */
         if (detached || dockVertical || transitionHold || !nativeDock || contentFrostBusy || window == null) return;
-        /* ❗滚动中零抓帧（终极版，2026-11-09）：霜图 PixelCopy 20-60ms 主线程，
-           断续滑动的 250ms 间隙里反复触发，把 fling 帧预算挤爆（67ms/步 实证）。 */
-        if (SystemClock.uptimeMillis() < scrollIdleUntil) return;
+        /* ❗2026-11-10 实时渲染打磨：滚动中**允许**抓霜（旧「滚动期零抓帧」作废）。
+           前提 = 霜链已全部在 frostWorker 后台（PixelCopy 回调 + buildFrost 均不占
+           主线程），主线程只剩赋值 + buildBarPane（3-8ms）；10fps 节流在滚动监听的
+           直发处（lastFrostDispatchMs）。旧守卫 scrollIdleUntil 拦截已删 —— 它是
+           用户「做不到 KernelSU 那种实时」的直接原因：滚动中玻璃停在旧霜。 */
         if (barRect.width() <= 4 || barRect.height() <= 4) return;
         View decor = window.getDecorView();
         if (decor == null || decor.getWidth() <= 0) return;
@@ -595,7 +603,8 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         /* 抓取原点变了（几何/转屏）→ 旧 pane 与新 pane 内容错位，交叉淡化会
            「双重影」——跳过淡化直接切。原点不变的换霜（滚动停手）才淡化。 */
         boolean originMoved = Math.abs(contentOffX - paneKeyOffX) > 0.5f
-                || Math.abs(contentOffY - paneKeyOffY) > 0.5f;
+                || Math.abs(contentOffY - paneKeyOffY) > 0.5f
+                || SystemClock.uptimeMillis() < scrollIdleUntil;   /* 滚动中内容在动：旧霜/新霜错位，交叉淡化会重影 → 直切 */
         paneKeyOffX = contentOffX;
         paneKeyOffY = contentOffY;
         if (barPanePrev != null) barPanePrev.recycle();
@@ -2640,6 +2649,15 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             if (nowMs - v.lastScrollInvalidateMs >= 100L) {
                 v.lastScrollInvalidateMs = nowMs;
                 v.invalidate();
+            }
+            /* ❗滚动中栏后霜图 10fps 直发（2026-11-10 实时渲染打磨）：霜链已在
+               frostWorker 后台（PixelCopy 回调 + buildFrost 不占主线程），主线程
+               只剩赋值 + buildBarPane（3-8ms）。玻璃随滚动流动 = 用户要的
+               KernelSU 式实时；fa0f70c 的「滚动期冻结」作废。 */
+            if (nowMs - v.lastFrostDispatchMs >= 100L) {
+                v.lastFrostDispatchMs = nowMs;
+                v.frostHandler.removeCallbacks(v.frostLiveCap);
+                v.frostHandler.post(v.frostLiveCap);
             }
             v.removeCallbacks(v.resumeInvalidate);
             /* 恢复延后到 400ms：130ms 落在「滑停→立刻再划」的间隙里，恢复动作
