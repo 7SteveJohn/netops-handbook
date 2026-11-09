@@ -23,6 +23,8 @@ public class NativeQuizView extends LinearLayout {
 
     private JSONArray quiz = new JSONArray();
     private boolean dark = false, direct = false;
+    private boolean lastLand = getResources().getConfiguration().orientation
+            == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
     private final ScrollView scroller;
     private final LinearLayout page;
     private NativeBlocks.Palette pal;
@@ -97,6 +99,14 @@ public class NativeQuizView extends LinearLayout {
     private void refreshPalette() {
         pal = NativeBlocks.palette(getContext(), dark, direct);
         setBackgroundColor(pal.bg);
+        dirty = true;
+        if (isShowing()) buildPage();
+    }
+
+    /** 旋转后强制重建（单列⇄双列），land 由 MainActivity 显式下发。 */
+    public void onOrientationChanged(boolean land) {
+        if (lastLand == land) return;
+        lastLand = land;
         dirty = true;
         if (isShowing()) buildPage();
     }

@@ -92,12 +92,22 @@ public class NativeFavView extends LinearLayout {
         if (isShowing()) buildPage();
     }
 
+    /** 旋转后强制重建（单列⇄双列），land 由 MainActivity 显式下发。 */
+    public void onOrientationChanged(boolean land) {
+        if (lastLand == land) return;
+        lastLand = land;
+        if (isShowing()) buildPage();
+    }
+
     public void setDirectMode(boolean on) {
         if (direct == on) return;
         direct = on; pal = NativeBlocks.palette(getContext(), dark, direct);
         setBackgroundColor(pal.bg);
         if (isShowing()) buildPage();
     }
+
+private boolean lastLand = getResources().getConfiguration().orientation
+            == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
 
     private void buildPage() {
         page.removeAllViews();
@@ -123,36 +133,48 @@ public class NativeFavView extends LinearLayout {
         /* 三组：模块 / 排障 / 面试（与 Web 分组一致） */
         page.addView(groupTitle("知识模块"));
         JSONArray phases = root.optJSONArray("phases");
-        if (phases != null) for (int i = 0; i < phases.length(); i++) {
-            JSONObject p = phases.optJSONObject(i);
-            JSONArray mods = p.optJSONArray("mods");
-            if (mods == null) continue;
-            for (int k = 0; k < mods.length(); k++) {
-                JSONObject m = mods.optJSONObject(k);
-                if (m != null && fav.contains(m.optString("id"))) {
-                    final String pid = p.optString("id"), mid = m.optString("id");
-                    page.addView(row(m.optString("t"), p.optString("short"),
-                            () -> { if (nav != null) nav.go("phase-focus", pid + "|" + mid); }));
+        if (phases != null) {
+            NativeBlocks.Flow flow = new NativeBlocks.Flow(page, lastLand);
+            for (int i = 0; i < phases.length(); i++) {
+                JSONObject p = phases.optJSONObject(i);
+                JSONArray mods = p.optJSONArray("mods");
+                if (mods == null) continue;
+                for (int k = 0; k < mods.length(); k++) {
+                    JSONObject m = mods.optJSONObject(k);
+                    if (m != null && fav.contains(m.optString("id"))) {
+                        final String pid = p.optString("id"), mid = m.optString("id");
+                        flow.add(row(m.optString("t"), p.optString("short"),
+                                () -> { if (nav != null) nav.go("phase-focus", pid + "|" + mid); }));
+                    }
                 }
             }
+            flow.commit();
         }
         page.addView(groupTitle("排障案例"));
         JSONArray faults = root.optJSONArray("faults");
-        if (faults != null) for (int i = 0; i < faults.length(); i++) {
-            JSONObject f = faults.optJSONObject(i);
-            if (f != null && fav.contains(f.optString("id"))) {
-                page.addView(row(f.optString("t"), f.optString("cat"),
-                        () -> { if (nav != null) nav.go("fault", ""); }));
+        if (faults != null) {
+            NativeBlocks.Flow flow = new NativeBlocks.Flow(page, lastLand);
+            for (int i = 0; i < faults.length(); i++) {
+                JSONObject f = faults.optJSONObject(i);
+                if (f != null && fav.contains(f.optString("id"))) {
+                    flow.add(row(f.optString("t"), f.optString("cat"),
+                            () -> { if (nav != null) nav.go("fault", ""); }));
+                }
             }
+            flow.commit();
         }
         page.addView(groupTitle("面试真题"));
         JSONArray ivs = root.optJSONArray("interview");
-        if (ivs != null) for (int i = 0; i < ivs.length(); i++) {
-            JSONObject x = ivs.optJSONObject(i);
-            if (x != null && fav.contains(x.optString("id"))) {
-                page.addView(row(x.optString("t"), x.optString("cat"),
-                        () -> { if (nav != null) nav.go("iv", ""); }));
+        if (ivs != null) {
+            NativeBlocks.Flow flow = new NativeBlocks.Flow(page, lastLand);
+            for (int i = 0; i < ivs.length(); i++) {
+                JSONObject x = ivs.optJSONObject(i);
+                if (x != null && fav.contains(x.optString("id"))) {
+                    flow.add(row(x.optString("t"), x.optString("cat"),
+                            () -> { if (nav != null) nav.go("iv", ""); }));
+                }
             }
+            flow.commit();
         }
     }
 

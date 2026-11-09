@@ -33,6 +33,9 @@ public class NativeDictView extends LinearLayout {
     private String[] colNames = new String[0];
 
     private boolean dark = false, direct = false;
+    /* 冷启动即横屏（平板常态）无 config change：方向初值按当前 config 定 */
+    private boolean lastLand = getResources().getConfiguration().orientation
+            == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
     private final ScrollView scroller;
     private final LinearLayout page;
     private NativeBlocks.Palette pal;
@@ -113,6 +116,14 @@ public class NativeDictView extends LinearLayout {
     }
 
     public void setGlassSource(android.view.ViewGroup src) { glassSource = src; }
+
+    /** 旋转后强制重建（单列⇄双列），land 由 MainActivity 从 newConfig 显式下发。 */
+    public void onOrientationChanged(boolean land) {
+        if (lastLand == land) return;
+        lastLand = land;
+        dirty = true;
+        if (isShowing()) buildPage();
+    }
 
     private void refreshPalette() {
         pal = NativeBlocks.palette(getContext(), dark, direct);

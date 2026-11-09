@@ -1939,10 +1939,14 @@ public class MainActivity extends AppCompatActivity {
         }
         if (nativeFault != null) { nativeFault.setDark(resolvedDark()); nativeFault.onOrientationChanged(land); }
         if (nativeIv != null) { nativeIv.setDark(resolvedDark()); nativeIv.onOrientationChanged(land); }
-        /* nativeDict(NativeDictView)/nativeRefs(NativeRefsView)/nativeGlossary(NativeSimpleList)
-           是独立类，双列改造下一批（本期只覆盖 DocList 系与 Phase/Home）。 */
+        if (nativeDict != null) { nativeDict.setDark(resolvedDark()); nativeDict.onOrientationChanged(land); }
+        if (nativeQuiz != null) { nativeQuiz.setDark(resolvedDark()); nativeQuiz.onOrientationChanged(land); }
+        if (nativeFav != null) { nativeFav.setDark(resolvedDark()); nativeFav.onOrientationChanged(land); }
+        /* nativeRefs(NativeRefsView)/nativeGlossary(NativeSimpleList)/nativeRoadmap
+           保持单列：速查表=整表卡、术语=分组大卡列表、路线图=时间轴，形态不适合双列。 */
+        if (nativeRefs != null) nativeRefs.setDark(resolvedDark());
+        if (nativeGlossary != null) nativeGlossary.setDark(resolvedDark());
         if (nativeRoadmap != null) nativeRoadmap.setDark(resolvedDark());
-        if (nativeQuiz != null) nativeQuiz.setDark(resolvedDark());
         if (nativeHome != null) { nativeHome.setDark(resolvedDark()); nativeHome.onOrientationChanged(land); }
         if (nativeSearch != null) nativeSearch.setDark(resolvedDark());
         if (nativeFav != null) nativeFav.setDark(resolvedDark());
