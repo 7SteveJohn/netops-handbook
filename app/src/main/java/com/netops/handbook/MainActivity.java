@@ -533,9 +533,14 @@ public class MainActivity extends AppCompatActivity {
         settingsPanel.setOnOpen(open -> {
             if (lensBar != null) lensBar.setOverlaid(open);
             NetOpsShell.INSTANCE.setOverlaid(open);
-            /* 面板开着的那次背景抓样把半透明遮罩采了进去（玻璃里见上页白卡幽灵字），
-               关面板强制重抓一次（2026-10-30 用户报顶栏通透发脏）。 */
-            if (!open && appbarBar != null) appbarBar.invalidateBackdrop();
+            /* 面板全屏实色盖上/揭开后，栏后内容已变：等淡入/淡出动画收尾再重抓
+               dock+顶栏的栏后霜，否则玻璃停留在旧画面（2026-11-09 用户报「dock
+               渲染延迟」——dock 霜图还是面板开合前的快照）。scheduleFrostCapture
+               自带 200/600/1200ms 三连发，动画 160ms 结束后的首抓正好命中。 */
+            root.postDelayed(() -> {
+                if (lensBar != null) lensBar.requestFrostRefresh();
+                if (appbarBar != null) appbarBar.invalidateBackdrop();
+            }, 200);
         });
         settingsPanel.setOnAlbum(this::launchAlbumPicker);   /* 从相册选取（REQ_PICK_IMAGE 管线共用） */
 
