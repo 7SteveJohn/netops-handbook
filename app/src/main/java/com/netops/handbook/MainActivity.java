@@ -869,10 +869,7 @@ public class MainActivity extends AppCompatActivity {
                上一个页面的字」）：原生页滚动从来没有 dock 的重抓信号，
                requestFrostRefresh 三连发防抖自带「停手 200ms」语义。 */
             appbarBar.setScrolling();
-            /* ❗不再每帧调 lensBar.requestFrostRefresh()：那是冷启动「200/600/1200ms
-               三连发」语义，滚动停手后连抓三次霜（每次 20-60ms 主线程）。dock 的
-               栏后重抓由 LensBarView.attach 的窗口级滚动监听统一收口（覆盖 WebView
-               与原生页），此处只管顶栏。2026-11-09 面试页「有概率粘滞」主因之一。 */
+            if (lensBar != null) lensBar.requestFrostRefresh();
         };
         java.util.ArrayDeque<android.view.View> stack = new java.util.ArrayDeque<>();
         stack.push(page);
