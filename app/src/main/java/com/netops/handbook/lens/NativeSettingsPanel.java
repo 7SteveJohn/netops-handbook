@@ -101,11 +101,15 @@ public class NativeSettingsPanel extends FrameLayout {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         addView(sc, slp);
 
-        /* 「完成」悬浮在 ScrollView 底缘之上，不随内容滚动（applySafeArea 同步位）。 */
+        /* 「完成」悬浮在 ScrollView 底缘之上，不随内容滚动（applySafeArea 同步位）。
+           ❗LayoutParams 显式声明（MATCH_PARENT 宽对齐 sheet、WRAP 高、锚 BOTTOM）——
+           不走 addView 默认参数：真机实证默认路径竟产出 MATCH×MATCH 铺满面板（14:17 截图）。 */
         doneBtn = NativeBlocks.tv(getContext(), pal, "完成", 14, true, Color.WHITE);
         doneBtn.setGravity(Gravity.CENTER);
         doneBtn.setOnClickListener(v -> hide());
-        addView(doneBtn);
+        addView(doneBtn, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.BOTTOM));
     }
 
     /** 顶部让开 appbar 窗、底部让开 dock（与其他原生页同口径：top+84 / bottom+84）。
@@ -128,9 +132,11 @@ public class NativeSettingsPanel extends FrameLayout {
         lp.bottomMargin = bottom;
         sc.setLayoutParams(lp);
         if (doneBtn != null) {
-            FrameLayout.LayoutParams dlp = (FrameLayout.LayoutParams) doneBtn.getLayoutParams();
-            int side = pal.dp(16);   /* 对齐 sheet 左右 padding */
-            dlp.setMargins(side, 0, side, bottom - pal.dp(12));
+            /* ❗每次 new 不复用旧对象：杜绝任何路径下宽高被污染后回赋放大。 */
+            FrameLayout.LayoutParams dlp = new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                    Gravity.BOTTOM);
+            dlp.setMargins(pal.dp(16), 0, pal.dp(16), bottom - pal.dp(12));
             doneBtn.setLayoutParams(dlp);
         }
     }
