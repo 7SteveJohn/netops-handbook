@@ -1119,8 +1119,20 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
 
     /** 竖排轨道几何（视图本地，density 缩放）：栏贴左缘、4 格纵列居中、
      *  药丸=轨道宽−20dp × 格距−16dp。数字对标 FlClash 单元格 76dp 口径。 */
+    /** 竖排侧栏尺寸档（2026-11-10 用户「横屏侧栏会不会太小」）：平板（sw≥600dp）
+     *  放大 1.35 —— 48dp 栏宽是手机口径，放在 692dp 高的平板横屏上只占屏宽 7%。
+     *  乘在 computeRailGeometry 的 dp 系数上，railW/pitch/pill 全部跟随；
+     *  图标绘制与 popup 宽度同乘。手机横屏保持 1.0 不动。 */
+    private static float railScale(android.content.res.Configuration c) {
+        return c != null && c.smallestScreenWidthDp >= 600 ? 1.35f : 1f;
+    }
+
+    private float railScale() {
+        return railScale(getResources().getConfiguration());
+    }
+
     private void computeRailGeometry() {
-        float dp = density;
+        float dp = density * railScale();   // 平板档整体放大（railW/pitch/pill/内边距全跟随）
         /* FlClash NavigationSidebar 实测（lib/ui/sidebar.dart:12-26）：
            栏宽 48dp、项 40dp 方块、项距 4dp、项内圆角 10dp、选中 = 8% 填充 + 左缘
            3dp×16dp 竖条。compact 态**只有图标没有文字**。 */
@@ -2015,19 +2027,36 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         Paint.FontMetrics fm = textP.getFontMetrics();
         for (int i = 0; i < count && i < TAB_LABELS.length; i++) {
             if (onlyIdx >= 0 && i != onlyIdx) continue;
-            float cx, iconTop;
-            if (dockVertical) {
-                /* FlClash compact：项内只有图标，垂直居中，无文字 */
-                cx = crossCView + dx;
-                iconTop = cellAxis(i) - 11f * density + dy;
-            } else {
-                cx = firstCx + slot * i + dx;
-                iconTop = pillCy() - contentH / 2f + dy;
-            }
-            float textBaseline = iconTop + 22f * density + 2f * density - fm.ascent;
             boolean on = !forceOff && i == activeIdx;
             int color = on ? activeColor() : offColor;
             Path[] subs = iconPaths[i];
+            float cx, iconTop;
+            if (dockVertical) {
+                /* FlClash compact：项内只有图标，垂直居中，无文字。
+                   平板档：图标随 railScale 放大（缩放锚 = 图标中心）。 */
+                float sc = railScale();
+                cx = crossCView + dx;
+                iconTop = cellAxis(i) - 11f * density * sc + dy;
+                if (subs != null) {
+                    canvas.save();
+                    canvas.translate(cx, iconTop + 11f * density * sc);
+                    canvas.scale(sc, sc);
+                    canvas.translate(-11f * density, -11f * density);
+                    iconP.setColor(color);
+                    iconP.setAlpha(255);
+                    for (int k = 0; k < subs.length; k++) {
+                        /* layers（第 0 图标）第三笔在 SVG 里 opacity=".5"，与 CSS 渲染对齐 */
+                        boolean half = (i == 0 && k == subs.length - 1);
+                        iconP.setAlpha(half ? 128 : 255);
+                        canvas.drawPath(subs[k], iconP);
+                    }
+                    canvas.restore();
+                }
+                continue;
+            }
+            cx = firstCx + slot * i + dx;
+            iconTop = pillCy() - contentH / 2f + dy;
+            float textBaseline = iconTop + 22f * density + 2f * density - fm.ascent;
             if (subs != null) {
                 canvas.save();
                 canvas.translate(cx - 11f * density, iconTop);
@@ -2041,7 +2070,6 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                 }
                 canvas.restore();
             }
-            if (dockVertical) continue;            // 竖排无文字
             textP.setColor(color);
             textP.setTextAlign(Paint.Align.CENTER);
             canvas.drawText(TAB_LABELS[i], cx, textBaseline, textP);
@@ -2663,7 +2691,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         float dp0 = act.getResources().getDisplayMetrics().density;
         boolean vert0 = act.getResources().getConfiguration()
                 .screenWidthDp > act.getResources().getConfiguration().screenHeightDp;
-        int w0 = vert0 ? (int) (RAIL_W_DP * dp0) : ViewGroup.LayoutParams.MATCH_PARENT;
+        int w0 = vert0 ? (int) (RAIL_W_DP * railScale(act.getResources().getConfiguration()) * dp0) : ViewGroup.LayoutParams.MATCH_PARENT;
         int h0 = vert0 ? ViewGroup.LayoutParams.MATCH_PARENT : (int) (120 * dp0);
         v.popup = new PopupWindow(v, w0, h0, false);
         v.popupVertical = vert0;
@@ -2734,7 +2762,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         /* MATCH_PARENT 在 showAtLocation 时按屏幕定格；分屏/小窗必须显式给
            窗口宽，否则弹窗比窗口宽、dock 溢出到别人的半屏里。 */
         float dp = anchor.getResources().getDisplayMetrics().density;
-        int newW = vert ? (int) (RAIL_W_DP * dp) : Math.max(1, winW);
+        int newW = vert ? (int) (RAIL_W_DP * railScale() * dp) : Math.max(1, winW);
         int newH = vert ? Math.max(1, winH - (int) railTop) : (int) (120f * dp);
         int newX = vert ? (int) (RAIL_LEFT_DP * density) : 0;
         int newY = vert ? (int) railTop : 0;
