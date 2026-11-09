@@ -64,7 +64,7 @@ public class NativeDrawerView extends FrameLayout {
         addView(scrim, new LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
-        ScrollView sc = new ScrollView(c);
+        ScrollView sc = new NativeScrollView(c);
         sheet = sc;
         sc.setFillViewport(false);
         sc.setVerticalScrollBarEnabled(false);

@@ -75,7 +75,7 @@ public class NativeSearchView extends LinearLayout {
         addView(header, new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        scroller = new ScrollView(context);
+        scroller = new NativeScrollView(context);
         scroller.setFillViewport(false);
         scroller.setVerticalScrollBarEnabled(false);
         scroller.setClipToPadding(false);

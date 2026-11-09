@@ -248,6 +248,8 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     /* 切页后暂停实时录制：页面正在换内容，1/2 录制（10~14ms）叠加页面重绘
        会把 draw 推到 37ms、掉到 19fps（2026-11-07 实测）。玻璃滞后半秒不可见。 */
     private long liveCooldownUntil;
+    /** 滚动结束 130ms 后补一帧 dock 重绘（滚动中静帧，见 OnScrollChangedListener）。 */
+    private final Runnable resumeInvalidate = this::invalidate;
     /* 滚动中：录制降到 1/6 换帧率（背景逐帧跟随、不跳变），停手 200ms 后
        自动补一帧 1/2 高清。此前全程 1/2 + 30fps 节流 = 滑动时每 33ms 才跳一次，
        表现「卡 + 变化不均匀」（2026-11-07 用户报）。 */
@@ -2609,7 +2611,11 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             if (v.scrollSteps == 0) v.scrollFirstMs = v.scrollIdleUntil - 120L;
             v.scrollLastMs = android.os.SystemClock.uptimeMillis();
             v.scrollSteps++;
-            v.invalidate();
+            /* ❗滚动中不再逐帧 invalidate：dock 玻璃合成 60fps 但背景采样 10fps
+               → 玻璃内容跳变滞后 = 用户报「粘滞感」的视觉源（2026-11-09）。
+               滚动中 dock 静帧（磨砂糊看不出背景定格），停手 130ms 恢复+重抓。 */
+            v.removeCallbacks(v.resumeInvalidate);
+            v.postDelayed(v.resumeInvalidate, 130L);
             v.frostHandler.removeCallbacks(v.frostDebounce);
             v.frostHandler.postDelayed(v.frostDebounce, 250L);
             /* PerfProbe：滚动步进节拍与主线程响应（用户报竖屏面试滚动 1-2s 无响应）。

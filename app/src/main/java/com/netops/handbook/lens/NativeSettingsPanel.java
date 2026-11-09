@@ -81,7 +81,7 @@ public class NativeSettingsPanel extends FrameLayout {
         setVisibility(GONE);
         setOnClickListener(v -> hide());                     /* 点空白收起 */
 
-        ScrollView sc = new ScrollView(c);
+        ScrollView sc = new NativeScrollView(c);
         this.sc = sc;
         sc.setFillViewport(false);
         sc.setVerticalScrollBarEnabled(false);

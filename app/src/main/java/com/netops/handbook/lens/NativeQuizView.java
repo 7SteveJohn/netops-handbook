@@ -37,7 +37,7 @@ public class NativeQuizView extends LinearLayout {
         pal = NativeBlocks.palette(context, false, false);
         setBackgroundColor(pal.bg);
 
-        scroller = new ScrollView(context);
+        scroller = new NativeScrollView(context);
         scroller.setFillViewport(false);
         scroller.setVerticalScrollBarEnabled(false);
         scroller.setClipToPadding(false);
