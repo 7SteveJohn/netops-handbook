@@ -248,8 +248,9 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     /* 切页后暂停实时录制：页面正在换内容，1/2 录制（10~14ms）叠加页面重绘
        会把 draw 推到 37ms、掉到 19fps（2026-11-07 实测）。玻璃滞后半秒不可见。 */
     private long liveCooldownUntil;
-    /** 滚动结束 130ms 后补一帧 dock 重绘（滚动中静帧，见 OnScrollChangedListener）。 */
-    private final Runnable resumeInvalidate = this::invalidate;
+    /** 「滚动已真正停下」的确认窗口。滚动期间及此窗口内：dock 零采样、零重绘、
+     *  零霜图抓取；窗口到期由 scrollSettle 补一次。任何新滚动信号都重排它。 */
+    private static final long SCROLL_SETTLE_MS = 800L;
     /* 滚动中：录制降到 1/6 换帧率（背景逐帧跟随、不跳变），停手 200ms 后
        自动补一帧 1/2 高清。此前全程 1/2 + 30fps 节流 = 滑动时每 33ms 才跳一次，
        表现「卡 + 变化不均匀」（2026-11-07 用户报）。 */
@@ -272,6 +273,16 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                 + " tail=" + (now - scrollLastMs) + "ms"
                 + " inFlight=" + liveCopyInFlight);
         scrollSteps = 0;
+    };
+    /** 唯一「停手后」动作：补一帧 dock 重绘 + 单次霜图重抓。
+     *  取代旧版 400ms 恢复 + 800ms 抓霜两条定时器 —— 分段轻划的间隙里二者
+     *  轮流插队，就是用户报的「有概率粘滞 / 卡一下」（2026-11-09）。 */
+    private volatile boolean scrollSettlePending;
+    private final Runnable scrollSettle = () -> {
+        scrollSettlePending = false;
+        invalidate();
+        frostHandler.removeCallbacks(frostDebounce);
+        frostHandler.post(frostDebounce);
     };
     private static final float GRAVITY_DIR_THRESHOLD_SQ = 0.01f;
     private static final float GRAVITY_ANGLE_STEP_RAD = (float) (3.0 * Math.PI / 180.0);
@@ -437,9 +448,13 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         /* transitionHold：快照转场覆盖层存活期间不抓帧（覆盖层在主窗内，抓到
            旧页像素）——转场收尾由 MainActivity.notifyBarsSwitchSettled 放行。 */
         if (detached || dockVertical || transitionHold || !nativeDock || contentFrostBusy || window == null) return;
-        /* ❗滚动中零抓帧（终极版，2026-11-09）：霜图 PixelCopy 20-60ms 主线程，
-           断续滑动的 250ms 间隙里反复触发，把 fling 帧预算挤爆（67ms/步 实证）。 */
-        if (SystemClock.uptimeMillis() < scrollIdleUntil) return;
+        /* ❗滚动中及停手确认窗口内零抓帧：霜图 PixelCopy 20-60ms 主线程。
+           旧守卫只到 scrollIdleUntil(+120ms)，而冷启动三连发 / 切页 / 恢复定时器
+           在 200~1200ms 陆续到期 → 断续轻划的间隙随机撞上一次抓帧，即用户报的
+           「有概率粘滞」。单一真源 = scrollSettlePending，由滚动信号置位、settle 清位。 */
+        if (scrollSettlePending) return;
+        android.util.Log.i("PerfProbe", "frost cap sinceScroll="
+                + (SystemClock.uptimeMillis() - scrollLastMs) + "ms");
         if (barRect.width() <= 4 || barRect.height() <= 4) return;
         View decor = window.getDecorView();
         if (decor == null || decor.getWidth() <= 0) return;
@@ -2188,9 +2203,9 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
 
     private void captureLiveBackdrop() {
         if (anchor == null || bandW < 4 || bandH < 4) return;
-        /* ❗滚动中零采样（终极版，2026-11-09）：探针实证滚动期 67ms/步（正常 7.7ms），
+        /* ❗滚动中零采样（2026-11-09）：探针实证滚动期 67ms/步（正常 7.7ms），
            霜图/恢复采样两个定时器在 fling 帧间插队挤爆预算。滚动中 dock 静帧
-           （磨砂糊无感），停手 130ms 后 resumeInvalidate 恢复一帧。 */
+           （磨砂糊无感），停手确认窗口期满由 scrollSettle 恢复一帧。 */
         if (scrollingNow) return;
         /* 30fps 上限：anchor.draw() 要重绘整棵主窗口（含 WebView），切页转场时
            与页面绘制抢主线程会「非常卡」（2026-11-06 用户报）。 */
@@ -2611,25 +2626,21 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
            ViewTree 生效，WebView 与原生页滚动都触发）→ 停手 250ms 抓一次。
            滚动期间不抓：PixelCopy 单次实测 29~62ms，滚动中抓=主线程搬像素。 */
         root.getViewTreeObserver().addOnScrollChangedListener(() -> {
-            /* 滚动逐帧驱动 dock 重绘 → captureLiveBackdrop 同帧跟随页面。
-               此前这里只排 250ms 的旧抓图，onDraw 不跑，玻璃在滚动中是冻结的。 */
-            v.scrollIdleUntil = android.os.SystemClock.uptimeMillis() + 120L;
-            if (v.scrollSteps == 0) v.scrollFirstMs = v.scrollIdleUntil - 120L;
-            v.scrollLastMs = android.os.SystemClock.uptimeMillis();
+            long nowMs = android.os.SystemClock.uptimeMillis();
+            v.scrollIdleUntil = nowMs + 120L;
+            if (v.scrollSteps == 0) v.scrollFirstMs = nowMs;
+            v.scrollLastMs = nowMs;
             v.scrollSteps++;
-            /* ❗滚动中不再逐帧 invalidate：dock 玻璃合成 60fps 但背景采样 10fps
-               → 玻璃内容跳变滞后 = 用户报「粘滞感」的视觉源（2026-11-09）。
-               滚动中 dock 静帧（磨砂糊看不出背景定格），停手 130ms 恢复+重抓。 */
-            v.removeCallbacks(v.resumeInvalidate);
-            /* 恢复延后到 400ms：130ms 落在「滑停→立刻再划」的间隙里，恢复动作
-               （dock 重绘+采样）恰好卡在两次滑动的接缝 = 用户报的「卡一下」
-               （2026-11-09）。霜图 800ms 同理——磨砂无感，停手后再补。 */
-            v.postDelayed(v.resumeInvalidate, 400L);
+            /* ❗滚动中 dock 静帧（磨砂糊看不出背景定格），零采样零重绘。
+               所有停手后动作收敛到唯一 scrollSettle：新滚动信号一来就撤销重排，
+               因此「滑停→立刻再划」的接缝里不会撞上 20~60ms 主线程抓帧或
+               dock 全套录制（2026-11-09 用户报「有概率粘滞」）。 */
+            v.scrollSettlePending = true;
+            v.removeCallbacks(v.scrollSettle);
+            v.postDelayed(v.scrollSettle, SCROLL_SETTLE_MS);
+            /* 撤销冷启动/切页/几何/主题排在队列里的待抓霜，统一由 settle 补一次。 */
             v.frostHandler.removeCallbacks(v.frostDebounce);
-            v.frostHandler.postDelayed(v.frostDebounce, 800L);
-            /* PerfProbe：滚动步进节拍与主线程响应（用户报竖屏面试滚动 1-2s 无响应）。
-               scrollEnd 300ms 静默后汇总一次：步进数、从首步到末步的墙钟时长、
-               末步时间戳与汇总打印时间戳的差 = 滚动停止后的主线程拖尾。 */
+            /* PerfProbe：滚动步进节拍与主线程响应（300ms 静默后汇总一次）。 */
             v.frostHandler.removeCallbacks(v.scrollProbe);
             v.frostHandler.postDelayed(v.scrollProbe, 300L);
         });
