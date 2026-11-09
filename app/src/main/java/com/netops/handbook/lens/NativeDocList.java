@@ -276,13 +276,22 @@ public class NativeDocList extends LinearLayout {
         head.setOnClickListener(v -> {
             if (body.getVisibility() == VISIBLE) {
                 body.setVisibility(GONE);
+                /* ❗收起即销毁：展开组的题目卡+正文 blocks 全量常驻视图树，竖屏展开
+                   几组后页面高 2 万 px+，滚动每帧 draw 遍历上千 View（2026-11-09
+                   用户报竖屏面试滚动十分卡）。收起清空、再点重建（探针监控 <100ms）。 */
+                body.removeAllViews();
+                built[0] = false;
                 arrow.setRotation(0f);
             } else {
                 if (!built[0]) {
                     /* 组内条目横屏双列（2026-11-09）：一次建齐，Flow 管分列与展开跨行。 */
+                    long __t0 = android.os.SystemClock.uptimeMillis();
                     NativeBlocks.Flow flow = new NativeBlocks.Flow(body, isLandscape());
                     for (JSONObject o : list) flow.add(itemCard(o, flow));
                     flow.commit();
+                    /* PerfProbe：组展开建卡耗时（用户报竖屏面试「加载很久」，先定位）。 */
+                    android.util.Log.i("PerfProbe", cfg.dataKey + " group expand build="
+                            + (android.os.SystemClock.uptimeMillis() - __t0) + "ms n=" + list.size());
                     built[0] = true;
                 }
                 body.setVisibility(VISIBLE);

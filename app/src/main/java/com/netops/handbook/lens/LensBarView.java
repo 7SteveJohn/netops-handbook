@@ -2189,7 +2189,10 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         boolean fingerDown = pressed || dragging;
         boolean pageSwitching = transitionHold || (pos.active() && !fingerDown);
         if (pageSwitching && liveSharp != null) return;
-        long minGap = fingerDown ? 80 : (scrollingNow ? 40 : 33);
+        /* 滚动中录制 17ms/次是硬成本：40ms gap 占空比 42%，录制帧（17ms>16.7）
+           必然 jank——竖屏面试页滚动十分卡的组成部分（2026-11-09）。磨砂背景图
+           肉眼对帧率不敏感，gap 放宽到 100ms（10fps 跟拍，占空比 17%）。 */
+        long minGap = fingerDown ? 80 : (scrollingNow ? 100 : 33);
         if (nowMs - lastCaptureMs < minGap) return;
         /* 冷却只拦「无交互」期：按住拖拽期页面静止、录制安全，绕开冷却
            （冷却的转场保护职责已由 transitionHold 承担）。 */

@@ -210,10 +210,16 @@ public class NativeDictView extends LinearLayout {
         head.setOnClickListener(v -> {
             if (body.getVisibility() == VISIBLE) {
                 body.setVisibility(GONE);
+                /* ❗收起即销毁（同 DocList）：命令卡常驻会让滚动 draw 遍历爆炸。 */
+                body.removeAllViews();
+                built[0] = false;
                 arrow.setRotation(0f);
             } else {
                 if (!built[0]) {
-                    for (JSONObject o : list) body.addView(cmdCard(o));
+                    /* 组内命令卡横屏双列（Flow 分列，cmdCard 无展开态）。 */
+                    NativeBlocks.Flow flow = new NativeBlocks.Flow(body, lastLand);
+                    for (JSONObject o : list) flow.add(cmdCard(o));
+                    flow.commit();
                     built[0] = true;
                 }
                 body.setVisibility(VISIBLE);
