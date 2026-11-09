@@ -145,8 +145,11 @@ public class NativeMeView extends LinearLayout {
                 String.valueOf(ivs == null ? 0 : ivs.length()), "面试真题",
                 quizCount() + " 题", "题库"));
 
-        page.addView(section("我的收藏"));
+        page.addView(section("我的内容"));
         page.addView(navRow("收藏夹", fav.isEmpty() ? "还没有收藏任何内容" : fav.size() + " 条已收藏", "fav"));
+        /* 面试题库归到「我的」下作为一项分类（2026-11-10）：不是主推方向，
+           点开仍走既有 route "iv" 的原生题库页，数据与页面不动，dock 更是一行未改。 */
+        page.addView(navRow("面试题库", (ivs == null ? 0 : ivs.length()) + " 题 · 辅助参考", "iv"));
 
         /* ❗「资源」区下线（2026-11-08 用户指出重复）：速查表/术语/路线图/测验/CLI
            五项与学习页工具箱一字不差——工具入口主区在学习页工具箱，「我的」页

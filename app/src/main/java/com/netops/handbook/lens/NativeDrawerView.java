@@ -228,7 +228,7 @@ public class NativeDrawerView extends FrameLayout {
         panel.addView(section("查询工具"));
         panel.addView(item("排障字典", cnt("faults") + " 个案例", () -> go.go("fault", "")));
         panel.addView(item("命令字典", dictRows() + " 条对照", () -> go.go("dict", "")));
-        panel.addView(item("面试题库", cnt("interview") + " 题", () -> go.go("iv", "")));
+        /* 面试题库归到「我的」页下的分类入口（2026-11-10），抽屉不再单列宣传。 */
         panel.addView(item("速查表", cnt("refs") + " 张", () -> go.go("refs", "")));
     }
 

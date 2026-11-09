@@ -16,7 +16,7 @@
     learn:    { t: 'NetOps 2.0',  s: '网络学习辅助手册', tab: 'learn', accent: 'teal' },
     fault:    { t: '排障字典',     s: '现象 → 根因 → 命令 → 验证', tab: 'fault', accent: 'rose' },
     dict:     { t: '命令字典',     s: '华为 / Cisco / 中兴 / Linux', tab: 'dict', accent: 'blue' },
-    iv:       { t: '面试题库',     s: '高频真题与 STAR 话术', tab: 'iv', accent: 'amber' },
+    iv:       { t: '面试题库',     s: '高频真题与 STAR 话术', tab: 'me', accent: 'amber' },
     me:       { t: '我的',        s: '进度 · 收藏 · 设置', tab: 'me', accent: 'teal' },
     phase:    { t: '阶段详情',     s: '', tab: 'learn', accent: 'teal' },
     refs:     { t: '速查表',       s: '面试前十分钟', tab: 'learn', accent: 'blue' },
