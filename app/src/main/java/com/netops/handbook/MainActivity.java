@@ -239,12 +239,26 @@ public class MainActivity extends AppCompatActivity {
      *  页面在覆盖层之下瞬时切换，覆盖层 160ms 淡出。视图 alpha 直接加在玻璃卡页面上要建
      *  1904×3040 离屏层（2026-10-28 实测 99th 200ms，已回退）；11-06 交叉淡化闪烁
      *  （半透明页互透）被整帧快照绕开。dock/顶栏是独立置顶弹窗，永远盖在覆盖层之上
-     *  不受影响；覆盖层不可点击，命中测试穿透到下层页面。 */
+     *  不受影响；覆盖层不可点击，命中测试穿透到下层页面。
+     *  ❗代号校验+自愈超时（2026-11-09 用户报「切到面试页偶尔粘滞 1-2s」）：
+     *  快速/连续切页时两轮 PixelCopy 回调乱序，旧回调的 endAction 会撤掉新一轮
+     *  刚显示的快照（或新一轮动画被旧 cancel 后不再回 GONE）——覆盖层偶尔残留
+     *  VISIBLE 盖住新页面，用户看到「旧画面不动、滑动无视觉响应」。 */
+    private int switchGen = 0;
+
     private void switchNativeTo(String keep, Runnable showTarget) {
         /* 同页重复桥调用短路：JS 迟到确认/路由恢复会对同一页重复 showNativeX，
            若也走覆盖层会中途取消上一轮淡出、重抓、再淡——可见过渡被压缩成 ~40ms
            （2026-11-09 真机诊断实证），且每重复一次白烧一次全屏 PixelCopy。 */
         if (keep != null && keep.equals(currentNativeKeep)) {
+            /* 同页重复调用：作废在途转场回调并撤掉可能残留的覆盖层（防旧快照滞留）。 */
+            switchGen++;
+            if (switchOverlay != null) {
+                switchOverlay.animate().cancel();
+                switchOverlay.setVisibility(android.view.View.GONE);
+            }
+            if (lensBar != null) lensBar.setTransitionHold(false);
+            if (appbarBar != null) appbarBar.setTransitionHold(false);
             hideNativePagesExcept(keep); showTarget.run(); return;
         }
         if (switchOverlay == null) {
@@ -259,10 +273,12 @@ public class MainActivity extends AppCompatActivity {
         if (appbarBar != null) appbarBar.setTransitionHold(true);
         switchOverlay.animate().cancel();      /* 上一轮过渡未结束：撤旧层重抓当帧 */
         switchOverlay.setVisibility(android.view.View.GONE);
+        final int myGen = ++switchGen;         /* 本轮代号：旧回调一律丢弃 */
         try {
             android.graphics.Bitmap bm = android.graphics.Bitmap.createBitmap(
                     root.getWidth(), root.getHeight(), android.graphics.Bitmap.Config.ARGB_8888);
             android.view.PixelCopy.request(getWindow(), bm, res -> {
+                if (myGen != switchGen) return;   /* 已被新一轮切页接管 */
                 if (res != android.view.PixelCopy.SUCCESS) {
                     /* 抓帧失败必须留痕：静默回退会让「淡入没生效」无从排查
                        （2026-11-09 真机诊断教训——res 失败分支曾无日志）。 */
@@ -280,9 +296,20 @@ public class MainActivity extends AppCompatActivity {
                 currentNativeKeep = keep;
                 switchOverlay.animate().alpha(0f).setDuration(160)
                         .withEndAction(() -> {
+                            if (myGen != switchGen) return;
                             switchOverlay.setVisibility(android.view.View.GONE);
                             notifyBarsSwitchSettled();
                         }).start();
+                /* 自愈兜底：动画被任何意外打断（cancel/重复转场）时也在 400ms 内撤层，
+                   残留快照最多糊 0.4s，不再出现「旧画面不动 1-2 秒」。 */
+                switchOverlay.postDelayed(() -> {
+                    if (myGen == switchGen && switchOverlay.getVisibility() == android.view.View.VISIBLE) {
+                        android.util.Log.w("SwitchFade", "覆盖层自愈撤层（动画未收尾）");
+                        switchOverlay.animate().cancel();
+                        switchOverlay.setVisibility(android.view.View.GONE);
+                        notifyBarsSwitchSettled();
+                    }
+                }, 400);
             }, new android.os.Handler(android.os.Looper.getMainLooper()));
         } catch (Throwable t) {
             android.util.Log.w("SwitchFade", "快照抓帧失败，回退瞬时切换", t);
