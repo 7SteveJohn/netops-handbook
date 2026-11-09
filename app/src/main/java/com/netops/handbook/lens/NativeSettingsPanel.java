@@ -61,6 +61,9 @@ public class NativeSettingsPanel extends FrameLayout {
     private NativeBlocks.Palette pal;
     private final Set setter;
     private ScrollView sc;
+    /** 「完成」常驻面板底部（2026-11-09 用户报「显示不全还得滑」：面板加进底栏样式/
+        液态玻璃两段后内容超一屏，完成键滚到视野外——固定到底部随时可关）。 */
+    private TextView doneBtn;
     private int safeTop, safeBottom;
 
     /* 当前状态（JS 推进来） */
@@ -90,13 +93,19 @@ public class NativeSettingsPanel extends FrameLayout {
                 pal.dp(22), pal.dp(22), pal.dp(22), pal.dp(22)});
         sheet.setBackground(bg);
         int pad = p.dp(16);
-        sheet.setPadding(pad, pad, pad, pad + p.dp(18));
+        sheet.setPadding(pad, pad, pad, pad);   /* 底部不再加 18：完成键已移出 sheet */
         FrameLayout.LayoutParams slp = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM);
         slp.setMargins(0, 0, 0, 0);
         sc.addView(sheet, new ScrollView.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         addView(sc, slp);
+
+        /* 「完成」悬浮在 ScrollView 底缘之上，不随内容滚动（applySafeArea 同步位）。 */
+        doneBtn = NativeBlocks.tv(getContext(), pal, "完成", 14, true, Color.WHITE);
+        doneBtn.setGravity(Gravity.CENTER);
+        doneBtn.setOnClickListener(v -> hide());
+        addView(doneBtn);
     }
 
     /** 顶部让开 appbar 窗、底部让开 dock（与其他原生页同口径：top+84 / bottom+84）。
@@ -111,12 +120,19 @@ public class NativeSettingsPanel extends FrameLayout {
     private void applySafeArea() {
         if (sc == null) return;
         FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) sc.getLayoutParams();
+        /* 底部额外让出 52dp 给常驻「完成」按钮（高 ~40dp + 12dp 间距）。 */
         int top = safeTop + pal.dp(84);
-        int bottom = safeBottom + pal.dp(84);
+        int bottom = safeBottom + pal.dp(84) + pal.dp(52);
         if (lp.topMargin == top && lp.bottomMargin == bottom) return;
         lp.topMargin = top;
         lp.bottomMargin = bottom;
         sc.setLayoutParams(lp);
+        if (doneBtn != null) {
+            FrameLayout.LayoutParams dlp = (FrameLayout.LayoutParams) doneBtn.getLayoutParams();
+            int side = pal.dp(16);   /* 对齐 sheet 左右 padding */
+            dlp.setMargins(side, 0, side, bottom - pal.dp(12));
+            doneBtn.setLayoutParams(dlp);
+        }
     }
 
     public void setDark(boolean d) {
@@ -197,7 +213,7 @@ public class NativeSettingsPanel extends FrameLayout {
 
         for (java.util.Map.Entry<String, java.util.List<JSONObject>> entry : groups.entrySet()) {
             TextView catTv = NativeBlocks.tv(getContext(), pal, entry.getKey(), 11, true, pal.textMute);
-            catTv.setPadding(0, pal.dp(10), 0, pal.dp(4));
+            catTv.setPadding(0, pal.dp(8), 0, pal.dp(3));
             sheet.addView(catTv);
 
             java.util.List<JSONObject> list = entry.getValue();
@@ -276,11 +292,9 @@ public class NativeSettingsPanel extends FrameLayout {
         alp.topMargin = pal.dp(12);
         sheet.addView(album, alp);
 
-        TextView close = NativeBlocks.tv(getContext(), pal, "完成", 14, true, pal.accent);
-        close.setGravity(Gravity.CENTER);
-        close.setPadding(0, pal.dp(14), 0, 0);
-        close.setOnClickListener(v -> hide());
-        sheet.addView(close);
+        /* 「完成」已常驻面板底部（不随内容滚），这里只随主题刷新配色。 */
+        doneBtn.setBackground(NativeBlocks.shape(pal, pal.accent, pal.dp(14)));
+        doneBtn.setPadding(0, pal.dp(11), 0, pal.dp(11));
     }
 
     private View title(String t) {
@@ -291,7 +305,7 @@ public class NativeSettingsPanel extends FrameLayout {
 
     private View section(String t) {
         TextView tv = NativeBlocks.tv(getContext(), pal, t, 12.5f, true, pal.textMute);
-        tv.setPadding(0, pal.dp(12), 0, pal.dp(6));
+        tv.setPadding(0, pal.dp(9), 0, pal.dp(5));
         return tv;
     }
 

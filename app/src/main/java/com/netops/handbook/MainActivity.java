@@ -224,6 +224,10 @@ public class MainActivity extends AppCompatActivity {
            否则它（z 序在 WebView 之上）会把 WebView 盖死：页面看不见、触摸却穿透。
            任何原生页显示时收回让位。 */
         if (nativeBackdrop != null) nativeBackdrop.setRevealed(keep == null);
+        /* 设置面板是模态覆盖层：任何页面切换都收起。面板开着时顶栏（独立弹窗）仍可点，
+           点搜索/主题键会切页——新页被压在面板底下、面板不退 = 「卡住」（2026-11-09 用户报）。
+           hide() 幂等（非 VISIBLE 直接 return），面板没开时零开销。 */
+        if (settingsPanel != null) settingsPanel.hide();
         if (nativeDrawer != null && nativeDrawer.isOpen()) {
             nativeDrawer.close();
             if (lensBar != null) lensBar.setOverlaid(false);
