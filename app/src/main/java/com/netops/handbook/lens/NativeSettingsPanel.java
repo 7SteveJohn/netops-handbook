@@ -60,10 +60,11 @@ public class NativeSettingsPanel extends FrameLayout {
     private final LinearLayout sheet;
     private NativeBlocks.Palette pal;
     private final Set setter;
+    private LinearLayout body;      /* 全屏面板容器：cardBg 实色直铺，顶部标题行+完成键常驻 */
+    private LinearLayout header;
+    private TextView titleTv;
+    private TextView doneTv;
     private ScrollView sc;
-    /** 「完成」常驻面板底部（2026-11-09 用户报「显示不全还得滑」：面板加进底栏样式/
-        液态玻璃两段后内容超一屏，完成键滚到视野外——固定到底部随时可关）。 */
-    private TextView doneBtn;
     private int safeTop, safeBottom;
 
     /* 当前状态（JS 推进来） */
@@ -86,30 +87,39 @@ public class NativeSettingsPanel extends FrameLayout {
         sc.setVerticalScrollBarEnabled(false);
         sheet = new LinearLayout(c);
         sheet.setOrientation(LinearLayout.VERTICAL);
-        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
-        bg.setColor(pal.cardBg);
-        /* 四角全圆：setSafeArea 后 sheet 底边悬在 dock 上方，方角会显得断头 */
-        bg.setCornerRadii(new float[]{pal.dp(22), pal.dp(22), pal.dp(22), pal.dp(22),
-                pal.dp(22), pal.dp(22), pal.dp(22), pal.dp(22)});
-        sheet.setBackground(bg);
-        int pad = p.dp(16);
-        sheet.setPadding(pad, pad, pad, pad);   /* 底部不再加 18：完成键已移出 sheet */
-        FrameLayout.LayoutParams slp = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM);
-        slp.setMargins(0, 0, 0, 0);
+
+        /* 全屏展开（2026-11-09 用户拍板）：cardBg 实色从顶栏玻璃下直铺到屏底，
+           底页完全不露（原底部圆角卡片上下割裂、悬浮完成键压内容且突兀）。
+           结构：body(实色全屏) = header(设置 | 完成) + sc(内容, weight=1)。 */
+        body = new LinearLayout(c);
+        body.setOrientation(LinearLayout.VERTICAL);
+        header = headerRow();
+        body.addView(header);
+        body.addView(sc, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1.0f));
+        addView(body, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         sc.addView(sheet, new ScrollView.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        addView(sc, slp);
+        sheet.setPadding(pal.dp(16), 0, pal.dp(16), pal.dp(16));  /* 内容容器左右 16 */
+        applySafeArea();
+    }
 
-        /* 「完成」悬浮在 ScrollView 底缘之上，不随内容滚动（applySafeArea 同步位）。
-           ❗LayoutParams 显式声明（MATCH_PARENT 宽对齐 sheet、WRAP 高、锚 BOTTOM）——
-           不走 addView 默认参数：真机实证默认路径竟产出 MATCH×MATCH 铺满面板（14:17 截图）。 */
-        doneBtn = NativeBlocks.tv(getContext(), pal, "完成", 14, true, Color.WHITE);
-        doneBtn.setGravity(Gravity.CENTER);
-        doneBtn.setOnClickListener(v -> hide());
-        addView(doneBtn, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
-                Gravity.BOTTOM));
+    /** 顶部标题行：左「设置」、右「完成」accent 文字键——常驻可见不占内容区。 */
+    private LinearLayout headerRow() {
+        LinearLayout header = new LinearLayout(getContext());
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(pal.dp(16), pal.dp(10), pal.dp(16), pal.dp(6));
+        titleTv = NativeBlocks.tv(getContext(), pal, "设置", 18, true, pal.textMain);
+        header.addView(titleTv, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f));
+        doneTv = NativeBlocks.tv(getContext(), pal, "完成", 14, true, pal.accent);
+        doneTv.setPadding(pal.dp(14), pal.dp(8), pal.dp(2), pal.dp(8));
+        doneTv.setOnClickListener(v -> hide());
+        header.addView(doneTv, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        return header;
     }
 
     /** 顶部让开 appbar 窗、底部让开 dock（与其他原生页同口径：top+84 / bottom+84）。
@@ -122,23 +132,10 @@ public class NativeSettingsPanel extends FrameLayout {
     }
 
     private void applySafeArea() {
-        if (sc == null) return;
-        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) sc.getLayoutParams();
-        /* 底部额外让出 52dp 给常驻「完成」按钮（高 ~40dp + 12dp 间距）。 */
-        int top = safeTop + pal.dp(84);
-        int bottom = safeBottom + pal.dp(84) + pal.dp(52);
-        if (lp.topMargin == top && lp.bottomMargin == bottom) return;
-        lp.topMargin = top;
-        lp.bottomMargin = bottom;
-        sc.setLayoutParams(lp);
-        if (doneBtn != null) {
-            /* ❗每次 new 不复用旧对象：杜绝任何路径下宽高被污染后回赋放大。 */
-            FrameLayout.LayoutParams dlp = new FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
-                    Gravity.BOTTOM);
-            dlp.setMargins(pal.dp(16), 0, pal.dp(16), bottom - pal.dp(12));
-            doneBtn.setLayoutParams(dlp);
-        }
+        if (body == null) return;
+        /* 顶栏玻璃（独立弹窗）与 dock（同）浮在全屏面板之上：body 用 padding 让位，
+           面板实色从顶栏玻璃下一直铺到屏底，底页零外露。 */
+        body.setPadding(0, safeTop + pal.dp(84), 0, safeBottom + pal.dp(84));
     }
 
     public void setDark(boolean d) {
@@ -186,8 +183,12 @@ public class NativeSettingsPanel extends FrameLayout {
 
     /* ---------------- 构建 ---------------- */
     public void build() {
+        /* 全屏 body 背景与 header 配色随主题刷新（palette 在 setDark 换新）。 */
+        body.setBackground(NativeBlocks.shape(pal, pal.cardBg, 0));
+        titleTv.setTextColor(pal.textMain);
+        doneTv.setTextColor(pal.accent);
+
         sheet.removeAllViews();
-        sheet.addView(title("设置"));
 
         sheet.addView(section("外观主题"));
         sheet.addView(chipRow(new String[][]{
@@ -297,16 +298,6 @@ public class NativeSettingsPanel extends FrameLayout {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         alp.topMargin = pal.dp(12);
         sheet.addView(album, alp);
-
-        /* 「完成」已常驻面板底部（不随内容滚），这里只随主题刷新配色。 */
-        doneBtn.setBackground(NativeBlocks.shape(pal, pal.accent, pal.dp(14)));
-        doneBtn.setPadding(0, pal.dp(11), 0, pal.dp(11));
-    }
-
-    private View title(String t) {
-        TextView tv = NativeBlocks.tv(getContext(), pal, t, 18, true, pal.textMain);
-        tv.setPadding(0, 0, 0, pal.dp(6));
-        return tv;
     }
 
     private View section(String t) {
