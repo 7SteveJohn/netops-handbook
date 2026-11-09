@@ -182,15 +182,15 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
 
     /* 几何（px）。全部由 JS 直接上报，原生层不做任何推导 —— CSS 才是几何真源 */
     private int bandW = 0, bandH = 0;
-    private int count = 4;   // 与 TAB_LABELS.length 一致；JS 几何上报后会再覆盖一次
+    private int count = 5;
     private float slot = 0;          // 一格宽
     /** CSS 上报的底栏药丸尺寸（竖排期被 rail 常量覆盖，回横排要还原）。 */
     private float jsPillW = 0, jsPillH = 0;
     private float pillW = 0, pillH = 0;
     private float firstCx = 0;       // 第 0 格药丸中心 x（屏幕 px）
     /* ---- 横屏侧栏（竖排 dock，2026-10-28）----
-       横屏下底栏横铺 4 格 = 尺寸失衡 + 遮挡不均（用户报），参照 iOS 侧栏改竖排：
-       栏贴左缘、4 格纵列、药丸沿 y 滑动。**几何完全由原生自算**（轨道常量），
+       横屏下底栏横铺 5 格 = 尺寸失衡 + 遮挡不均（用户报），参照 iOS 侧栏改竖排：
+       栏贴左缘、5 格纵列、药丸沿 y 滑动。**几何完全由原生自算**（轨道常量），
        不吃 JS 的底栏矩形——横屏时 JS 仍在量隐藏的横排 HTML 栏，口径不符。
        竖屏一切照旧（JS 几何驱动）。轴向抽象：axisFirst/axisPitch/crossC，
        横屏=x 起点/x 格距/y 中心；竖排=y 起点/y 格距/x 中心。 */
@@ -300,21 +300,23 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         { "M14.6 6.4a4.5 4.5 0 0 0 5.9 5.9l-8.3 8.3a2.4 2.4 0 0 1-3.4 0l-2.5-2.5a2.4 2.4 0 0 1 0-3.4Z",
           "M14.6 6.4 18 3l3 3-3.4 3.4" },                                              // 排障 i-wrench
         { "R2.5,4,19,16,2.2", "m6.5 9.5 3 2.7-3 2.7", "M12.5 15.4h5" },                 // 字典 i-terminal
+        { "R2.5,7,19,13,2.2", "M9 7V5.2A1.7 1.7 0 0 1 10.7 3.5h2.6A1.7 1.7 0 0 1 15 5.2V7",
+          "M2.5 12.5h19" },                                                            // 面试 i-briefcase
         { "C12,8,4", "M4.5 20.5a7.5 7.5 0 0 1 15 0" },                                  // 我的 i-user
     };
-    private static final String[] TAB_LABELS = { "学习", "排障", "字典", "我的" };
+    private static final String[] TAB_LABELS = { "学习", "排障", "字典", "面试", "我的" };
 
     private boolean nativeDock = false;
     private final RectF barRect = new RectF();      // 栏矩形（本 View 坐标 px；JS 上报）
-    private Path[][] iconPaths = new Path[TAB_LABELS.length][];   // 每图标 = 多条子路径（layers 第三笔 alpha .5）
+    private Path[][] iconPaths = new Path[5][];     // 每图标 = 多条子路径（layers 第三笔 alpha .5）
     private final Paint railFillP = new Paint(Paint.ANTI_ALIAS_FLAG);   // 竖排面板底
     private final Paint sfTintP = new Paint(Paint.ANTI_ALIAS_FLAG);   // 栏体白/暗薄染（药丸区挖孔）
     /* 分层缓存（滑块动画期间每帧 onDraw 的成本大头）：B1=容器，B2=灰态图标+文字。
        每帧 = blit B1 + 画滑块（盖住所格灰图）+ blit B2 + 玻璃 + 选中格蓝图标。
-       barRect/主题变化时重建；滑块动画每帧从「4 roundrect+12 path+4 text」
+       barRect/主题变化时重建；滑块动画每帧从「4 roundrect+12 path+5 text」
        降到「2 blit + 1 roundrect + 1 path + 1 text」。 */
     private Bitmap chromeB1;
-    private Bitmap[] tabSprites = new Bitmap[TAB_LABELS.length];   // 每格灰态（图标+文字）小图——滑块必须画在图标之下，
+    private Bitmap[] tabSprites = new Bitmap[5];   // 每格灰态（图标+文字）小图——滑块必须画在图标之下，
                                                    // 拖到两格中间时两格图标都要可见（HTML/FlClash 行为）
     private int chromeDark = -1;
     private final RectF chromeRect = new RectF();
@@ -1112,7 +1114,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         }
     }
 
-    /** 竖排轨道几何（视图本地，density 缩放）：栏贴左缘、4 格纵列居中、
+    /** 竖排轨道几何（视图本地，density 缩放）：栏贴左缘、5 格纵列居中、
      *  药丸=轨道宽−20dp × 格距−16dp。数字对标 FlClash 单元格 76dp 口径。 */
     private void computeRailGeometry() {
         float dp = density;
@@ -1128,9 +1130,9 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         /* 本窗已整体下移到顶栏下沿，所以轨矩形从本地 0 起；高度 = 窗口高 - 14dp，
            两端圆角都能露出来（通高到底的话下端被屏幕边切掉，像「插进地里」）。 */
         float h = viewportH > 0 ? Math.min(bandH, viewportH) : bandH;
-        /* 面板只包住全部图标（FlClash 的栏是贴着屏幕边的，没有面板；我们浮在壁纸上，
+        /* 面板只包住 5 个图标（FlClash 的栏是贴着屏幕边的，没有面板；我们浮在壁纸上，
            面板必须收成内容高，否则 48dp 宽 × 全高就是一条空槽）。 */
-        float contentH = (TAB_LABELS.length - 1) * pitch + pillHv;   // 间隔数 = 格数 − 1
+        float contentH = 4f * pitch + pillHv;
         float panelH = contentH + 8f * dp;
         float cy0 = (h - 14f * dp) / 2f;
         railRect.set(0, cy0 - panelH / 2f, railW, cy0 + panelH / 2f);
@@ -1727,7 +1729,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         }
         /* per-tab 灰态小图：sprite 原点 = 格左缘/栏顶（横）或栏左缘/格顶（竖）。
            宽度取格宽（文字仅 2 字不会溢出）。 */
-        for (int i = 0; i < count && i < TAB_LABELS.length; i++) {
+        for (int i = 0; i < count && i < 5; i++) {
             if (dockVertical) {
                 Bitmap sp = Bitmap.createBitmap(Math.max(4, (int) bar.width()),
                         Math.max(4, (int) (axisPitch + 20 * density)), Bitmap.Config.ARGB_8888);
@@ -1944,7 +1946,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         RectF bar2 = dockRect();
         float act = pressed ? (float) pos.value() : selectedIndex;
         int actIdx = Math.max(0, Math.min(count - 1, Math.round(act)));
-        for (int i = 0; i < count && i < TAB_LABELS.length; i++) {
+        for (int i = 0; i < count && i < 5; i++) {
             if (tabSprites[i] == null) continue;
             if (dockVertical) {
                 if (i == actIdx) continue;
@@ -1996,7 +1998,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         int activeIdx = Math.max(0, Math.min(count - 1, Math.round(active)));
         float contentH = 22f * density + 2f * density + 12f * density;  // 图标22 + gap2 + 文字行高12
         Paint.FontMetrics fm = textP.getFontMetrics();
-        for (int i = 0; i < count && i < TAB_LABELS.length; i++) {
+        for (int i = 0; i < count && i < 5; i++) {
             if (onlyIdx >= 0 && i != onlyIdx) continue;
             float cx, iconTop;
             if (dockVertical) {

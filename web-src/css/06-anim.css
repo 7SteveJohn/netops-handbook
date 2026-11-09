@@ -230,7 +230,7 @@
   left: 0; right: 0;
   z-index: 90;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   height: calc(var(--tabbar-h, 56px) + env(safe-area-inset-bottom, 0px));
   padding: 6px max(env(safe-area-inset-left, 6px), 6px) calc(env(safe-area-inset-bottom, 0px) + 4px) max(env(safe-area-inset-right, 6px), 6px);
   overflow: visible;
@@ -275,7 +275,7 @@ body{
     bottom: calc(max(8px, env(safe-area-inset-bottom, 0px)) + 8px) !important;
     z-index: 90;
     display: grid !important;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     height: 56px !important;
     padding: 8px 8px !important;
     overflow: visible;
@@ -635,7 +635,7 @@ html.dark .appbar::before{
   left: 0; right: 0; bottom: 0;
   z-index: 90;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   height: calc(var(--tabbar-h, 56px) + env(safe-area-inset-bottom, 0px) + 10px);
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
   background: linear-gradient(180deg,
@@ -730,7 +730,7 @@ html.dark .appbar::before{
 /* ---- 共享选中态药丸（2026-09-29 凌晨推倒重构：纯 CSS 滑动）----
    旧 JS rAF 弹簧+测量定位是半个月卡顿的病根（滑一半冻结/卡两格中间/
    底锚错位吊在图标行）——机制层不可修，整体换纯 CSS：
-     宽 = 一格（(100% - 20px)/4：.tabbar padding 0 10px + 4 个 flex:1 等宽格，
+     宽 = 一格（(100% - 20px)/5：.tabbar padding 0 10px + 5 个 flex:1 等宽格，
      平板 860px 限宽下同样自适配）；translateX(calc(--pill-i × 100%)) 走整格；
      spring 曲线自带过冲（Q弹）；零 JS 动画。垂直对称包住图标+文字
      （--tabbar-h - 8px，top 4px 对齐 tab 行），不再引用 --sa-bottom。
@@ -740,7 +740,7 @@ html.dark .appbar::before{
 .tabbar > .tab-pill{
   position: absolute;
   /* 水平：与 tab 行同源 —— left = 内容左缘（padding-box 内 var(--tabbar-pad-x)），
-     宽 = (100% - 2×pad-x)/4（100% = padding box；.tab flex:1 等分同一内容宽），
+     宽 = (100% - 2×pad-x)/5（100% = padding box；.tab flex:1 等分同一内容宽），
      translateX(--pill-i × 100%) 每步恰一格，任何栏宽/平板限宽下精确落格。
      垂直：top/bottom 与底栏 padding-y 同源，包住整个 tab 行（图标+文字）——
      旧写法 bottom 引用 --sa-bottom 把药丸吊在图标行，就是"这么小一块"的根因。 */
@@ -751,7 +751,7 @@ html.dark .appbar::before{
   left: calc(var(--tabbar-pad-x, 8px) - 4px);
   top: var(--tabbar-pad-y, 6px);
   bottom: var(--tabbar-pad-y, 6px);
-  width: calc((100% - 2 * var(--tabbar-pad-x, 8px)) / 4 + 8px);
+  width: calc((100% - 2 * var(--tabbar-pad-x, 8px)) / 5 + 8px);
   /* 2026-10-22：transform → 独立 translate / scale。
      拖动时要「translate 零延迟跟手、变形另走一条曲线」，挤在一个 transform 里
      只能给一条 transition，会把拉伸也拖成 .55s，果冻就变成果冻味的橡皮筋了。
@@ -1243,7 +1243,7 @@ body.native-dock-on .scroll {
 }
 
 /* ===== 修复：底栏图标显示不全（用户 2026-08-11 提供）=====
-   底栏是 Grid（body.tabbar-float .tabbar → display:grid; grid-template-columns:repeat(4,1fr)），
+   底栏是 Grid（body.tabbar-float .tabbar → display:grid; grid-template-columns:repeat(5,1fr)），
    5 等分 1fr 在无 min-width 时会被内容/容器压窄，导致 24px 图标溢出后被截断。
    下面只锁底栏相关尺寸/溢出，不动弹簧动效（不涉及 transform/animation）。 */
 .tab {

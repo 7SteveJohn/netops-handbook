@@ -16,7 +16,7 @@
     learn:    { t: 'NetOps 2.0',  s: '网络学习辅助手册', tab: 'learn', accent: 'teal' },
     fault:    { t: '排障字典',     s: '现象 → 根因 → 命令 → 验证', tab: 'fault', accent: 'rose' },
     dict:     { t: '命令字典',     s: '华为 / Cisco / 中兴 / Linux', tab: 'dict', accent: 'blue' },
-    iv:       { t: '面试题库',     s: '高频真题与 STAR 话术', tab: 'me', accent: 'amber' },
+    iv:       { t: '面试题库',     s: '高频真题与 STAR 话术', tab: 'iv', accent: 'amber' },
     me:       { t: '我的',        s: '进度 · 收藏 · 设置', tab: 'me', accent: 'teal' },
     phase:    { t: '阶段详情',     s: '', tab: 'learn', accent: 'teal' },
     refs:     { t: '速查表',       s: '面试前十分钟', tab: 'learn', accent: 'blue' },
@@ -1127,7 +1127,7 @@
      结论：JS 逐帧动画驱动 UI 指示器 = 架构病，不可修只可换。
      新机制（研究结果落地：iOS 26 激活态=无胶囊底纯 tint；M3 Expressive=
      active indicator 药丸+弹簧滑动；荣耀相册参考=全格宽清玻璃药丸）：
-       纯 CSS —— 药丸宽度恒等于一格（(100%-20px)/4，.tab flex:1 等宽，平板
+       纯 CSS —— 药丸宽度恒等于一格（(100%-20px)/5，.tab flex:1 等宽，平板
        860px 限宽居中下同样自适配），translateX(calc(var(--pill-i) * 100%))
        按整格数滑动，spring 曲线 cubic-bezier(.34,1.56,.64,1) 自带过冲（Q弹）。
        零 JS 动画、零 rAF、零测量 —— 结构上不可能卡死、不可能错位。
