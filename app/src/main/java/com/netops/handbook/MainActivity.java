@@ -650,6 +650,15 @@ public class MainActivity extends AppCompatActivity {
            它需要 PixelCopy(API 33+) + AGSL，两者都不可用时内部自动降级为半透明，不崩。 */
         try {
             lensBar = LensBarView.attach(this, root, webView);
+            /* ❗root 布局尺寸变化 → dock 形态重算：reflow 原先只挂 onConfigurationChanged，
+               冷启动直接横屏（无 config change 事件）时 attach 那次判定用的 anchor
+               还是 0×0/旧 config，形态锁死成横排铺底压住卡片（2026-11-09 真机）。
+               监听尺寸变化补一发，reflow 内部有基准变化短路，多调无害。 */
+            root.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or2, ob) -> {
+                if ((r - l) != (or2 - ol) || (b - t) != (ob - ot)) {
+                    if (lensBar != null) lensBar.reflow();
+                }
+            });
             lensBar.setDark(resolvedDark());
             if (contentContainer != null) lensBar.attachContentContainer(contentContainer);
             runOnUiThread(() -> { if (lensBar != null) lensBar.setNativeDock(nativeDockPending); });
@@ -1920,7 +1929,10 @@ public class MainActivity extends AppCompatActivity {
         if (settingsPanel != null) {
             settingsPanel.build();
         }
-        if (nativePhase != null) nativePhase.setDark(resolvedDark());
+        if (nativePhase != null) {
+            nativePhase.setDark(resolvedDark());
+            nativePhase.onOrientationChanged();   /* 单列⇄双列重建 */
+        }
         if (nativeFault != null) nativeFault.setDark(resolvedDark());
         if (nativeIv != null) nativeIv.setDark(resolvedDark());
         if (nativeDict != null) nativeDict.setDark(resolvedDark());

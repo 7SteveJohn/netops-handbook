@@ -192,6 +192,13 @@ public class NativePhaseView extends LinearLayout {
         direct = on; refreshPalette();
     }
 
+    /** 旋转后强制重建：深浅不变时 setDark 直接 return，单列⇄双列切换收不到
+     *  （2026-11-09 横屏双列配套）。 */
+    public void onOrientationChanged() {
+        dirty = true;
+        if (current != null && isShowing()) buildPage();
+    }
+
     private void refreshPalette() {
         pal = NativeBlocks.palette(getContext(), dark, direct);
         setBackgroundColor(pal.bg);
@@ -205,13 +212,32 @@ public class NativePhaseView extends LinearLayout {
         page.setPadding(pal.dp(14), pal.dp(10), pal.dp(14), pal.dp(24));
         page.addView(headerCard(current));
 
+        /* 横屏双列（2026-11-09 用户拍板）：单栏满宽在横屏一行拖 50+ 字、滚动翻倍。
+           两卡并排等宽（weight 1），高度各自 WRAP 顶部对齐；展开的正文卡也随列宽走。 */
+        boolean land = getResources().getConfiguration().orientation
+                == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
+        LinearLayout row = null;
         View focusView = null;
         for (int i = 0; i < current.mods.length(); i++) {
             JSONObject m = current.mods.optJSONObject(i);
             if (m == null) continue;
             View card = moduleCard(m);
             if (pendingFocus != null && pendingFocus.equals(m.optString("id"))) focusView = card;
-            page.addView(card);
+            if (land) {
+                if (i % 2 == 0) {
+                    row = new LinearLayout(getContext());
+                    row.setOrientation(HORIZONTAL);
+                    page.addView(row, NativeBlocks.matchP());
+                }
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                        0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+                lp.bottomMargin = pal.dp(10);
+                if (i % 2 == 0) lp.rightMargin = pal.dp(7); else lp.leftMargin = pal.dp(7);
+                card.setLayoutParams(lp);
+                row.addView(card);
+            } else {
+                page.addView(card);
+            }
         }
         if (focusView != null) {
             final View fv = focusView;

@@ -2653,6 +2653,9 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         lastPopupWidth = winW;
         lastPopupHeight = winH;
         lastPopupTop = railTop;
+        /* 临时探针：冷启动横屏 dock 形态错（2026-11-09），抓判定时序真相后撤 */
+        Log.i(TAG, String.format("reflow win=%dx%d vert=%s popupVert=%s showing=%s w=%d h=%d",
+                winW, winH, vert, popupVertical, popup.isShowing(), newW, newH));
         /* MATCH_PARENT 在 showAtLocation 时按屏幕定格；分屏/小窗必须显式给
            窗口宽，否则弹窗比窗口宽、dock 溢出到别人的半屏里。 */
         float dp = anchor.getResources().getDisplayMetrics().density;
