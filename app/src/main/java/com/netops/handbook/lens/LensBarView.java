@@ -2219,10 +2219,9 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         boolean fingerDown = pressed || dragging;
         boolean pageSwitching = transitionHold || (pos.active() && !fingerDown);
         if (pageSwitching && liveSharp != null) return;
-        /* ❗静止期 250ms 硬闸：PixelCopy 自驱循环（回调 invalidate → onDraw → 再发起）
-           曾以 30fps 永续——主线程 39% 被占，触摸排队 1-2s（2026-11-09 数据实锤）。
-           静止时画面不变，4fps 兜底足够；动起来（滚动 100ms / 按住 80ms）照旧跟拍。 */
-        long minGap = fingerDown ? 80 : (scrollingNow ? 100 : 250);
+        /* ❗静止期 1000ms 兜底：静止画面不变，1Hz 足够；250ms 时「停手→再划」
+           的接缝里仍可能撞上一次采样（2026-11-09 用户报「卡一下」）。 */
+        long minGap = fingerDown ? 80 : (scrollingNow ? 100 : 1000);
         if (nowMs - lastCaptureMs < minGap) return;
         /* 冷却只拦「无交互」期：按住拖拽期页面静止、录制安全，绕开冷却
            （冷却的转场保护职责已由 transitionHold 承担）。 */
@@ -2622,9 +2621,12 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                → 玻璃内容跳变滞后 = 用户报「粘滞感」的视觉源（2026-11-09）。
                滚动中 dock 静帧（磨砂糊看不出背景定格），停手 130ms 恢复+重抓。 */
             v.removeCallbacks(v.resumeInvalidate);
-            v.postDelayed(v.resumeInvalidate, 130L);
+            /* 恢复延后到 400ms：130ms 落在「滑停→立刻再划」的间隙里，恢复动作
+               （dock 重绘+采样）恰好卡在两次滑动的接缝 = 用户报的「卡一下」
+               （2026-11-09）。霜图 800ms 同理——磨砂无感，停手后再补。 */
+            v.postDelayed(v.resumeInvalidate, 400L);
             v.frostHandler.removeCallbacks(v.frostDebounce);
-            v.frostHandler.postDelayed(v.frostDebounce, 250L);
+            v.frostHandler.postDelayed(v.frostDebounce, 800L);
             /* PerfProbe：滚动步进节拍与主线程响应（用户报竖屏面试滚动 1-2s 无响应）。
                scrollEnd 300ms 静默后汇总一次：步进数、从首步到末步的墙钟时长、
                末步时间戳与汇总打印时间戳的差 = 滚动停止后的主线程拖尾。 */
