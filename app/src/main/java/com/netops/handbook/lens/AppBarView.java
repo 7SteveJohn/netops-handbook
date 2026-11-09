@@ -1029,8 +1029,16 @@ public class AppBarView extends View {
         Paint.FontMetrics fs = subP.getFontMetrics();
         float nameH = fn.descent - fn.ascent;
         float subH = fs.descent - fs.ascent;
-        float top = titleRect.centerY() - (nameH + subH) / 2f;
         float x = titleRect.left;
+        /* 矮栏自动降级（横屏 --appbar-h=46px 口径，rowH=161px）：name 15.5sp +
+           sub 10.5sp 实测高 106.5px，20dp 呼吸才到 176.5px > 161 —— 46dp 数学上
+           「塞得下」但副标题底缘贴进玻璃下缘渐淡区，观感=被裁（2026-11-09 复验）；
+           竖屏 rowH=189px > 176.5 双行保留。 */
+        if (titleRect.height() < nameH + subH + 20f * density) {
+            canvas.drawText(name, x, titleRect.centerY() - nameH / 2f - fn.ascent, nameP);
+            return;
+        }
+        float top = titleRect.centerY() - (nameH + subH) / 2f;
         canvas.drawText(name, x, top - fn.ascent, nameP);
         canvas.drawText(sub, x, top + nameH - fs.ascent, subP);
     }

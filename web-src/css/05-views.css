@@ -494,4 +494,7 @@ html.dark .topo { opacity: .96; }
   .hero { padding: 12px; }
   .hero__title { font-size: 17px; }
   .cli { height: 46vh; }
+  /* 双行标题在 46px 栏里放不下，barSub 探出栏底像被裁（2026-11-09 横屏）——
+     与原生 drawTitle 的矮栏降级对齐：横屏只留主标题。 */
+  .appbar__sub { display: none; }
 }

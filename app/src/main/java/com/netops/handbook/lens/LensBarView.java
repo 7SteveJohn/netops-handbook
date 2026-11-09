@@ -2647,15 +2647,16 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         int winW = anchor.getWidth();
         int winH = anchor.getHeight();
         boolean vert = isLandscapeWindow();   // 横屏 = 左侧竖排栏（不能拿弹窗自身宽高比判，见 isLandscapeWindow）
-        /* 形态基准变化才重算：宽（分屏/小窗）与横竖形态任一变化都 dismiss 重 show */
+        /* 形态基准变化才重算：宽（分屏/小窗）与横竖形态任一变化都 dismiss 重 show。
+           ❗vert 必须进短路条件：冷启动横屏时 attach 初判可能错（config 竞态），
+           之后 anchor 尺寸不再变化，若只比尺寸，形态翻转永远被拦截
+           （2026-11-09 冷启动横屏 dock 横排铺底压卡片的根因之一）。 */
         if (lastPopupWidth == winW && lastPopupHeight == winH
-                && Math.abs(lastPopupTop - railTop) < 0.5f && popup.isShowing()) return;
+                && Math.abs(lastPopupTop - railTop) < 0.5f && popup.isShowing()
+                && vert == popupVertical) return;
         lastPopupWidth = winW;
         lastPopupHeight = winH;
         lastPopupTop = railTop;
-        /* 临时探针：冷启动横屏 dock 形态错（2026-11-09），抓判定时序真相后撤 */
-        Log.i(TAG, String.format("reflow win=%dx%d vert=%s popupVert=%s showing=%s w=%d h=%d",
-                winW, winH, vert, popupVertical, popup.isShowing(), newW, newH));
         /* MATCH_PARENT 在 showAtLocation 时按屏幕定格；分屏/小窗必须显式给
            窗口宽，否则弹窗比窗口宽、dock 溢出到别人的半屏里。 */
         float dp = anchor.getResources().getDisplayMetrics().density;
@@ -2663,6 +2664,9 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         int newH = vert ? Math.max(1, winH - (int) railTop) : (int) (120f * dp);
         int newX = vert ? (int) (RAIL_LEFT_DP * density) : 0;
         int newY = vert ? (int) railTop : 0;
+        /* 临时探针：冷启动横屏 dock 形态错（2026-11-09），抓判定时序真相后撤 */
+        Log.i(TAG, String.format("reflow win=%dx%d vert=%s popupVert=%s showing=%s w=%d h=%d",
+                winW, winH, vert, popupVertical, popup.isShowing(), newW, newH));
         if (popup.isShowing() && vert == popupVertical) {
             /* 同形态（gravity 不变）走 update() 平滑改尺寸/位置——dismiss+show
                会整窗拆建（surface 释放→重分配→输入空窗），旋转/分屏切换的
