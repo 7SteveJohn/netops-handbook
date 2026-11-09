@@ -196,8 +196,8 @@ public class NativeHomeView extends LinearLayout {
         card.addView(title);
         boolean land = lastLand;
         TextView desc = NativeBlocks.tv(getContext(), pal,
-                land ? "从零基础数通到云原生架构 · 排障字典 · 面试题库 · 纯离线运行"
-                     : "从零基础数通到云原生架构 · 排障字典 · 面试题库\n辅助工具，配合教材与真机实验使用\n纯离线运行，无需任何网络连接",
+                land ? "从零基础数通到云原生架构 · 排障字典 · 纯离线运行"
+                     : "从零基础数通到云原生架构 · 排障字典\n辅助工具，配合教材与真机实验使用\n纯离线运行，无需任何网络连接",
                 12.5f, false, pal.textMute);
         desc.setLineSpacing(pal.dp(4), 1f);
         desc.setPadding(0, pal.dp(8), 0, 0);

@@ -696,13 +696,13 @@ public class MainActivity extends AppCompatActivity {
             /* 侧栏松手 → 原生立刻切页（不等 JS 路由的 16~204ms） */
             lensBar.setOnCommit(i -> runOnUiThread(() -> {
                 if (bridge == null) return;
-                String jsRoute = i == 0 ? "learn" : i == 1 ? "fault" : i == 2 ? "dict"
-                        : i == 3 ? "iv" : "me";
+                /* dock 4 格（2026-11-10）：面试降为「我的」页内的二级分类，
+                   不再占一格。面试页本体 route "iv" 保留，由 navRow 进入。 */
+                String jsRoute = i == 0 ? "learn" : i == 1 ? "fault" : i == 2 ? "dict" : "me";
                 switch (i) {
                     case 0: bridge.showNativeHome(); break;
                     case 1: bridge.showNativeFault(); break;
                     case 2: bridge.showNativeDict(); break;
-                    case 3: bridge.showNativeIv(); break;
                     default: bridge.showNativeMe(); break;
                 }
                 /* JS 路由事后同步（6de7805 设计了「JS 确认」但 dock 路径一直没接）：
