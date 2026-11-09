@@ -194,7 +194,10 @@ public class NativePhaseView extends LinearLayout {
 
     /** 旋转后强制重建：深浅不变时 setDark 直接 return，单列⇄双列切换收不到
      *  （2026-11-09 横屏双列配套）。 */
-    private boolean lastLand = false;
+    private boolean lastLand; { /* 冷启动即横屏（平板常态）无 config change：初值必须按当前 config 定 */
+        lastLand = getResources().getConfiguration().orientation
+                == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
+    }
 
     public void onOrientationChanged(boolean land) {
         lastLand = land;

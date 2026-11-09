@@ -657,6 +657,9 @@ public class MainActivity extends AppCompatActivity {
             root.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or2, ob) -> {
                 if ((r - l) != (or2 - ol) || (b - t) != (ob - ot)) {
                     if (lensBar != null) lensBar.reflow();
+                    /* 顶栏同款：冷启动即横屏（平板常态）无 config change，attach 初判
+                       可能拿到中间态——布局尺寸一变就重测顶栏几何（平板右侧壁纸缝实证）。 */
+                    if (appbarBar != null) applyAppBarSelfGeometry();
                 }
             });
             lensBar.setDark(resolvedDark());

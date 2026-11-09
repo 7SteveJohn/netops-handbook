@@ -157,6 +157,7 @@ public class NativeHomeView extends LinearLayout {
                 JSONObject p = phases.optJSONObject(i);
                 if (p != null) flow.add(phaseCard(p, i + 1));
             }
+            flow.commit();
         }
         page.addView(sectionTitle("工具箱"));
         /* 搜索入口不在此列：顶栏右上角已有搜索键（AppBarView fire(1)），重复入口下线
@@ -167,10 +168,14 @@ public class NativeHomeView extends LinearLayout {
         tools.add(toolRow("术语词典", glossaryCount() + " 条云原生与数通黑话", "glossary"));
         tools.add(toolRow("模拟测验", quizCount() + " 道选择题", "quiz"));
         tools.add(toolRow("CLI 模拟器", "离线练习 VRP / Linux 常用命令", "cli"));
+        tools.commit();
     }
 
     /** 旋转后强制重建（深浅不变时 setDark 不触发 build，单列⇄双列切换收不到）。 */
-    private boolean lastLand = false;
+    private boolean lastLand; { /* 冷启动即横屏（平板常态）无 config change：初值必须按当前 config 定 */
+        lastLand = getResources().getConfiguration().orientation
+                == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
+    }
 
     public void onOrientationChanged(boolean land) {
         lastLand = land;

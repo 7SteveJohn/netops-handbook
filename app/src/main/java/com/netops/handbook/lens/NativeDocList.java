@@ -232,7 +232,10 @@ public class NativeDocList extends LinearLayout {
         }
     }
 
-    private boolean lastLand = false;   /* onConfigurationChanged 显式下发（View 的
+    private boolean lastLand; { /* 冷启动即横屏（平板常态）无 config change：初值必须按当前 config 定 */
+        lastLand = getResources().getConfiguration().orientation
+                == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
+    }   /* onConfigurationChanged 显式下发（View 的
         resources config 更新晚于回调，自读会拿到旧方向——2026-11-09 实证） */
 
     private boolean isLandscape() { return lastLand; }
