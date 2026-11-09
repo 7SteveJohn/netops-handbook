@@ -259,6 +259,18 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     /** 上一次同步录制耗时（ns）。原生页（字典/面试）实测 55ms，而 WebView 页 17ms。 */
     private long lastSyncCapCost;
     private boolean scrollingNow;   // 本帧是否处于滚动：绘制降质用
+    /* PerfProbe：滚动步进计数与首末时间（scrollProbe 300ms 静默汇总）。
+       ❗声明须在 liveCopyInFlight 之后：字段初始化器简单名前向引用非法。 */
+    int scrollSteps;
+    long scrollFirstMs, scrollLastMs;
+    private final Runnable scrollProbe = () -> {
+        long now = android.os.SystemClock.uptimeMillis();
+        android.util.Log.i("PerfProbe", "scroll summary steps=" + scrollSteps
+                + " span=" + (scrollLastMs - scrollFirstMs) + "ms"
+                + " tail=" + (now - scrollLastMs) + "ms"
+                + " inFlight=" + liveCopyInFlight);
+        scrollSteps = 0;
+    };
     private static final float GRAVITY_DIR_THRESHOLD_SQ = 0.01f;
     private static final float GRAVITY_ANGLE_STEP_RAD = (float) (3.0 * Math.PI / 180.0);
     private static final float LIGHT_REF_X = 0.5f, LIGHT_REF_Y = 0.7f;
@@ -2143,16 +2155,25 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             return;
         }
         liveCopyInFlight = true;
+        final long dispatchMs = android.os.SystemClock.uptimeMillis();
         try {
             PixelCopy.request(window, src, liveRaw, result -> {
                 liveCopyInFlight = false;
+                /* PerfProbe：PixelCopy 发起→回填的墙钟（积压/串行化会在这里显形） */
+                android.util.Log.i("PerfProbe", "pixelcopy roundtrip="
+                        + (android.os.SystemClock.uptimeMillis() - dispatchMs) + "ms ok=" + (result == PixelCopy.SUCCESS));
                 if (result != PixelCopy.SUCCESS) return;
                 if (liveSharp == null || liveSharp.isRecycled()) return;
                 liveSharp.eraseColor(0);
                 new Canvas(liveSharp).drawBitmap(liveRaw, null,
                         new RectF(0, 0, liveSharp.getWidth(), liveSharp.getHeight()),
                         new Paint(Paint.FILTER_BITMAP_FLAG));
-                invalidate();       // 下一帧合成链就会用上新数据
+                /* ❗只在动的时候续链：原生页 lastSyncCapCost>30ms 后 useAsync 恒真，
+                   回调 invalidate → onDraw → 再发起 = 30fps 永久自驱循环（静止也录），
+                   主线程 39% 被占 → 触摸/滚动排队 1-2s（2026-11-09 数据实锤：
+                   roundtrip=13ms × 33ms 间隔连续输出）。静止时位图已回填，
+                   等下一次自然 invalidate（切页/按压/滚动信号）即可。 */
+                if (scrollingNow || pressed || dragging) invalidate();
             }, frostHandler);
         } catch (Throwable t) {
             liveCopyInFlight = false;
@@ -2189,10 +2210,10 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         boolean fingerDown = pressed || dragging;
         boolean pageSwitching = transitionHold || (pos.active() && !fingerDown);
         if (pageSwitching && liveSharp != null) return;
-        /* 滚动中录制 17ms/次是硬成本：40ms gap 占空比 42%，录制帧（17ms>16.7）
-           必然 jank——竖屏面试页滚动十分卡的组成部分（2026-11-09）。磨砂背景图
-           肉眼对帧率不敏感，gap 放宽到 100ms（10fps 跟拍，占空比 17%）。 */
-        long minGap = fingerDown ? 80 : (scrollingNow ? 100 : 33);
+        /* ❗静止期 250ms 硬闸：PixelCopy 自驱循环（回调 invalidate → onDraw → 再发起）
+           曾以 30fps 永续——主线程 39% 被占，触摸排队 1-2s（2026-11-09 数据实锤）。
+           静止时画面不变，4fps 兜底足够；动起来（滚动 100ms / 按住 80ms）照旧跟拍。 */
+        long minGap = fingerDown ? 80 : (scrollingNow ? 100 : 250);
         if (nowMs - lastCaptureMs < minGap) return;
         /* 冷却只拦「无交互」期：按住拖拽期页面静止、录制安全，绕开冷却
            （冷却的转场保护职责已由 transitionHold 承担）。 */
@@ -2585,9 +2606,17 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             /* 滚动逐帧驱动 dock 重绘 → captureLiveBackdrop 同帧跟随页面。
                此前这里只排 250ms 的旧抓图，onDraw 不跑，玻璃在滚动中是冻结的。 */
             v.scrollIdleUntil = android.os.SystemClock.uptimeMillis() + 120L;
+            if (v.scrollSteps == 0) v.scrollFirstMs = v.scrollIdleUntil - 120L;
+            v.scrollLastMs = android.os.SystemClock.uptimeMillis();
+            v.scrollSteps++;
             v.invalidate();
             v.frostHandler.removeCallbacks(v.frostDebounce);
             v.frostHandler.postDelayed(v.frostDebounce, 250L);
+            /* PerfProbe：滚动步进节拍与主线程响应（用户报竖屏面试滚动 1-2s 无响应）。
+               scrollEnd 300ms 静默后汇总一次：步进数、从首步到末步的墙钟时长、
+               末步时间戳与汇总打印时间戳的差 = 滚动停止后的主线程拖尾。 */
+            v.frostHandler.removeCallbacks(v.scrollProbe);
+            v.frostHandler.postDelayed(v.scrollProbe, 300L);
         });
         float dp0 = act.getResources().getDisplayMetrics().density;
         boolean vert0 = act.getResources().getConfiguration()

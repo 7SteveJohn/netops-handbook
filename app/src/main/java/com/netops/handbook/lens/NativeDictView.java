@@ -121,7 +121,6 @@ public class NativeDictView extends LinearLayout {
     public void onOrientationChanged(boolean land) {
         if (lastLand == land) return;
         lastLand = land;
-        dirty = true;
         if (isShowing()) buildPage();
     }
 
