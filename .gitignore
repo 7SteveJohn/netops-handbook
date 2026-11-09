@@ -84,3 +84,6 @@ dist/
 
 # Kotlin 编译守护活性文件（构建临时垃圾）
 .kotlin/
+
+# 隔离实验工作区（KernelSU 同帧管线原型，独立 git 仓，不入主库）
+/new/
