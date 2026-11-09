@@ -1358,6 +1358,11 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             return y >= railRect.top - 8f * density && y <= railRect.bottom + 8f * density;
         }
         if (nativeDock && barRect.width() > 4) {
+            /* 接管带 = 视觉大胶囊（barRect，dock 绘制与点击同一矩形，无多余 padding）。
+               胶囊之外的窗口区域交给 forwardToPage 转发给主窗口 —— 旧实现转发给
+               webView，全量原生化后是触摸黑洞：用户报「我的→面试题库『面试形式』
+               点不开」（未滚动时它被胶囊盖住大半，露出条又恰在黑洞里；滚到底后
+               整卡露出 y<胶囊顶，点击直达卡片）。 */
             RectF b = dockRect();
             return b.contains(lastHitX, y);
         }
@@ -1395,18 +1400,25 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
      * 本层活在独立 Window 里，事件不会像普通子 View 那样自动漏给下层 —— 不转发的话，
      * 底栏上下那一圈页面内容就点不动了（这是 PopupWindow 方案的必要补丁）。
      */
-    private void forwardToWebView(MotionEvent e) {
-        if (webView == null) return;
-        int[] wl = new int[2];
+    /** 胶囊带之外的触摸转发给**主窗口内容层**。
+     *  本层活在独立 Window 里，事件不会像普通子 View 那样自动漏给下层 —— 不转发的话，
+     *  dock 上下那一圈页面内容就点不动了（这是 PopupWindow 方案的必要补丁）。
+     *  ❗转发目标曾是 webView：全量原生化后原生页（我的/面试题库/字典…）收不到，
+     *  = 触摸黑洞 —— 用户报「我的→面试题库最后一组『面试形式』点不开」（可见部分
+     *  恰落在 dock 窗口条 y≈2710-3040 内）。改派给 anchor 根分发：命中测试自动
+     *  找到当前 VISIBLE 的页面，原生页与 WebView 通用（2026-11-10）。 */
+    private void forwardToPage(MotionEvent e) {
+        if (anchor == null) return;
+        int[] al = new int[2];
         int[] vl = new int[2];
-        webView.getLocationOnScreen(wl);
+        anchor.getLocationOnScreen(al);
         this.getLocationOnScreen(vl);
         MotionEvent e2 = MotionEvent.obtain(e);
-        e2.offsetLocation(vl[0] - wl[0], vl[1] - wl[1]);
+        e2.offsetLocation(vl[0] - al[0], vl[1] - al[1]);
         try {
-            webView.dispatchTouchEvent(e2);
+            anchor.dispatchTouchEvent(e2);
         } catch (Throwable t) {
-            Log.w(TAG, "转发触摸到 WebView 失败", t);
+            Log.w(TAG, "转发触摸到主窗口失败", t);
         } finally {
             e2.recycle();
         }
@@ -1426,7 +1438,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         lastHitX = e.getX();
         lastHitY = e.getY();
         if (!pressed && !inPillBand(e.getY())) {
-            forwardToWebView(e);
+            forwardToPage(e);
             return true;
         }
         double now = nowSec();
