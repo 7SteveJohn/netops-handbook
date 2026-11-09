@@ -202,7 +202,6 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     /** 竖排栏宽 / 左距（dp）。窗口宽度必须跟着这两个值走：窗口比栏宽多出去的每 1px
      *  都会**吞掉内容区的点击**（2026-10-28 复查：栏收窄到 48dp 后窗口还是 280px，
      *  内容左缘 90px 的点击全被转发进 WebView）。 */
-    private static final float RAIL_W_DP = 48f;
     private static final float RAIL_LEFT_DP = 14f;
     /** 竖排侧栏顶让位（顶栏底边，视图本地 px）：顶栏是独立窗、永远压在上面，
      *  侧栏通高会被它横切一刀。 */
@@ -1119,16 +1118,24 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
 
     /** 竖排轨道几何（视图本地，density 缩放）：栏贴左缘、4 格纵列居中、
      *  药丸=轨道宽−20dp × 格距−16dp。数字对标 FlClash 单元格 76dp 口径。 */
-    /** 竖排侧栏尺寸档（2026-11-10 用户「横屏侧栏会不会太小」）：平板（sw≥600dp）
-     *  放大 1.35 —— 48dp 栏宽是手机口径，放在 692dp 高的平板横屏上只占屏宽 7%。
-     *  乘在 computeRailGeometry 的 dp 系数上，railW/pitch/pill 全部跟随；
-     *  图标绘制与 popup 宽度同乘。手机横屏保持 1.0 不动。 */
-    private static float railScale(android.content.res.Configuration c) {
-        return c != null && c.smallestScreenWidthDp >= 600 ? 1.35f : 1f;
+    /** 竖排侧栏尺寸：随屏幕高**连续自适应**（2026-11-10 用户定案「不要特调」——
+     *  开源项目，别人的平板可能是 11/13/14 英寸，硬编码分档到谁那里都可能有偏差）。
+     *  项尺寸 = screenHeightDp × 0.075，clamp 40~72dp：
+     *    手机横屏（~440dp 高）→ 40dp 下限 = 原版口径；8.8" 平板（692dp）→ 52dp；
+     *    13"（800dp）→ 60dp；14"（909dp）→ 68dp。
+     *  按 dp 高的比例 → 视觉占屏比恒定（密度补偿天然成立，无需读物理英寸）。 */
+    private static float railItemDp(android.content.res.Configuration c) {
+        float h = c != null ? c.screenHeightDp : 692f;
+        return Math.max(40f, Math.min(72f, h * 0.075f));
     }
 
+    private float railItemDp() {
+        return railItemDp(getResources().getConfiguration());
+    }
+
+    /** 竖排几何的整体缩放系数：原口径项 = 40dp。 */
     private float railScale() {
-        return railScale(getResources().getConfiguration());
+        return railItemDp() / 40f;
     }
 
     private void computeRailGeometry() {
@@ -1136,7 +1143,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         /* FlClash NavigationSidebar 实测（lib/ui/sidebar.dart:12-26）：
            栏宽 48dp、项 40dp 方块、项距 4dp、项内圆角 10dp、选中 = 8% 填充 + 左缘
            3dp×16dp 竖条。compact 态**只有图标没有文字**。 */
-        float railW = RAIL_W_DP * dp;
+        float railW = railItemDp() * 1.2f * density;   // 栏宽 = 项 × 1.2（原口径 40→48）
         float pitch = 44f * dp;                    // 40 项 + 4 间距
         float pillHv = 40f * dp;
         float pillWv = 40f * dp;
@@ -2691,7 +2698,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         float dp0 = act.getResources().getDisplayMetrics().density;
         boolean vert0 = act.getResources().getConfiguration()
                 .screenWidthDp > act.getResources().getConfiguration().screenHeightDp;
-        int w0 = vert0 ? (int) (RAIL_W_DP * railScale(act.getResources().getConfiguration()) * dp0) : ViewGroup.LayoutParams.MATCH_PARENT;
+        int w0 = vert0 ? (int) (railItemDp(act.getResources().getConfiguration()) * 1.2f * dp0) : ViewGroup.LayoutParams.MATCH_PARENT;
         int h0 = vert0 ? ViewGroup.LayoutParams.MATCH_PARENT : (int) (120 * dp0);
         v.popup = new PopupWindow(v, w0, h0, false);
         v.popupVertical = vert0;
@@ -2762,7 +2769,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         /* MATCH_PARENT 在 showAtLocation 时按屏幕定格；分屏/小窗必须显式给
            窗口宽，否则弹窗比窗口宽、dock 溢出到别人的半屏里。 */
         float dp = anchor.getResources().getDisplayMetrics().density;
-        int newW = vert ? (int) (RAIL_W_DP * railScale() * dp) : Math.max(1, winW);
+        int newW = vert ? (int) (railItemDp(getResources().getConfiguration()) * 1.2f * dp) : Math.max(1, winW);
         int newH = vert ? Math.max(1, winH - (int) railTop) : (int) (120f * dp);
         int newX = vert ? (int) (RAIL_LEFT_DP * density) : 0;
         int newY = vert ? (int) railTop : 0;
