@@ -1127,7 +1127,7 @@
      结论：JS 逐帧动画驱动 UI 指示器 = 架构病，不可修只可换。
      新机制（研究结果落地：iOS 26 激活态=无胶囊底纯 tint；M3 Expressive=
      active indicator 药丸+弹簧滑动；荣耀相册参考=全格宽清玻璃药丸）：
-       纯 CSS —— 药丸宽度恒等于一格（(100%-20px)/5，.tab flex:1 等宽，平板
+       纯 CSS —— 药丸宽度恒等于一格（(100%-20px)/4，.tab flex:1 等宽，平板
        860px 限宽居中下同样自适配），translateX(calc(var(--pill-i) * 100%))
        按整格数滑动，spring 曲线 cubic-bezier(.34,1.56,.64,1) 自带过冲（Q弹）。
        零 JS 动画、零 rAF、零测量 —— 结构上不可能卡死、不可能错位。

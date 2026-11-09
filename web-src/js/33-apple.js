@@ -446,7 +446,7 @@ window.TAB_PILL = true;
     }
     /* 只在按下时量一次。不能用药丸自己的 getBoundingClientRect —— 它带 scale，
        拖拽/回弹途中会读到被拉伸后的宽度，格宽就漂了。改从栏宽推算，
-       与 CSS 的 width:calc((100% - 2*pad)/5) 同源，且不受任何 transform 影响。
+       与 CSS 的 width:calc((100% - 2*pad)/4) 同源，且不受任何 transform 影响。
        display:none（regular 贴底模式）时 offsetWidth 为 0 → 直接不启动。 */
     function measure() {
       var n = count();
