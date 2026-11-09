@@ -265,6 +265,8 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
        ❗声明须在 liveCopyInFlight 之后：字段初始化器简单名前向引用非法。 */
     int scrollSteps;
     long scrollFirstMs, scrollLastMs;
+    /** 滚动中 dock 低频跟拍的节流戳：10fps invalidate（2026-11-10 实时渲染定案）。 */
+    long lastScrollInvalidateMs;
     private final Runnable scrollProbe = () -> {
         long now = android.os.SystemClock.uptimeMillis();
         android.util.Log.i("PerfProbe", "scroll summary steps=" + scrollSteps
@@ -2186,10 +2188,11 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
 
     private void captureLiveBackdrop() {
         if (anchor == null || bandW < 4 || bandH < 4) return;
-        /* ❗滚动中零采样（终极版，2026-11-09）：探针实证滚动期 67ms/步（正常 7.7ms），
-           霜图/恢复采样两个定时器在 fling 帧间插队挤爆预算。滚动中 dock 静帧
-           （磨砂糊无感），停手 130ms 后 resumeInvalidate 恢复一帧。 */
-        if (scrollingNow) return;
+        /* ❗滚动中继续跟拍（2026-11-10 用户拍板「实时渲染别删」，废弃 fa0f70c 的
+           滚动期零采样冻结）：不再整体 return，由 minGap=100ms 节流（下方）+
+           useAsync 强制异步保帧率 —— PixelCopy 回调落后台线程、不占滚动帧，
+           玻璃里卡片/壁纸滚动中仍以 ~10fps 流动。同步 anchor.draw 只在
+           非滚动态跑（原生页实测 55ms，滚动中必顶穿 16.7ms 预算）。 */
         /* 30fps 上限：anchor.draw() 要重绘整棵主窗口（含 WebView），切页转场时
            与页面绘制抢主线程会「非常卡」（2026-11-06 用户报）。 */
         long nowMs = SystemClock.uptimeMillis();
@@ -2615,9 +2618,17 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             if (v.scrollSteps == 0) v.scrollFirstMs = v.scrollIdleUntil - 120L;
             v.scrollLastMs = android.os.SystemClock.uptimeMillis();
             v.scrollSteps++;
-            /* ❗滚动中不再逐帧 invalidate：dock 玻璃合成 60fps 但背景采样 10fps
-               → 玻璃内容跳变滞后 = 用户报「粘滞感」的视觉源（2026-11-09）。
-               滚动中 dock 静帧（磨砂糊看不出背景定格），停手 130ms 恢复+重抓。 */
+            /* ❗滚动中低频跟拍（2026-11-10 用户拍板「实时渲染别删」）：dock 以
+               10fps invalidate → onDraw → captureLiveBackdrop 走**异步 PixelCopy**
+               （回调落后台，不占滚动帧），玻璃里卡片/壁纸在滚动中仍然流动。
+               代价是玻璃 10fps 跳变（磨砂糊下可接受）——换取用户要的「实时」。
+               同步 anchor.draw 滚动中仍然禁用（55ms 必顶穿滚动帧预算），
+               由下方 captureLiveBackdrop 的 useAsync 分支保证。 */
+            long nowMs = android.os.SystemClock.uptimeMillis();
+            if (nowMs - v.lastScrollInvalidateMs >= 100L) {
+                v.lastScrollInvalidateMs = nowMs;
+                v.invalidate();
+            }
             v.removeCallbacks(v.resumeInvalidate);
             /* 恢复延后到 400ms：130ms 落在「滑停→立刻再划」的间隙里，恢复动作
                （dock 重绘+采样）恰好卡在两次滑动的接缝 = 用户报的「卡一下」
