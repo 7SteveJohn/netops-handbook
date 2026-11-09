@@ -1168,13 +1168,27 @@ public class MainActivity extends AppCompatActivity {
                 }
             } catch (Throwable ignored) { }
         }
-        appbarBar.applySelfGeometry(statusTopInsetPx);
+        /* ❗宽用主窗口实宽：旋转瞬间 displayMetrics 可能停在中间态（2026-11-09
+           真机横屏顶栏窗宽停在 2665px 的实证）。root 未 layout 完成时传 0 回退
+           resources 宽。 */
+        int rootW = (root != null && root.getWidth() > 0) ? root.getWidth() : 0;
+        appbarBar.applySelfGeometry(statusTopInsetPx, rootW);
         appbarBar.warmUp();
         /* 竖排侧栏让开顶栏：顶栏底边 + 8dp 呼吸，否则两条玻璃叠着切一刀 */
         float below = appbarBar.barBottomPx()
                 + 8f * getResources().getDisplayMetrics().density;
         if (lensBar != null) lensBar.setRailTopInset(below);
         if (nativeDrawer != null) nativeDrawer.setTopInset(below);
+    }
+
+    /** 旋转后顶栏几何三连发补测（120/500/900ms）：与 remeasureLensSoon 同模型——
+     *  旋转瞬间 displayMetrics/root 布局都是中间态，最后一次（layout 已 settles）
+     *  才是可信值。insets 路径的立即调用保留（安全区变化非旋转）。 */
+    private void remeasureAppBarSoon() {
+        if (appbarBar == null) return;
+        root.postDelayed(this::applyAppBarSelfGeometry, 120);
+        root.postDelayed(this::applyAppBarSelfGeometry, 500);
+        root.postDelayed(this::applyAppBarSelfGeometry, 900);
     }
 
     /** 三连发重测透镜几何（120/500/900ms）。
@@ -1920,9 +1934,10 @@ public class MainActivity extends AppCompatActivity {
         if (nativeMe != null) nativeMe.setDark(resolvedDark());
         if (appbarBar != null) {
             appbarBar.setDark(resolvedDark());
-            /* 旋转后顶栏几何无条件重算：displayMetrics 此时已是新方向，不必等
-               WebView 重排（这正是「横屏玻璃带只画到 1904px」的病根）。 */
-            applyAppBarSelfGeometry();
+            /* 旋转后顶栏几何三连发补测（同 remeasureLensSoon 模型）：旋转瞬间
+               displayMetrics/root 布局都是中间态（单发量到 2665px 的实证），
+               必须等 layout settles 后用最终值重算。 */
+            remeasureAppBarSoon();
         }
         if (root != null) {
             ViewCompat.requestApplyInsets(root);

@@ -347,12 +347,21 @@ public class AppBarView extends View {
      * @param statusTopPx 状态栏（含刘海）高度，物理 px；来自 Insets systemBars|cutout
      */
     public void applySelfGeometry(int statusTopPx) {
+        applySelfGeometry(statusTopPx, 0);
+    }
+
+    public void applySelfGeometry(int statusTopPx, int surfaceWidthPx) {
         if (detached) return;
         float d = density;
         float barH = barHeightPx();
         float rowH = barH - CHROME_EXTRA_DP * d;   // .appbar__row 内容行高（54dp / 46dp）
         float top = Math.max(0f, statusTopPx);
-        int sw = getResources().getDisplayMetrics().widthPixels;
+        /* ❗宽度优先用主窗口实宽（root.getWidth()）：旋转瞬间 View resources 的
+           displayMetrics 可能停在中间态（2026-11-09 真机实证：横屏 popup 窗宽停在
+           2665px，玻璃右缘裸 135px 壁纸缝、双行副标题出窗被裁）——且手势导航下
+           insets 签名横竖屏常相同，之后不会再有重算机会。 */
+        int sw = surfaceWidthPx > 0 ? surfaceWidthPx
+                : getResources().getDisplayMetrics().widthPixels;
 
         barRect.set(0f, 0f, sw, top + barH);
         float cy = top + rowH / 2f;
