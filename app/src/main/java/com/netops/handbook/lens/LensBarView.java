@@ -586,6 +586,10 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     /** 栏面 pane = 抓取矩形全幅的霜（含 40dp 外扩边，栏缘折射要采栏外内容）。
      *  上游链里 tint α0.4 在 lens 之后作 surface 画上（drawDockChrome），不烘这里。 */
     private float paneKeyOffX = -1f, paneKeyOffY = -1f;
+    /** 【临时探针】两态取证节流戳 */
+    private long pillProbeMs;
+    /** 【临时探针】combinedBmp 导出节流戳 */
+    private long pillDumpMs;
 
     private void buildBarPane() {
         if (contentFrost == null || contentFrost.getWidth() < 8) return;
@@ -2436,26 +2440,52 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
            按住 = 通透（liveSharp 1/2 清晰源，按 liftV 淡入覆盖磨砂层）
            ❗两层叠加而不是二选一：换源会整块突变，按 liftV 淡入才连续。
            此前只有一个磨砂源，导致「按住也糊」——通透感彻底消失（2026-11-07 用户报）。 */
-        /* ❗照抄 KernelSU（2026-11-10 用户定案「不要瞎改参数，直接照抄」）：
-           药丸 content = combinedBackdrop = **单一清晰源**（liveSharp 1/2，每拍随
-           主窗口更新）+ tab 镜像，content 内**无底色**（rest/press tint 在外层
-           surface 段：浅 黑10% / 按压 叠 black 3%×lift，FloatingBottomBar.kt:220/447）。
-           此前三层叠加（磨砂底 liveBackdrop 1/18 + 清晰层按 liftV 淡入 + 白底
-           α150→30 动画）：两层内容时点不同 → 按住时割裂/重影；alpha 混合逐帧
-           跳变 → 闪烁。单一源后静止与按住 content 相同，两态差异只在 lens()
-           折射量（10/14dp×liftV）与 surface tint —— 同为 KernelSU 原参数。 */
-        if (liveSharp != null && !liveSharp.isRecycled()) {
+        /* ❗两态（2026-11-10 用户定案）：**平常磨砂、按住全透明** ——
+           底层 = 磨砂（liveBackdrop 8x，静止/滑动恒显示）；
+           顶层 = 全分辨率清晰源（liveSharp），按 liftV 淡入覆盖磨砂（按住时完全
+           覆盖 → 透明，背后内容可辨）。白底 tint = 150×(1−liftV)：静止 150（熟悉
+           的磨砂观感）、按住 **0**（零白底，真透明）。
+           按住稳定后顶层 α255 全覆盖磨砂层 → 无割裂；淡入期两层内容时点差
+           <1s（静止场景两层几乎相同）→ 无跳变。KernelSU 的两态语义（rest 磨砂
+           / press 通透）由 lens 折射量与本 tint 切换共同承担。 */
+        if (liveBackdrop != null && !liveBackdrop.isRecycled()) {
+            c.drawBitmap(liveBackdrop, -tabOffX, -tabOffY,
+                    new Paint(Paint.FILTER_BITMAP_FLAG));
+        }
+        if (liftV > 0.01f && liveSharp != null && !liveSharp.isRecycled()) {
             float k = (float) liveSharp.getWidth() / bandW;
             c.drawBitmap(liveSharp,
                     new Rect((int) (tabOffX * k), (int) (tabOffY * k),
                             (int) ((tabOffX + w) * k), (int) ((tabOffY + h) * k)),
                     new RectF(0, 0, w, h), new Paint(Paint.FILTER_BITMAP_FLAG));
-        } else if (liveBackdrop != null && !liveBackdrop.isRecycled()) {
-            /* liveSharp 未就绪的兜底（冷启动首拍前）：用磨砂图，不闪不割 */
-            c.drawBitmap(liveBackdrop, -tabOffX, -tabOffY,
-                    new Paint(Paint.FILTER_BITMAP_FLAG));
-        } else {
+        }
+        /* 白底：静止 α150（磨砂白）、按住 0（全透明） */
+        int baseA = (int) (150 * (1f - Math.min(1f, liftV)));
+        if (baseA > 2) {
+            Paint baseP = new Paint(Paint.ANTI_ALIAS_FLAG);
+            baseP.setColor(dark ? Color.argb(baseA, 74, 74, 80) : Color.argb(baseA, 252, 252, 252));
+            c.drawRect(0f, 0f, w, h, baseP);
+        } else if (liveBackdrop == null && liveSharp == null) {
             c.drawColor(dark ? 0xFF2C2C2E : 0xFFDEE5FC);
+        }
+        /* 【临时探针】两态取证：按住时应为 liftV≈1 / baseA=0 / sharp=true */
+        if (SystemClock.uptimeMillis() - pillProbeMs > 400) {
+            pillProbeMs = SystemClock.uptimeMillis();
+            Log.i("PillProbe", "liftV=" + String.format("%.2f", liftV)
+                    + " baseA=" + baseA
+                    + " sharp=" + (liveSharp != null && !liveSharp.isRecycled())
+                    + " backdrop=" + (liveBackdrop != null && !liveBackdrop.isRecycled()));
+        }
+        if (liftV > 0.5f && SystemClock.uptimeMillis() - pillDumpMs > 2000 && combinedBmp != null) {
+            pillDumpMs = SystemClock.uptimeMillis();
+            try {
+                java.io.File f = new java.io.File(getContext().getExternalFilesDir(null), "combined.png");
+                java.io.FileOutputStream fo = new java.io.FileOutputStream(f);
+                combinedBmp.compress(Bitmap.CompressFormat.PNG, 100, fo);
+                fo.close();
+            } catch (Throwable t) {
+                Log.w("PillProbe", "dump fail", t);
+            }
         }
         pillClipPath.reset();
         pillClipPath.addRoundRect(pl, pt, pr, pb, r, r, Path.Direction.CW);
