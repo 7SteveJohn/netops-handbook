@@ -1680,12 +1680,16 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             }
             if (dockScaled) canvas.restore();
         } else {
-            /* 旧路径：静止态本层不画（外观由 HTML 药丸承担），只画按压透镜 */
+            /* 旧路径：静止态本层不画（外观由 HTML 药丸承担），只画按压透镜。
+               ❗docked（M3 贴底）不画药丸：贴底选中态 = indicatorP 胶囊，
+               悬浮药丸只属于悬浮模式（2026-11-10 用户二次报）。 */
             if (liftV <= 0.005f && !pressed) {
                 frames++;
                 return;
             }
-            drawGlass(canvas, liftV);
+            if (!docked) {
+                drawGlass(canvas, liftV);
+            }
         }
 
         long ms = (System.nanoTime() - t0) / 1_000_000L;
