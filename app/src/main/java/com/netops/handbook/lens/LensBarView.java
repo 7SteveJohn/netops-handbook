@@ -2282,8 +2282,12 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         if (!scrollingNow && !fingerDown && nowMs < liveCooldownUntil && liveSharp != null) return;
         lastCaptureMs = nowMs;
         int w = Math.round(bandW), h = Math.round(bandH);
-        /* 精度分档：滚动中 1/6（≈4ms，可每帧跟上），静止 1/2（≈16ms，一次到位） */
-        int div = 2;   // 固定 1/2：切档会让 liveSharp 尺寸突变、背景瞬间换图（2026-11-07 回滚）
+        /* ❗照抄 KernelSU（2026-11-10 用户报「页面最底下时 Dock 栏和药丸都是磨砂，
+           滑动也是磨砂」）：清晰源改**全分辨率**。录制已走 PixelCopy（GPU 全尺寸，
+           liveRaw 本来就是 w×h），回填缩到 1/2 是软画布时代（同步 anchor.draw 到
+           1/2 canvas 省一半）的历史包袱 —— 现在全尺寸 1:1 回填反而少一步缩放。
+           药丸 content 由此全分辨率清晰可辨（KernelSU 药丸 = 清晰 backdrop + lens）。 */
+        int div = 1;
         int sharpW = Math.max(2, w / div), sharpH = Math.max(2, h / div);
         boolean rebuild = liveBackdrop == null
                 || liveBackdrop.getWidth() != w || liveBackdrop.getHeight() != h
@@ -2309,7 +2313,11 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             /* 终点 1/12：miuix blur(4dp) 应从**全分辨率**降 10 倍
                （σ=4.95px → sf=2、k=round(σ)=5）。我们录制只有 1/4（主线程成本所限），
                再降 3 倍凑到总 12 倍，等效模糊量最接近上游的 10 倍。 */
-            int sw = Math.max(2, w / 18), sh = Math.max(2, h / 18);   // 磨砂：18 倍降采样，字形完全消失
+            /* ❗磨砂终点 18→8 倍（2026-11-10 用户报「Dock 栏居然是磨砂玻璃」）：
+               18x 连内容结构都丢光 = 纯糊；KernelSU 栏体是全分辨率 blur(4dp)，
+               模糊但**卡片边缘/大色块可辨**。8x + 双线性放大 ≈ 中度模糊：
+               文字不可读（保 2026-11-06「字形不干扰」）、结构可见（不再是纯磨砂）。 */
+            int sw = Math.max(2, w / 8), sh = Math.max(2, h / 8);
             liveToned = Bitmap.createBitmap(sw, sh, Bitmap.Config.ARGB_8888);
         }
         /* ❗滚动期改用 PixelCopy 异步抓图：同步 `anchor.draw` 单次 17ms
