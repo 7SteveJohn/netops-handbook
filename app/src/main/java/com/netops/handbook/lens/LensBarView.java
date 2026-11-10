@@ -947,6 +947,19 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         applyDockColors();
         chromeDark = -1;   // 强制重建缓存（含 per-tab sprites）
         java.util.Arrays.fill(tabSprites, null);
+        /* ❗实时链位图全部失效：liveSharp/liveBackdrop 是旧配色的主窗口帧，
+           不清的话深色下药丸/栏体会显示浅色时代的旧内容（用户报「深色下
+           药丸是白色的」）。清空后下一拍按新主题重抓。 */
+        if (liveSharp != null) liveSharp.recycle();
+        if (liveBackdrop != null) liveBackdrop.recycle();
+        if (liveToned != null) liveToned.recycle();
+        if (liveStep != null) liveStep.recycle();
+        liveSharp = null;
+        liveBackdrop = null;
+        liveToned = null;
+        liveStep = null;
+        lastRawLuma = -1f;
+        invalidate();
         scheduleFrostCapture();   // 主题切换：页面重绘后重抓（旧霜是旧配色）
         invalidate();
     }
@@ -1654,7 +1667,9 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
             boolean glassLive = shader != null
                     && !NativeBlocks.glassNone()
                     && !dockVertical && Build.VERSION.SDK_INT >= 33;
-            if (!dockVertical) {
+            if (!dockVertical && !docked) {
+                /* ❗docked（M3 贴底）不画悬浮药丸：药丸只属于悬浮模式，
+                   贴底形态的选中态是 indicatorP 胶囊（2026-11-10 用户报）。 */
                 drawGlass(canvas, liftV);
             }
             /* 2026-11-01 选中格图标常驻透镜面板（composeLensTab，rest 也弯折
