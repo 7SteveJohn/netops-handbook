@@ -1539,6 +1539,9 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
                 pressed = true;
                 dragging = false;
                 dropping = false;
+                /* 按下立刻允许抓一帧：按住期改成 600ms 节拍后，若上一次采样刚好
+                   在按下前一瞬，药丸会先看到旧画面再更新（一次可见的跳变）。 */
+                lastCaptureMs = 0L;
                 downId = e.getPointerId(0);
                 glowX = e.getX();
                 glowY = e.getY();
@@ -2374,7 +2377,11 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
         /* ❗2026-11-10 提频：滚动中 40ms（25fps）——栏体 AGSL 的 content 输入是
            liveBackdropShader（本层每拍更新的实时磨砂），这一拍的节奏就是用户看到的
            「实时渲染」节奏；旧 100ms 档 = 用户报「晚 0.5s、快滑跟不上」。 */
-        long minGap = fingerDown ? 80 : (scrollingNow ? 40 : 1000);
+        /* ❗按住不动时不跟拍：画面本来就是静止的，80ms 一抓等于每 80ms 换一帧
+           采样，药丸（透镜放大）会把这点差异放大成「一闪一闪」。实测按住 3s，
+           药丸区每帧仍有 ~3% 像素在变 —— 就是用户报的抽搐（2026-11-11）。
+           拖拽才需要跟手（80ms），按住不动降到 600ms（仍能应对背景变化）。 */
+        long minGap = dragging ? 80 : (pressed ? 600 : (scrollingNow ? 40 : 1000));
         if (nowMs - lastCaptureMs < minGap) return;
         /* 冷却只拦「无交互」期：按住拖拽期页面静止、录制安全，绕开冷却
            （冷却的转场保护职责已由 transitionHold 承担）。 */
