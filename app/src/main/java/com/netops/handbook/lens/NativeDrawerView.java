@@ -183,6 +183,13 @@ public class NativeDrawerView extends FrameLayout {
         if (dark == d) return;
         dark = d;
         pal = NativeBlocks.palette(getContext(), dark, false);
+        /* ❗panel 背景 drawable 是构造时用旧 pal 建的（cardBg 白），只换 pal 字段
+           不会刷新它 —— 深色下抽屉白底（用户报「侧栏不符合当前主题」）。
+           重设背景；行卡由 open()→build() 用新 pal 重建。 */
+        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        bg.setColor(pal.cardBg | 0xFF000000);
+        bg.setCornerRadii(new float[]{0, 0, pal.dp(22), pal.dp(22), pal.dp(22), pal.dp(22), 0, 0});
+        panel.setBackground(bg);
     }
 
     public void open() {
