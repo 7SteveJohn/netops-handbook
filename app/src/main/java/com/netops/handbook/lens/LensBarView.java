@@ -163,6 +163,11 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
     /* 同帧实时 backdrop：弹窗同幅的主窗口内容 + 降采样模糊缓冲 */
     private Bitmap liveBackdrop, liveToned;
     private Bitmap liveSharp;      // 1/4 录制源（药丸直接用，栏体走两级降采样）
+    /* ❗双缓冲：PixelCopy 回调在 frostWorker 上跑，若直接往 liveSharp 里擦+画，
+       主线程正拿同一张位图做药丸合成 → 半擦半画的中间态被画出来，按住药丸
+       不动就会「一闪一闪地抽搐」（2026-11-11 用户报）。改成后台写 work、
+       主线程换引用，绘制永远看到完整的一帧。 */
+    private Bitmap liveSharpWork;
     private Bitmap liveStep;       // 1/8 中间级（模拟 miuix blur 的两级串联）
     private BitmapShader liveBackdropShader;
     private long lastCaptureMs;            // 实时录制节流（30fps 上限）
@@ -994,10 +999,12 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
            不清的话深色下药丸/栏体会显示浅色时代的旧内容（用户报「深色下
            药丸是白色的」）。清空后下一拍按新主题重抓。 */
         if (liveSharp != null) liveSharp.recycle();
+        if (liveSharpWork != null) liveSharpWork.recycle();
         if (liveBackdrop != null) liveBackdrop.recycle();
         if (liveToned != null) liveToned.recycle();
         if (liveStep != null) liveStep.recycle();
         liveSharp = null;
+        liveSharpWork = null;
         liveBackdrop = null;
         liveToned = null;
         liveStep = null;
@@ -2313,20 +2320,27 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
                         + (android.os.SystemClock.uptimeMillis() - dispatchMs) + "ms ok=" + (result == PixelCopy.SUCCESS));
                 if (result != PixelCopy.SUCCESS) return;
                 if (gen != pageGen) return;      /* 跨代次采样：丢弃，别污染新页玻璃 */
-                if (liveSharp == null || liveSharp.isRecycled()) return;
+                if (liveSharpWork == null || liveSharpWork.isRecycled()) return;
                 sharpStale = false;
-                liveSharp.eraseColor(0);
-                new Canvas(liveSharp).drawBitmap(liveRaw, null,
-                        new RectF(0, 0, liveSharp.getWidth(), liveSharp.getHeight()),
+                liveSharpWork.eraseColor(0);
+                new Canvas(liveSharpWork).drawBitmap(liveRaw, null,
+                        new RectF(0, 0, liveSharpWork.getWidth(), liveSharpWork.getHeight()),
                         new Paint(Paint.FILTER_BITMAP_FLAG));
                 /* ❗只在动的时候续链：原生页 lastSyncCapCost>30ms 后 useAsync 恒真，
                    回调 invalidate → onDraw → 再发起 = 30fps 永久自驱循环（静止也录），
                    主线程 39% 被占 → 触摸/滚动排队 1-2s（2026-11-09 数据实锤：
                    roundtrip=13ms × 33ms 间隔连续输出）。静止时位图已回填，
                    等下一次自然 invalidate（切页/按压/滚动信号）即可。 */
-                boolean wantRepaint = scrollingNow || pressed || dragging;
-                if (refreshOnceAfterCap) { refreshOnceAfterCap = false; wantRepaint = true; }
-                if (wantRepaint) invalidate();
+                /* 主线程换引用（原子）：绘制永远拿到完整帧，不会看到擦到一半的位图 */
+                frostHandler.post(() -> {
+                    if (detached) return;
+                    Bitmap prev = liveSharp;
+                    liveSharp = liveSharpWork;
+                    liveSharpWork = prev;
+                    boolean wantRepaint = scrollingNow || pressed || dragging;
+                    if (refreshOnceAfterCap) { refreshOnceAfterCap = false; wantRepaint = true; }
+                    if (wantRepaint) invalidate();
+                });
                 }, frostHandler);
             } catch (Throwable t) {
                 liveCopyInFlight = false;
@@ -2405,6 +2419,9 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
                1/11 双线性只取 2×2、丢掉 9/10 信息 → 混叠成块与横向条纹，
                这就是「玻璃模糊状态」复刻不出来的原因（2026-11-06 用户指出）。 */
             liveSharp = Bitmap.createBitmap(sharpW, sharpH,
+                    Bitmap.Config.ARGB_8888);
+            if (liveSharpWork != null) liveSharpWork.recycle();
+            liveSharpWork = Bitmap.createBitmap(sharpW, sharpH,
                     Bitmap.Config.ARGB_8888);
             /* 中间级恒定 = 清晰源的一半：静止档 1/4、滚动档 1/12（= 栏体终点，
                两者同尺寸时降采样退化为复制，仍然正确） */
