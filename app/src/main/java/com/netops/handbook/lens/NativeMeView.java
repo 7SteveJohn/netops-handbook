@@ -75,7 +75,12 @@ public class NativeMeView extends LinearLayout implements ThemeBus.DarkAware {
         /* ❗旧判定「可见且不脏才复用」= 只要 hide 过就必然重建：我的页是大 tab，
            每次回来都白重建一遍（切页一顿一顿的主因之一，2026-11-11 横屏走查）。
            改成「视图还在就复用」，进度/收藏变化由 invalidateData 置脏。 */
-        if (!dirty && page.getChildCount() > 0) return true;
+        if (!dirty && page.getChildCount() > 0) {
+            setVisibility(VISIBLE);   /* ❗必须显式显示：hide() 已把整页置 GONE，
+                                         早退时漏掉这一步 = 我的页整页空白只露壁纸 */
+            setAlpha(1f);
+            return true;
+        }
         done.clear(); fav.clear();
         for (String s : sp.getString("done", "").split(",")) if (!s.isEmpty()) done.add(s);
         for (String s : sp.getString("fav", "").split(",")) if (!s.isEmpty()) fav.add(s);
