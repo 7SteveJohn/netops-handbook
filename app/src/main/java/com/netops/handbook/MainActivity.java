@@ -184,6 +184,7 @@ public class MainActivity extends AppCompatActivity {
         getWindow().setBackgroundDrawable(new ColorDrawable(bg));
 
         root = new FrameLayout(this);
+        bootGuardUntil = SystemClock.uptimeMillis() + 5000L;   // 启动保护窗 5s
         root.setId(View.generateViewId());
         root.setFitsSystemWindows(false);
         root.setBackgroundColor(bg);
@@ -1282,6 +1283,12 @@ public class MainActivity extends AppCompatActivity {
         return mode == android.content.res.Configuration.UI_MODE_NIGHT_YES;
     }
 
+    /** ❗启动保护窗：深浅色记忆的旧网页 localStorage 在启动初期上报时，不许把
+     *  原生已记忆的主题打回（用户报「切深色重进变浅色」——网页层 localStorage
+     *  仍是 light，桥 setTheme('light') 把 KEY_THEME 的 dark 覆盖掉）。 */
+    private long bootGuardUntil;
+    private long bootGuardMs() { return SystemClock.uptimeMillis() < bootGuardUntil; }
+
     /** 网页记过配色就以网页为准（含用户手动切换的深/浅色），否则跟随系统。 */
     private boolean resolvedDark() {
         String t = getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_THEME, null);
@@ -1406,6 +1413,15 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public void setTheme(String mode) {
             boolean dark = "dark".equals(mode);
+            /* ❗启动保护窗（2026-11-10）：网页旧 localStorage（light）在启动初期
+               上报时，不许覆盖用户已记忆的深色（用户报「切深色重进变浅色」）。
+               保护窗外（用户真正点切换）照常写入。 */
+            if (!dark && bootGuardMs()
+                    && "dark".equals(getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_THEME, null))) {
+                Log.i("ThemeBus", "启动保护窗：忽略网页旧浅色上报");
+                pushTheme(true);
+                return;
+            }
             rememberTheme(dark);
             pushTheme(dark);
         }
