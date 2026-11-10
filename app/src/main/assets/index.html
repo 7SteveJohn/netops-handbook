@@ -1085,19 +1085,31 @@ function sysDark() {
 if (w.__netopsSysDark !== undefined) return !!w.__netopsSysDark;
 try { return w.matchMedia && w.matchMedia('(prefers-color-scheme: dark)').matches; } catch (e) { return false; }
 }
+function nativeMode() {
+try {
+if (w.NetBridge && w.NetBridge.themeMode) {
+var m = w.NetBridge.themeMode();
+if (THEMES.indexOf(m) >= 0) return m;
+}
+} catch (e) { }
+return null;
+}
 function applyTheme(t) {
 var dark = t === 'dark' || (t === 'auto' && sysDark());
 d.documentElement.classList.toggle('dark', dark);
 var meta = $('meta[name="theme-color"]');
 if (meta) meta.setAttribute('content', dark ? '#0b1220' : '#ffffff');
-if (w.NetBridge && w.NetBridge.setTheme) { try { w.NetBridge.setTheme(dark ? 'dark' : 'light'); } catch (e) {} }
 return dark;
 }
 UI.theme = {
 list: THEMES,
-get: function () { return store.get('theme', 'auto'); },
-set: function (t) { store.set('theme', t); return applyTheme(t); },
-apply: function () { return applyTheme(store.get('theme', 'auto')); },
+get: function () { return nativeMode() || store.get('theme', 'auto'); },
+set: function (t) {
+store.set('theme', t);
+if (w.NetBridge && w.NetBridge.setTheme) { try { w.NetBridge.setTheme(t); } catch (e) { } }
+return applyTheme(t);
+},
+apply: function () { return applyTheme(UI.theme.get()); },
 isDark: function () { return d.documentElement.classList.contains('dark'); }
 };
 function ripple(host, x, y) {
@@ -4259,7 +4271,6 @@ w.NetBridge.setAppBarState(JSON.stringify({
 name: curTitle,
 sub: curSub,
 navBack: curNavBack,
-themeMoon: U.theme.isDark(),
 scrolled: app.classList.contains('is-scrolled'),
 search: searchOpen,
 overlaid: overlaid,
@@ -4856,6 +4867,6 @@ if (document.readyState === 'loading') {
 document.addEventListener('DOMContentLoaded', init, { once: true });
 } else { init(); }
 })();
-;window.__BUILD__='20261110-0121-74e48b';</script>
+;window.__BUILD__='20261110-1807-7de8f4';</script>
 </body>
 </html>

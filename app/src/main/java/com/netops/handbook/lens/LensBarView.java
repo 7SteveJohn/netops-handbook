@@ -961,6 +961,12 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
         liveBackdrop = null;
         liveToned = null;
         liveStep = null;
+        /* ❗shader 必须先置空再让位图再见（2026-11-10 真机闪退根因）：
+           liveBackdropShader 的 BitmapShader 仍持有刚 recycle 的 liveBackdrop，
+           下一帧 drawBarGlass 把它 setInputShader → 取 native 实例时
+           Bitmap.checkRecycled 抛 IllegalStateException（切主题/重进必崩）。
+           shader 是惰性建 native 的，回收位图时它不会报错，只在下次使用时炸。 */
+        liveBackdropShader = null;
         lastRawLuma = -1f;
         invalidate();
         scheduleFrostCapture();   // 主题切换：页面重绘后重抓（旧霜是旧配色）
@@ -2328,6 +2334,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
             if (liveStep != null) liveStep.recycle();
             if (liveToned != null) liveToned.recycle();
             if (liveSharp != null) liveSharp.recycle();
+            liveBackdropShader = null;   // 同上：位图回收前先摘掉引用它的 shader
             liveBackdrop = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
             /* 三级：1/4 录制 → 1/8 中间级 → 1/16 终点，串联两次降采样。
                ❗miuix blur(4dp) 是「全分辨率 → 1/2 → 1/10」**两级**串联

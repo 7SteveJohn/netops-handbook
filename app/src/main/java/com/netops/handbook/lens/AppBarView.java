@@ -279,9 +279,11 @@ public class AppBarView extends View implements ThemeBus.DarkAware {
     @Override public void onThemeChanged(boolean dark) { setDark(dark); }
 
     public void setDark(boolean d) {
-        boolean changed = (dark != d);
         if (dark == d) return;
         dark = d;
+        /* 图标由原生广播驱动：网页 state 里的 themeMoon 会滞后（JS 故障/未 boot 时
+           恒为太阳——2026-11-10 用户报「按钮一直是太阳」），不再作为真源。 */
+        themeMoon = d;
         applyColors();
         backdropRev = -1;   // 配色整套变化 → 重抓背景 + 重建霜链
         gradShadow = null;
@@ -303,8 +305,6 @@ public class AppBarView extends View implements ThemeBus.DarkAware {
             if (s != null && !s.equals(sub)) { sub = s; dirty = true; }
             boolean b = o.optBoolean("navBack", navBack);
             if (b != navBack) { navBack = b; dirty = true; }
-            b = o.optBoolean("themeMoon", themeMoon);
-            if (b != themeMoon) { themeMoon = b; dirty = true; }
             b = o.optBoolean("scrolled", scrolled);
             if (b != scrolled) { scrolled = b; dirty = true; }
             b = o.optBoolean("glass", glassOn);

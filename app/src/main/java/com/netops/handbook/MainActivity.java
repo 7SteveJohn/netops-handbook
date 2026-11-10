@@ -95,7 +95,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private static final String PREFS = "netops.shell";
-    /** 网页最近一次生效的配色（"dark" / "light"），用于下次冷启动首帧配色。 */
+    /** 用户选的配色模式（"auto" / "light" / "dark"）—— 全应用唯一真源：
+     *  原生各层、网页层（NetBridge.themeMode）都读它，冷启动首帧也用它。 */
     private static final String KEY_THEME = "theme";
 
     private static final int BG_DARK = 0xFF0B1220;
@@ -184,7 +185,6 @@ public class MainActivity extends AppCompatActivity {
         getWindow().setBackgroundDrawable(new ColorDrawable(bg));
 
         root = new FrameLayout(this);
-        bootGuardUntil = SystemClock.uptimeMillis() + 5000L;   // 启动保护窗 5s
         root.setId(View.generateViewId());
         root.setFitsSystemWindows(false);
         root.setBackgroundColor(bg);
@@ -745,19 +745,13 @@ public class MainActivity extends AppCompatActivity {
             appbarBar = com.netops.handbook.lens.AppBarView.attach(this, root, webView);
             ThemeBus.register(appbarBar);   /* 替代原 attach 时 setDark：register 自带当前值回调 */
             if (nativeBackdrop != null) appbarBar.setWallpaperSource(nativeBackdrop);
-            /* 主题键原生翻转：先 JS store.set（html.dark 翻转），再 pushTheme
-               （推 __netopsSysDark + apply()——apply 读 store 新值，幂等）。 */
+            /* 主题键原生翻转：只改**模式**（auto 之外的显式深浅），
+               不必再指望 evaluateJavascript 写得进网页层——pushTheme 会推
+               apply()，JS 的 UI.theme.get() 直接走 themeMode() 桥回读，失败面为零。 */
             appbarBar.themeFlip = () -> runOnUiThread(() -> {
-                boolean newDark = !resolvedDark();
-                if (webView != null) {
-                    try {
-                        webView.evaluateJavascript(
-                                "(function(){try{if(window.UI&&UI.theme)UI.theme.set('"
-                                        + (newDark ? "dark" : "light") + "')}catch(e){}})()", null);
-                    } catch (Throwable ignored) { }
-                }
-                rememberTheme(newDark);
-                pushTheme(newDark);
+                String m = resolvedDark() ? "light" : "dark";
+                rememberTheme(m);
+                pushTheme(resolvedDark(m));
             });
         } catch (Throwable t) {
             Log.w(TAG, "原生顶栏挂载失败（不影响主流程）", t);
@@ -1283,26 +1277,26 @@ public class MainActivity extends AppCompatActivity {
         return mode == android.content.res.Configuration.UI_MODE_NIGHT_YES;
     }
 
-    /** ❗启动保护窗：深浅色记忆的旧网页 localStorage 在启动初期上报时，不许把
-     *  原生已记忆的主题打回（用户报「切深色重进变浅色」——网页层 localStorage
-     *  仍是 light，桥 setTheme('light') 把 KEY_THEME 的 dark 覆盖掉）。 */
-    private long bootGuardUntil;
-    private long bootGuardMs() { return SystemClock.uptimeMillis() < bootGuardUntil; }
-
-    /** 网页记过配色就以网页为准（含用户手动切换的深/浅色），否则跟随系统。 */
-    private boolean resolvedDark() {
+    /** 当前配色模式：auto 跟随系统，light/dark 是用户手选（缺省 auto）。 */
+    private String themeMode() {
         String t = getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_THEME, null);
-        if ("dark".equals(t)) return true;
-        if ("light".equals(t)) return false;
+        return ("light".equals(t) || "dark".equals(t)) ? t : "auto";
+    }
+
+    /** 模式 → 实际深浅。 */
+    private boolean resolvedDark(String mode) {
+        if ("dark".equals(mode)) return true;
+        if ("light".equals(mode)) return false;
         return isNightMode();
     }
 
-    private void rememberTheme(boolean dark) {
-        /* ❗照抄 FlClash 逻辑（2026-11-10 用户报「切深色划掉后台重进变浅」）：
-           主题切换**同步落盘** —— apply() 异步写，切完立刻杀后台写盘丢失，
-           深色记忆随之丢失（按钮恒太阳同根）。 */
+    private boolean resolvedDark() { return resolvedDark(themeMode()); }
+
+    private void rememberTheme(String mode) {
+        /* ❗同步落盘（2026-11-10 用户报「切深色划掉后台重进变浅」）：apply() 异步写，
+           切完立刻杀后台会丢。模式字符串是唯一真源，网页层用 themeMode() 桥回读。 */
         getSharedPreferences(PREFS, MODE_PRIVATE).edit()
-                .putString(KEY_THEME, dark ? "dark" : "light")
+                .putString(KEY_THEME, mode)
                 .commit();
     }
 
@@ -1415,18 +1409,17 @@ public class MainActivity extends AppCompatActivity {
 
         @JavascriptInterface
         public void setTheme(String mode) {
-            boolean dark = "dark".equals(mode);
-            /* ❗启动保护窗（2026-11-10）：网页旧 localStorage（light）在启动初期
-               上报时，不许覆盖用户已记忆的深色（用户报「切深色重进变浅色」）。
-               保护窗外（用户真正点切换）照常写入。 */
-            if (!dark && bootGuardMs()
-                    && "dark".equals(getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_THEME, null))) {
-                Log.i("ThemeBus", "启动保护窗：忽略网页旧浅色上报");
-                pushTheme(true);
-                return;
-            }
-            rememberTheme(dark);
-            pushTheme(dark);
+            /* 网页侧主题入口（「我的」页三态 / 顶栏翻转的共同落点）：
+               只接受模式字符串，落盘后由原生广播实际深浅。 */
+            String m = ("light".equals(mode) || "dark".equals(mode)) ? mode : "auto";
+            rememberTheme(m);
+            pushTheme(resolvedDark(m));
+        }
+
+        /** 模式真源回读：网页在 boot 时用它对账（localStorage 可能落后/被清）。 */
+        @JavascriptInterface
+        public String themeMode() {
+            return MainActivity.this.themeMode();
         }
 
         /**

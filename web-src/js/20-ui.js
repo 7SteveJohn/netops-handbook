@@ -81,7 +81,11 @@
   };
   UI.store = store;
 
-  /* ---------------- 主题 ---------------- */
+  /* ---------------- 主题 ----------------
+     模式真源 = 原生（NetBridge.themeMode）：网页 localStorage 只在原生缺席
+     （本地浏览器闭环 / jsdom）时兜底。2026-11-10 用户报「切深色退出重进变浅色」
+     = 两套存储各写各的（网页 UI 写 localStorage、原生顶栏写 prefs），冷启动谁
+     的旧值后到谁赢；收敛成单源后这种分裂在结构上不可能发生。 */
   var THEMES = ['auto', 'light', 'dark'];
   function sysDark() {
     /* App 桥推送的真源优先（WebView 的 matchMedia 不跟随系统深色，恒 light——
@@ -89,19 +93,32 @@
     if (w.__netopsSysDark !== undefined) return !!w.__netopsSysDark;
     try { return w.matchMedia && w.matchMedia('(prefers-color-scheme: dark)').matches; } catch (e) { return false; }
   }
+  function nativeMode() {
+    try {
+      if (w.NetBridge && w.NetBridge.themeMode) {
+        var m = w.NetBridge.themeMode();
+        if (THEMES.indexOf(m) >= 0) return m;
+      }
+    } catch (e) { }
+    return null;
+  }
   function applyTheme(t) {
     var dark = t === 'dark' || (t === 'auto' && sysDark());
     d.documentElement.classList.toggle('dark', dark);
     var meta = $('meta[name="theme-color"]');
     if (meta) meta.setAttribute('content', dark ? '#0b1220' : '#ffffff');
-    if (w.NetBridge && w.NetBridge.setTheme) { try { w.NetBridge.setTheme(dark ? 'dark' : 'light'); } catch (e) {} }
+    /* 不再回报「有效深浅」：那会把 auto 语义压成 light/dark（模式改由 set 显式写）。 */
     return dark;
   }
   UI.theme = {
     list: THEMES,
-    get: function () { return store.get('theme', 'auto'); },
-    set: function (t) { store.set('theme', t); return applyTheme(t); },
-    apply: function () { return applyTheme(store.get('theme', 'auto')); },
+    get: function () { return nativeMode() || store.get('theme', 'auto'); },
+    set: function (t) {
+      store.set('theme', t);   // 浏览器兜底 + 原生缺席时的镜像
+      if (w.NetBridge && w.NetBridge.setTheme) { try { w.NetBridge.setTheme(t); } catch (e) { } }
+      return applyTheme(t);
+    },
+    apply: function () { return applyTheme(UI.theme.get()); },
     isDark: function () { return d.documentElement.classList.contains('dark'); }
   };
 

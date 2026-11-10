@@ -2692,14 +2692,11 @@
         d.body.classList.toggle('is-appbar-q', searchOpen);
         d.body.classList.toggle('is-appbar-overlay', overlaid);
         w.NetBridge.setAppBarState(JSON.stringify({
-          /* 文案与返回态取自路由状态（curTitle/curSub/curNavBack），不读 DOM：
-             任务书原文写 themeMoon 用 !U.theme.isDark()，但那会把图标语义翻反
-             （AppBarView.themeMoon：false=太阳=当前亮；syncThemeIcon 也是
-             深色→月亮），故此处取 isDark() 本身，与改动前的 DOM 推导完全等价。 */
+          /* 文案与返回态取自路由状态（curTitle/curSub/curNavBack），不读 DOM。
+             主题图标不在载荷里：AppBarView 由 ThemeBus 广播自行翻（网页值会滞后）。 */
           name: curTitle,
           sub: curSub,
           navBack: curNavBack,
-          themeMoon: U.theme.isDark(),
           scrolled: app.classList.contains('is-scrolled'),
           search: searchOpen,
           overlaid: overlaid,
