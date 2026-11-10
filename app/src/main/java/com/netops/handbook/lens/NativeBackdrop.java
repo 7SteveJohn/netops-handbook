@@ -21,7 +21,7 @@ import java.io.InputStream;
  * 同时这也是「原生接管壁纸」的第一步：直铺模式下原生页自带底图，
  * 不再依赖 WebView 的 .wall 层。
  */
-public class NativeBackdrop extends FrameLayout {
+public class NativeBackdrop extends FrameLayout implements ThemeBus.DarkAware {
 
     private static final LruCache<String, Bitmap> CACHE = new LruCache<>(8);
 
@@ -175,6 +175,9 @@ public class NativeBackdrop extends FrameLayout {
 
     /** 深色时壁纸压暗（brightness 0.36）：原生 direct 模式下壁纸由本层画，
      *  HTML 的 .wall 滤镜管不到（2026-11-08「深色半成品」壁纸亮根因）。 */
+    /* ThemeBus 订阅入口：只换通知来源，setDark 逻辑原样。 */
+    @Override public void onThemeChanged(boolean dark) { setDark(dark); }
+
     public void setDark(boolean d) {
         if (dark == d) return;
         dark = d;

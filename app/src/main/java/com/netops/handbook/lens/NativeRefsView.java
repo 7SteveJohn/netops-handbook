@@ -17,7 +17,7 @@ import org.json.JSONObject;
  * 理由：速查表的用法就是快速扫，两级反而多一次点击，且省掉原生层的
  * 内部返回栈（返回键仍归页面路由，不会出现「返回退一层表格」的歧义）。
  */
-public class NativeRefsView extends LinearLayout {
+public class NativeRefsView extends LinearLayout implements ThemeBus.DarkAware {
 
     private JSONArray refs = new JSONArray();
     private boolean dark = false, direct = false;
@@ -94,6 +94,9 @@ public class NativeRefsView extends LinearLayout {
     public void setSafeArea(int topPx, int bottomPx) {
         scroller.setPadding(0, topPx + pal.dp(56) + pal.dp(28), 0, bottomPx + pal.dp(84));
     }
+
+    /* ThemeBus 订阅入口：只换通知来源，setDark 逻辑原样。 */
+    @Override public void onThemeChanged(boolean dark) { setDark(dark); }
 
     public void setDark(boolean d) {
         if (dark == d) return;

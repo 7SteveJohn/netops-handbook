@@ -27,6 +27,7 @@ import android.widget.FrameLayout;
 import android.widget.Toast;
 
 import com.netops.handbook.lens.LensBarView;
+import com.netops.handbook.lens.ThemeBus;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
@@ -193,6 +194,9 @@ public class MainActivity extends AppCompatActivity {
         bindBackKey();
 
         createWebView(bg, savedInstanceState);
+        /* ThemeBus 单源初值：所有消费者已在 createWebView 里 register（register 自带
+           当前值回调），这里把总线状态同步成记忆主题——首帧前统一广播。 */
+        ThemeBus.setDark(resolvedDark());
         loadNativeData();
     }
 
@@ -505,15 +509,18 @@ public class MainActivity extends AppCompatActivity {
         contentContainer.setLayoutParams(new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         root.addView(contentContainer);
-        NetOpsShell.INSTANCE.setDark(resolvedDark());   // 首帧主题色（onDarkChange 只在变化时触发）
+        /* 首帧主题色：NetOpsShell 已向 ThemeBus 注册（onCreate 末尾
+           ThemeBus.setDark(resolvedDark()) 统一广播），此处不再点名。 */
         contentContainer.addView(webView);
         /* 原生收藏夹页（N2 收尾）。 */
         nativeFav = new com.netops.handbook.lens.NativeFavView(this);
+        ThemeBus.register(nativeFav);
         addNativePage(nativeFav);
         nativeFav.setNav((route, arg) -> nativeGo(route, arg));
 
         /* 原生壁纸层：给原生页的玻璃件（AndroidLiquidGlassView）提供静态采样源。 */
         nativeBackdrop = new com.netops.handbook.lens.NativeBackdrop(this);
+        ThemeBus.register(nativeBackdrop);
         nativeBackdrop.setLayoutParams(new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         root.addView(nativeBackdrop);
@@ -522,6 +529,7 @@ public class MainActivity extends AppCompatActivity {
         /* 原生学习首页（N2）：必须挂在壁纸层之上（曾先建后建壁纸层，被整屏壁纸挡住）。 */
         /* 原生学习首页（N2）：阶段入口 + 进度环 + 工具箱。 */
         nativeHome = new com.netops.handbook.lens.NativeHomeView(this);
+        ThemeBus.register(nativeHome);
         addNativePage(nativeHome);
         nativeHome.setNav((route, arg) -> nativeGo(route, arg));
 
@@ -529,6 +537,7 @@ public class MainActivity extends AppCompatActivity {
 
         /* 原生「我的」页 + 设置面板（N2 收尾）。 */
         nativeMe = new com.netops.handbook.lens.NativeMeView(this);
+        ThemeBus.register(nativeMe);
         addNativePage(nativeMe);
         nativeMe.setNav(route -> {
             if ("settings".equals(route)) {
@@ -556,6 +565,7 @@ public class MainActivity extends AppCompatActivity {
         settingsPanel.setLayoutParams(new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         root.addView(settingsPanel);     /* 面板必须在所有原生页之上 */
+        ThemeBus.register(settingsPanel);
         /* 面板开合 → 侧栏退位（侧栏是独立弹窗，永远压在面板上） */
         settingsPanel.setOnOpen(open -> {
             if (lensBar != null) lensBar.setOverlaid(open);
@@ -576,6 +586,7 @@ public class MainActivity extends AppCompatActivity {
                 com.netops.handbook.lens.NativeBlocks.palette(this, resolvedDark(), false),
                 (route, arg) -> nativeGo(route, arg),
                 () -> { if (lensBar != null) lensBar.setOverlaid(false); NetOpsShell.INSTANCE.setOverlaid(false); });
+        ThemeBus.register(nativeDrawer);
         nativeDrawer.setLayoutParams(new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         /* addView 顺序 = z 序：抽屉必须**最后**加（见下方 addView(nativeDrawer)），
@@ -584,6 +595,7 @@ public class MainActivity extends AppCompatActivity {
 
         /* 原生搜索页（N5）：原生输入框 + 命中高亮 + 键盘自适应。 */
         nativeSearch = new com.netops.handbook.lens.NativeSearchView(this);
+        ThemeBus.register(nativeSearch);
         addNativePage(nativeSearch);
         nativeSearch.setNav((type, id, pid) -> {
             if ("mod".equals(type)) {
@@ -596,6 +608,7 @@ public class MainActivity extends AppCompatActivity {
         /* 原生阶段详情页（全量原生化 N1）：WebView 之上覆盖整个内容区；
            顶部让出 appbar（原生页自己不画顶栏），底部让出 dock。 */
         nativePhase = new com.netops.handbook.lens.NativePhaseView(this);
+        ThemeBus.register(nativePhase);
         nativePhase.setLayoutParams(new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         nativePhase.setVisibility(android.view.View.GONE);
@@ -614,9 +627,12 @@ public class MainActivity extends AppCompatActivity {
         /* 原生文档列表页（N4）：排障 / 面试 共用 NativeDocList，各自一个 Config。 */
         nativeFault = addDocList(docConfig("排障案例", "案例", "已解决", "faults", "fault", "", "", true));
         nativeIv = addDocList(docConfig("面试题库", "问题", "已准备", "interview", "iv", "IVQ", "Q", true));
+        ThemeBus.register(nativeFault);
+        ThemeBus.register(nativeIv);
 
         /* 原生命令字典页（N4）：命令对照表 + 分类筛选。 */
         nativeDict = new com.netops.handbook.lens.NativeDictView(this);
+        ThemeBus.register(nativeDict);
         nativeDict.setGlassSource(nativeBackdrop);
         nativeDict.setLayoutParams(new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
@@ -625,15 +641,19 @@ public class MainActivity extends AppCompatActivity {
 
         /* 速查表 / 术语表 / 路线图（N4）：三个轻量原生页。 */
         nativeRefs = new com.netops.handbook.lens.NativeRefsView(this);
+        ThemeBus.register(nativeRefs);
         nativeRefs.setGlassSource(nativeBackdrop);
         addNativePage(nativeRefs);
         nativeGlossary = new com.netops.handbook.lens.NativeSimpleList(this);
+        ThemeBus.register(nativeGlossary);
         nativeGlossary.setGlassSource(nativeBackdrop);
         addNativePage(nativeGlossary);
         nativeRoadmap = new com.netops.handbook.lens.NativeSimpleList(this);
+        ThemeBus.register(nativeRoadmap);
         nativeRoadmap.setGlassSource(nativeBackdrop);
         addNativePage(nativeRoadmap);
         nativeQuiz = new com.netops.handbook.lens.NativeQuizView(this);
+        ThemeBus.register(nativeQuiz);
         nativeQuiz.setGlassSource(nativeBackdrop);
         addNativePage(nativeQuiz);
 
@@ -689,7 +709,7 @@ public class MainActivity extends AppCompatActivity {
                     if (appbarBar != null) applyAppBarSelfGeometry();
                 }
             });
-            lensBar.setDark(resolvedDark());
+            ThemeBus.register(lensBar);   /* 替代原 attach 时 setDark：register 自带当前值回调 */
             if (contentContainer != null) lensBar.attachContentContainer(contentContainer);
             runOnUiThread(() -> { if (lensBar != null) lensBar.setNativeDock(nativeDockPending); });
             if (nativeBackdrop != null) lensBar.setBackdropSource(nativeBackdrop);
@@ -722,7 +742,7 @@ public class MainActivity extends AppCompatActivity {
            因此也不需要 2026-10-30 那个「等 WebView 布局变化再量」的钩子。 */
         try {
             appbarBar = com.netops.handbook.lens.AppBarView.attach(this, root, webView);
-            appbarBar.setDark(resolvedDark());
+            ThemeBus.register(appbarBar);   /* 替代原 attach 时 setDark：register 自带当前值回调 */
             if (nativeBackdrop != null) appbarBar.setWallpaperSource(nativeBackdrop);
             /* 主题键原生翻转：先 JS store.set（html.dark 翻转），再 pushTheme
                （推 __netopsSysDark + apply()——apply 读 store 新值，幂等）。 */
@@ -919,6 +939,8 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         ioPool.shutdownNow();
+        /* ThemeBus 消费者不做 unregister：Activity 生命周期 = 进程级（singleTask 常驻），
+           ThemeBus 也是进程级单例，二者同生共死，无泄漏窗口。 */
         /* 原生层活在独立 Window 里，不收会 window leak */
         if (lensBar != null) {
             try {
@@ -1298,23 +1320,13 @@ public class MainActivity extends AppCompatActivity {
                 try { webView.evaluateJavascript(js, null); } catch (Throwable ignored) { }
             }
             applyBarAppearance(dark);
-            if (nativeBackdrop != null) nativeBackdrop.setDark(dark);
-            if (lensBar != null) lensBar.setDark(dark);
-            NetOpsShell.INSTANCE.setDark(dark);
-            if (nativePhase != null) nativePhase.setDark(dark);
-            if (nativeFault != null) nativeFault.setDark(dark);
-            if (nativeIv != null) nativeIv.setDark(dark);
-            if (nativeDict != null) nativeDict.setDark(dark);
-            if (nativeRefs != null) nativeRefs.setDark(dark);
-            if (nativeGlossary != null) nativeGlossary.setDark(dark);
-            if (nativeRoadmap != null) nativeRoadmap.setDark(dark);
-            if (nativeQuiz != null) nativeQuiz.setDark(dark);
-            if (nativeHome != null) nativeHome.setDark(dark);
-            if (nativeSearch != null) nativeSearch.setDark(dark);
-            if (nativeMe != null) nativeMe.setDark(dark);
-            if (nativeFav != null) nativeFav.setDark(dark);   // 透镜暗色亮度 1.33 跟随主题
-            if (nativeDrawer != null) nativeDrawer.setDark(dark);   // ❗抽屉 pal 构造时快照，缺这次通知就永远浅色（用户报侧栏不符主题）
-            if (appbarBar != null) appbarBar.setDark(dark);       // 顶栏配色/背景整套跟随
+            /* 手工点名名册退役（2026-11-10）：16+ 消费者全部改为 ThemeBus 注册制，
+               单源广播替代逐个 setDark —— 新界面只需 implements DarkAware + register，
+               漏通知在结构上不可能发生。此前的逐点名单（nativeBackdrop/lensBar/
+               NetOpsShell/nativePhase/nativeFault/nativeIv/nativeDict/nativeRefs/
+               nativeGlossary/nativeRoadmap/nativeQuiz/nativeHome/nativeSearch/
+               nativeMe/nativeFav/nativeDrawer/appbarBar）全部删除。 */
+            ThemeBus.setDark(dark);
         });
     }
 
@@ -1575,9 +1587,8 @@ public class MainActivity extends AppCompatActivity {
         public void setSettingsState(String theme, String wallpaper) {
             if (settingsPanel == null) return;
             try {
-                boolean dk = resolvedDark();
                 runOnUiThread(() -> {
-                    settingsPanel.setDark(dk);
+                    /* settingsPanel 主题不再点名（ThemeBus 注册制），只推状态。 */
                     settingsPanel.updateState(theme, wallpaper);
                 });
             } catch (Throwable ignored) { }
@@ -1949,11 +1960,9 @@ public class MainActivity extends AppCompatActivity {
         // ❗系统深浅切换统一走 pushTheme（含推 JS html.dark + __netopsDark——
         //   WebView 的 matchMedia 恒 light，不推=HTML 卡片停在浅色，2026-11-08 实锤）
         boolean darkNow = resolvedDark();
-        pushTheme(darkNow);
+        pushTheme(darkNow);   /* 内部走 ThemeBus.setDark：主题有变才广播，消费者自行跟随 */
         applyBarAppearance(darkNow);
-        if (nativeBackdrop != null) nativeBackdrop.setDark(darkNow);
         if (lensBar != null) {
-            lensBar.setDark(darkNow);
             lensBar.reflow();
             lensBar.onBackdropChanged(); // 旋转后壁纸切换，通知玻璃层重采样
         }
@@ -1962,25 +1971,18 @@ public class MainActivity extends AppCompatActivity {
         }
         boolean land = newConfig.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
         if (nativePhase != null) {
-            nativePhase.setDark(resolvedDark());
             nativePhase.onOrientationChanged(land);   /* 单列⇄双列重建 */
         }
-        if (nativeFault != null) { nativeFault.setDark(resolvedDark()); nativeFault.onOrientationChanged(land); }
-        if (nativeIv != null) { nativeIv.setDark(resolvedDark()); nativeIv.onOrientationChanged(land); }
-        if (nativeDict != null) { nativeDict.setDark(resolvedDark()); nativeDict.onOrientationChanged(land); }
-        if (nativeQuiz != null) { nativeQuiz.setDark(resolvedDark()); nativeQuiz.onOrientationChanged(land); }
-        if (nativeFav != null) { nativeFav.setDark(resolvedDark()); nativeFav.onOrientationChanged(land); }
+        if (nativeFault != null) nativeFault.onOrientationChanged(land);
+        if (nativeIv != null) nativeIv.onOrientationChanged(land);
+        if (nativeDict != null) nativeDict.onOrientationChanged(land);
+        if (nativeQuiz != null) nativeQuiz.onOrientationChanged(land);
+        if (nativeFav != null) nativeFav.onOrientationChanged(land);
         /* nativeRefs(NativeRefsView)/nativeGlossary(NativeSimpleList)/nativeRoadmap
-           保持单列：速查表=整表卡、术语=分组大卡列表、路线图=时间轴，形态不适合双列。 */
-        if (nativeRefs != null) nativeRefs.setDark(resolvedDark());
-        if (nativeGlossary != null) nativeGlossary.setDark(resolvedDark());
-        if (nativeRoadmap != null) nativeRoadmap.setDark(resolvedDark());
-        if (nativeHome != null) { nativeHome.setDark(resolvedDark()); nativeHome.onOrientationChanged(land); }
-        if (nativeSearch != null) nativeSearch.setDark(resolvedDark());
-        if (nativeFav != null) nativeFav.setDark(resolvedDark());
-        if (nativeMe != null) nativeMe.setDark(resolvedDark());
+           保持单列：速查表=整表卡、术语=分组大卡列表、路线图=时间轴，形态不适合双列。
+           setDark 已全部退役（ThemeBus 注册制），此处只保留 onOrientationChanged 等几何调用。 */
+        if (nativeHome != null) nativeHome.onOrientationChanged(land);
         if (appbarBar != null) {
-            appbarBar.setDark(resolvedDark());
             /* 旋转后顶栏几何三连发补测（同 remeasureLensSoon 模型）：旋转瞬间
                displayMetrics/root 布局都是中间态（单发量到 2665px 的实证），
                必须等 layout settles 后用最终值重算。 */

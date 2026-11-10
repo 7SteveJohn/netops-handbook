@@ -60,7 +60,7 @@ import com.netops.handbook.lens.glass.LiquidGlassShaders;
  * 运动模型照搬 FlClash navigation_dock.dart：位置/抬起/果冻三根物理弹簧，
  * 形变由"速度 + 刹车"耦合驱动（wobble），抬起必须满足两个到位条件才回落（dropLift）。
  */
-public class LensBarView extends View implements Choreographer.FrameCallback {
+public class LensBarView extends View implements Choreographer.FrameCallback, ThemeBus.DarkAware {
 
     private static final String TAG = "LensBar";
 
@@ -941,6 +941,9 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
     }
 
     /** 深浅色主题（透镜亮度 1.33 + 底栏配色整套），由 Activity 主题变化时推送。 */
+    /* ThemeBus 订阅入口：只换通知来源，setDark 逻辑（含实时位图清空+霜重抓）原样。 */
+    @Override public void onThemeChanged(boolean dark) { setDark(dark); }
+
     public void setDark(boolean d) {
         if (dark == d) return;
         dark = d;

@@ -19,7 +19,7 @@ import org.json.JSONObject;
  * 交互：点选项即判分（对=绿、错=红并标出正确项），随后展开解析。
  * 一页铺完，不分组不翻页——72 题的定位靠滚动，比翻页少一层状态。
  */
-public class NativeQuizView extends LinearLayout {
+public class NativeQuizView extends LinearLayout implements ThemeBus.DarkAware {
 
     private JSONArray quiz = new JSONArray();
     private boolean dark = false, direct = false;
@@ -83,6 +83,9 @@ public class NativeQuizView extends LinearLayout {
     public void setSafeArea(int topPx, int bottomPx) {
         scroller.setPadding(0, topPx + pal.dp(56) + pal.dp(28), 0, bottomPx + pal.dp(84));
     }
+
+    /* ThemeBus 订阅入口：只换通知来源，setDark 逻辑原样。 */
+    @Override public void onThemeChanged(boolean dark) { setDark(dark); }
 
     public void setDark(boolean d) {
         if (dark == d) return;

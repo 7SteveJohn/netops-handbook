@@ -23,7 +23,7 @@ import org.json.JSONObject;
  * 导航统一走 Set 回调 → nativeGo → JS 路由（标题/返回栈不旁路）。
  * 打开时必须让 dock 收起（lensBar.setOverlaid），否则药丸触摸带压住抽屉底部。
  */
-public class NativeDrawerView extends FrameLayout {
+public class NativeDrawerView extends FrameLayout implements ThemeBus.DarkAware {
 
     public interface Go {
         void go(String route, String arg);
@@ -179,6 +179,9 @@ public class NativeDrawerView extends FrameLayout {
     /** 主题切换（2026-11-10）：pal 在构造时快照、open() 的 build() 只重建视图 ——
      *  此前主题切换从不通知抽屉，切深色后抽屉仍用构造时的浅色 pal
      *  （用户报「呼出的侧栏时不时会不符合当前主题」）。 */
+    /* ThemeBus 订阅入口：只换通知来源，setDark 逻辑（含 panel 背景重设）原样。 */
+    @Override public void onThemeChanged(boolean dark) { setDark(dark); }
+
     public void setDark(boolean d) {
         if (dark == d) return;
         dark = d;

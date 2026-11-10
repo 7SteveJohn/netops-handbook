@@ -28,7 +28,7 @@ import java.util.Set;
  * 状态读 netops_native（与阶段页同一份 done），导航回给页面层（NetOpsNativeGo），
  * 不在原生侧重写路由栈。
  */
-public class NativeHomeView extends LinearLayout {
+public class NativeHomeView extends LinearLayout implements ThemeBus.DarkAware {
 
     /** 导航回传：route/arg 交给页面层 go()，原生不自己维护栈。 */
     public interface Nav {
@@ -109,6 +109,9 @@ public class NativeHomeView extends LinearLayout {
     public void setSafeArea(int topPx, int bottomPx) {
         scroller.setPadding(0, topPx + pal.dp(56) + pal.dp(28), 0, bottomPx + pal.dp(84));
     }
+
+    /* ThemeBus 订阅入口：只换通知来源，setDark 逻辑原样。 */
+    @Override public void onThemeChanged(boolean dark) { setDark(dark); }
 
     public void setDark(boolean d) {
         if (dark == d) return;

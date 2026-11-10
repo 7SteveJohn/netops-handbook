@@ -34,7 +34,7 @@ import java.util.List;
  * 一次性拍平约几十毫秒，远小于每次输入重扫的代价）。
  * 命中高亮用 Spannable（比 Web 的 U.hl 更直接）。
  */
-public class NativeSearchView extends LinearLayout {
+public class NativeSearchView extends LinearLayout implements ThemeBus.DarkAware {
 
     /** 结果点击：type = mod/fault/iv/dict/gloss/ref。 */
     public interface Nav {
@@ -245,6 +245,9 @@ public class NativeSearchView extends LinearLayout {
         header.setPadding(pal.dp(14), topPx + pal.dp(56) + pal.dp(28), pal.dp(14), pal.dp(8));
         scroller.setPadding(0, 0, 0, bottomPx + pal.dp(16));
     }
+
+    /* ThemeBus 订阅入口：只换通知来源，setDark 逻辑原样。 */
+    @Override public void onThemeChanged(boolean dark) { setDark(dark); }
 
     public void setDark(boolean d) {
         if (dark == d) return;

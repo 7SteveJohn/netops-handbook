@@ -16,7 +16,7 @@ import org.json.JSONObject;
  * 术语表 / 学习路线图共用：都是「标题 + 说明文字」的一维列表，没有展开块、
  * 没有状态。数据由各自的 setter 适配成 [{t, d}] 后交给同一个渲染体。
  */
-public class NativeSimpleList extends LinearLayout {
+public class NativeSimpleList extends LinearLayout implements ThemeBus.DarkAware {
 
     private JSONArray items = new JSONArray();
     private String title = "", subtitle = "";
@@ -114,6 +114,9 @@ public class NativeSimpleList extends LinearLayout {
     public void setSafeArea(int topPx, int bottomPx) {
         scroller.setPadding(0, topPx + pal.dp(56) + pal.dp(28), 0, bottomPx + pal.dp(84));
     }
+
+    /* ThemeBus 订阅入口：只换通知来源，setDark 逻辑原样。 */
+    @Override public void onThemeChanged(boolean dark) { setDark(dark); }
 
     public void setDark(boolean d) {
         if (dark == d) return;

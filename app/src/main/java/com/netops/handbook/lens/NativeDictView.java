@@ -26,7 +26,7 @@ import java.util.List;
  * 分类筛选：顶部 chips（全部 + 数据里出现的分类），点击重建列表。
  * 点命令 → 复制到剪贴板（与 Web 版 data-cmd 一致）。
  */
-public class NativeDictView extends LinearLayout {
+public class NativeDictView extends LinearLayout implements ThemeBus.DarkAware {
 
     private JSONArray rows = new JSONArray();
     private String[] colKeys = new String[0];
@@ -104,6 +104,9 @@ public class NativeDictView extends LinearLayout {
     public void setSafeArea(int topPx, int bottomPx) {
         scroller.setPadding(0, topPx + pal.dp(56) + pal.dp(28), 0, bottomPx + pal.dp(84));
     }
+
+    /* ThemeBus 订阅入口：只换通知来源，setDark 逻辑原样。 */
+    @Override public void onThemeChanged(boolean dark) { setDark(dark); }
 
     public void setDark(boolean d) {
         if (dark == d) return;

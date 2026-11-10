@@ -30,7 +30,7 @@ import java.util.Set;
  * 状态：SharedPreferences `netops_native` 为唯一写入方，变更通过 StateListener
  * 回灌页面层，保证 WebView 侧视图与原生一致。
  */
-public class NativePhaseView extends LinearLayout {
+public class NativePhaseView extends LinearLayout implements ThemeBus.DarkAware {
 
     private static class Phase {
         String id, title, shortName, desc;
@@ -181,6 +181,9 @@ public class NativePhaseView extends LinearLayout {
         /* +28dp 让开顶栏窗口的投影带（落入带内的触摸归顶栏窗） */
         scroller.setPadding(0, topPx + pal.dp(56) + pal.dp(28), 0, bottomPx + pal.dp(84));
     }
+
+    /* ThemeBus 订阅入口：只换通知来源，setDark 逻辑原样。 */
+    @Override public void onThemeChanged(boolean dark) { setDark(dark); }
 
     public void setDark(boolean d) {
         if (dark == d) return;

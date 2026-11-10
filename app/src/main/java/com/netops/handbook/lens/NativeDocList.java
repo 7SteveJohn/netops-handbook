@@ -26,7 +26,7 @@ import java.util.Set;
  * 数据来自 assets/native-data.json 的某个数组（元素：{id,t,cat,blocks[]}）。
  * 状态：SharedPreferences `netops_native` 为唯一写入方，变更回灌页面层。
  */
-public class NativeDocList extends LinearLayout {
+public class NativeDocList extends LinearLayout implements ThemeBus.DarkAware {
 
     public interface StateListener {
         void onState(String id, String kind, boolean on);   /* kind: done | fav */
@@ -163,6 +163,9 @@ public class NativeDocList extends LinearLayout {
     public void setSafeArea(int topPx, int bottomPx) {
         scroller.setPadding(0, topPx + pal.dp(56) + pal.dp(28), 0, bottomPx + pal.dp(84));
     }
+
+    /* ThemeBus 订阅入口：只换通知来源，setDark 逻辑原样。 */
+    @Override public void onThemeChanged(boolean dark) { setDark(dark); }
 
     public void setDark(boolean d) {
         if (dark == d) return;

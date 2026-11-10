@@ -65,7 +65,7 @@ import org.json.JSONObject;
  * 全部既有逻辑留在页面侧。
  * 回退开关：设置页「我的→原生顶栏」（localStorage netops_native_appbar，默认开）。
  */
-public class AppBarView extends View {
+public class AppBarView extends View implements ThemeBus.DarkAware {
 
     private static final String TAG = "AppBar";
 
@@ -274,6 +274,9 @@ public class AppBarView extends View {
     /** 顶栏底边（窗口本地 px）：横屏竖排 dock 要据此让开顶部，否则顶栏玻璃会从
      *  侧栏身上横切过去（2026-10-28 用户报「侧栏和顶栏重叠」）。 */
     public float barBottomPx() { return barRect.bottom; }
+
+    /* ThemeBus 订阅入口：只换通知来源，setDark 逻辑原样。 */
+    @Override public void onThemeChanged(boolean dark) { setDark(dark); }
 
     public void setDark(boolean d) {
         boolean changed = (dark != d);

@@ -21,7 +21,7 @@ import java.util.Set;
  * 设置行打开原生设置面板（NativeSettingsPanel），设置的**真源仍在页面层**。
  * 动画效果/速度档等小开关留在 HTML 版（低频，暂不搬）。
  */
-public class NativeMeView extends LinearLayout {
+public class NativeMeView extends LinearLayout implements ThemeBus.DarkAware {
 
     public interface Nav {
         void go(String route);   /* "settings" = 打开原生设置面板 */
@@ -93,6 +93,9 @@ public class NativeMeView extends LinearLayout {
     public void setSafeArea(int topPx, int bottomPx) {
         scroller.setPadding(0, topPx + pal.dp(56) + pal.dp(28), 0, bottomPx + pal.dp(84));
     }
+
+    /* ThemeBus 订阅入口：只换通知来源，setDark 逻辑原样。 */
+    @Override public void onThemeChanged(boolean dark) { setDark(dark); }
 
     public void setDark(boolean d) {
         if (dark == d) return;

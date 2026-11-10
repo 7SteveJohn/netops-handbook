@@ -22,7 +22,7 @@ import java.util.Set;
  * 模块 → phase-focus，排障/面试 → 对应原生页。跳转走统一导航（nativeGo），
  * 不在原生侧维护栈。
  */
-public class NativeFavView extends LinearLayout {
+public class NativeFavView extends LinearLayout implements ThemeBus.DarkAware {
 
     public interface Nav {
         void go(String route, String arg);
@@ -84,6 +84,9 @@ public class NativeFavView extends LinearLayout {
     public void setSafeArea(int topPx, int bottomPx) {
         scroller.setPadding(0, topPx + pal.dp(56) + pal.dp(28), 0, bottomPx + pal.dp(84));
     }
+
+    /* ThemeBus 订阅入口：只换通知来源，setDark 逻辑原样。 */
+    @Override public void onThemeChanged(boolean dark) { setDark(dark); }
 
     public void setDark(boolean d) {
         if (dark == d) return;

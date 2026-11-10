@@ -25,7 +25,7 @@ import org.json.JSONObject;
  *   wallpaper = 'none' 或 WALLPAPERS[].id
  *   （2026-11-08 恒开收口：glass/原生开关载荷已随设置 UI 下线，面板只收 theme/wallpaper。）
  */
-public class NativeSettingsPanel extends FrameLayout {
+public class NativeSettingsPanel extends FrameLayout implements ThemeBus.DarkAware {
 
     /** 开合回调：面板是原生 View，侧栏/透镜是独立弹窗永远置顶 —— 面板一开就得让侧栏退位，
      *  否则侧栏压在面板左半，壁纸选项被挡（2026-10-28 用户报）。 */
@@ -137,6 +137,9 @@ public class NativeSettingsPanel extends FrameLayout {
            面板实色从顶栏玻璃下一直铺到屏底，底页零外露。 */
         body.setPadding(0, safeTop + pal.dp(84), 0, safeBottom + pal.dp(84));
     }
+
+    /* ThemeBus 订阅入口：只换通知来源，setDark 逻辑原样。 */
+    @Override public void onThemeChanged(boolean dark) { setDark(dark); }
 
     public void setDark(boolean d) {
         pal = NativeBlocks.palette(getContext(), d, false);
