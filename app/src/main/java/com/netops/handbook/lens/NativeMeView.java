@@ -143,7 +143,10 @@ public class NativeMeView extends LinearLayout implements ThemeBus.DarkAware {
         int pct = total == 0 ? 0 : Math.round(all * 100f / total);
 
         page.addView(ringCard(pct, all, total));
-        page.addView(statGrid(String.valueOf(dm), "知识模块",
+        /* 四格一律是「目录总量」：知识模块曾误传 dm（已完成数）——「1 知识模块」
+           与旁边「41 排障 / 53 面试 / 199 题库」口径打架，看着像内容丢了
+           （2026-11-11 稳定性走查发现）。进度看上方圆环（已完成/总量）。 */
+        page.addView(statGrid(String.valueOf(modTotal(phases)), "知识模块",
                 String.valueOf(faults == null ? 0 : faults.length()), "排障案例",
                 String.valueOf(ivs == null ? 0 : ivs.length()), "面试真题",
                 quizCount() + " 题", "题库"));
