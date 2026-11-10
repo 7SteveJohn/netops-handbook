@@ -268,6 +268,12 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
     private boolean refreshOnceAfterCap;
     /** 霜图重建的「在途重试」计数（每次切页收口清零）。 */
     private int frostRetry;
+    /** 页面代次：切页 +1。抓图带着代次回来，旧代次的采样一律丢弃——
+     *  否则转场期发起的那一抓（抓到的是旧页快照）会把 sharpStale 提前清掉，
+     *  旧页文字又冒回药丸里（2026-11-11 录屏取证）。 */
+    private int pageGen;
+    /** liveSharp/liveBackdrop 是否早于当前页面（切页置真，同代次新图回来才清）。 */
+    private volatile boolean sharpStale;
     private boolean scrollingNow;   // 本帧是否处于滚动：绘制降质用
     /* PerfProbe：滚动步进计数与首末时间（scrollProbe 300ms 静默汇总）。
        ❗声明须在 liveCopyInFlight 之后：字段初始化器简单名前向引用非法。 */
@@ -536,7 +542,15 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
     }
 
     /** 快照转场保持（2026-11-09）：true 期间暂停栏后内容抓帧，收尾统一放行。 */
-    public void setTransitionHold(boolean hold) { transitionHold = hold; }
+    public void setTransitionHold(boolean hold) {
+        transitionHold = hold;
+        if (hold) {
+            /* 背后内容要换了：手头这份采样属于上一页，不能再冒充新页画进玻璃。
+               玻璃本身照常常驻（不降档、不关实时），只是这一小段用定稿霜顶着。 */
+            pageGen++;
+            sharpStale = true;
+        }
+    }
     private volatile boolean transitionHold = false;
 
     /** miuix blur 链的 CPU 等价实现：÷2 记录档（downScaleExpFor 对 blur4dp 的
@@ -2282,6 +2296,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
             return;
         }
         liveCopyInFlight = true;
+        final int gen = pageGen;
         final long dispatchMs = android.os.SystemClock.uptimeMillis();
         /* ❗PixelCopy.request 在 UI 线程发起要等一次合成排队，实测单次 ~190ms
            （2026-11-11 分段计时：抓图段 190ms、降采样 13ms，dock 单帧 200ms = 用户「切完卡一下」）。
@@ -2297,7 +2312,9 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
                 android.util.Log.i("PerfProbe", "pixelcopy roundtrip="
                         + (android.os.SystemClock.uptimeMillis() - dispatchMs) + "ms ok=" + (result == PixelCopy.SUCCESS));
                 if (result != PixelCopy.SUCCESS) return;
+                if (gen != pageGen) return;      /* 跨代次采样：丢弃，别污染新页玻璃 */
                 if (liveSharp == null || liveSharp.isRecycled()) return;
+                sharpStale = false;
                 liveSharp.eraseColor(0);
                 new Canvas(liveSharp).drawBitmap(liveRaw, null,
                         new RectF(0, 0, liveSharp.getWidth(), liveSharp.getHeight()),
@@ -2528,11 +2545,11 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
            按住稳定后顶层 α255 全覆盖磨砂层 → 无割裂；淡入期两层内容时点差
            <1s（静止场景两层几乎相同）→ 无跳变。KernelSU 的两态语义（rest 磨砂
            / press 通透）由 lens 折射量与本 tint 切换共同承担。 */
-        if (liveBackdrop != null && !liveBackdrop.isRecycled()) {
+        if (!sharpStale && liveBackdrop != null && !liveBackdrop.isRecycled()) {
             c.drawBitmap(liveBackdrop, -tabOffX, -tabOffY,
                     new Paint(Paint.FILTER_BITMAP_FLAG));
         }
-        if (liftV > 0.01f && liveSharp != null && !liveSharp.isRecycled()) {
+        if (!sharpStale && liftV > 0.01f && liveSharp != null && !liveSharp.isRecycled()) {
             float k = (float) liveSharp.getWidth() / bandW;
             c.drawBitmap(liveSharp,
                     new Rect((int) (tabOffX * k), (int) (tabOffY * k),
@@ -2735,8 +2752,11 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
            叠 sfTintP 40% 白 = (98,98,98) 纯灰（2026-11-05 平板实测根因）。
            pane 是 barLensShader 的 content 输入，不是 Paint 的 shader。 */
         barLensP.setShader(barLensShader);
-        barLensShader.setInputShader("content",
-                liveBackdropShader != null ? liveBackdropShader : pane);
+        /* 跨代次期间栏体不吃实时采样（那是上一页的），退回定稿霜 contentFrost：
+           照样是玻璃、照样透，只是这一两百毫秒里更糊一点，而不是印着上一页的字。 */
+        Shader contentIn = (!sharpStale && liveBackdropShader != null) ? liveBackdropShader : pane;
+        if (contentIn == null) contentIn = liveBackdropShader;
+        barLensShader.setInputShader("content", contentIn);
         barLensShader.setFloatUniform("size", bar.width(), bar.height());
         barLensShader.setFloatUniform("offset", -bar.left, -bar.top);
         barLensShader.setFloatUniform("cornerRadii", r, r, r, r);
