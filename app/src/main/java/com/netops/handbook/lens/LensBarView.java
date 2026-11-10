@@ -259,6 +259,11 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
     private boolean liveCopyInFlight;
     /** 上一次同步录制耗时（ns）。原生页（字典/面试）实测 55ms，而 WebView 页 17ms。 */
     private long lastSyncCapCost;
+    /* 切页后 1.5s 内强制异步抓图：新页面刚可见时同步 anchor.draw 要重建整棵新树
+       的显示列表，2026-11-11 实测 283ms（dock 单帧 283ms = 用户「切完卡一下」）。
+       异步 PixelCopy ~15ms 且不占主线程，内容晚一帧，肉眼无差；1.5s 后显示列表
+       已热，同步录制回到 ~15ms，自适应逻辑照旧接管。 */
+    private long asyncUntil;
     private boolean scrollingNow;   // 本帧是否处于滚动：绘制降质用
     /* PerfProbe：滚动步进计数与首末时间（scrollProbe 300ms 静默汇总）。
        ❗声明须在 liveCopyInFlight 之后：字段初始化器简单名前向引用非法。 */
@@ -778,6 +783,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
      *  dock 滞后 1-2s」的组成部分）。 */
     public void onSwitchSettled() {
         liveCooldownUntil = 0L;
+        asyncUntil = SystemClock.uptimeMillis() + 1500L;   /* 见字段注释 */
         requestFrostRefresh();
     }
 
@@ -1601,9 +1607,10 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
            恢复了也没机会录 → dock 停留上一页渲染。 */
         liveCooldownUntil = SystemClock.uptimeMillis() + 650;
         frostHandler.postDelayed(() -> {
-            /* 补绘强制走同步录制：若沿用自适应（原生页 lastSyncCapCost>30 → 异步），
-               PixelCopy 29~62ms + 回调再画一帧，会让切页后的首次更新再多拖 ~100ms。 */
-            lastSyncCapCost = 0L;
+            /* ❗不要在这里把 lastSyncCapCost 清零（2026-11-11 拆掉）：清零 = 强制下一次
+               走同步 anchor.draw，而新页刚可见时同步录制要重建整棵新树的显示列表，
+               实测单次 187~192ms，dock 一帧 200ms 就是用户说的
+               「切完卡一下」。异步 PixelCopy ~15ms + 回调再画一帧，代价小一个量级。 */
             invalidate();
         }, 700L);
         /* 切页后新内容落定再抓霜（内容霜跟随页面，不跟随点击瞬间的旧页面） */
@@ -1636,6 +1643,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
         long t0 = System.nanoTime();
 
         float liftV = (float) lift.value();
+        long capFrom = 0, capTo = 0;
         if (nativeDock) {
             /* ---- 未拿到几何前不画 ----
                横排：冷启动时 WebView 还在加载，barRect 无效 → dockRect() 退回「全宽
@@ -1655,7 +1663,9 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
                 geomFadedIn = true;
                 animate().alpha(1f).setDuration(140).start();
             }
+            capFrom = System.nanoTime();
             captureLiveBackdrop();   // 同帧录主窗口内容，供栏体/药丸共用（真·实时）
+            capTo = System.nanoTime();
             /* ---- 原生底栏：容器→滑块→玻璃→图标文字。图标在玻璃之上，
                对齐 FlClash _LensContent 的「镜内内容独立重绘」——顺带解决
                旧 P2「镜内放大靠位图采样偏软」：现在是矢量重绘恒锐。 ---- */
@@ -1702,6 +1712,8 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
         }
 
         long ms = (System.nanoTime() - t0) / 1_000_000L;
+        /* 单帧异常留痕：正常 <2ms；>60ms 记下抓图段占比，便于区分「抓图贵」还是「绘制贵」 */
+        if (ms > 60) Log.i(TAG, "slow draw " + ms + "ms cap=" + (capTo - capFrom) / 1_000_000L);
         drawSumMs += ms;
         if (ms > drawMaxMs) drawMaxMs = ms;
         frames++;
@@ -2247,8 +2259,15 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
         }
         liveCopyInFlight = true;
         final long dispatchMs = android.os.SystemClock.uptimeMillis();
-        try {
-            PixelCopy.request(window, src, liveRaw, result -> {
+        /* ❗PixelCopy.request 在 UI 线程发起要等一次合成排队，实测单次 ~190ms
+           （2026-11-11 分段计时：抓图段 190ms、降采样 13ms，dock 单帧 200ms = 用户「切完卡一下」）。
+           这里把**发起**也挪到 frostWorker：API 本身线程无关，回调本来就在该 Handler
+           上；UI 线程只剩一次 post。 */
+        final Rect srcReq = new Rect(src);
+        final Bitmap dstReq = liveRaw;
+        frostHandler.post(() -> {
+            try {
+                PixelCopy.request(window, srcReq, dstReq, result -> {
                 liveCopyInFlight = false;
                 /* PerfProbe：PixelCopy 发起→回填的墙钟（积压/串行化会在这里显形） */
                 android.util.Log.i("PerfProbe", "pixelcopy roundtrip="
@@ -2265,11 +2284,12 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
                    roundtrip=13ms × 33ms 间隔连续输出）。静止时位图已回填，
                    等下一次自然 invalidate（切页/按压/滚动信号）即可。 */
                 if (scrollingNow || pressed || dragging) invalidate();
-            }, frostHandler);
-        } catch (Throwable t) {
-            liveCopyInFlight = false;
-            Log.w(TAG, "PixelCopy 请求失败", t);
-        }
+                }, frostHandler);
+            } catch (Throwable t) {
+                liveCopyInFlight = false;
+                Log.w(TAG, "PixelCopy 请求失败", t);
+            }
+        });
     }
 
     private void captureLiveBackdrop() {
@@ -2363,7 +2383,8 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
            状态与绘制时序错位，药丸会整个消失（2026-11-07 实测踩过）。 */
         /* 自适应：上一次同步录制超过 30ms（原生页场景）就改用异步，
            否则每帧 55ms 直接把切页后的几秒拖成卡顿（2026-11-07 用户报字典/面试）。 */
-        boolean useAsync = scrollingNow || lastSyncCapCost > 30_000_000L;
+        boolean useAsync = scrollingNow || lastSyncCapCost > 30_000_000L
+                || SystemClock.uptimeMillis() < asyncUntil;
         if (useAsync) {
             requestLivePixelCopy();
         } else {

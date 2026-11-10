@@ -33,6 +33,11 @@ public class NativeDictView extends LinearLayout implements ThemeBus.DarkAware {
     private String[] colNames = new String[0];
 
     private boolean dark = false, direct = false;
+    /* 页面是否需要重建。❗历史实现每次 show() 无条件 buildPage()、hide() 里
+       page.removeAllViews()：进一次字典页就把 76 行重建一遍，实测首绘 draw=207ms
+       （2026-11-11 gfxinfo framestats，切页 99th 200ms 的根因）。改成缓存视图后
+       只有数据/配色/方向/玻璃档位变化才重建。 */
+    private boolean dirty = true;
     /* 冷启动即横屏（平板常态）无 config change：方向初值按当前 config 定 */
     private boolean lastLand = getResources().getConfiguration().orientation
             == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
@@ -77,26 +82,26 @@ public class NativeDictView extends LinearLayout implements ThemeBus.DarkAware {
         }
         JSONArray r = dict.optJSONArray("rows");
         if (r != null) rows = r;
+        dirty = true;
         android.util.Log.i("NativeDict", "setPageData rows=" + rows.length());
     }
 
     /* ---------------- 显示 ---------------- */
     public boolean show() {
         if (rows.length() == 0) return false;
-        buildPage();
-        animate().cancel();          /* 取消未完成的 hide 动画，否则其 endAction 会把刚显示的页面又置 GONE */
+        /* 只在脏时重建（2026-11-11）；整屏 alpha 淡入已删——带玻璃卡的全屏视图
+           alpha 动画要新建离屏层，正是 NativeDocList 里记过的「切页 99th 200ms」
+           来源，而切页本身已有全局快照交叉淡化，这一层是重复的。 */
+        if (dirty) { buildPage(); dirty = false; }
         setVisibility(VISIBLE);
-        setAlpha(0f);
-        animate().alpha(1f).setDuration(140).start();
+        setAlpha(1f);
         return true;
     }
 
     public void hide() {
         if (getVisibility() != VISIBLE) return;
-        animate().alpha(0f).setDuration(120).withEndAction(() -> {
-            setVisibility(GONE);
-            page.removeAllViews();
-        }).start();
+        /* 不再 removeAllViews：视图留驻，下次 show() 免重建（同上）。 */
+        setVisibility(GONE);
     }
 
     public boolean isShowing() { return getVisibility() == VISIBLE; }
@@ -124,13 +129,15 @@ public class NativeDictView extends LinearLayout implements ThemeBus.DarkAware {
     public void onOrientationChanged(boolean land) {
         if (lastLand == land) return;
         lastLand = land;
-        if (isShowing()) buildPage();
+        dirty = true;
+        if (isShowing()) { buildPage(); dirty = false; }
     }
 
     private void refreshPalette() {
         pal = NativeBlocks.palette(getContext(), dark, direct);
         setBackgroundColor(pal.bg);
-        if (isShowing()) buildPage();
+        dirty = true;
+        if (isShowing()) { buildPage(); dirty = false; }
     }
 
     /* ---------------- 构建 ---------------- */
