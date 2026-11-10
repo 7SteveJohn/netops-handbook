@@ -2428,34 +2428,27 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
            按住 = 通透（liveSharp 1/2 清晰源，按 liftV 淡入覆盖磨砂层）
            ❗两层叠加而不是二选一：换源会整块突变，按 liftV 淡入才连续。
            此前只有一个磨砂源，导致「按住也糊」——通透感彻底消失（2026-11-07 用户报）。 */
-        if (liveBackdrop != null && !liveBackdrop.isRecycled()) {
-            c.drawBitmap(liveBackdrop, -tabOffX, -tabOffY,
-                    new Paint(Paint.FILTER_BITMAP_FLAG));
-        }
-        if (liftV > 0.01f && liveSharp != null && !liveSharp.isRecycled()) {
+        /* ❗照抄 KernelSU（2026-11-10 用户定案「不要瞎改参数，直接照抄」）：
+           药丸 content = combinedBackdrop = **单一清晰源**（liveSharp 1/2，每拍随
+           主窗口更新）+ tab 镜像，content 内**无底色**（rest/press tint 在外层
+           surface 段：浅 黑10% / 按压 叠 black 3%×lift，FloatingBottomBar.kt:220/447）。
+           此前三层叠加（磨砂底 liveBackdrop 1/18 + 清晰层按 liftV 淡入 + 白底
+           α150→30 动画）：两层内容时点不同 → 按住时割裂/重影；alpha 混合逐帧
+           跳变 → 闪烁。单一源后静止与按住 content 相同，两态差异只在 lens()
+           折射量（10/14dp×liftV）与 surface tint —— 同为 KernelSU 原参数。 */
+        if (liveSharp != null && !liveSharp.isRecycled()) {
             float k = (float) liveSharp.getWidth() / bandW;
-            Paint sharpP = new Paint(Paint.FILTER_BITMAP_FLAG);
-            sharpP.setAlpha((int) (255f * Math.min(1f, liftV)));
             c.drawBitmap(liveSharp,
                     new Rect((int) (tabOffX * k), (int) (tabOffY * k),
                             (int) ((tabOffX + w) * k), (int) ((tabOffY + h) * k)),
-                    new RectF(0, 0, w, h), sharpP);
-        }
-        if (liveBackdrop == null || liveBackdrop.isRecycled()) {
+                    new RectF(0, 0, w, h), new Paint(Paint.FILTER_BITMAP_FLAG));
+        } else if (liveBackdrop != null && !liveBackdrop.isRecycled()) {
+            /* liveSharp 未就绪的兜底（冷启动首拍前）：用磨砂图，不闪不割 */
+            c.drawBitmap(liveBackdrop, -tabOffX, -tabOffY,
+                    new Paint(Paint.FILTER_BITMAP_FLAG));
+        } else {
             c.drawColor(dark ? 0xFF2C2C2E : 0xFFDEE5FC);
         }
-        /* 中性灰阶 tint（R=G=B），不许带色相：药丸只比栏面略亮一档来定形，
-           选中态由蓝色图标承担。此前用 accent 蓝 9% 会整块偏蓝（用户报「偏色」）。 */
-        Paint baseP = new Paint(Paint.ANTI_ALIAS_FLAG);
-        /* 底色 α 26 → 100（用户 2026-11-07：只要不糊就行、不用非常通透）：
-           背后内容被压淡到 6 成，模糊感不再显现；折射/色散仍可见。 */
-        /* 底色随按压进度变化：静止 α150 磨砂（与栏体同材质）、按住降到 α30 通透
-           （2026-11-10 用户报「按上一瞬间清晰，后面立马变模糊」—— 原按住端 α50
-           白底叠 1/2 清晰层仍发白发淡，观感即磨砂；压到 α30 让内容可辨），
-           这正是 KernelSU 的两态 —— lens() 只在 pressProgress>0 时才折射。 */
-        int baseA = (int) (150 - 120 * Math.min(1f, liftV));
-        baseP.setColor(dark ? Color.argb(baseA, 74, 74, 80) : Color.argb(baseA, 252, 252, 252));
-        c.drawRect(0f, 0f, w, h, baseP);
         pillClipPath.reset();
         pillClipPath.addRoundRect(pl, pt, pr, pb, r, r, Path.Direction.CW);
         int sv = c.save();
@@ -2517,7 +2510,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
                 shader.setFloatUniform("refractionHeight", 10f * density * liftV);
                 shader.setFloatUniform("refractionAmount", -14f * density * liftV);
                 shader.setFloatUniform("depthEffect", 0f);   // 关掉中心深度项：水滴中心是平的，只有边缘一圈弯折
-                shader.setFloatUniform("chromaticAberration", NativeBlocks.glassStandard() ? 0f : 0.28f);   // 标准/无档砍色散（FlClash standard 语义）
+                shader.setFloatUniform("chromaticAberration", 0.5f);   // KernelSU 原值（FloatingBottomBar.kt:451 chromaticAberration = 0.5f）
                 float alphaK = nativeDock ? 1f : Math.min(1f, liftV * 2.5f);
                 if (!nativeDock) alphaK = Math.min(alphaK, 0.5f);
                 /* ❗静止 refractionHeight=0 时 shader 里 `-sd / refractionHeight`
