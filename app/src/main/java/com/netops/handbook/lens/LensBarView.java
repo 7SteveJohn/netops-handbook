@@ -264,6 +264,10 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
        异步 PixelCopy ~15ms 且不占主线程，内容晚一帧，肉眼无差；1.5s 后显示列表
        已热，同步录制回到 ~15ms，自适应逻辑照旧接管。 */
     private long asyncUntil;
+    /** 切页收口后允许「抓图回调主动重绘一次」（只一次，避免 30fps 自驱循环）。 */
+    private boolean refreshOnceAfterCap;
+    /** 霜图重建的「在途重试」计数（每次切页收口清零）。 */
+    private int frostRetry;
     private boolean scrollingNow;   // 本帧是否处于滚动：绘制降质用
     /* PerfProbe：滚动步进计数与首末时间（scrollProbe 300ms 静默汇总）。
        ❗声明须在 liveCopyInFlight 之后：字段初始化器简单名前向引用非法。 */
@@ -440,6 +444,14 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
     private void rebuildContentFrost() {
         /* transitionHold：快照转场覆盖层存活期间不抓帧（覆盖层在主窗内，抓到
            旧页像素）——转场收尾由 MainActivity.notifyBarsSwitchSettled 放行。 */
+        /* 抓图在途时不丢请求，短延迟重试（上限 6 次 ≈ 600ms）：切页收口刚好撞上
+           上一轮的 PixelCopy 时，原实现直接 return，霜图就停在上上页（2026-11-11）。 */
+        if (!detached && !dockVertical && !transitionHold && nativeDock
+                && contentFrostBusy && frostRetry < 6 && window != null) {
+            frostRetry++;
+            frostHandler.postDelayed(frostDebounce, 100);
+            return;
+        }
         if (detached || dockVertical || transitionHold || !nativeDock || contentFrostBusy || window == null) return;
         /* ❗2026-11-10 实时渲染打磨：滚动中**允许**抓霜（旧「滚动期零抓帧」作废）。
            前提 = 霜链已全部在 frostWorker 后台（PixelCopy 回调 + buildFrost 均不占
@@ -784,7 +796,15 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
     public void onSwitchSettled() {
         liveCooldownUntil = 0L;
         asyncUntil = SystemClock.uptimeMillis() + 1500L;   /* 见字段注释 */
-        requestFrostRefresh();
+        /* ❗快速连切「底栏跟不上」的根因（2026-11-11 用户报）：commit() 里的是
+           **尾抖动** 400ms——每次切页都 removeCallbacks 重排，连切时霜图永远等不到，
+           而切完的 live 抓图回调又不 invalidate（静止时不重绘），于是底栏一直显示
+           上一页的采样，直到用户停手 400ms。收口即重建：转场已结束、页面已是新页。 */
+        refreshOnceAfterCap = true;      /* 本轮异步抓图回来务必重绘一帧 */
+        frostRetry = 0;
+        frostHandler.removeCallbacks(frostDebounce);
+        if (contentFrostBusy) frostHandler.postDelayed(frostDebounce, 150);
+        else frostHandler.post(frostDebounce);
     }
 
     public LensBarView(Context context, WebView webView) {
@@ -2287,7 +2307,9 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
                    主线程 39% 被占 → 触摸/滚动排队 1-2s（2026-11-09 数据实锤：
                    roundtrip=13ms × 33ms 间隔连续输出）。静止时位图已回填，
                    等下一次自然 invalidate（切页/按压/滚动信号）即可。 */
-                if (scrollingNow || pressed || dragging) invalidate();
+                boolean wantRepaint = scrollingNow || pressed || dragging;
+                if (refreshOnceAfterCap) { refreshOnceAfterCap = false; wantRepaint = true; }
+                if (wantRepaint) invalidate();
                 }, frostHandler);
             } catch (Throwable t) {
                 liveCopyInFlight = false;
