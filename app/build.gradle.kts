@@ -29,8 +29,10 @@ android {
         applicationId = "com.netops.handbook"
         minSdk = 24
         targetSdk = 34
+        /* 对外版本号固定 2.1.0（用户 2026-11-11 定：不再随交付递增）。
+           versionCode 只作内部递增（保证覆盖安装可识别新旧包），不对外展示。 */
         versionCode = 13
-        versionName = "2.1.6"
+        versionName = "2.1.0"
     }
 
     signingConfigs {
