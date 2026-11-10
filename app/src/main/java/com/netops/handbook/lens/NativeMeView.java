@@ -60,7 +60,10 @@ public class NativeMeView extends LinearLayout implements ThemeBus.DarkAware {
 
     public void setNav(Nav n) { nav = n; }
 
-    public void setPageData(JSONObject data) { root = data; }
+    public void setPageData(JSONObject data) { root = data; dirty = true; }
+
+    /** 进度/收藏变化 → 下次显示重建（圆环与四格数字要跟着变）。 */
+    public void invalidateData() { dirty = true; }
 
     /** 已构建过就复用：buildPage 一次要几十到几百 ms，每次 show 重建会把 UI 线程按住，
      *  切页时侧栏弹簧直接顿住（2026-10-28）。数据/主题变化才置脏。 */
@@ -69,11 +72,15 @@ public class NativeMeView extends LinearLayout implements ThemeBus.DarkAware {
     public boolean show() {
         android.util.Log.i("NativeMe", "show root=" + (root != null));
         if (root == null) return false;
-        if (getVisibility() == VISIBLE && !dirty) return true;
+        /* ❗旧判定「可见且不脏才复用」= 只要 hide 过就必然重建：我的页是大 tab，
+           每次回来都白重建一遍（切页一顿一顿的主因之一，2026-11-11 横屏走查）。
+           改成「视图还在就复用」，进度/收藏变化由 invalidateData 置脏。 */
+        if (!dirty && page.getChildCount() > 0) return true;
         done.clear(); fav.clear();
         for (String s : sp.getString("done", "").split(",")) if (!s.isEmpty()) done.add(s);
         for (String s : sp.getString("fav", "").split(",")) if (!s.isEmpty()) fav.add(s);
         buildPage();
+        dirty = false;
         scroller.scrollTo(0, sp.getInt("scroll_me", 0));
         animate().cancel();          /* 取消未完成的 hide 动画，否则其 endAction 会把刚显示的页面又置 GONE */
         setVisibility(VISIBLE);

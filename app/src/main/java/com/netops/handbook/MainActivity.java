@@ -331,6 +331,13 @@ public class MainActivity extends AppCompatActivity {
      *  paintWallpaper 调用，标题变化的 bgrev bump 不走 dock 桥。appbar 虽有
      *  450ms 补抓，但用户在这 450ms 里的一次触摸仍是「不跟手」体感来源，
      *  这里在 160ms 转场结束点统一收口，两栏一次补齐。 */
+    /** 进度/收藏一变，「我的」（圆环+四格数字）与「收藏夹」（列表）就必须下次重建：
+     *  这两个页面的视图是缓存的（2026-11-11 切页提速），不置脏会显示旧数字。 */
+    private void markStatePagesDirty() {
+        if (nativeMe != null) nativeMe.invalidateData();
+        if (nativeFav != null) nativeFav.invalidateData();
+    }
+
     private void notifyBarsSwitchSettled() {
         if (lensBar != null) {
             lensBar.setTransitionHold(false);
@@ -423,6 +430,7 @@ public class MainActivity extends AppCompatActivity {
         v.setVisibility(android.view.View.GONE);
         if (nativeBackdrop != null) v.setGlassSource(nativeBackdrop);
         v.setStateListener((id, kind, on) -> {
+            markStatePagesDirty();
             if (webView == null) return;
             String js = "window.NetOpsNativeState && NetOpsNativeState("
                     + org.json.JSONObject.quote(id) + "," + org.json.JSONObject.quote(kind) + "," + on + ");";
@@ -615,6 +623,7 @@ public class MainActivity extends AppCompatActivity {
         nativePhase.setVisibility(android.view.View.GONE);
         nativePhase.setGlassSource(nativeBackdrop);
         nativePhase.setStateListener((id, kind, on) -> {
+            markStatePagesDirty();
             if (webView == null) return;
             String js = "window.NetOpsNativeState && NetOpsNativeState("
                     + org.json.JSONObject.quote(id) + "," + org.json.JSONObject.quote(kind)

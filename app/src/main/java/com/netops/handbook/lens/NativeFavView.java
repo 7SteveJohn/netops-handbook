@@ -29,6 +29,10 @@ public class NativeFavView extends LinearLayout implements ThemeBus.DarkAware {
     }
 
     private JSONObject root;
+    /* 视图缓存：原实现每次 show 重建整页、hide 时 removeAllViews + 整屏 alpha 淡入，
+       全屏玻璃页的 alpha 动画每帧都要新建离屏层 —— 侧栏切页时一顿一顿（2026-11-11
+       横屏走查）。改成脏标记按需重建，数据变化由 documentState 置脏。 */
+    private boolean dirty = true;
     private boolean dark = false, direct = false;
     private final ScrollView scroller;
     private final LinearLayout page;
@@ -59,24 +63,29 @@ public class NativeFavView extends LinearLayout implements ThemeBus.DarkAware {
 
     public void setNav(Nav n) { nav = n; }
 
-    public void setPageData(JSONObject data) { root = data; }
+    public void setPageData(JSONObject data) { root = data; dirty = true; }
+
+    /** 收藏状态变化（标记/取消收藏）→ 下次显示重建。 */
+    public void invalidateData() { dirty = true; }
 
     public boolean show() {
         if (root == null) return false;
+        if (!dirty && page.getChildCount() > 0) {
+            setVisibility(VISIBLE);
+            setAlpha(1f);
+            return true;
+        }
         buildPage();
+        dirty = false;
         scroller.scrollTo(0, 0);
         setVisibility(VISIBLE);
-        setAlpha(0f);
-        animate().alpha(1f).setDuration(140).start();
+        setAlpha(1f);
         return true;
     }
 
     public void hide() {
         if (getVisibility() != VISIBLE) return;
-        animate().alpha(0f).setDuration(120).withEndAction(() -> {
-            setVisibility(GONE);
-            page.removeAllViews();
-        }).start();
+        setVisibility(GONE);   /* 视图留驻，下次 show 免重建 */
     }
 
     public boolean isShowing() { return getVisibility() == VISIBLE; }
@@ -92,7 +101,8 @@ public class NativeFavView extends LinearLayout implements ThemeBus.DarkAware {
         if (dark == d) return;
         dark = d; pal = NativeBlocks.palette(getContext(), dark, direct);
         setBackgroundColor(pal.bg);
-        if (isShowing()) buildPage();
+        dirty = true;
+        if (isShowing()) { buildPage(); dirty = false; }
     }
 
     /** 旋转后强制重建（单列⇄双列），land 由 MainActivity 显式下发。 */
