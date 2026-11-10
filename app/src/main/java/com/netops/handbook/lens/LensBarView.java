@@ -1697,6 +1697,10 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         if (ms > drawMaxMs) drawMaxMs = ms;
         frames++;
         if (System.nanoTime() - statStartNs > 2_000_000_000L) {
+            /* 【临时】模式取证：贴底残留药丸定位（docked/nativeDock/glassLive 三态） */
+            Log.i(TAG, "mode docked=" + docked + " nativeDock=" + nativeDock
+                    + " glassLive=" + (shader != null && !NativeBlocks.glassNone()
+                    && !dockVertical && Build.VERSION.SDK_INT >= 33));
             Log.i(TAG, String.format(
                     "绘制%d帧 | 抓图%d次 单次均%.2fms 峰值%dms | draw均%.2fms 峰值%dms | pos=%.2f jelly=%+.3f lift=%.2f",
                     frames, captures,
