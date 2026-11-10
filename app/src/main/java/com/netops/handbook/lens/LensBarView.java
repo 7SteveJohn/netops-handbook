@@ -268,6 +268,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
     private boolean refreshOnceAfterCap;
     /** 霜图重建的「在途重试」计数（每次切页收口清零）。 */
     private int frostRetry;
+
     /** 页面代次：切页 +1。抓图带着代次回来，旧代次的采样一律丢弃——
      *  否则转场期发起的那一抓（抓到的是旧页快照）会把 sharpStale 提前清掉，
      *  旧页文字又冒回药丸里（2026-11-11 录屏取证）。 */
@@ -2381,7 +2382,12 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
            采样，药丸（透镜放大）会把这点差异放大成「一闪一闪」。实测按住 3s，
            药丸区每帧仍有 ~3% 像素在变 —— 就是用户报的抽搐（2026-11-11）。
            拖拽才需要跟手（80ms），按住不动降到 600ms（仍能应对背景变化）。 */
-        long minGap = dragging ? 80 : (pressed ? 600 : (scrollingNow ? 40 : 1000));
+        /* 按住不动 = 静止画面：按下瞬间已强制抓过一帧，按住期间不再跟拍。
+           实测每 80ms（旧值）或 600ms 换一次采样，药丸都会「一亮一暗」——
+           新旧采样的色调不同，而药丸是透镜，会把它放大成抽搐（2026-11-11）。
+           拖拽才需要跟手，仍走 80ms。 */
+        if (pressed && !dragging) return;
+        long minGap = dragging ? 80 : (scrollingNow ? 40 : 1000);
         if (nowMs - lastCaptureMs < minGap) return;
         /* 冷却只拦「无交互」期：按住拖拽期页面静止、录制安全，绕开冷却
            （冷却的转场保护职责已由 transitionHold 承担）。 */
