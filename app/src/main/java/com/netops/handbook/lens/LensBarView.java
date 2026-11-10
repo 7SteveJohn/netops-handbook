@@ -2545,10 +2545,13 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
            按住稳定后顶层 α255 全覆盖磨砂层 → 无割裂；淡入期两层内容时点差
            <1s（静止场景两层几乎相同）→ 无跳变。KernelSU 的两态语义（rest 磨砂
            / press 通透）由 lens 折射量与本 tint 切换共同承担。 */
-        if (!sharpStale && liveBackdrop != null && !liveBackdrop.isRecycled()) {
+        if (liveBackdrop != null && !liveBackdrop.isRecycled()) {
             c.drawBitmap(liveBackdrop, -tabOffX, -tabOffY,
                     new Paint(Paint.FILTER_BITMAP_FLAG));
         }
+        /* ❗只挡这一层：liveSharp 是 1/2 清晰源，按住时能读出上一页卡片文字。
+           磨砂层（上面那层 liveBackdrop）照常画——它糊到读不出字，且是栏体与药丸
+           共用的同一材质；挡掉它就会出现「下面一层灰、上面一层透明」（2026-11-11 用户报）。 */
         if (!sharpStale && liftV > 0.01f && liveSharp != null && !liveSharp.isRecycled()) {
             float k = (float) liveSharp.getWidth() / bandW;
             c.drawBitmap(liveSharp,
@@ -2752,11 +2755,8 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
            叠 sfTintP 40% 白 = (98,98,98) 纯灰（2026-11-05 平板实测根因）。
            pane 是 barLensShader 的 content 输入，不是 Paint 的 shader。 */
         barLensP.setShader(barLensShader);
-        /* 跨代次期间栏体不吃实时采样（那是上一页的），退回定稿霜 contentFrost：
-           照样是玻璃、照样透，只是这一两百毫秒里更糊一点，而不是印着上一页的字。 */
-        Shader contentIn = (!sharpStale && liveBackdropShader != null) ? liveBackdropShader : pane;
-        if (contentIn == null) contentIn = liveBackdropShader;
-        barLensShader.setInputShader("content", contentIn);
+        barLensShader.setInputShader("content",
+                liveBackdropShader != null ? liveBackdropShader : pane);
         barLensShader.setFloatUniform("size", bar.width(), bar.height());
         barLensShader.setFloatUniform("offset", -bar.left, -bar.top);
         barLensShader.setFloatUniform("cornerRadii", r, r, r, r);
