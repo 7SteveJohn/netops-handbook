@@ -1298,9 +1298,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void rememberTheme(boolean dark) {
+        /* ❗照抄 FlClash 逻辑（2026-11-10 用户报「切深色划掉后台重进变浅」）：
+           主题切换**同步落盘** —— apply() 异步写，切完立刻杀后台写盘丢失，
+           深色记忆随之丢失（按钮恒太阳同根）。 */
         getSharedPreferences(PREFS, MODE_PRIVATE).edit()
                 .putString(KEY_THEME, dark ? "dark" : "light")
-                .apply();
+                .commit();
     }
 
     /** 网页主题变化后同步系统栏图标明暗与窗口底色。 */
