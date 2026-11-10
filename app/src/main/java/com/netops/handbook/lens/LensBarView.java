@@ -1262,7 +1262,8 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
            切「学习/排障」时左右抽搐（2026-11-06 用户报）。KernelSU 的速度形变
            也只在按住拖动（layerBlock 内 dampedDragAnimation）生效。 */
         double target = 0;
-        if (dragging) {
+        /* 贴底模式同样不要果冻：拖拽选格时药丸会横向抽搐几下，与「简洁」冲突。 */
+        if (dragging && !docked) {
             double v = pos.velocity();
             double acc = pos.acceleration();
             double braking = Math.max(0.0, -acc * Math.signum(v));
@@ -1514,7 +1515,10 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
                 velIndexPerMs = 0;
                 pressedIndex = Math.max(0, Math.min(count - 1, Math.round(positionAtAxis(hitAxis()))));
                 pos.springTo(pressedIndex, dockVertical ? FAST_TRAVEL : TRAVEL, now);
-                if (!dockVertical) lift.springTo(1, PRESS_S, now);
+                /* ❗原生贴底（docked）不做按压胀大：栏体 scale 从 1 弹到 1.008 再回落，
+                   用户感受是「底栏一弹一弹」。贴底形态的诉求是简洁，只剩药丸位移
+                   （2026-11-11 用户报）。悬浮胶囊模式保留抬起。 */
+                if (!dockVertical && !docked) lift.springTo(1, PRESS_S, now);
                 if (!nativeDock) setPressClass(true); // 藏起 HTML 药丸（nativeDock 时已整体隐藏）
                 invalidate();
                 return true;
