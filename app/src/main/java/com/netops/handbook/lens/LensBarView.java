@@ -2449,9 +2449,11 @@ public class LensBarView extends View implements Choreographer.FrameCallback {
         Paint baseP = new Paint(Paint.ANTI_ALIAS_FLAG);
         /* 底色 α 26 → 100（用户 2026-11-07：只要不糊就行、不用非常通透）：
            背后内容被压淡到 6 成，模糊感不再显现；折射/色散仍可见。 */
-        /* 底色随按压进度变化：静止 α150 磨砂（与栏体同材质）、按住降到 α50 通透，
+        /* 底色随按压进度变化：静止 α150 磨砂（与栏体同材质）、按住降到 α30 通透
+           （2026-11-10 用户报「按上一瞬间清晰，后面立马变模糊」—— 原按住端 α50
+           白底叠 1/2 清晰层仍发白发淡，观感即磨砂；压到 α30 让内容可辨），
            这正是 KernelSU 的两态 —— lens() 只在 pressProgress>0 时才折射。 */
-        int baseA = (int) (150 - 100 * Math.min(1f, liftV));
+        int baseA = (int) (150 - 120 * Math.min(1f, liftV));
         baseP.setColor(dark ? Color.argb(baseA, 74, 74, 80) : Color.argb(baseA, 252, 252, 252));
         c.drawRect(0f, 0f, w, h, baseP);
         pillClipPath.reset();
