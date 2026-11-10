@@ -1313,6 +1313,7 @@ public class MainActivity extends AppCompatActivity {
             if (nativeSearch != null) nativeSearch.setDark(dark);
             if (nativeMe != null) nativeMe.setDark(dark);
             if (nativeFav != null) nativeFav.setDark(dark);   // 透镜暗色亮度 1.33 跟随主题
+            if (nativeDrawer != null) nativeDrawer.setDark(dark);   // ❗抽屉 pal 构造时快照，缺这次通知就永远浅色（用户报侧栏不符主题）
             if (appbarBar != null) appbarBar.setDark(dark);       // 顶栏配色/背景整套跟随
         });
     }

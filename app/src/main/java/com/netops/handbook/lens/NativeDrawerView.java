@@ -35,7 +35,8 @@ public class NativeDrawerView extends FrameLayout {
     /** 顶栏底边（px）：抽屉从顶栏下沿起，别压在顶栏下面（2026-10-28 顶栏铺满后左侧
      *  ☰ 压不进、抽屉标题也被顶栏盖住）。 */
     private float topInset = 0f;
-    private final NativeBlocks.Palette pal;
+    private NativeBlocks.Palette pal;
+    private boolean dark;
     private final Go go;
     private final Runnable onClosed;
     private JSONObject root;
@@ -174,6 +175,15 @@ public class NativeDrawerView extends FrameLayout {
     }
 
     public void setPageData(JSONObject data) { root = data; }
+
+    /** 主题切换（2026-11-10）：pal 在构造时快照、open() 的 build() 只重建视图 ——
+     *  此前主题切换从不通知抽屉，切深色后抽屉仍用构造时的浅色 pal
+     *  （用户报「呼出的侧栏时不时会不符合当前主题」）。 */
+    public void setDark(boolean d) {
+        if (dark == d) return;
+        dark = d;
+        pal = NativeBlocks.palette(getContext(), dark, false);
+    }
 
     public void open() {
         build();
