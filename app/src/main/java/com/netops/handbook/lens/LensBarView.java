@@ -2658,8 +2658,12 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
                 /* 静止就有折射（6dp 带 / 9dp 位移），按压升到 12/18 —— 参考形态的
                    静止药丸边缘本来就有弯折与彩虹边；此前 `10*liftV` 让静止折射量
                    归零、退化成 1:1 透传，是「没有玻璃质感」的直接原因（2026-11-07）。 */
-                shader.setFloatUniform("refractionHeight", 10f * density * liftV);
-                shader.setFloatUniform("refractionAmount", -14f * density * liftV);
+                /* ❗按压不放大（2026-11-11 用户报「拖到两端画面分裂」）：
+                   原来 lift=1 时折射 10dp/位移 14dp，药丸会把背后内容放大一档 ——
+                   同一行字在药丸里和栏体里是两个尺寸，并排看着就是「重复影像/割裂」。
+                   按住态改成 1:1 透明窗口，只保留 2dp 的轻微弯折（有玻璃感但不放大）。 */
+                shader.setFloatUniform("refractionHeight", 2f * density * liftV);
+                shader.setFloatUniform("refractionAmount", -1.5f * density * liftV);
                 shader.setFloatUniform("depthEffect", 0f);   // 关掉中心深度项：水滴中心是平的，只有边缘一圈弯折
                 shader.setFloatUniform("chromaticAberration", 0.5f);   // KernelSU 原值（FloatingBottomBar.kt:451 chromaticAberration = 0.5f）
                 float alphaK = nativeDock ? 1f : Math.min(1f, liftV * 2.5f);
