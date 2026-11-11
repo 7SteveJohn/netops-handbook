@@ -95,7 +95,8 @@ object DockDraw {
         var barShadow = 0; private set
         var active = 0; private set
         var baseWhite = 0; private set   // 药丸白底(dark 74,74,80 / light 252,252,252)
-        var tray = 0; private set        // 静止选中托盘(prism _Lens:HCT secondary tone4/90 @85%)
+        var tray = 0; private set
+        var pillTint = 0; private set   // prism pill tint(0x93F4F4F4 / dark @48%)
 
         init {
             if (dark) {
@@ -111,6 +112,8 @@ object DockDraw {
                 barShadow = Color.argb(51, 0, 0, 0)
                 active = Color.rgb(10, 132, 255)          // --accent 暗 #0a84ff
                 baseWhite = Color.rgb(74, 74, 80)
+                /* prism pill dark tint: surfaceContainer.shiftTone(overCard) 近似 */
+                pillTint = Color.argb(122, 33, 31, 38)
                 /* prism _Lens dark:Hct(secondary.hue, chroma, tone=4) @85%
                    ≈ secondary 混黑 92%(tone4 近黑蓝) */
                 tray = blend(active, Color.BLACK, 0.92f)
@@ -127,6 +130,7 @@ object DockDraw {
                 barShadow = Color.argb(26, 0, 0, 0)
                 active = Color.rgb(37, 99, 235)           // --accent 浅 #2563eb
                 baseWhite = Color.rgb(252, 252, 252)
+                pillTint = Color.argb(147, 244, 244, 244)
                 /* prism _Lens light:Hct(secondary.hue, chroma, tone=90) @85%
                    ≈ secondary 混白 85%(tone90 近白蓝) */
                 tray = blend(active, Color.WHITE, 0.85f)
@@ -144,7 +148,47 @@ object DockDraw {
 
     /* ================= 玻璃效果(平台 RenderEffect,P0 探针同构) ================= */
 
-    /** 饱和度色彩矩阵(prism pill saturation 2.1;KernelSU 旧值 1.5)。 */
+    /* ================= prism 全光学 shader(liquid_glass.frag AGSL 移植) ================= */
+
+    /** 按名设置 uniforms。uniforms 顺序 = PrismGlass.kt 头注释的约定。 */
+    fun setPrismUniforms(
+        sh: android.graphics.RuntimeShader,
+        nodeOriginX: Float, nodeOriginY: Float,
+        glassTLX: Float, glassTLY: Float,
+        nodeW: Float, nodeH: Float,
+        dp: Float,
+        shapeW: Float, shapeH: Float, bevel: Float, frost: Float,
+        corner: Float,
+        refraction: Float, saturation: Float, brightness: Float,
+        tint: Int,
+        rim: Float, rimWidth: Float, endShade: Float,
+        glowCx: Float, glowCy: Float, glowStrength: Float, contrast: Float,
+        glowReach: Float, glowWash: Float,
+        lineAlpha: Float, partDp: Float, rimFrost: Float,
+        rimTail: Float, rimFocus: Float, rimAdded: Float, rimSide: Float,
+        haze: Float, hazeBlur: Float,
+    ) {
+        sh.setFloatUniform("uNodeOrigin", nodeOriginX, nodeOriginY)
+        sh.setFloatUniform("uGlassTL", glassTLX, glassTLY)
+        sh.setFloatUniform("uNodeSize", nodeW, nodeH)
+        sh.setFloatUniform("uDp", dp)
+        sh.setFloatUniform("uShape", shapeW, shapeH, bevel, frost)
+        sh.setFloatUniform("uCorners", corner, corner, corner, corner)
+        sh.setFloatUniform("uOptics", refraction, saturation, brightness)
+        sh.setFloatUniform("uTint",
+            ((tint shr 16) and 0xFF) / 255f,
+            ((tint shr 8) and 0xFF) / 255f,
+            (tint and 0xFF) / 255f,
+            ((tint shr 24) and 0xFF) / 255f)
+        sh.setFloatUniform("uLight", rim, rimWidth, endShade)
+        sh.setFloatUniform("uGlow", glowCx, glowCy, glowStrength, contrast)
+        sh.setFloatUniform("uGlowSpread", glowReach, glowWash)
+        sh.setFloatUniform("uEdge", lineAlpha, partDp, rimFrost)
+        sh.setFloatUniform("uRim", rimTail, rimFocus, rimAdded, rimSide)
+        sh.setFloatUniform("uHaze", haze)
+        sh.setFloatUniform("uHazeBlur", hazeBlur)
+    }
+
     fun vibrancyEffect(): ComposeRenderEffect {
         val s = 2.1f
         val cm = android.graphics.ColorMatrix(floatArrayOf(

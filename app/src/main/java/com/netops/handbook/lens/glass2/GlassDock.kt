@@ -257,62 +257,62 @@ private fun GlassBar(
     val mag = 1f + 0.2f * liftV
 
     Box(Modifier.fillMaxSize()) {
-        /* ---- 投影 ---- */
+        /* ---- 投影(栏体;prism bar 无投影?有 dropShadow——保留原样) ---- */
         Box(Modifier.fillMaxSize().drawBehind {
             ntc { it.drawRoundRect(bar.left, bar.top, bar.right, bar.bottom, bar.height() / 2f,
                 bar.height() / 2f, shadowP) }
         })
-        /* ---- 栏体玻璃(prism LiquidGlassStyle.pill 雾玻璃配方):
-             雾合成 = 0.72×blur15.6 + 0.28 直采;vibrancy 2.1;tint 57%白(暗 48%);
-             pill 的 blur=0(不均匀模糊,靠 haze)。雾半径 15.6/2=7.8σ 近似。 ---- */
+        /* ---- 栏体玻璃 = prism LiquidGlassStyle.pill 单 pass 全光学:
+             uShape.z bevel=20(库默认)、uOptics.x refraction=60(库默认,栏缘
+             液体弯折 60dp 深度)、tint/contrast/haze/sat 按 pill 预设;
+             暗线(uEdge.x=hairline)与 rim(uLight.x)由 shader 画;
+             触摸光晕在 shader 内(uGlow/uGlowSpread)。 ---- */
+        val barPad = ((15.6f * density - 0.5f) * 2.0784f + 12f).toInt().coerceAtLeast(16)
+        val barFx = remember { DockDraw.LensFx(PRISM_GLASS) }
         Box(Modifier
-            .sizePx(bar.width(), bar.height())
-            .offsetPx(bar.left, bar.top)
-            .drawWithContent {
-                /* 栏体玻璃成品(雾+tint+效果)record 成独立层:抬起玻璃镜回放它
-                   = 「镜弯折的是栏体」(prism: it bends only the bar) */
-                barGlassLayer.record { this@drawWithContent.drawContent() }
-                drawContent()
+            .sizePx(bar.width() + 2f * barPad, bar.height() + 2f * barPad)
+            .offsetPx(bar.left - barPad, bar.top - barPad)
+            .graphicsLayer {
+                val d = density
+                DockDraw.setPrismUniforms(
+                    sh = barFx.shader,
+                    nodeOriginX = bar.left - barPad, nodeOriginY = bar.top - barPad,
+                    glassTLX = bar.left, glassTLY = bar.top,
+                    nodeW = bar.width() + 2f * barPad, nodeH = bar.height() + 2f * barPad,
+                    dp = d,
+                    shapeW = bar.width() / d, shapeH = bar.height() / d,
+                    bevel = 20f, frost = 0f,
+                    corner = bar.height() / 2f / d,
+                    refraction = 60f, saturation = if (colors.dark) 1.925f else 2.1f,
+                    brightness = 1f,
+                    tint = colors.pillTint,
+                    rim = if (colors.dark) 0.35f else 0f,
+                    rimWidth = 1.3f, endShade = 0f,
+                    glowCx = (model.glowX - bar.left) / d,
+                    glowCy = (model.glowY - bar.top) / d,
+                    glowStrength = 0.06f * glowV * glowV,
+                    contrast = if (colors.dark) -0.4f else 0.4f,
+                    glowReach = 28f * (1f + 3f * spreadV),
+                    glowWash = 0.7f,
+                    lineAlpha = if (colors.dark) 0f else 0.35f,
+                    partDp = 0f, rimFrost = 0f,
+                    rimTail = if (colors.dark) 0.17f else 0f,
+                    rimFocus = 0f, rimAdded = if (colors.dark) 0.38f else 0f,
+                    rimSide = 0f,
+                    haze = 0.72f, hazeBlur = 15.6f)
+                renderEffect = barFx.effect(floatArrayOf(
+                    bar.width(), bar.height(), glowV, model.glowX, model.glowY))
             }
-        ) {
-            Box(Modifier.fillMaxSize().graphicsLayer {
-                shape = barShape; clip = true
-            }) {
-                Box(Modifier.fillMaxSize().graphicsLayer {
-                    renderEffect = DockDraw.blurEffect(7.8f * density)
-                    alpha = 0.72f
-                }) {
-                    Box(Modifier.fillMaxSize().drawBehind { drawLayer(captured) })
-                }
-                Box(Modifier.fillMaxSize().graphicsLayer { alpha = 0.28f }) {
-                    Box(Modifier.fillMaxSize().drawBehind { drawLayer(captured) })
-                }
-                Box(Modifier.fillMaxSize().graphicsLayer { renderEffect = vibFx }) {
-                    Box(Modifier.fillMaxSize().drawBehind {
-                        ntc { it.drawPaint(tintP) }
-                    })
-                }
-            }
-        }
-        /* ---- hairline(75% 高度发丝亮线,prism pill 亮色 0.35;暗色无)+ BloomStroke ---- */
-        Box(Modifier.fillMaxSize().drawBehind {
-            ntc {
-                if (!colors.dark) {
-                    val hl = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                        color = android.graphics.Color.argb((255f * 0.35f).toInt(), 255, 255, 255)
-                        strokeWidth = 1.2f * density
-                        style = Paint.Style.STROKE
+            .drawBehind {
+                clipRect(0f, 0f, size.width, size.height) {
+                    translate(-(bar.left - barPad), -(bar.top - barPad)) {
+                        drawLayer(captured)
                     }
-                    val hy = bar.top + bar.height() * 0.25f
-                    it.drawLine(bar.left + bar.height() * 0.35f, hy,
-                        bar.right - bar.height() * 0.35f, hy, hl)
                 }
-                BloomStrokeFx.draw(bloomShader, bloomP, it, bar.left, bar.top, bar.right, bar.bottom,
-                    bar.height() / 2f, 0.75f, 0f, 0f, -1f, density)
             }
-        })
-        /* ---- 托盘(静止选中,prism _Lens):HCT secondary tone4/90 @85% 近似,
-             随 lift 淡出(α×(1−lift));抬起后由玻璃镜接管 ---- */
+        ) { }
+        /* ---- 托盘(静止选中,prism _Lens):HCT secondary tone90/4 @85%,
+             α×(1−lift);抬起后由玻璃镜接管 ---- */
         Box(Modifier.fillMaxSize().drawBehind {
             ntc { c ->
                 val trayA = 0.85f * (1f - liftV)
@@ -328,7 +328,7 @@ private fun GlassBar(
                 }
             }
         })
-        /* ---- 灰态图标 = prism items(outside):药丸盖住的格由镜内重绘 ---- */
+        /* ---- 灰态图标 = prism items(outside):镜盖住的格由镜内重绘 ---- */
         Box(Modifier.fillMaxSize().drawBehind {
             ntc { c ->
                 val actIdx = model.selectedIndex
@@ -340,12 +340,14 @@ private fun GlassBar(
                 }
             }
         })
-        /* ---- 抬起玻璃镜(prism _GlassLens,lift>0 才在):
-             lens 预设:refraction -4.3(负=向外凸,shader 取正)+ 投影 +
-             暗色 brightness 1.33;节点上移 8dp×lift(投影空间) ---- */
+        /* ---- 抬起玻璃镜 = prism _GlassLens(lens 预设):
+             refraction -4.3(外凸)+ dispersion 6.5 + 投影(0,8,5) +
+             暗色 brightness 1.33 + hairline 0.42;节点外扩 pad = 采样 reach ---- */
+        val lensPad = ((4.3f * density + 2.5f * density * 2.0784f) + 12f)
+            .toInt().coerceAtLeast(16)
         if (liftV > 0.01f) Box(Modifier
-            .sizePx(nodeW, nodeH)
-            .offsetPx(nodeL, nodeT - 8f * density * liftV)
+            .sizePx(nodeW + 2f * lensPad, nodeH + 2f * lensPad)
+            .offsetPx(nodeL - lensPad, nodeT - lensPad)
         ) {
             /* 投影(prism _lensShadows:offset(0,8) blur5 黑 5.5%,暗 3×) */
             Box(Modifier.fillMaxSize().graphicsLayer {
@@ -358,49 +360,50 @@ private fun GlassBar(
                         color = if (colors.dark) android.graphics.Color.argb((255f * 0.165f * liftV).toInt(), 0, 0, 0)
                                 else android.graphics.Color.argb((255f * 0.055f * liftV).toInt(), 0, 0, 0)
                     }
-                    c.drawRoundRect(0f, 8f * density, nodeW, nodeH + 8f * density, pillR, pillR, sp)
+                    c.drawRoundRect(lensPad.toFloat(), lensPad + 8f * density,
+                        lensPad + nodeW, lensPad + nodeH + 8f * density, pillR, pillR, sp)
                 }
             })
             /* mask:胶囊(裁镜折射输出) */
             Box(Modifier.fillMaxSize().graphicsLayer {
                 shape = RoundedCornerShape((pillR / density).dp); clip = true
             }) {
-                /* lens:refraction 4.3 外凸(prism lens refraction=-4.3,库内取负入 shader);
-                   暗色 brightness 1.33 v1 以白 overlay 近似 */
+                val lensFx = remember { DockDraw.LensFx(PRISM_GLASS) }
                 Box(Modifier.fillMaxSize().graphicsLayer {
-                    pillLens.shader.setFloatUniform("size", pw, ph)
-                    pillLens.shader.setFloatUniform("offset",
-                        pw / 2f - (cx - nodeL), ph / 2f - (cy - nodeT))
-                    pillLens.shader.setFloatUniform("cornerRadii", pillR, pillR, pillR, pillR)
-                    pillLens.shader.setFloatUniform("refractionHeight", 4.3f * density * liftV)
-                    pillLens.shader.setFloatUniform("refractionAmount", 4.3f * density * liftV)
-                    pillLens.shader.setFloatUniform("depthEffect", 0f)
-                    pillLens.shader.setFloatUniform("chromaticAberration", if (standard) 0f else 1.2f)
-                    renderEffect = pillLens.effect(floatArrayOf(
-                        pw, ph, cx - nodeL, cy - nodeT, pillR, 4.3f * density * liftV))
+                    val d = density
+                    DockDraw.setPrismUniforms(
+                        sh = lensFx.shader,
+                        nodeOriginX = nodeL - lensPad, nodeOriginY = nodeT - lensPad,
+                        glassTLX = nodeL, glassTLY = nodeT,
+                        nodeW = nodeW + 2f * lensPad, nodeH = nodeH + 2f * lensPad,
+                        dp = d,
+                        shapeW = nodeW / d, shapeH = nodeH / d,
+                        bevel = 5.5f, frost = 0f,
+                        corner = pillR / d,
+                        refraction = -4.3f * liftV, saturation = 1f,
+                        brightness = 1f + (if (colors.dark) 0.33f else 0f) * liftV,
+                        tint = 0,
+                        rim = 0.6f * liftV, rimWidth = 1.1f, endShade = 0.045f * liftV,
+                        glowCx = 0f, glowCy = 0f, glowStrength = 0f, contrast = 0f,
+                        glowReach = 0f, glowWash = 0f,
+                        lineAlpha = 0.42f * liftV, partDp = if (standard) 0f else 6.5f * liftV,
+                        rimFrost = 2.5f * liftV,
+                        rimTail = 0f, rimFocus = 1f, rimAdded = 0f, rimSide = 0f,
+                        haze = 0f, hazeBlur = 0f)
+                    renderEffect = lensFx.effect(floatArrayOf(
+                        nodeW, nodeH, nodeL, nodeT, liftV, cx, cy))
                 }) {
-                    /* ❗镜内容 = 栏体雾玻璃成品(barGlassLayer),不是 captured 壁纸:
-                       prism _GlassLens 叠在 _DockSurface 上——「镜弯折的是栏体」。
-                       2026-11-12 手机首验:回放壁纸原文 = 镜区发暗、与栏体断裂。 */
                     Box(Modifier.fillMaxSize().drawBehind {
                         clipRect(0f, 0f, size.width, size.height) {
-                            translate(-nodeL, -nodeT) { drawLayer(barGlassLayer) }
+                            translate(-(nodeL - lensPad), -(nodeT - lensPad)) {
+                                drawLayer(captured)
+                            }
                         }
                     })
                 }
-                /* 暗色提亮(prism lens brightness 1.33) */
-                if (colors.dark) Box(Modifier.fillMaxSize().drawBehind {
-                    ntc { c ->
-                        val p = Paint().apply {
-                            color = android.graphics.Color.argb((255f * 0.12f * liftV).toInt(), 255, 255, 255)
-                        }
-                        c.drawRect(0f, 0f, size.width, size.height, p)
-                    }
-                })
             }
         }
-        /* ---- 镜内图标(prism items(inside)+ _LensContent):画在玻璃镜之上,
-             不折射(prism 的 warp 仅 ultra 开,内容自玻璃);选中格=蓝态 ---- */
+        /* ---- 镜内图标(prism items(inside)):画在玻璃镜之上,不折射 ---- */
         Box(Modifier.fillMaxSize().drawBehind {
             ntc { c ->
                 val actIdx = model.selectedIndex
@@ -409,29 +412,6 @@ private fun GlassBar(
                     if (abs(cellCx - cx) >= model.axisPitch * 0.5f + 2f * density) continue
                     DockDraw.drawTab(c, i, actIdx, false, cellCx, cy, contentH, density,
                         colors, iconPaths, iconP, textP)
-                }
-            }
-        })
-        /* ---- 触摸光晕(prism _touchGlow:指尖发光,洗过整条栏) ---- */
-        Box(Modifier.fillMaxSize().drawBehind {
-            ntc { c ->
-                if (glowV > 0.01f) {
-                    val gr = max(1f, 28f * density * (1f + 3f * spreadV))
-                    val gs = 0.06f * glowV * glowV
-                    val ca = (255f * gs * 0.8f).toInt().coerceAtMost(255)
-                    val ea = (255f * gs * 0.56f).toInt()
-                    if (ca > 2) {
-                        val gp = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                            shader = android.graphics.RadialGradient(model.glowX, model.glowY, gr,
-                                intArrayOf(android.graphics.Color.argb(ca, 255, 255, 255),
-                                    android.graphics.Color.argb(ea, 255, 255, 255)),
-                                floatArrayOf(0f, 1f), android.graphics.Shader.TileMode.CLAMP)
-                            xfermode = android.graphics.PorterDuffXfermode(
-                                android.graphics.PorterDuff.Mode.ADD)
-                        }
-                        c.drawRoundRect(bar.left, bar.top, bar.right, bar.bottom,
-                            bar.height() / 2f, bar.height() / 2f, gp)
-                    }
                 }
             }
         })
