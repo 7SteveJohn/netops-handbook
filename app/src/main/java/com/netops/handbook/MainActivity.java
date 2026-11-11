@@ -188,7 +188,13 @@ public class MainActivity extends AppCompatActivity {
         root.setId(View.generateViewId());
         root.setFitsSystemWindows(false);
         root.setBackgroundColor(bg);
-        setContentView(root);
+        /* P1 宿主(2026-11-12):USE_GLASS2 时旧根包进 Compose(AndroidView),
+           玻璃 dock 同树叠加(FlClash/KernelSU 同代);false = 旧 PopupWindow 链。 */
+        if (com.netops.handbook.lens.glass2.DockBus.USE_GLASS2) {
+            com.netops.handbook.lens.glass2.GlassHostKt.installGlassHost(this, root);
+        } else {
+            setContentView(root);
+        }
 
         applyBarAppearance(dark);
         bindInsets();
@@ -339,6 +345,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void notifyBarsSwitchSettled() {
+        com.netops.handbook.lens.glass2.DockBus.bump();   // glass2: 转场收口重绘玻璃
         if (lensBar != null) {
             lensBar.setTransitionHold(false);
             /* onSwitchSettled = 解除活抓冷却 + requestFrostRefresh（三连发防抖）。
@@ -372,6 +379,7 @@ public class MainActivity extends AppCompatActivity {
     /** 原生页导航统一出口：全部经 JS 路由（标题/返回栈/互斥都在 render 里收口）。 */
     private void nativeGo(String route, String arg) {
         if (webView == null) return;
+        com.netops.handbook.lens.glass2.DockBus.bump();   // glass2: 路由变化重绘玻璃
         String js = "window.NetOpsNativeGo && NetOpsNativeGo("
                 + org.json.JSONObject.quote(route) + "," + org.json.JSONObject.quote(arg) + ");";
         webView.post(() -> {
@@ -578,6 +586,7 @@ public class MainActivity extends AppCompatActivity {
         /* 面板开合 → 侧栏退位（侧栏是独立弹窗，永远压在面板上） */
         settingsPanel.setOnOpen(open -> {
             if (lensBar != null) lensBar.setOverlaid(open);
+            com.netops.handbook.lens.glass2.DockBus.pushOverlaid(open);   // glass2 弹层让位
             NetOpsShell.INSTANCE.setOverlaid(open);
             /* 面板全屏实色盖上/揭开后，栏后内容已变：等淡入/淡出动画收尾再重抓
                dock+顶栏的栏后霜，否则玻璃停留在旧画面（2026-11-09 用户报「dock
@@ -704,21 +713,47 @@ public class MainActivity extends AppCompatActivity {
         root.getViewTreeObserver().addOnGlobalLayoutListener(this::applyDockInset);
 
         /* 原生透镜层：叠在 WebView 之上，只画底部药丸那一块。
-           它需要 PixelCopy(API 33+) + AGSL，两者都不可用时内部自动降级为半透明，不崩。 */
-        try {
-            lensBar = LensBarView.attach(this, root, webView);
-            /* ❗root 布局尺寸变化 → dock 形态重算：reflow 原先只挂 onConfigurationChanged，
-               冷启动直接横屏（无 config change 事件）时 attach 那次判定用的 anchor
-               还是 0×0/旧 config，形态锁死成横排铺底压住卡片（2026-11-09 真机）。
-               监听尺寸变化补一发，reflow 内部有基准变化短路，多调无害。 */
-            root.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or2, ob) -> {
-                if ((r - l) != (or2 - ol) || (b - t) != (ob - ot)) {
-                    if (lensBar != null) lensBar.reflow();
-                    /* 顶栏同款：冷启动即横屏（平板常态）无 config change，attach 初判
-                       可能拿到中间态——布局尺寸一变就重测顶栏几何（平板右侧壁纸缝实证）。 */
-                    if (appbarBar != null) applyAppBarSelfGeometry();
-                }
+           它需要 PixelCopy(API 33+) + AGSL，两者都不可用时内部自动降级为半透明，不崩。
+           ❗USE_GLASS2(2026-11-12):dock 换 Compose 玻璃实现,旧 PopupWindow/PixelCopy
+           链整条不挂载(LensBarView 保留库内作回退,见 DockBus.USE_GLASS2)。 */
+        if (com.netops.handbook.lens.glass2.DockBus.USE_GLASS2) {
+            com.netops.handbook.lens.glass2.DockBus.setOnCommit(i -> {
+                runOnUiThread(() -> {
+                    if (bridge == null) return;
+                    String jsRoute = i == 0 ? "learn" : i == 1 ? "fault" : i == 2 ? "dict" : "me";
+                    switch (i) {
+                        case 0: bridge.showNativeHome(); break;
+                        case 1: bridge.showNativeFault(); break;
+                        case 2: bridge.showNativeDict(); break;
+                        default: bridge.showNativeMe(); break;
+                    }
+                    nativeGo(jsRoute, "");
+                });
+                return kotlin.Unit.INSTANCE;
             });
+            /* 滚动信号: dock 玻璃 25fps 跟随内容(旧 attach 内同款节流在 DockBus 侧) */
+            root.getViewTreeObserver().addOnScrollChangedListener(
+                    () -> com.netops.handbook.lens.glass2.DockBus.onScrollThrottled());
+            ThemeBus.register(d -> com.netops.handbook.lens.glass2.DockBus.pushDark(d));
+            if (nativeDockPending) {
+                runOnUiThread(() -> com.netops.handbook.lens.glass2.DockBus.pushNativeDock(true));
+            }
+        }
+        /* ❗root 布局尺寸变化 → dock 形态重算 + 顶栏自测(两实现共用):
+           冷启动直接横屏（无 config change 事件）时 attach 那次判定用的 anchor
+           还是 0×0/旧 config——布局尺寸一变必须补测（2026-11-09 真机）。 */
+        root.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or2, ob) -> {
+            if ((r - l) != (or2 - ol) || (b - t) != (ob - ot)) {
+                if (!com.netops.handbook.lens.glass2.DockBus.USE_GLASS2 && lensBar != null) {
+                    lensBar.reflow();
+                } else {
+                    remeasureLensSoon();   // glass2: 旋转后重测 JS 几何(几何真源在 JS)
+                }
+                if (appbarBar != null) applyAppBarSelfGeometry();
+            }
+        });
+        try { if (!com.netops.handbook.lens.glass2.DockBus.USE_GLASS2) {
+            lensBar = LensBarView.attach(this, root, webView);
             ThemeBus.register(lensBar);   /* 替代原 attach 时 setDark：register 自带当前值回调 */
             if (contentContainer != null) lensBar.attachContentContainer(contentContainer);
             runOnUiThread(() -> { if (lensBar != null) lensBar.setNativeDock(nativeDockPending); });
@@ -741,6 +776,7 @@ public class MainActivity extends AppCompatActivity {
                    go() 的原生 show/hide 幂等（已 VISIBLE 且非脏 → 直接返回）。 */
                 nativeGo(jsRoute, "");
             }));
+        }
         } catch (Throwable t) {
             Log.w(TAG, "原生透镜层挂载失败（不影响主流程）", t);
             lensBar = null;
@@ -1243,6 +1279,7 @@ public class MainActivity extends AppCompatActivity {
         float below = appbarBar.barBottomPx()
                 + 8f * getResources().getDisplayMetrics().density;
         if (lensBar != null) lensBar.setRailTopInset(below);
+        com.netops.handbook.lens.glass2.DockBus.setRailTop(below);   // glass2 竖排让位同源
         if (nativeDrawer != null) nativeDrawer.setTopInset(below);
     }
 
@@ -1266,16 +1303,51 @@ public class MainActivity extends AppCompatActivity {
      *  实测 logcat -c 后旋转零几何日志）→ 旋转后原生几何永不重测，药丸带钳在
      *  旧方向位置，按压整条被转发进 WebView。旋转必须无条件补测。 */
     private void remeasureLensSoon() {
-        if (lensBar == null || webView == null) return;
-        webView.postDelayed(() -> {
-            if (lensBar != null && webView != null) lensBar.requestGeometry();
-        }, 120);
-        webView.postDelayed(() -> {
-            if (lensBar != null && webView != null) lensBar.requestGeometry();
-        }, 500);
-        webView.postDelayed(() -> {
-            if (lensBar != null && webView != null) lensBar.requestGeometry();
-        }, 900);
+        if (webView == null) return;
+        webView.postDelayed(this::requestDockGeometry, 120);
+        webView.postDelayed(this::requestDockGeometry, 500);
+        webView.postDelayed(this::requestDockGeometry, 900);
+    }
+
+    /** 向页面索取底栏几何(JS 评估,2026-11-12 从 LensBarView.requestGeometry 提取:
+     *  两套 dock 实现共用同一 JS 真源上报,经 NetBridge 回流各取所需)。 */
+    private void requestDockGeometry() {
+        if (webView == null) return;
+        String js = "(function(){try{"
+                + "var dpr=window.devicePixelRatio||1;"
+                + "var t=document.querySelectorAll('.tab');"
+                + "if(!t.length)return;"
+                + "var bar=document.querySelector('.tabbar');"
+                + "if(!bar)return;"
+                + "var r0=t[0].getBoundingClientRect();"
+                + "var rb=bar.getBoundingClientRect();"
+                + "var c0=r0.left+r0.width/2;"
+                + "var pitch=r0.width;"
+                + "if(t.length>1){var r1=t[1].getBoundingClientRect();"
+                + "pitch=Math.abs(r1.left+r1.width/2-c0);}"
+                + "var p=document.querySelector('.tabbar > .tab-pill');"
+                + "var rp=p?p.getBoundingClientRect():null;"
+                + "var ok=rp&&rp.width>1&&rp.height>1;"
+                + "if(ok&&Math.abs(rp.width-(pitch+8))>20)return;"
+                + "var pillW=ok?rp.width:(pitch+8);"
+                + "var pillH=ok?rp.height:r0.height;"
+                + "var cy=rb.top+rb.height/2;"
+                + "document.body.classList.add('native-lens-on');"
+                /* glass2(2026-11-12):原生药丸不再「盖住」HTML 药丸(材质不同会露馅),
+                   直接永久隐藏——旧实现靠同位覆盖,拖拽期另有 native-lens-press 兜底。 */
+                + "var pp=document.querySelector('.tabbar > .tab-pill');"
+                + "if(pp)pp.style.display='none';"
+                + "if(window.NetBridge&&NetBridge.setLensBarRect){"
+                + "NetBridge.setLensBarRect(rb.left*dpr,rb.top*dpr,rb.width*dpr,rb.height*dpr);}"
+                + "if(window.NetBridge&&NetBridge.setLensGeometry){"
+                + "NetBridge.setLensGeometry(pitch*dpr,pillW*dpr,pillH*dpr,"
+                + "c0*dpr,cy*dpr,t.length,window.innerHeight*dpr);}"
+                + "}catch(e){}})()";
+        try {
+            webView.evaluateJavascript(js, null);
+        } catch (Throwable t) {
+            Log.w(TAG, "索取几何的 JS 注入失败", t);
+        }
     }
 
     // ------------------------------------------------------------------ 主题
@@ -1439,22 +1511,26 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public void setLensGeometry(float slot, float pillW, float pillH,
                                     float firstCx, float pillCy, int count, float viewportH) {
-            if (lensBar == null) return;
             runOnUiThread(() -> {
-                lensBar.setLensGeometry(slot, pillW, pillH, firstCx, pillCy, count, viewportH);
+                com.netops.handbook.lens.glass2.DockBus.setGeometry(
+                        slot, pillW, pillH, firstCx, pillCy, viewportH);   // glass2 几何真源
+                if (lensBar != null) {
+                    lensBar.setLensGeometry(slot, pillW, pillH, firstCx, pillCy, count, viewportH);
+                    if (!lensBar.isDockVertical()) lensBar.warmUp();
+                }
                 Log.i("LensBar", String.format(
                         "几何已同步 一格%.1f 药丸%.1f×%.1f 首格中心(%.1f,%.1f) 共%d格",
                         slot, pillW, pillH, firstCx, pillCy, count));
-                if (!lensBar.isDockVertical()) {
-                    lensBar.warmUp();
-                }
             });
         }
 
         /** 页面自己切了 tab（例如深链/返回）时回传，避免两边选中态不一致。 */
         @JavascriptInterface
         public void setSelectedIndex(int index) {
-            runOnUiThread(() -> NetOpsShell.INSTANCE.setSelected(index));
+            runOnUiThread(() -> {
+                NetOpsShell.INSTANCE.setSelected(index);
+                com.netops.handbook.lens.glass2.DockBus.pushSelectedIndex(index);   // glass2 选中态同源
+            });
         }
 
         /** 阶段页全量数据走 assets/native-data.json（loadNativeData 解析后直接喂给视图），
@@ -1667,6 +1743,7 @@ public class MainActivity extends AppCompatActivity {
                null）——缓存 pending 态，attach 后补施；否则 attach 无条件
                showPopup 会把竖屏 HTML dock 永久盖死（真机实锤）。 */
             nativeDockPending = on;
+            com.netops.handbook.lens.glass2.DockBus.pushNativeDock(on);   // glass2 接管开关
             if (lensBar == null) return;
             runOnUiThread(() -> NetOpsShell.INSTANCE.setNativeBar(on));
         }
@@ -1707,6 +1784,7 @@ public class MainActivity extends AppCompatActivity {
         /** 栏矩形上报（CSS×dpr 物理像素）——原生底栏容器/触摸判定的几何真源。 */
         @JavascriptInterface
         public void setLensBarRect(float l, float t, float w, float h) {
+            com.netops.handbook.lens.glass2.DockBus.setBarRect(l, t, w, h);   // glass2 几何真源
             if (lensBar == null) return;
             runOnUiThread(() -> lensBar.setLensBarRect(l, t, w, h));
         }
@@ -1716,6 +1794,7 @@ public class MainActivity extends AppCompatActivity {
          *  点击。旧页面没有此方法时静默忽略。 */
         @JavascriptInterface
         public void setSheetOpen(boolean open) {
+            com.netops.handbook.lens.glass2.DockBus.pushOverlaid(open);   // glass2 弹层让位
             if (lensBar == null) return;
             runOnUiThread(() -> lensBar.setOverlaid(open));
         }
@@ -1771,11 +1850,14 @@ public class MainActivity extends AppCompatActivity {
         public void setDockDocked(boolean d) {
             runOnUiThread(() -> {
                 dockDocked = d;
+                com.netops.handbook.lens.glass2.DockBus.setDockedStyle(d);   // glass2 形态
                 if (lensBar != null) {
                     lensBar.setDocked(d);
                     /* CSS 过渡（--t-base 300ms）中途探针会采到废矩形——已在
                        setLensBarRect 拒收；过渡结束后重探一次，落定贴底几何。 */
                     lensBar.postDelayed(lensBar::requestGeometry, 450);
+                } else {
+                    root.postDelayed(MainActivity.this::requestDockGeometry, 450);   // glass2: 过渡后重探几何
                 }
                 if (settingsPanel != null) settingsPanel.setDockDocked(d);
             });
@@ -1788,6 +1870,7 @@ public class MainActivity extends AppCompatActivity {
             runOnUiThread(() -> {
                 if (!"none".equals(level) && !"standard".equals(level) && !"ultra".equals(level)) return;
                 com.netops.handbook.lens.NativeBlocks.GLASS_LEVEL = level;
+                com.netops.handbook.lens.glass2.DockBus.pushGlassLevel(level);   // glass2 档位
                 if (lensBar != null) lensBar.onGlassLevelChanged();
                 if (appbarBar != null) appbarBar.invalidateBackdrop();
                 if (settingsPanel != null) settingsPanel.setGlassLevel(level);
