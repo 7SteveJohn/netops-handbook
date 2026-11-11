@@ -375,7 +375,7 @@ private fun GlassBar(
                     pillLens.shader.setFloatUniform("refractionHeight", 4.3f * density * liftV)
                     pillLens.shader.setFloatUniform("refractionAmount", 4.3f * density * liftV)
                     pillLens.shader.setFloatUniform("depthEffect", 0f)
-                    pillLens.shader.setFloatUniform("chromaticAberration", if (standard) 0f else 0.5f)
+                    pillLens.shader.setFloatUniform("chromaticAberration", if (standard) 0f else 1.2f)
                     renderEffect = pillLens.effect(floatArrayOf(
                         pw, ph, cx - nodeL, cy - nodeT, pillR, 4.3f * density * liftV))
                 }) {
