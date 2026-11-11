@@ -95,12 +95,14 @@ object DockDraw {
         var barShadow = 0; private set
         var active = 0; private set
         var baseWhite = 0; private set   // 药丸白底(dark 74,74,80 / light 252,252,252)
+        var tray = 0; private set        // 静止选中托盘(prism _Lens:HCT secondary tone4/90 @85%)
 
         init {
             if (dark) {
                 railFill = Color.argb(204, 24, 24, 26)
                 barFill = Color.argb(255, 28, 28, 30)
-                sfTint = Color.argb(160, 33, 31, 38)     // KernelSU surfaceContainer(dark) @55%(用户 11-07 定)
+                /* prism pill dark tint:_darkGlassTint @48%(surfaceContainer 系) */
+                sfTint = Color.argb(122, 33, 31, 38)
                 barStroke = Color.argb(70, 255, 255, 255)
                 sliderFill = Color.argb(255, 44, 44, 46)
                 sliderStroke = Color.argb(26, 255, 255, 255)
@@ -109,10 +111,14 @@ object DockDraw {
                 barShadow = Color.argb(51, 0, 0, 0)
                 active = Color.rgb(10, 132, 255)          // --accent 暗 #0a84ff
                 baseWhite = Color.rgb(74, 74, 80)
+                /* prism _Lens dark:Hct(secondary.hue, chroma, tone=4) @85%
+                   ≈ secondary 混黑 92%(tone4 近黑蓝) */
+                tray = blend(active, Color.BLACK, 0.92f)
             } else {
                 railFill = Color.argb(178, 255, 255, 255)
                 barFill = Color.WHITE
-                sfTint = Color.argb(160, 243, 237, 247)   // M3 surfaceContainer #F3EDF7 @55%
+                /* prism pill light tint:Color(0x93F4F4F4)=57% #F4F4F4 */
+                sfTint = Color.argb(147, 244, 244, 244)
                 barStroke = Color.argb(120, 255, 255, 255)
                 sliderFill = Color.argb(31, 37, 99, 235)  // #2563EB @12%(FlClash 实测)
                 sliderStroke = Color.argb(18, 37, 99, 235)
@@ -121,15 +127,26 @@ object DockDraw {
                 barShadow = Color.argb(26, 0, 0, 0)
                 active = Color.rgb(37, 99, 235)           // --accent 浅 #2563eb
                 baseWhite = Color.rgb(252, 252, 252)
+                /* prism _Lens light:Hct(secondary.hue, chroma, tone=90) @85%
+                   ≈ secondary 混白 85%(tone90 近白蓝) */
+                tray = blend(active, Color.WHITE, 0.85f)
             }
+        }
+
+        private fun blend(a: Int, b: Int, t: Float): Int {
+            val ar = Color.red(a); val ag = Color.green(a); val ab = Color.blue(a)
+            val br = Color.red(b); val bg = Color.green(b); val bb = Color.blue(b)
+            return Color.argb(255,
+                (ar + (br - ar) * t).toInt(), (ag + (bg - ag) * t).toInt(),
+                (ab + (bb - ab) * t).toInt())
         }
     }
 
     /* ================= 玻璃效果(平台 RenderEffect,P0 探针同构) ================= */
 
-    /** 饱和度 1.5 色彩矩阵(KernelSU colorControls:contrast 1.0=不调,sat 1.5)。 */
+    /** 饱和度色彩矩阵(prism pill saturation 2.1;KernelSU 旧值 1.5)。 */
     fun vibrancyEffect(): ComposeRenderEffect {
-        val s = 1.5f
+        val s = 2.1f
         val cm = android.graphics.ColorMatrix(floatArrayOf(
             0.213f + 0.787f * s, 0.715f - 0.715f * s, 0.072f - 0.072f * s, 0f, 0f,
             0.213f - 0.213f * s, 0.715f + 0.285f * s, 0.072f - 0.072f * s, 0f, 0f,

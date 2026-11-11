@@ -225,6 +225,7 @@ private fun GlassBar(
     val shadowP = remember { DockDraw.shadowPaint(colors, density) }
     val tintP = remember(colors) { Paint(Paint.ANTI_ALIAS_FLAG).apply { color = colors.sfTint } }
     val vibFx = remember { DockDraw.vibrancyEffect() }
+    val barGlassLayer = rememberGraphicsLayer()
     val blurBarFx = remember(density) { DockDraw.blurEffect(4f * density) }
     val blurPillFx = remember(density) { DockDraw.blurEffect(4f * density) }
     val barShape = remember(bar.height()) {
@@ -261,57 +262,76 @@ private fun GlassBar(
             ntc { it.drawRoundRect(bar.left, bar.top, bar.right, bar.bottom, bar.height() / 2f,
                 bar.height() / 2f, shadowP) }
         })
-        /* ---- 栏体玻璃:帧(栏矩形定位) > mask(胶囊) > lens > blur > vibrancy > 回放 ----
-           ❗玻璃链必须挂在「栏矩形大小」的节点上(2026-11-12 首验教训:挂全窗节点
-           = 磨砂画到窗口原点被顶栏弹窗盖死)。回放 translate 负偏移 = 采样
-           「栏后物理内容」;clipRect 把 blur 的 FBO 开销夹在栏大小。 */
+        /* ---- 栏体玻璃(prism LiquidGlassStyle.pill 雾玻璃配方):
+             雾合成 = 0.72×blur15.6 + 0.28 直采;vibrancy 2.1;tint 57%白(暗 48%);
+             pill 的 blur=0(不均匀模糊,靠 haze)。雾半径 15.6/2=7.8σ 近似。 ---- */
         Box(Modifier
             .sizePx(bar.width(), bar.height())
             .offsetPx(bar.left, bar.top)
+            .drawWithContent {
+                /* 栏体玻璃成品(雾+tint+效果)record 成独立层:抬起玻璃镜回放它
+                   = 「镜弯折的是栏体」(prism: it bends only the bar) */
+                barGlassLayer.record { this@drawWithContent.drawContent() }
+                drawContent()
+            }
         ) {
             Box(Modifier.fillMaxSize().graphicsLayer {
                 shape = barShape; clip = true
             }) {
                 Box(Modifier.fillMaxSize().graphicsLayer {
-                    barLens.shader.setFloatUniform("size", bar.width(), bar.height())
-                    barLens.shader.setFloatUniform("offset", 0f, 0f)
-                    barLens.shader.setFloatUniform("cornerRadii", bar.height() / 2f, bar.height() / 2f,
-                        bar.height() / 2f, bar.height() / 2f)
-                    barLens.shader.setFloatUniform("refractionHeight", 24f * density)
-                    barLens.shader.setFloatUniform("refractionAmount", -24f * density)
-                    barLens.shader.setFloatUniform("depthEffect", 0f)
-                    renderEffect = barLens.effect(
-                        floatArrayOf(bar.width(), bar.height(), 24f * density))
+                    renderEffect = DockDraw.blurEffect(7.8f * density)
+                    alpha = 0.72f
                 }) {
-                    Box(Modifier.fillMaxSize().graphicsLayer { renderEffect = blurBarFx }) {
-                        Box(Modifier.fillMaxSize().graphicsLayer { renderEffect = vibFx }) {
-                            Box(Modifier.fillMaxSize().drawBehind {
-                                clipRect(0f, 0f, size.width, size.height) {
-                                    /* layer 原点=窗口(0,0):负平移把「栏后窗口像素」
-                                       对齐到节点局部 (0,0) —— 1:1 采样栏后内容 */
-                                    translate(-bar.left, -bar.top) { drawLayer(captured) }
-                                }
-                            })
-                        }
-                    }
+                    Box(Modifier.fillMaxSize().drawBehind { drawLayer(captured) })
+                }
+                Box(Modifier.fillMaxSize().graphicsLayer { alpha = 0.28f }) {
+                    Box(Modifier.fillMaxSize().drawBehind { drawLayer(captured) })
+                }
+                Box(Modifier.fillMaxSize().graphicsLayer { renderEffect = vibFx }) {
+                    Box(Modifier.fillMaxSize().drawBehind {
+                        ntc { it.drawPaint(tintP) }
+                    })
                 }
             }
         }
-        /* ---- surface tint + BloomStroke(效果链之上,z 序=上游) ---- */
+        /* ---- hairline(75% 高度发丝亮线,prism pill 亮色 0.35;暗色无)+ BloomStroke ---- */
         Box(Modifier.fillMaxSize().drawBehind {
             ntc {
-                it.drawRoundRect(bar.left, bar.top, bar.right, bar.bottom,
-                    bar.height() / 2f, bar.height() / 2f, tintP)
+                if (!colors.dark) {
+                    val hl = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = android.graphics.Color.argb((255f * 0.35f).toInt(), 255, 255, 255)
+                        strokeWidth = 1.2f * density
+                        style = Paint.Style.STROKE
+                    }
+                    val hy = bar.top + bar.height() * 0.25f
+                    it.drawLine(bar.left + bar.height() * 0.35f, hy,
+                        bar.right - bar.height() * 0.35f, hy, hl)
+                }
                 BloomStrokeFx.draw(bloomShader, bloomP, it, bar.left, bar.top, bar.right, bar.bottom,
                     bar.height() / 2f, 0.75f, 0f, 0f, -1f, density)
             }
         })
-        /* ---- 灰态图标文字(药丸盖住的格由镜内重绘,跳过防双影) ---- */
+        /* ---- 托盘(静止选中,prism _Lens):HCT secondary tone4/90 @85% 近似,
+             随 lift 淡出(α×(1−lift));抬起后由玻璃镜接管 ---- */
         Box(Modifier.fillMaxSize().drawBehind {
             ntc { c ->
-                val lensing = model.pressed || liftV > 0.005f
-                val active = if (lensing) posV else model.selectedIndex.toFloat()
-                val actIdx = active.toInt().coerceIn(0, model.count - 1)
+                val trayA = 0.85f * (1f - liftV)
+                if (trayA > 0.01f) {
+                    val trayCx = model.axisFirst + model.axisPitch * model.selectedIndex
+                    val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = colors.tray
+                        alpha = (255f * trayA).toInt()
+                    }
+                    c.drawRoundRect(trayCx - model.pillW / 2f, cy - model.pillH / 2f,
+                        trayCx + model.pillW / 2f, cy + model.pillH / 2f,
+                        model.pillH / 2f, model.pillH / 2f, tp)
+                }
+            }
+        })
+        /* ---- 灰态图标 = prism items(outside):药丸盖住的格由镜内重绘 ---- */
+        Box(Modifier.fillMaxSize().drawBehind {
+            ntc { c ->
+                val actIdx = model.selectedIndex
                 for (i in 0 until model.count) {
                     val cellCx = model.axisFirst + model.axisPitch * i
                     if (abs(cellCx - cx) < model.axisPitch * 0.5f + 2f * density) continue
@@ -320,124 +340,102 @@ private fun GlassBar(
                 }
             }
         })
-        /* ---- 药丸 ---- */
-        Box(Modifier
+        /* ---- 抬起玻璃镜(prism _GlassLens,lift>0 才在):
+             lens 预设:refraction -4.3(负=向外凸,shader 取正)+ 投影 +
+             暗色 brightness 1.33;节点上移 8dp×lift(投影空间) ---- */
+        if (liftV > 0.01f) Box(Modifier
             .sizePx(nodeW, nodeH)
-            .offsetPx(nodeL, nodeT)
+            .offsetPx(nodeL, nodeT - 8f * density * liftV)
         ) {
-            /* mask:胶囊圆角,裁折射输出。mask 必须是效果节点的**祖先**
-               (后裁)——mask 在效果链内部会让折射边缘采到透明(2026-11-05
-               「内外两层胶囊」的根因,探针验证过的层级约束)。 */
+            /* 投影(prism _lensShadows:offset(0,8) blur5 黑 5.5%,暗 3×) */
+            Box(Modifier.fillMaxSize().graphicsLayer {
+                alpha = liftV
+            }.drawBehind {
+                ntc { c ->
+                    val sp = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        maskFilter = android.graphics.BlurMaskFilter(
+                            5f * density, android.graphics.BlurMaskFilter.Blur.NORMAL)
+                        color = if (colors.dark) android.graphics.Color.argb((255f * 0.165f * liftV).toInt(), 0, 0, 0)
+                                else android.graphics.Color.argb((255f * 0.055f * liftV).toInt(), 0, 0, 0)
+                    }
+                    c.drawRoundRect(0f, 8f * density, nodeW, nodeH + 8f * density, pillR, pillR, sp)
+                }
+            })
+            /* mask:胶囊(裁镜折射输出) */
             Box(Modifier.fillMaxSize().graphicsLayer {
                 shape = RoundedCornerShape((pillR / density).dp); clip = true
             }) {
-                /* lens:磨砂底+清晰顶+白底+镜像 一起折射(shader 内容=节点输出) */
+                /* lens:refraction 4.3 外凸(prism lens refraction=-4.3,库内取负入 shader);
+                   暗色 brightness 1.33 v1 以白 overlay 近似 */
                 Box(Modifier.fillMaxSize().graphicsLayer {
                     pillLens.shader.setFloatUniform("size", pw, ph)
-                    /* ❗offset = halfSize - 药丸中心(节点坐标):shader 里
-                       centeredCoord = coord + offset - halfSize = coord - 中心。
-                       2026-11-12 首验:符号写反 = 采样区整体偏移 2×pad,
-                       药丸内容整体错位、镜内图标全被 NaN 裁掉。 */
                     pillLens.shader.setFloatUniform("offset",
                         pw / 2f - (cx - nodeL), ph / 2f - (cy - nodeT))
                     pillLens.shader.setFloatUniform("cornerRadii", pillR, pillR, pillR, pillR)
-                    pillLens.shader.setFloatUniform("refractionHeight", 2f * density * liftV)
-                    pillLens.shader.setFloatUniform("refractionAmount", -1.5f * density * liftV)
+                    pillLens.shader.setFloatUniform("refractionHeight", 4.3f * density * liftV)
+                    pillLens.shader.setFloatUniform("refractionAmount", 4.3f * density * liftV)
                     pillLens.shader.setFloatUniform("depthEffect", 0f)
                     pillLens.shader.setFloatUniform("chromaticAberration", if (standard) 0f else 0.5f)
                     renderEffect = pillLens.effect(floatArrayOf(
-                        pw, ph, cx - nodeL, cy - nodeT, pillR, 2f * density * liftV))
+                        pw, ph, cx - nodeL, cy - nodeT, pillR, 4.3f * density * liftV))
                 }) {
-                    /* 磨砂底(静止档) */
-                    Box(Modifier.fillMaxSize().graphicsLayer { renderEffect = blurPillFx }) {
-                        Box(Modifier.fillMaxSize().drawBehind {
-                            clipRect(0f, 0f, size.width, size.height) {
-                                translate(-nodeL, -nodeT) { drawLayer(captured) }
-                            }
-                        })
-                    }
-                    /* 清晰顶(按住档):α=lift 淡入 */
+                    /* ❗镜内容 = 栏体雾玻璃成品(barGlassLayer),不是 captured 壁纸:
+                       prism _GlassLens 叠在 _DockSurface 上——「镜弯折的是栏体」。
+                       2026-11-12 手机首验:回放壁纸原文 = 镜区发暗、与栏体断裂。 */
                     Box(Modifier.fillMaxSize().drawBehind {
-                        if (liftV <= 0.005f) return@drawBehind
-                        val cnv = drawContext.canvas.nativeCanvas
-                        val save = cnv.saveLayerAlpha(0f, 0f, size.width, size.height,
-                            (255f * liftV).toInt(), Canvas.ALL_SAVE_FLAG)
                         clipRect(0f, 0f, size.width, size.height) {
-                            translate(-nodeL, -nodeT) { drawLayer(captured) }
-                        }
-                        cnv.restoreToCount(save)
-                    })
-                    /* 白底:静止 α150、按住 0(2026-11-10 定案) */
-                    Box(Modifier.fillMaxSize().drawBehind {
-                        val a = (150f * (1f - min(1f, liftV))).toInt()
-                        if (a > 2) {
-                            val p = Paint().apply { color = colors.baseWhite; alpha = a }
-                            drawContext.canvas.nativeCanvas.drawRect(0f, 0f, size.width, size.height, p)
+                            translate(-nodeL, -nodeT) { drawLayer(barGlassLayer) }
                         }
                     })
-                /* tab 镜像:选中格(+滑行跨越格)按 mag 放大重绘 */
-                Box(Modifier.fillMaxSize().drawBehind {
+                }
+                /* 暗色提亮(prism lens brightness 1.33) */
+                if (colors.dark) Box(Modifier.fillMaxSize().drawBehind {
                     ntc { c ->
-                            val lensing = model.pressed || liftV > 0.005f
-                            val active = if (lensing) posV else model.selectedIndex.toFloat()
-                            val blue = active.toInt().coerceIn(0, model.count - 1)
-                            var other = -1
-                            if (active - blue != 0f) {
-                                other = floor(active).toInt().coerceIn(0, model.count - 1)
-                                if (other == blue) other = ceil(active).toInt().coerceIn(0, model.count - 1)
-                                if (other == blue) other = -1
-                            }
-                            val pcxN = cx - nodeL; val pcyN = cy - nodeT
-                        /* ❗镜像画在**节点坐标**:窗口坐标 - 节点原点(=旧 -tabOff,
-                           2026-11-12 首验:漏乘偏移=镜像被 mask 裁掉,药丸空芯)。 */
-                        c.translate(-nodeL, -nodeT)
-                        c.save()
-                        c.translate(pcxN, pcyN)
-                        c.scale(mag, mag)
-                        c.translate(-pcxN, -pcyN)
-                        val cxB = model.axisFirst + model.axisPitch * blue
-                        DockDraw.drawTab(c, blue, blue, false, cxB, cy, contentH, density,
-                            colors, iconPaths, iconP, textP)
-                        if (other >= 0 && other != blue) {
-                            val cxO = model.axisFirst + model.axisPitch * other
-                            DockDraw.drawTab(c, other, -2, true, cxO, cy, contentH, density,
-                                colors, iconPaths, iconP, textP)
+                        val p = Paint().apply {
+                            color = android.graphics.Color.argb((255f * 0.12f * liftV).toInt(), 255, 255, 255)
                         }
-                        c.restore()
-                        }
-                    })
+                        c.drawRect(0f, 0f, size.width, size.height, p)
+                    }
+                })
+            }
+        }
+        /* ---- 镜内图标(prism items(inside)+ _LensContent):画在玻璃镜之上,
+             不折射(prism 的 warp 仅 ultra 开,内容自玻璃);选中格=蓝态 ---- */
+        Box(Modifier.fillMaxSize().drawBehind {
+            ntc { c ->
+                val actIdx = model.selectedIndex
+                for (i in 0 until model.count) {
+                    val cellCx = model.axisFirst + model.axisPitch * i
+                    if (abs(cellCx - cx) >= model.axisPitch * 0.5f + 2f * density) continue
+                    DockDraw.drawTab(c, i, actIdx, false, cellCx, cy, contentH, density,
+                        colors, iconPaths, iconP, textP)
                 }
             }
-            /* ---- 药丸 surface:按压面 + 触摸光晕(mask 之外,z 序=上游) ---- */
-            Box(Modifier.fillMaxSize().drawBehind {
-                ntc { c ->
-                    val pressA = (255f * 0.03f * liftV).toInt()
-                    if (pressA > 2) {
-                        val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.argb(pressA, 0, 0, 0) }
-                        c.drawRoundRect(pl - nodeL, pt0 - nodeT, pr - nodeL, pb0 - nodeT, pillR, pillR, p)
-                    }
-                    if (glowV > 0.01f) {
-                        val gr = max(1f, 28f * density * (1f + 3f * spreadV))
-                        val gs = 0.06f * glowV * glowV
-                        val ca = (255f * gs * 0.8f).toInt().coerceAtMost(255)
-                        val ea = (255f * gs * 0.56f).toInt()
-                        if (ca > 2) {
-                            val gx = model.glowX - nodeL; val gy = model.glowY - nodeT
-                            val gp = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                                shader = android.graphics.RadialGradient(gx, gy, gr,
-                                    intArrayOf(android.graphics.Color.argb(ca, 255, 255, 255),
-                                        android.graphics.Color.argb(ea, 255, 255, 255)),
-                                    floatArrayOf(0f, 1f), android.graphics.Shader.TileMode.CLAMP)
-                                xfermode = android.graphics.PorterDuffXfermode(
-                                    android.graphics.PorterDuff.Mode.ADD)
-                            }
-                            c.drawRoundRect(pl - nodeL, pt0 - nodeT, pr - nodeL, pb0 - nodeT,
-                                pillR, pillR, gp)
+        })
+        /* ---- 触摸光晕(prism _touchGlow:指尖发光,洗过整条栏) ---- */
+        Box(Modifier.fillMaxSize().drawBehind {
+            ntc { c ->
+                if (glowV > 0.01f) {
+                    val gr = max(1f, 28f * density * (1f + 3f * spreadV))
+                    val gs = 0.06f * glowV * glowV
+                    val ca = (255f * gs * 0.8f).toInt().coerceAtMost(255)
+                    val ea = (255f * gs * 0.56f).toInt()
+                    if (ca > 2) {
+                        val gp = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            shader = android.graphics.RadialGradient(model.glowX, model.glowY, gr,
+                                intArrayOf(android.graphics.Color.argb(ca, 255, 255, 255),
+                                    android.graphics.Color.argb(ea, 255, 255, 255)),
+                                floatArrayOf(0f, 1f), android.graphics.Shader.TileMode.CLAMP)
+                            xfermode = android.graphics.PorterDuffXfermode(
+                                android.graphics.PorterDuff.Mode.ADD)
                         }
+                        c.drawRoundRect(bar.left, bar.top, bar.right, bar.bottom,
+                            bar.height() / 2f, bar.height() / 2f, gp)
                     }
                 }
-            })
-        }
+            }
+        })
+
         /* ---- 触摸守卫 ---- */
         TouchGuard(model, bar, anchor)
     }
