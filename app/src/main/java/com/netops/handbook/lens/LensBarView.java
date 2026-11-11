@@ -74,7 +74,6 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
     /* ---- 行为常量：全部来自 navigation_dock.dart ---- */
     private static final float LIFT_SNAP     = 0.975f;  // 升到位才允许回落
     private static final float LIFT_RELEASE  = 0.04f;   // 且已移动到格
-    private static final float OVERDRAG      = 0.35f;   // 越界上限（格）
     private static final float TOUCH_SLOP_DP = 8f;
     private static final float FLING_MS      = 100f;    // 速度投影时长
 
@@ -266,6 +265,8 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
     private long asyncUntil;
     /** 切页收口后允许「抓图回调主动重绘一次」（只一次，避免 30fps 自驱循环）。 */
     private boolean refreshOnceAfterCap;
+    /** 药丸底色用的 CLAMP 着色画笔（复用，避免每帧 new）。 */
+    private Paint backdropShaderP;
     /** 霜图重建的「在途重试」计数（每次切页收口清零）。 */
     private int frostRetry;
 
@@ -619,9 +620,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
      *  上游链里 tint α0.4 在 lens 之后作 surface 画上（drawDockChrome），不烘这里。 */
     private float paneKeyOffX = -1f, paneKeyOffY = -1f;
     /** 【临时探针】两态取证节流戳 */
-    private long pillProbeMs;
     /** 【临时探针】combinedBmp 导出节流戳 */
-    private long pillDumpMs;
 
     private void buildBarPane() {
         if (contentFrost == null || contentFrost.getWidth() < 8) return;
@@ -1467,22 +1466,18 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
     private float hitAxis(float fallback) { return dockVertical ? lastHitY : fallback; }
     private float lastHitX;
 
-    /** 越界橡皮筋：1 − 1/(|o|·0.55/limit + 1)，渐近收敛而非线性跟随。 */
-    private static float rubberBand(float overshoot, float limit) {
-        float pull = (float) (1.0 - 1.0 / (Math.abs(overshoot) * 0.55 / limit + 1.0));
-        return limit * pull * Math.signum(overshoot);
-    }
-
-    /** 手指 x → 位置（格），两端带橡皮筋。 */
+    /** 手指 x → 位置（格）。 */
     private float positionAt(float x) {
         return positionAtAxis(dockVertical ? lastHitY : x);
     }
 
+    /** 硬夹在首末格，不做橡皮筋（与网页 indexAt 同口径）。
+     *  ❗越界会让药丸推出栏体/屏幕，同时把面板偏移 tabOff 拉成负数 ——
+     *  liveSharp 的 src 矩形出画后被 drawBitmap 拉伸，表现为「花屏式抽搐」
+     *  （2026-11-11 用户报：左下角往左使劲、右下角往右使劲）。 */
     private float positionAtAxis(float axisCoord) {
         float raw = (axisCoord - axisFirst) / axisPitch;
-        if (raw < 0) return rubberBand(raw, OVERDRAG);
-        if (raw > count - 1) return (count - 1) + rubberBand(raw - (count - 1), OVERDRAG);
-        return raw;
+        return Math.max(0f, Math.min(count - 1, raw));
     }
 
     /**
@@ -2558,19 +2553,34 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
            按住稳定后顶层 α255 全覆盖磨砂层 → 无割裂；淡入期两层内容时点差
            <1s（静止场景两层几乎相同）→ 无跳变。KernelSU 的两态语义（rest 磨砂
            / press 通透）由 lens 折射量与本 tint 切换共同承担。 */
+        /* ❗用 CLAMP 着色器铺满整图，而不是 1:1 drawBitmap（2026-11-11「拖到两端画面分裂」）：
+           药丸比一格宽，停在首/末格时 tabOff 必为负 → 1:1 绘制会在外侧留下**透明**边。
+           静止有 150 白底兜着看不出来；按住时白底归零（真透明），那条透明边就直接
+           露出页面原文，与药丸里的透镜内容并排 = 两道内容、一条竖缝，就是用户说的割裂。
+           CLAMP 会把位图边缘像素向外延伸，铺满不留缝，且 1:1 映射不变。 */
         if (liveBackdrop != null && !liveBackdrop.isRecycled()) {
-            c.drawBitmap(liveBackdrop, -tabOffX, -tabOffY,
-                    new Paint(Paint.FILTER_BITMAP_FLAG));
+            if (backdropShaderP == null) backdropShaderP = new Paint(Paint.FILTER_BITMAP_FLAG);
+            BitmapShader bd = new BitmapShader(liveBackdrop,
+                    Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+            Matrix bdM = new Matrix();
+            bdM.postTranslate(-tabOffX, -tabOffY);
+            bd.setLocalMatrix(bdM);
+            backdropShaderP.setShader(bd);
+            c.drawRect(0f, 0f, w, h, backdropShaderP);
         }
         /* ❗只挡这一层：liveSharp 是 1/2 清晰源，按住时能读出上一页卡片文字。
            磨砂层（上面那层 liveBackdrop）照常画——它糊到读不出字，且是栏体与药丸
-           共用的同一材质；挡掉它就会出现「下面一层灰、上面一层透明」（2026-11-11 用户报）。 */
+           共用的同一材质；挡掉它就会出现「下面一层灰、上面一层透明」（2026-11-11 用户报）。
+           ❗用 Matrix 而不是 src/dst 矩形：药丸在首末格时 tabOff 必为负（药丸比格宽），
+           src 矩形出画会被 drawBitmap 裁剪后拉伸铺满 dst —— 逐帧拉伸比不同 = 花屏式
+           抽搐（2026-11-11 用户报）。Matrix 画法越界部分自然裁掉，恒 1:1。 */
         if (!sharpStale && liftV > 0.01f && liveSharp != null && !liveSharp.isRecycled()) {
-            float k = (float) liveSharp.getWidth() / bandW;
-            c.drawBitmap(liveSharp,
-                    new Rect((int) (tabOffX * k), (int) (tabOffY * k),
-                            (int) ((tabOffX + w) * k), (int) ((tabOffY + h) * k)),
-                    new RectF(0, 0, w, h), new Paint(Paint.FILTER_BITMAP_FLAG));
+            float kx = (float) liveSharp.getWidth() / bandW;
+            float ky = (float) liveSharp.getHeight() / bandH;
+            Matrix sharpM = new Matrix();
+            sharpM.setScale(1f / kx, 1f / ky);
+            sharpM.postTranslate(-tabOffX, -tabOffY);
+            c.drawBitmap(liveSharp, sharpM, new Paint(Paint.FILTER_BITMAP_FLAG));
         }
         /* 白底：静止 α150（磨砂白）、按住 0（全透明） */
         int baseA = (int) (150 * (1f - Math.min(1f, liftV)));
@@ -2580,25 +2590,6 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
             c.drawRect(0f, 0f, w, h, baseP);
         } else if (liveBackdrop == null && liveSharp == null) {
             c.drawColor(dark ? 0xFF2C2C2E : 0xFFDEE5FC);
-        }
-        /* 【临时探针】两态取证：按住时应为 liftV≈1 / baseA=0 / sharp=true */
-        if (SystemClock.uptimeMillis() - pillProbeMs > 400) {
-            pillProbeMs = SystemClock.uptimeMillis();
-            Log.i("PillProbe", "liftV=" + String.format("%.2f", liftV)
-                    + " baseA=" + baseA
-                    + " sharp=" + (liveSharp != null && !liveSharp.isRecycled())
-                    + " backdrop=" + (liveBackdrop != null && !liveBackdrop.isRecycled()));
-        }
-        if (liftV > 0.5f && SystemClock.uptimeMillis() - pillDumpMs > 2000 && combinedBmp != null) {
-            pillDumpMs = SystemClock.uptimeMillis();
-            try {
-                java.io.File f = new java.io.File(getContext().getExternalFilesDir(null), "combined.png");
-                java.io.FileOutputStream fo = new java.io.FileOutputStream(f);
-                combinedBmp.compress(Bitmap.CompressFormat.PNG, 100, fo);
-                fo.close();
-            } catch (Throwable t) {
-                Log.w("PillProbe", "dump fail", t);
-            }
         }
         pillClipPath.reset();
         pillClipPath.addRoundRect(pl, pt, pr, pb, r, r, Path.Direction.CW);
@@ -2638,6 +2629,21 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
         }
 
         pillRect.set(cx - hw, cy - hh, cx + hw, cy + hh);
+        /* ❗首末格把药丸收回栏内（2026-11-11「拖到两端画面分裂」的源码级原因）：
+           药丸宽度 = 一格 + 增长 g（静止 12dp / 按压 24dp），而首格中心离栏的内缘
+           只有半个格距 —— 停在这两格时 rect 必然越出栏的圆角，两条弧线相交，
+           背后那行字被切成两半、边缘还多一道亮弧，看着就是「裂开」。
+           这里按栏内缘夹一次，并回写 cx/hw/hh，保证后面 composeLensTab 与 shader
+           的 size/offset 用的是同一套几何（否则玻璃会错位）。 */
+        if (!dockVertical) {
+            float inset = 2f * density;
+            float limL = barRect.left + inset, limR = barRect.right - inset;
+            if (pillRect.left < limL) pillRect.left = limL;
+            if (pillRect.right > limR) pillRect.right = limR;
+            cx = pillRect.centerX();
+            hw = pillRect.width() / 2f;
+            hh = pillRect.height() / 2f;
+        }
         float r = pillCorner(hw, hh);
 
         boolean glassReady = shader != null && !NativeBlocks.glassNone() && Build.VERSION.SDK_INT >= 33;
