@@ -156,11 +156,18 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
     private RuntimeShader barLensShader;   // 栏缘折射（无色散）
     private RuntimeShader bloomShader;     // BloomStroke 双光源高光
     /* 上游 CombinedBackdrop = 页面层 + tab 镜像层录进同一纹理；这里是 CPU
-       预烘焙等价物，药丸 shader 只吃这一张位图。 */
+       预烘焙等价物，药丸 shader 只吃这一张位图。
+       ❗combinedBmp 被 AGSL 在 RenderThread 采样，主线程逐帧 erase+重画有竞态
+       （半擦除透明帧=抽搐，2026-11-12 录屏拆帧实证）——三份轮换，写/采分离。 */
     private Bitmap combinedBmp;
+    private final Bitmap[] combinedRing = new Bitmap[3];
+    private int combinedRingIdx = 0;
     private BitmapShader combinedShader;
-    /* 同帧实时 backdrop：弹窗同幅的主窗口内容 + 降采样模糊缓冲 */
+    /* 同帧实时 backdrop：弹窗同幅的主窗口内容 + 降采样模糊缓冲。
+       liveBackdrop 同样被 AGSL 采样（栏体 content），同病同治：三环。 */
     private Bitmap liveBackdrop, liveToned;
+    private final Bitmap[] backdropRing = new Bitmap[3];
+    private int backdropRingIdx = 0;
     private Bitmap liveSharp;      // 1/4 录制源（药丸直接用，栏体走两级降采样）
     private Bitmap liveStep;       // 1/8 中间级（模拟 miuix blur 的两级串联）
     private BitmapShader liveBackdropShader;
@@ -994,10 +1001,12 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
            不清的话深色下药丸/栏体会显示浅色时代的旧内容（用户报「深色下
            药丸是白色的」）。清空后下一拍按新主题重抓。 */
         if (liveSharp != null) liveSharp.recycle();
-        if (liveBackdrop != null) liveBackdrop.recycle();
         if (liveToned != null) liveToned.recycle();
         if (liveStep != null) liveStep.recycle();
-        liveSharp = null;
+        for (int i = 0; i < 3; i++) {
+            if (backdropRing[i] != null) backdropRing[i].recycle();
+            backdropRing[i] = null;
+        }
         liveBackdrop = null;
         liveToned = null;
         liveStep = null;
@@ -2396,17 +2405,20 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
            药丸 content 由此全分辨率清晰可辨（KernelSU 药丸 = 清晰 backdrop + lens）。 */
         int div = 1;
         int sharpW = Math.max(2, w / div), sharpH = Math.max(2, h / div);
-        boolean rebuild = liveBackdrop == null
-                || liveBackdrop.getWidth() != w || liveBackdrop.getHeight() != h
+        boolean rebuild = backdropRing[0] == null
+                || backdropRing[0].getWidth() != w || backdropRing[0].getHeight() != h
                 || liveSharp == null || liveSharp.isRecycled()
                 || liveSharp.getWidth() != sharpW || liveSharp.getHeight() != sharpH;
         if (rebuild) {
-            if (liveBackdrop != null) liveBackdrop.recycle();
+            for (int i = 0; i < 3; i++) {
+                if (backdropRing[i] != null) backdropRing[i].recycle();
+                backdropRing[i] = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+            }
+            liveBackdrop = null;   // 旧环已回收：悬挂引用置空，等链尾三环换新（节流早退帧由 null 走兜底，不会采到 recycled）
             if (liveStep != null) liveStep.recycle();
             if (liveToned != null) liveToned.recycle();
             if (liveSharp != null) liveSharp.recycle();
             liveBackdropShader = null;   // 同上：位图回收前先摘掉引用它的 shader
-            liveBackdrop = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
             /* 三级：1/4 录制 → 1/8 中间级 → 1/16 终点，串联两次降采样。
                ❗miuix blur(4dp) 是「全分辨率 → 1/2 → 1/10」**两级**串联
                （downScaleExpFor(σ²)=1 → sf=2，再 k=round(σ)=5）。此前我们一级
@@ -2500,7 +2512,13 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
         lastRawLuma = rawLuma;
         /* haze 是 FlClash 独有；KernelSU 没有 haze，只有一层 blur(4dp)。
            删掉 28/72 混合，直接放大 tone 后的霜图。 */
+        /* ❗三环写入（同 combinedBmp，2026-11-12）：liveBackdrop 经
+           liveBackdropShader 被 AGSL 栏体 shader 在 RenderThread 采样，
+           主线程逐帧 erase+重画同一张 = 半擦除帧被合成 → 栏体与药丸同步闪烁
+           （录屏拆帧：bar-left/bar-mid 与药丸区同帧 ±35 跳变）。三份轮换隔离。 */
         Paint bp = new Paint(Paint.FILTER_BITMAP_FLAG);
+        backdropRingIdx = (backdropRingIdx + 1) % 3;
+        liveBackdrop = backdropRing[backdropRingIdx];
         liveBackdrop.eraseColor(0);
         new Canvas(liveBackdrop).drawBitmap(liveToned, null, new RectF(0, 0, w, h), bp);
         liveBackdropShader = new BitmapShader(liveBackdrop,
@@ -2522,10 +2540,28 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
         /* 滚动中沿用上一帧：combinedBmp 是 464×214 的整块重绘 + 位图采样，
            每帧重算约 10ms，叠加录制与两处 shader 必超预算（2026-11-07 实测
            draw 均 28ms / 31fps）。滚动时药丸位置不变，滞后一帧无感。 */
-        if (combinedBmp == null || combinedBmp.getWidth() != w || combinedBmp.getHeight() != h) {
-            if (combinedBmp != null) combinedBmp.recycle();
-            combinedBmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+        /* ❗三环缓冲（2026-11-12 抽搐根因，源码级）：combinedBmp 经 combinedShader
+           交给 AGSL 透镜 shader，content.eval 在 **RenderThread** 采样它；而
+           Android 渲染是流水线——主线程录制第 N+1 帧时 RenderThread 还在渲染
+           第 N 帧。单缓冲下主线程对同一张位图 eraseColor(0)+重画，RenderThread
+           恰好采到半擦除的透明帧 → 药丸区域单帧变白、图标消失（录屏拆帧实证
+           f0259/f0324/f0334：药丸+折射带亮度 ±35 往复，页面区不动）= 用户报的
+           「抽搐」。9b384c4 的双缓冲只隔离了上游 liveSharp（软画布读，本无竞态），
+           没断开 combinedBmp → RenderThread 这一段，修完仍抽才被 478c641 回滚。
+           市面对照：Kyant0/KernelSU/FlClash 全走 RenderNode+RenderEffect，像素
+           读写全在 GPU 管线内原子提交，从不跨线程共享可变位图；本仓库 View 体系
+           + 独立窗口用不了 backdrop RenderEffect，只能快照位图路线——那就把
+           「写」与「采」隔到不同位图：三份轮换，主线程永远写下一份，RenderThread
+           采样的是 1-2 帧前的完整帧（流水线深度 ≤2 帧，3 环覆盖）。 */
+        if (combinedRing[0] == null || combinedRing[0].getWidth() != w
+                || combinedRing[0].getHeight() != h) {
+            for (int i = 0; i < 3; i++) {
+                if (combinedRing[i] != null) combinedRing[i].recycle();
+                combinedRing[i] = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+            }
         }
+        combinedRingIdx = (combinedRingIdx + 1) % 3;
+        combinedBmp = combinedRing[combinedRingIdx];
         combinedBmp.eraseColor(0);
         Canvas c = new Canvas(combinedBmp);
         float pl = pillRect.left - tabOffX, pt = pillRect.top - tabOffY;
@@ -2574,15 +2610,26 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
            ❗用 Matrix 而不是 src/dst 矩形：药丸在首末格时 tabOff 必为负（药丸比格宽），
            src 矩形出画会被 drawBitmap 裁剪后拉伸铺满 dst —— 逐帧拉伸比不同 = 花屏式
            抽搐（2026-11-11 用户报）。Matrix 画法越界部分自然裁掉，恒 1:1。 */
-        if (!sharpStale && liftV > 0.01f && liveSharp != null && !liveSharp.isRecycled()) {
-            float kx = (float) liveSharp.getWidth() / bandW;
-            float ky = (float) liveSharp.getHeight() / bandH;
+        boolean sharpLayer = !sharpStale && liftV > 0.01f && liveSharp != null && !liveSharp.isRecycled();
+        if (sharpLayer) {
+            /* ❗清晰源恢复全分辨率 1:1（2026-11-12 二轮定案）：上一轮为压观感
+               改的 1/2 轻糊是本末倒置——「极致」档的通透是用户拍板的设计
+               （2026-11-10「按住全透明」+ 11-11 div=1），抽搐的真根因是渲染
+               竞态（combinedBmp 半擦除帧被 RenderThread 采样），已由三环缓冲
+               根治，观感补丁没有存在理由。11-12 用户报「极致档效果跟没有一样」，
+               撤。KernelSU 药丸 backdrop 本就是全分辨率清晰层。 */
             Matrix sharpM = new Matrix();
-            sharpM.setScale(1f / kx, 1f / ky);
+            sharpM.setScale((float) bandW / liveSharp.getWidth(),
+                    (float) bandH / liveSharp.getHeight());
             sharpM.postTranslate(-tabOffX, -tabOffY);
-            c.drawBitmap(liveSharp, sharpM, new Paint(Paint.FILTER_BITMAP_FLAG));
+            /* ❗按 liftV 淡入（补上注释承诺却从未实现的渐变）：此前 liftV>0.01 就
+               全量硬切，按下瞬间磨砂→清晰一步跳变；淡入后与底色白底联动收敛。 */
+            Paint sharpP = new Paint(Paint.FILTER_BITMAP_FLAG);
+            sharpP.setAlpha((int) (255f * Math.min(1f, liftV)));
+            c.drawBitmap(liveSharp, sharpM, sharpP);
         }
-        /* 白底：静止 α150（磨砂白）、按住 0（全透明） */
+        /* 白底：静止 α150（磨砂白）、按住 0（真透明）——2026-11-10 用户定案，
+           恢复原值。上一轮 α45 同为观感补丁，随清晰源一并撤。 */
         int baseA = (int) (150 * (1f - Math.min(1f, liftV)));
         if (baseA > 2) {
             Paint baseP = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -3080,11 +3127,18 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
             anchor.getViewTreeObserver().removeOnGlobalLayoutListener(anchorLayoutListener);
         } catch (Throwable ignored) { }
         if (combinedBmp != null) {
-            combinedBmp.recycle();
+            for (int i = 0; i < 3; i++) {
+                if (combinedRing[i] != null) combinedRing[i].recycle();
+                combinedRing[i] = null;
+            }
             combinedBmp = null;
             combinedShader = null;
         }
-        if (liveBackdrop != null) { liveBackdrop.recycle(); liveBackdrop = null; }
+        for (int i = 0; i < 3; i++) {
+            if (backdropRing[i] != null) backdropRing[i].recycle();
+            backdropRing[i] = null;
+        }
+        liveBackdrop = null;
         if (liveStep != null) { liveStep.recycle(); liveStep = null; }
         if (liveToned != null) { liveToned.recycle(); liveToned = null; }
         if (liveSharp != null) { liveSharp.recycle(); liveSharp = null; }
