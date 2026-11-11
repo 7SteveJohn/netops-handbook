@@ -33,8 +33,7 @@
             android:exported="true"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|uiMode|density|fontScale"
             android:launchMode="singleTop"
-            android:windowSoftInputMode="adjustResize">
-            <!--
+            android:windowSoftInputMode="adjustResize">            <!--
               不锁方向：平板横屏学习体验更好，手机也可随传感器旋转。
               configChanges 已声明 orientation|screenSize，旋转不会重建 Activity，
               WebView 的导航栈与进度因此不会丢失；网页侧 CSS 媒体查询自动重排。
@@ -49,5 +48,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- P0 探针:Compose backdrop 玻璃路线可行性验证(2026-11-12),判定后随迁移收尾移除。
+             exported=true 仅为 adb shell am start 直拉(探针无任何数据/桥,风险为零)。 -->
+        <activity
+            android:name=".GlassProbeActivity"
+            android:exported="true" />
     </application>
 </manifest>

@@ -86,6 +86,9 @@ dependencies {
     implementation(libs.compose.foundation)
     implementation(libs.compose.material3)
     implementation(libs.activity.compose)
+    /* P0 探针(2026-11-12)不引库:backdrop 2.x 全系要求 compileSdk 37(项目 36,
+       升级要连动 AGP)。库的核心 = Compose 1.9 GraphicsLayer + RenderEffect,
+       探针直接用平台 API 手写同构链,判活后按需再议引库或自持实现。 */
 
     testImplementation(libs.junit)
 
