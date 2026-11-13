@@ -433,8 +433,8 @@ html.dark .topo { opacity: .96; }
   .searchbar { max-width: 700px; margin-left: auto; margin-right: auto; }
   .tabbar { justify-content: center; }
   /* 浮动胶囊底栏大屏适配（对齐 iPadOS / FlClash 官方 Dock 规范）：
-     无论大屏多宽，Dock Bar 严格限制在 420px 居中悬浮胶囊（4个Tab × 96px + 左右内边距），
-     与 84dp 水滴药丸保持黄金 1:4 比例，绝不横贯全屏变成空旷大跑道！ */
+     无论大屏多宽，Dock Bar 严格限制在 420px 居中悬浮胶囊，绝不横贯全屏变成空旷大跑道。
+     药丸分档尺寸统一在 06-anim.css 的 .tab-pill 规则与 600px 覆盖（层叠顺序约束）。 */
   body:not(.tabbar-regular) .tabbar {
     max-width: 420px; margin-left: auto; margin-right: auto;
   }

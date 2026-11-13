@@ -238,17 +238,23 @@ object DockDraw {
 
     /* ================= 单格绘制(横排:图标+文字;真源 drawTabsOn) ================= */
 
-    /** @param activeIdx 主色格;@param forceOff 强制灰(mirror 的跨越格) */
+    /** @param activeIdx 主色格;@param forceOff 强制灰(mirror 的跨越格)
+     *  @param magIcon/magText 镜内选中格微放大(2026-11-14 平移:1.08/1.05,
+     *         绕图标中心缩放,旧 LensBarView onlyIdx==-2 同口径) */
     fun drawTab(
         c: Canvas, i: Int, activeIdx: Int, forceOff: Boolean,
         cellCx: Float, pillCy: Float, contentH: Float, density: Float,
         colors: Colors, iconPaths: Array<Array<Path>>, iconP: Paint, textP: Paint,
+        magIcon: Float = 1f, magText: Float = 1f,
     ) {
         val on = !forceOff && i == activeIdx
         val color = if (on) colors.active else colors.icon
         val subs = iconPaths[i]
         val iconTop = pillCy - contentH / 2f
         c.save()
+        c.translate(cellCx, iconTop + 11f * density)
+        c.scale(magIcon, magIcon)
+        c.translate(-cellCx, -(iconTop + 11f * density))
         c.translate(cellCx - 11f * density, iconTop)
         iconP.color = color
         for (k in subs.indices) {
@@ -259,8 +265,17 @@ object DockDraw {
         c.restore()
         val fm = textP.fontMetrics
         val baseline = iconTop + 22f * density + 2f * density - fm.ascent
-        textP.color = color
-        c.drawText(TAB_LABELS[i], cellCx, baseline, textP)
+        if (magText != 1f) {
+            val oldSize = textP.textSize
+            textP.textSize = oldSize * magText
+            textP.color = color
+            c.drawText(TAB_LABELS[i], cellCx,
+                iconTop + (22f * density * magIcon) + 2f * density - fm.ascent * magText, textP)
+            textP.textSize = oldSize
+        } else {
+            textP.color = color
+            c.drawText(TAB_LABELS[i], cellCx, baseline, textP)
+        }
     }
 
     /** 竖排单格(仅图标,compact;真源 drawTabsOn 竖排分支)。 */

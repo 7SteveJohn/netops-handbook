@@ -39,10 +39,16 @@ internal fun DockedFlat(
     contentH: Float,
     anchor: View,
     @Suppress("UNUSED_PARAMETER") refreshTick: Int,
+    /* 贴底过渡(2026-11-14 平移旧 dockedProgress):0=悬浮胶囊 1=贴底。
+       圆角 half↔14dp 插值、M3 指示器淡入;interactive=false 时不挂守卫
+       (过渡期手势归悬浮层,到位后才接管)。 */
+    progress: Float = 1f,
+    interactive: Boolean = true,
 ) {
     val density = GlassDockEnv.density()
     val posV = model.posV
-    val r = 14f * density
+    val half = min(bar.width(), bar.height()) / 2f
+    val r = half + (14f * density - half) * progress
     val fillP = remember(colors) { Paint(Paint.ANTI_ALIAS_FLAG).apply { color = colors.barFill } }
     val strokeP = remember(colors, density) { Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = colors.barStroke; strokeWidth = density; style = Paint.Style.STROKE } }
@@ -53,11 +59,15 @@ internal fun DockedFlat(
             ntc { c ->
                 c.drawRoundRect(bar.left, bar.top, bar.right, bar.bottom, r, r, fillP)
                 c.drawRoundRect(bar.left, bar.top, bar.right, bar.bottom, r, r, strokeP)
-                val indCx = model.axisFirst + model.axisPitch * posV
-                val indCy = model.pillCy - 7f * density
-                c.drawRoundRect(indCx - 32f * density, indCy - 16f * density,
-                    indCx + 32f * density, indCy + 16f * density,
-                    16f * density, 16f * density, indP)
+                val indA = (255f * progress).toInt()
+                if (indA > 0) {
+                    indP.alpha = indA
+                    val indCx = model.axisFirst + model.axisPitch * posV
+                    val indCy = model.pillCy - 7f * density
+                    c.drawRoundRect(indCx - 32f * density, indCy - 16f * density,
+                        indCx + 32f * density, indCy + 16f * density,
+                        16f * density, 16f * density, indP)
+                }
                 val actIdx = posV.toInt().coerceIn(0, model.count - 1)
                 for (i in 0 until model.count) {
                     val cellCx = model.axisFirst + model.axisPitch * i
@@ -66,7 +76,7 @@ internal fun DockedFlat(
                 }
             }
         })
-        TouchGuard(model, bar, anchor)
+        if (interactive) TouchGuard(model, bar, anchor)
     }
 }
 

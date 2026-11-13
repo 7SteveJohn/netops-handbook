@@ -11,6 +11,9 @@ import android.view.View
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -52,6 +55,7 @@ import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.round
 
 /**
  * Compose 液态玻璃 dock(2026-11-12 P2,FlClash/KernelSU 同代架构)。
@@ -157,8 +161,15 @@ private fun GlassDock(captureLayer: GraphicsLayer, anchor: View, winSize: IntSiz
         axisFirst = railRectW.top + 4f * dp + pillH / 2f
     } else {
         axisPitch = if (DockBus.pitchPx > 0) DockBus.pitchPx else winW / 4f
-        pillW = if (DockBus.pillWPx > 0) DockBus.pillWPx else axisPitch + 8f * density
-        pillH = if (DockBus.pillHPx > 0) DockBus.pillHPx else 56f * density
+        /* 兜底分档(2026-11-14 对齐 FlClash _minLensWidth84/_maxItemExtent86 + 设备档):
+           尺寸真源 = JS 上报(CSS 侧分档);此处只夹异常上限、兜上报未就绪。
+           手机 94×48(=86+8, FlClash 口径) / 平板(winW≥600dp) 96×52(11-13 验收值)。 */
+        val tablet = winW >= 600f * density
+        val maxPillW = (if (tablet) 96f else 94f) * density
+        val maxPillH = (if (tablet) 52f else 48f) * density
+        pillW = if (DockBus.pillWPx > 0) min(DockBus.pillWPx, maxPillW)
+                else min(axisPitch + 8f * density, maxPillW)
+        pillH = if (DockBus.pillHPx > 0) min(DockBus.pillHPx, maxPillH) else maxPillH
         pillCy = if (DockBus.pillCyPx > 0) DockBus.pillCyPx else winH - pillH
         axisFirst = if (DockBus.firstCxPx > 0) DockBus.firstCxPx else axisPitch / 2f
         if (barRectW.width() <= 4 || barRectW.height() <= 4) {
@@ -178,15 +189,39 @@ private fun GlassDock(captureLayer: GraphicsLayer, anchor: View, winSize: IntSiz
 
     val contentH = 36f * density   // 图标22 + gap2 + 文字12(旧 contentH 同式)
 
+    /* 贴底↔悬浮 300ms 平滑过渡(2026-11-14 平移旧路线 dockedProgress):
+       DecelerateInterpolator(1.8) ≈ LinearOutSlowIn;过渡期两形态交叉淡化
+       (旧路线 saveLayerAlpha 淡出同构),手势守卫归悬浮层,贴底层到位才挂。 */
+    val dockP = remember { Animatable(if (dockedStyle) 1f else 0f) }
+    LaunchedEffect(dockedStyle) {
+        dockP.animateTo(if (dockedStyle) 1f else 0f,
+            tween(300, easing = LinearOutSlowInEasing))
+    }
+
     Box(Modifier.fillMaxSize()) {
-        when {
-            vertical -> RailFlat(model, railRectW, colors, iconPaths, iconP, anchor, refreshTick)
-            dockedStyle -> DockedFlat(model, barRectW, colors, iconPaths, iconP, textP,
-                contentH, anchor, refreshTick)
-            glassLive -> GlassBar(captureLayer, model, barRectW, colors, iconPaths, iconP, textP,
-                contentH, glassLevel == "standard", anchor, refreshTick)
-            else -> FloatFlat(model, barRectW, colors, iconPaths, iconP, textP,
-                contentH, anchor, refreshTick)
+        if (vertical) {
+            RailFlat(model, railRectW, colors, iconPaths, iconP, anchor, refreshTick)
+        } else {
+            val p = dockP.value
+            if (p > 0.01f) Box(Modifier.fillMaxSize().graphicsLayer { alpha = p }) {
+                DockedFlat(model, barRectW, colors, iconPaths, iconP, textP,
+                    contentH, anchor, refreshTick,
+                    progress = p, interactive = p >= 0.99f)
+            }
+            if (p < 0.99f) {
+                val f = 1f - p
+                if (glassLive) {
+                    Box(Modifier.fillMaxSize().graphicsLayer { alpha = f }) {
+                        GlassBar(captureLayer, model, barRectW, colors, iconPaths, iconP, textP,
+                            contentH, glassLevel == "standard", anchor, refreshTick)
+                    }
+                } else {
+                    Box(Modifier.fillMaxSize().graphicsLayer { alpha = f }) {
+                        FloatFlat(model, barRectW, colors, iconPaths, iconP, textP,
+                            contentH, anchor, refreshTick)
+                    }
+                }
+            }
         }
     }
 }
@@ -232,19 +267,28 @@ private fun GlassBar(
         RoundedCornerShape((bar.height() / 2f / density).dp)
     }
 
-    /* 药丸几何(窗口本地):中心随 pos,尺寸随 lift/jelly,首末格收回栏内
-       (2026-11-11「拖到两端割裂」的源码级修复,原样移植)。 */
-    val g = (16f + (24f - 16f) * liftV) * density
+    /* 药丸几何(窗口本地):中心随 pos,尺寸随 lift/jelly。
+       2026-11-14 平移 Antigravity 规格并按 FlClash 原版口径修正:
+       - 静止零增长:JS 上报尺寸即渲染尺寸(FlClash 药丸=格距+8、下限 84dp,
+         上限由 CSS/Kotlin 兜底分档承担);
+       - 按压瞬间 +20dp 胀大,高度突破栏体漫出上下边缘(水滴凸透镜通透);
+       - 首末格夹取反转:由「收回栏内 2dp」改为「允许漫出 ≤10dp」——
+         漫出半径远小于 lensPad 采样 reach,不触发 pad NaN 坑。 */
+    val g = 20f * liftV * density
     val s = jellyV
     var cx = model.axisFirst + model.axisPitch * posV
     val cy = model.pillCy
-    val pl0 = cx - (model.pillW + g) / 2f * (1f + s)
-    val pr0 = cx + (model.pillW + g) / 2f * (1f + s)
+    /* 跨格表面张力展开(2026-11-14 平移):两格正中最宽 +24dp,落格阻尼收缩。
+       位置驱动(与 jelly 速度形变并存),对齐 iOS 26 水滴张力语义。 */
+    val crossProgress = max(0f, min(1f, 1f - 2f * abs(posV - round(posV))))
+    val crossExt = 24f * density * crossProgress
+    val pl0 = cx - (model.pillW + g + crossExt) / 2f * (1f + s)
+    val pr0 = cx + (model.pillW + g + crossExt) / 2f * (1f + s)
     val pt0 = cy - (model.pillH + g) / 2f * (1f - s * 1.4f)
     val pb0 = cy + (model.pillH + g) / 2f * (1f - s * 1.4f)
-    val inset = 2f * density
-    val pl = max(pl0, bar.left + inset)
-    val pr = min(pr0, bar.right - inset)
+    val over = 10f * density
+    val pl = max(pl0, bar.left - over)
+    val pr = min(pr0, bar.right + over)
     val pw = pr - pl
     val ph = pb0 - pt0
     cx = (pl + pr) / 2f
@@ -274,6 +318,12 @@ private fun GlassBar(
             .offsetPx(bar.left - barPad, bar.top - barPad)
             .graphicsLayer {
                 val d = density
+                /* 栏体按压胀大(KernelSU FloatingBottomBar layerBlock 口径,2026-11-14 平移):
+                   只缩放绘制,不改布局与守卫命中区;transformOrigin 默认 = 节点中心
+                   = bar 中心(pad 对称外扩),与旧路线 canvas.scale(dockS, 中心) 同构。 */
+                val dockS = 1f + (16f * density / max(1f, bar.width())) * liftV
+                scaleX = dockS
+                scaleY = dockS
                 DockDraw.setPrismUniforms(
                     sh = barFx.shader,
                     nodeOriginX = bar.left - barPad, nodeOriginY = bar.top - barPad,
@@ -328,21 +378,24 @@ private fun GlassBar(
                 }
             }
         })
-        /* ---- 灰态图标 = prism items(outside):镜盖住的格由镜内重绘 ---- */
+        /* ---- 灰态图标 = prism items(outside):药丸覆盖的格由镜内重绘。
+             覆盖判定 0.75 格距(2026-11-14 平移旧 -2 口径):跨格时两格都让位,
+             镜内层将两格均画高亮蓝(双蓝) ---- */
         Box(Modifier.fillMaxSize().drawBehind {
             ntc { c ->
                 val actIdx = model.selectedIndex
                 for (i in 0 until model.count) {
                     val cellCx = model.axisFirst + model.axisPitch * i
-                    if (abs(cellCx - cx) < model.axisPitch * 0.5f + 2f * density) continue
+                    if (abs(cellCx - cx) < model.axisPitch * 0.75f) continue
                     DockDraw.drawTab(c, i, actIdx, false, cellCx, cy, contentH, density,
                         colors, iconPaths, iconP, textP)
                 }
             }
         })
         /* ---- 抬起玻璃镜 = prism _GlassLens(lens 预设):
-             refraction -4.3(外凸)+ dispersion 6.5 + 投影(0,8,5) +
-             暗色 brightness 1.33 + hairline 0.42;节点外扩 pad = 采样 reach ---- */
+             极致档 refraction -4.3(外凸)+ dispersion 6.5 / 标准档 -2.5 + CA 0
+             + 投影(0,8,5) + 暗色 brightness 1.33 + hairline 0.42;
+             节点外扩 pad = 采样 reach(按最大折射档 4.3dp 预留,两档共用) ---- */
         val lensPad = ((4.3f * density + 2.5f * density * 2.0784f) + 12f)
             .toInt().coerceAtLeast(16)
         if (liftV > 0.01f) Box(Modifier
@@ -369,6 +422,12 @@ private fun GlassBar(
                 shape = RoundedCornerShape((pillR / density).dp); clip = true
             }) {
                 val lensFx = remember { DockDraw.LensFx(PRISM_GLASS) }
+                /* 档位差异化(2026-11-14 平移):极致档照抄 prism_ui 原版光学
+                   (refraction −4.3 / bevel 5.5 / CA 6.5dp,FlClash 真机取证值);
+                   标准档 = 弱化凸透镜(−2.5 / bevel 4),CA 严格归 0 防字迹彩斑。 */
+                val refA = if (standard) 2.5f else 4.3f
+                val bev = if (standard) 4f else 5.5f
+                val caDp = if (standard) 0f else 6.5f
                 Box(Modifier.fillMaxSize().graphicsLayer {
                     val d = density
                     DockDraw.setPrismUniforms(
@@ -378,15 +437,15 @@ private fun GlassBar(
                         nodeW = nodeW + 2f * lensPad, nodeH = nodeH + 2f * lensPad,
                         dp = d,
                         shapeW = nodeW / d, shapeH = nodeH / d,
-                        bevel = 5.5f, frost = 0f,
+                        bevel = bev, frost = 0f,
                         corner = pillR / d,
-                        refraction = -4.3f * liftV, saturation = 1f,
+                        refraction = -refA * liftV, saturation = 1f,
                         brightness = 1f + (if (colors.dark) 0.33f else 0f) * liftV,
                         tint = 0,
                         rim = 0.6f * liftV, rimWidth = 1.1f, endShade = 0.045f * liftV,
                         glowCx = 0f, glowCy = 0f, glowStrength = 0f, contrast = 0f,
                         glowReach = 0f, glowWash = 0f,
-                        lineAlpha = 0.42f * liftV, partDp = if (standard) 0f else 6.5f * liftV,
+                        lineAlpha = 0.42f * liftV, partDp = caDp * liftV,
                         rimFrost = 2.5f * liftV,
                         rimTail = 0f, rimFocus = 1f, rimAdded = 0f, rimSide = 0f,
                         haze = 0f, hazeBlur = 0f)
@@ -403,15 +462,17 @@ private fun GlassBar(
                 }
             }
         }
-        /* ---- 镜内图标(prism items(inside)):画在玻璃镜之上,不折射 ---- */
+        /* ---- 镜内图标(prism items(inside)):画在玻璃镜之上,不折射。
+             覆盖格全部高亮蓝(跨格双蓝,2026-11-14 平移——对齐官方跨格效果,
+             原恒单格 selectedIndex)+ 选中微放大 1.08/1.05 ---- */
         Box(Modifier.fillMaxSize().drawBehind {
             ntc { c ->
-                val actIdx = model.selectedIndex
                 for (i in 0 until model.count) {
                     val cellCx = model.axisFirst + model.axisPitch * i
-                    if (abs(cellCx - cx) >= model.axisPitch * 0.5f + 2f * density) continue
-                    DockDraw.drawTab(c, i, actIdx, false, cellCx, cy, contentH, density,
-                        colors, iconPaths, iconP, textP)
+                    if (abs(cellCx - cx) >= model.axisPitch * 0.75f) continue
+                    DockDraw.drawTab(c, i, i, false, cellCx, cy, contentH, density,
+                        colors, iconPaths, iconP, textP,
+                        magIcon = 1.08f, magText = 1.05f)
                 }
             }
         })

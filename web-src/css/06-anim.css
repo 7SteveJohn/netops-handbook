@@ -751,10 +751,13 @@ html.dark .appbar::before{
   left: calc(var(--tabbar-pad-x, 8px) - 4px);
   top: var(--tabbar-pad-y, 6px);
   bottom: var(--tabbar-pad-y, 6px);
-  /* 2026-11-13 对齐 FlClash（84dp）与 iOS 26 Raised Lens：严控最大宽度 88px，禁止宽屏下拉大成发泡塑料 */
+  /* 2026-11-14 尺寸分档（源码级考证：FlClash _minLensWidth84/_maxItemExtent86、
+     iOS 26 pill 高 44-50pt）：手机默认 94×48（=86+8；96×52 手机实测偏大）。
+     平板 sw≥600 沿用 96×52（2026-11-13 验收值，覆盖在 05-views.css 600px 断点）。
+     禁止宽屏拉大成发泡塑料。 */
   width: calc((100% - 2 * var(--tabbar-pad-x, 8px)) / 4 + 8px);
-  max-width: 96px;
-  max-height: 52px;
+  max-width: 94px;
+  max-height: 48px;
   margin: auto 0;
   /* 2026-10-22：transform → 独立 translate / scale。
      拖动时要「translate 零延迟跟手、变形另走一条曲线」，挤在一个 transform 里
@@ -772,6 +775,12 @@ html.dark .appbar::before{
   z-index: 0;
   pointer-events: none;
   will-change: translate, scale;
+}
+/* 平板档覆盖（sw≥600）：96×52（2026-11-13 验收值）。
+   ⚠ 必须与上面的手机档写在本文件内——05-views.css 先加载，
+   写那边会被这里的 94/48 按「同 specificity 后者赢」覆盖（已踩：实测 834 宽仍是 94×48）。 */
+@media (min-width: 600px) {
+  .tabbar > .tab-pill{ max-width: 96px; max-height: 52px; }
 }
 /* ---- 药丸拖拽（果冻跟手）2026-10-22 ----
    手指在 .tabbar 上按下 → 横向移动超过 8px 才算拖动（不到 8px 原样放行 click）。
