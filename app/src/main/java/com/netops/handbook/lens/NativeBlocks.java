@@ -1,7 +1,10 @@
 package com.netops.handbook.lens;
 
 import android.content.Context;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.text.TextUtils;
@@ -102,6 +105,52 @@ public class NativeBlocks {
         t.setTextColor(color);
         if (bold) t.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         return t;
+    }
+
+    /** 矢量展开/导航指示箭头（Chevron）：居中绘制 Apple 规范的平滑 chevron。
+     *  解决使用文本 › 单字旋转时的基线偏移、不同字体内边距导致的右侧边界裁切与跳动。 */
+    static class ChevronView extends TextView {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Path path = new Path();
+        private Palette pal;
+
+        ChevronView(Context c, Palette p) {
+            super(c);
+            this.pal = p;
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeCap(Paint.Cap.ROUND);
+            paint.setStrokeJoin(Paint.Join.ROUND);
+            paint.setColor(p.textMute);
+            paint.setStrokeWidth(1.8f * p.density);
+            setClickable(false);
+            setFocusable(false);
+        }
+
+        public void setPalette(Palette p) {
+            this.pal = p;
+            paint.setColor(p.textMute);
+            paint.setStrokeWidth(1.8f * p.density);
+            invalidate();
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            int w = getWidth(), h = getHeight();
+            if (w == 0 || h == 0) return;
+            float cx = w / 2f, cy = h / 2f;
+            float dx = 3.6f * pal.density;
+            float dy = 7.0f * pal.density;
+            path.reset();
+            // 基准朝向：向右（0°），顺时针 90° 向下，逆时针 -90° 向上
+            path.moveTo(cx - dx, cy - dy);
+            path.lineTo(cx + dx, cy);
+            path.lineTo(cx - dx, cy + dy);
+            canvas.drawPath(path, paint);
+        }
+    }
+
+    static TextView arrow(Context c, Palette p) {
+        return new ChevronView(c, p);
     }
 
     static GradientDrawable shape(Palette p, int color, int radiusPx) {
@@ -214,6 +263,7 @@ public class NativeBlocks {
         LinearLayout head = new LinearLayout(c);
         head.setOrientation(LinearLayout.HORIZONTAL);
         head.setGravity(Gravity.CENTER_VERTICAL);
+        head.setClipChildren(false);
 
         TextView chipV = tv(c, p, chip, 11, true, p.accent);
         chipV.setBackground(shape(p, p.chipBgOn, p.dp(9)));
@@ -231,10 +281,10 @@ public class NativeBlocks {
         mid.addView(metaV);
         head.addView(mid, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-        TextView arrow = tv(c, p, "›", 20, true, p.textMute);
+        TextView arrow = arrow(c, p);
         arrow.setRotation(90f);
-        LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(p.dp(22), p.dp(22));
+        alp.gravity = Gravity.CENTER_VERTICAL;
         alp.leftMargin = p.dp(8);
         head.addView(arrow, alp);
         if (arrowOut != null) arrowOut[0] = arrow;

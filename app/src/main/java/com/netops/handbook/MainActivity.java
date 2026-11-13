@@ -1399,8 +1399,11 @@ public class MainActivity extends AppCompatActivity {
                （auto 跟随本值 / dark|light 用户手选优先）。WebView 的 matchMedia 恒 light
                （不跟随系统），必须由 App 推系统值（2026-11-08「深色半成品」根因之一）。 */
             if (webView != null) {
-                String js = "(function(){try{window.__netopsSysDark=" + dark + ";"
-                        + "if(window.UI&&UI.theme)UI.theme.apply();"
+                String mode = themeMode();
+                String js = "(function(){try{"
+                        + "window.__netopsSysDark=" + dark + ";"
+                        + "try{localStorage.setItem('theme','" + mode + "');}catch(e){}"
+                        + "if(window.UI&&UI.theme){if(UI.store)UI.store.set('theme','" + mode + "');UI.theme.apply();}"
                         + "}catch(e){}})()";
                 try { webView.evaluateJavascript(js, null); } catch (Throwable ignored) { }
             }

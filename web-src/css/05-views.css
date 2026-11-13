@@ -432,10 +432,11 @@ html.dark .topo { opacity: .96; }
   .appbar__row { max-width: 720px; margin: 0 auto; }
   .searchbar { max-width: 700px; margin-left: auto; margin-right: auto; }
   .tabbar { justify-content: center; }
-  /* 浮动胶囊与正文列同宽并居中：此前 left/right:24px 让它横跨整屏，
-     与 860 的正文列脱节；绝对定位 + 确定宽度 + auto 外边距即可居中 */
+  /* 浮动胶囊底栏大屏适配（对齐 iPadOS / FlClash 官方 Dock 规范）：
+     无论大屏多宽，Dock Bar 严格限制在 420px 居中悬浮胶囊（4个Tab × 96px + 左右内边距），
+     与 84dp 水滴药丸保持黄金 1:4 比例，绝不横贯全屏变成空旷大跑道！ */
   body:not(.tabbar-regular) .tabbar {
-    max-width: 720px; margin-left: auto; margin-right: auto;
+    max-width: 420px; margin-left: auto; margin-right: auto;
   }
   /* 格子里的 tab 原本贴左（max-width 使 stretch 退化为 start），
      导致整组中心比视口中心偏左约半格；显式居中 */
@@ -453,7 +454,6 @@ html.dark .topo { opacity: .96; }
      中间一小段。改为铺满 + 固定内边距，左侧菜单键贴边、右侧三键贴右。 */
   .appbar__row { max-width: none; margin: 0; padding: 0 18px; }
   .searchbar { max-width: 840px; }
-  body:not(.tabbar-regular) .tabbar { max-width: 860px; }
   .card__inner { padding-left: 16px; padding-right: 16px; }
 }
 /* 长卡片流渲染门控（content-visibility）：阶段/排障/面试页一进页就挂十几张卡，
@@ -477,7 +477,6 @@ html.dark .topo { opacity: .96; }
   .page { max-width: 1180px; }
   .appbar__row { max-width: none; margin: 0; padding: 0 22px; }
   .searchbar { max-width: 1160px; }
-  body:not(.tabbar-regular) .tabbar { max-width: 1180px; }
   .plist {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));

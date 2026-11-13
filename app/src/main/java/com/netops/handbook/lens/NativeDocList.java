@@ -267,8 +267,10 @@ public class NativeDocList extends LinearLayout implements ThemeBus.DarkAware {
         head.addView(texts, new LinearLayout.LayoutParams(0,
                 ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-        TextView arrow = NativeBlocks.tv(getContext(), pal, "›", 20, false, pal.textMute);
-        head.addView(arrow);
+        TextView arrow = NativeBlocks.arrow(getContext(), pal);
+        LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(pal.dp(22), pal.dp(22));
+        alp.gravity = Gravity.CENTER_VERTICAL;
+        head.addView(arrow, alp);
 
         LinearLayout body = new LinearLayout(getContext());
         body.setOrientation(VERTICAL);

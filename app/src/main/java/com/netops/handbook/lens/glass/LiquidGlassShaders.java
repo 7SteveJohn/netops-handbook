@@ -139,7 +139,10 @@ public final class LiquidGlassShaders {
             "\n" +
             "    float sd = sdRoundedRect(centeredCoord, halfSize, radius);\n" +
             "    if (-sd >= refractionHeight) {\n" +
-            "        return content.eval(coord);\n" +
+            "        half4 innerC = content.eval(coord);\n" +
+            "        innerC.rgb = (innerC.rgb - 0.5) * 1.05 + 0.5;\n" +
+            "        innerC.rgb = mix(innerC.rgb, half3(1.0), 0.03);\n" +
+            "        return innerC;\n" +
             "    }\n" +
             "    sd = min(sd, 0.0);\n" +
             "\n" +
@@ -148,7 +151,7 @@ public final class LiquidGlassShaders {
             "    float2 grad = normalize(gradSdRoundedRect(centeredCoord, halfSize, gradRadius) + depthEffect * normalize(centeredCoord));\n" +
             "\n" +
             "    float2 refractedCoord = coord + d * grad;\n" +
-            "    float dispersionIntensity = chromaticAberration * ((centeredCoord.x * centeredCoord.y) / (halfSize.x * halfSize.y));\n" +
+            "    float dispersionIntensity = chromaticAberration * (length(centeredCoord) / length(halfSize));\n" +
             "    float2 dispersedCoord = d * grad * dispersionIntensity;\n" +
             "\n" +
             "    half4 color = half4(0.0);\n" +
@@ -185,6 +188,8 @@ public final class LiquidGlassShaders {
             "    color.b += purple.b / 3.0;\n" +
             "    color.a += purple.a / 7.0;\n" +
             "\n" +
+            "    color.rgb = (color.rgb - 0.5) * 1.08 + 0.5;\n" +
+            "    color.rgb = mix(color.rgb, half3(1.0), 0.05);\n" +
             "    return color;\n" +
             "}\n";
 

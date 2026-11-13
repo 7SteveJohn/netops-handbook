@@ -353,7 +353,9 @@ public class NativeHomeView extends LinearLayout implements ThemeBus.DarkAware {
         meta.setPadding(0, pal.dp(3), 0, 0);
         mid.addView(meta);
         top.addView(mid, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        top.addView(NativeBlocks.tv(getContext(), pal, "›", 20, true, pal.textMute));
+        LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(pal.dp(22), pal.dp(22));
+        alp.gravity = Gravity.CENTER_VERTICAL;
+        top.addView(NativeBlocks.arrow(getContext(), pal), alp);
         card.addView(top);
 
         String desc = p.optString("desc");

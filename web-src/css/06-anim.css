@@ -751,7 +751,11 @@ html.dark .appbar::before{
   left: calc(var(--tabbar-pad-x, 8px) - 4px);
   top: var(--tabbar-pad-y, 6px);
   bottom: var(--tabbar-pad-y, 6px);
+  /* 2026-11-13 对齐 FlClash（84dp）与 iOS 26 Raised Lens：严控最大宽度 88px，禁止宽屏下拉大成发泡塑料 */
   width: calc((100% - 2 * var(--tabbar-pad-x, 8px)) / 4 + 8px);
+  max-width: 96px;
+  max-height: 52px;
+  margin: auto 0;
   /* 2026-10-22：transform → 独立 translate / scale。
      拖动时要「translate 零延迟跟手、变形另走一条曲线」，挤在一个 transform 里
      只能给一条 transition，会把拉伸也拖成 .55s，果冻就变成果冻味的橡皮筋了。

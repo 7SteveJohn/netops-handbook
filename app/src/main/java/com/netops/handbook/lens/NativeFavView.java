@@ -208,7 +208,9 @@ private boolean lastLand = getResources().getConfiguration().orientation
         s.setPadding(0, pal.dp(3), 0, 0);
         col.addView(s);
         card.addView(col, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        card.addView(NativeBlocks.tv(getContext(), pal, "›", 20, true, pal.textMute));
+        LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(pal.dp(22), pal.dp(22));
+        alp.gravity = Gravity.CENTER_VERTICAL;
+        card.addView(NativeBlocks.arrow(getContext(), pal), alp);
         card.setOnClickListener(v -> onClick.run());
         LinearLayout.LayoutParams lp = NativeBlocks.matchP();
         lp.bottomMargin = pal.dp(8);
