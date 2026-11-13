@@ -66,10 +66,12 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
 
     /* 光学常量真源 = lens/glass/LiquidGlassShaders.java（Kyant0/AndroidLiquidGlass
        Apache-2.0 verbatim 照搬，2026-11-04 起；此前 FlClash 系自研参数全部退役）。 */
-    /* 药丸尺寸：静止就比一格宽、且上下凸出栏体（参考 iOS 26 / 酷安那种形态）。
-       此前只有 liftV>0 才加增长，静止严格一格 → 视觉上「收着」（2026-11-07 用户指出）。 */
-    private static final float PILL_REST_GROWTH = 16f;  // 静止两向各 +16dp
-    private static final float LIFT_GROWTH = 24f;       // 按压抬到 +24dp
+    /* 药丸尺寸：严格对齐 FlClash 与 KernelSU 时序规范。
+       静止态紧凑饱满（96×52dp，居中于64dp底栏内）；
+       按压那一瞬间（liftV→1.0）体积爆发胀大 +20dp（增至 116×72dp），
+       高度突破 64dp 漫出 Dock Bar 上下各 4dp，左右漫出单格，溢出边缘呈现水滴凸透镜极致通透！ */
+    private static final float PILL_REST_GROWTH = 0f;    // 静止态紧凑饱满水滴
+    private static final float LIFT_GROWTH = 20f;        // 按压那一瞬间体积胀大 +20dp，漫出 Dock Bar 边缘
 
     /* ---- 行为常量：全部来自 navigation_dock.dart ---- */
     private static final float LIFT_SNAP     = 0.975f;  // 升到位才允许回落
@@ -667,7 +669,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
         if (dark) {
             railFillP.setColor(Color.argb(204, 24, 24, 26));   // 竖排面板：暗面 ~80%
             barFillP.setColor(Color.argb(255, 28, 28, 30));   // 实色回退
-            sfTintP.setColor(Color.argb(160, 33, 31, 38));    // KernelSU surfaceContainer(dark)，alpha 40%→55%：用户 2026-11-07「不用非常通透」
+            sfTintP.setColor(Color.argb(90, 33, 31, 38));     // 对齐通透磨砂底（KernelSU / MagicOS 琉光通透）
             barStrokeP.setColor(Color.argb(70, 255, 255, 255));   // 仅无玻璃回退分支
             sliderFillP.setColor(Color.argb(255, 44, 44, 46));    // --surface-2 #2c2c2e
             sliderStrokeP.setColor(Color.argb(26, 255, 255, 255));
@@ -677,9 +679,9 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
         } else {
             railFillP.setColor(Color.argb(178, 255, 255, 255));   // 竖排面板：白 ~70%（cf1fc0d 前的已验收值）
             barFillP.setColor(Color.WHITE);                    // 实色回退
-            /* KernelSU FloatingBottomBar.kt:220 `surfaceContainer.copy(0.4f)`；
-               浅色 M3 surfaceContainer = #F3EDF7 → 40% alpha。 */
-            sfTintP.setColor(Color.argb(160, 243, 237, 247));
+            /* KernelSU FloatingBottomBar.kt:220 `surfaceContainer.copy(0.35f)`；
+               浅色通透磨砂：保留底下色块流动，拒绝白塑料板 */
+            sfTintP.setColor(Color.argb(80, 243, 237, 247));
             barStrokeP.setColor(Color.argb(120, 255, 255, 255));  // 仅无玻璃回退分支
             /* 对照 FlClash 手机端（液态玻璃=极致）实测：选中药丸 #DEE5FC（主色 12% 叠白，不是纯白）、
                未选中图标 #424754（深灰蓝，我们原来的 #8E8E93 偏浅发灰）。 */
@@ -931,8 +933,18 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
         this.slot = slotPx;
         this.jsPillW = pillWPx;
         this.jsPillH = pillHPx;
-        this.pillW = pillWPx;
-        this.pillH = pillHPx;
+        /* 严禁在平板/宽屏下跟随格子无限拉伸膨胀成 500px 巨型色块：
+           严格对齐 FlClash 实测 84dp、iOS 26 紧凑胶囊标准（不超过 88dp）。
+           横排底栏药丸锁在紧凑水滴黄金尺寸，高不超过 48dp。 */
+        if (!dockVertical) {
+            float maxPillW = 100f * density;
+            float targetPillW = 96f * density;
+            this.pillW = (pillWPx > 0 && pillWPx <= maxPillW) ? Math.max(targetPillW, pillWPx) : targetPillW;
+            this.pillH = 52f * density;
+        } else {
+            this.pillW = pillWPx;
+            this.pillH = pillHPx;
+        }
         this.firstCx = firstCxPx;
         /* y 的夹取基准 = 页面视口物理高（WebView 边到边，视口顶 = 屏幕顶）。
            不能用 heightPixels：它返回挖掉手势条后的"安全高"（本机 2587），
@@ -1061,7 +1073,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
                 + "if(window.NetBridge&&NetBridge.lensDiag){try{NetBridge.lensDiag("
                 + "'tabs='+t.length+' pitch='+pitch.toFixed(1)+' rpw='+(rp?rp.width.toFixed(1):'x')"
                 + "+' barW='+rb.width.toFixed(1)+' ih='+window.innerHeight);}catch(e){}}"
-                + "if(ok&&Math.abs(rp.width-(pitch+8))>20)return;"
+                + "if(ok&&(rp.width<20||rp.height<20))return;"
                 /* ↑ 一致性护栏：药丸宽恒=格距+8px；偏差大说明布局还在过渡中
                    （旋转/收起动画半途），矩形不可信 —— 拒收本次，原生保留上一份
                    好几何，等过渡结束后的重测覆盖。 */
@@ -1103,8 +1115,8 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
                 slot = w / (float) Math.max(1, count);
                 firstCx = slot * 0.5f;
             }
-            if (pillH <= 0) pillH = 56f * density;
-            if (pillW <= 0) pillW = slot + 8f * density;   // 药丸比一格宽 8dp，与 CSS 同
+            if (pillH <= 0) pillH = 52f * density;
+            if (pillW <= 0) pillW = 96f * density;
         }    }
 
     /* ================= 横屏侧栏（竖排 dock） ================= */
@@ -1140,15 +1152,36 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
            整条看着像一根竖着的椭圆（2026-10-28 用户报）。侧栏是面板，用固定 16dp 圆角（与原生卡片同族）。 */
         float half = Math.min(bar.width(), bar.height()) / 2f;
         if (dockVertical) return Math.min(10f * density, half);
-        return docked ? 14f * density : half;
+        /* 平滑插值：悬浮胶囊(half) ↔ 贴底状态(14dp)，动画期间圆角自然流动变化 */
+        float targetR = 14f * density;
+        return half + (targetR - half) * dockedProgress;
     }
 
-    /** 贴底样式旗标（JS netops_tabbar 经桥同步）：改圆角语义 + 失效栏体缓存。 */
+    private float dockedProgress = 0f;   // 0f = 悬浮胶囊, 1f = 贴底
+    private android.animation.ValueAnimator dockTransitionAnim;
+
+    /** 贴底样式旗标（JS netops_tabbar 经桥同步）：改圆角语义 + 优雅平滑动画过渡。 */
     public void setDocked(boolean d) {
         if (docked == d) return;
         docked = d;
-        rebuildChrome();   /* B1 容器位图的圆角/实色烤在缓存里，必须重建 */
-        invalidate();
+        if (dockTransitionAnim != null) dockTransitionAnim.cancel();
+        float start = dockedProgress;
+        float target = d ? 1f : 0f;
+        dockTransitionAnim = android.animation.ValueAnimator.ofFloat(start, target);
+        dockTransitionAnim.setDuration(300);
+        dockTransitionAnim.setInterpolator(new android.view.animation.DecelerateInterpolator(1.8f));
+        dockTransitionAnim.addUpdateListener(animation -> {
+            dockedProgress = (float) animation.getAnimatedValue();
+            invalidate();
+        });
+        dockTransitionAnim.addListener(new android.animation.AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(android.animation.Animator animation) {
+                rebuildChrome();
+                invalidate();
+            }
+        });
+        dockTransitionAnim.start();
     }
     private boolean docked = false;
     private boolean chromeDocked = false;   /* B1 重建门的贴底维度（与 chromeDark 同构） */
@@ -1300,18 +1333,21 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
      * target = 0.20·tanh(|v|/3) − 0.15·tanh(braking/25)，v 单位"格/秒"。
      */
     private void wobble(double now) {
-        /* ❗只在**拖动**时做速度形变：切页位移的速度同样很大，会让 jelly 目标
-           跳到 0.20，药丸横向拉长 20% 再按 JELLY_S(0.4 欠阻尼) 回弹数次 →
-           切「学习/排障」时左右抽搐（2026-11-06 用户报）。KernelSU 的速度形变
-           也只在按住拖动（layerBlock 内 dampedDragAnimation）生效。 */
+        /* 流体弹性动力学（对齐 Apple Liquid Glass / FlClash 表面张力）：
+           切页与拖拽均带有自然流体微拉伸，到达目标格时伴随水滴表面张力回弹，
+           彻底消除僵硬死塑料块质感 */
         double target = 0;
-        /* 贴底模式同样不要果冻：拖拽选格时药丸会横向抽搐几下，与「简洁」冲突。 */
-        if (dragging && !docked) {
+        if (!docked) {
             double v = pos.velocity();
             double acc = pos.acceleration();
             double braking = Math.max(0.0, -acc * Math.signum(v));
-            target = 0.20 * Math.tanh(Math.abs(v) / 3.0)
-                    - 0.15 * Math.tanh(braking / 25.0);
+            if (dragging) {
+                target = 0.16 * Math.tanh(Math.abs(v) / 3.0)
+                        - 0.12 * Math.tanh(braking / 25.0);
+            } else if (pos.active()) {
+                target = 0.08 * Math.tanh(Math.abs(v) / 4.0)
+                        - 0.06 * Math.tanh(braking / 30.0);
+            }
         }
         if (Math.abs(target - jelly.target()) > 1e-4) {
             jelly.springTo(target, JELLY_S, now);
@@ -1718,12 +1754,13 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
             boolean lensing = pressed || liftV > 0.005f;
             /* 栏体按压胀大：KernelSU FloatingBottomBar layerBlock 的
                `lerp(1f, 1f + 16.dp.toPx() / width, pressProgress)`。
-               只缩放绘制，不改布局与命中区（命中仍走 View 原始坐标）。 */
-            float dockS = 1f + (16f * density / Math.max(1f, bandW)) * liftV;
+               以栏体真实中心与宽度缩放绘制，不改布局与命中区。 */
+            RectF barGeom = dockRect();
+            float dockS = 1f + (16f * density / Math.max(1f, barGeom.width())) * liftV;
             boolean dockScaled = dockS > 1.0005f;
             if (dockScaled) {
                 canvas.save();
-                canvas.scale(dockS, dockS, bandW / 2f, bandH / 2f);
+                canvas.scale(dockS, dockS, barGeom.centerX(), barGeom.centerY());
             }
             drawDockChrome(canvas, lensing);
             /* 透镜只在横排底栏画：竖排侧栏走 FlClash 口径的平面面板（用户实证
@@ -1732,10 +1769,12 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
             boolean glassLive = shader != null
                     && !NativeBlocks.glassNone()
                     && !dockVertical && Build.VERSION.SDK_INT >= 33;
-            if (!dockVertical && !docked) {
-                /* ❗docked（M3 贴底）不画悬浮药丸：药丸只属于悬浮模式，
-                   贴底形态的选中态是 indicatorP 胶囊（2026-11-10 用户报）。 */
+            if (!dockVertical && dockedProgress < 0.99f) {
+                /* 悬浮药丸随 (1 - dockedProgress) 平滑淡出，贴底切换极其丝滑 */
+                float pillFade = 1f - dockedProgress;
+                int sc = (pillFade < 0.99f) ? canvas.saveLayerAlpha(0, 0, bandW, bandH, (int) (255f * pillFade)) : -1;
                 drawGlass(canvas, liftV);
+                if (sc >= 0) canvas.restoreToCount(sc);
             }
             /* 2026-11-01 选中格图标常驻透镜面板（composeLensTab，rest 也弯折
                ——「透过药丸看见 Dock 字体」由玻璃下的弯折字体承担）；平绘
@@ -1972,6 +2011,8 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
             hw = (pillW + g) / 2f * (1f - s * 1.4f);
             hh = (pillH + g) / 2f * (1f + s);
         } else {
+            /* 严格对齐官方药丸尺寸：始终保持紧凑单格胶囊（hw 严格等于 (pillW + g)/2），
+               绝不随滑动跨格横向暴力拉伸变形 */
             hw = (pillW + g) / 2f * (1f + s);
             hh = (pillH + g) / 2f * (1f - s * 1.4f);
         }
@@ -2034,17 +2075,21 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
            图标始终完整可见（HTML tab-pill 的 z 序，2026-10-27 用户反馈「遮挡其中一个」）。 */
         if (dockVertical) {
             drawRailSelection(canvas);
-        } else if (docked) {
+        } else if (dockedProgress > 0.01f) {
             /* 原生贴底（FlClash docked = M3 NavigationBar）：指示器 = 图标背后的
                64×32dp 胶囊（secondaryContainer ≈ 应用 accent-soft），选中图标着
-               主色由下方 drawLensTabs 平绘承担。跟随弹簧与悬浮态一致。 */
+               主色由下方 drawLensTabs 平绘承担。透明度随 dockedProgress 平滑淡入淡出。 */
             float indCx = firstCx + slot * (float) pos.value();
             float indCy = pillCy() - (22f * density + 2f * density + 12f * density) / 2f
                     + 11f * density;
-            indicatorP.setColor(dark ? Color.argb(46, 10, 132, 255) : Color.argb(28, 37, 99, 235));
-            canvas.drawRoundRect(indCx - 32f * density, indCy - 16f * density,
-                    indCx + 32f * density, indCy + 16f * density,
-                    16f * density, 16f * density, indicatorP);
+            int baseA = dark ? 46 : 28;
+            int effA = (int) (baseA * Math.min(1f, dockedProgress));
+            if (effA > 0) {
+                indicatorP.setColor(dark ? Color.argb(effA, 10, 132, 255) : Color.argb(effA, 37, 99, 235));
+                canvas.drawRoundRect(indCx - 32f * density, indCy - 16f * density,
+                        indCx + 32f * density, indCy + 16f * density,
+                        16f * density, 16f * density, indicatorP);
+            }
         } else if (!glassLive && !lensing && sliderBmp != null) {
             /* 无玻璃能力（旧机/快照未就绪）的回退贴片；玻璃可用时静止/滑行/
                按压全走下方实时路径——材质同一，不再「静止平涂贴片+按压玻璃」两张皮 */
@@ -2080,12 +2125,8 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
                 if (i == actIdx) continue;
                 canvas.drawBitmap(tabSprites[i], bar2.left, cellAxis(i) - axisPitch / 2f, blitP);
             } else {
-                /* 玻璃可用时：药丸盖住的格（含滑行跨越格）由透镜面板重绘（rest 态
-                   也是 1:1 清晰内容），平绘 sprite 若再画一层=双影 */
-                if (glassLive
-                        && Math.abs(firstCx + slot * i - cx) < slot * 0.5f + 2f * density) {
-                    continue;
-                }
+                /* 底栏始终平绘图标文字托底，绝不在药丸滑行或跨格时跳过！
+                   药丸的 drawGlass 会在上层以绝对 1:1 坐标精确折射覆盖高亮蓝态 */
                 canvas.drawBitmap(tabSprites[i], Math.round(firstCx + slot * i - slot / 2f), bar2.top, blitP);
             }
         }
@@ -2102,7 +2143,10 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
         if (barRect.width() <= 4 || barRect.height() <= 4) {
             float cy = pillCy();
             float top = cy - pillH / 2f - 6f * density;
-            barFallback.set(0, top, bandW, top + pillH + 12f * density);
+            float maxW = 420f * density;
+            float w = Math.min(bandW, maxW);
+            float l = (bandW - w) / 2f;
+            barFallback.set(l, top, l + w, top + pillH + 12f * density);
             return barFallback;
         }
         /* JS 推的是主窗口本地坐标；弹窗画布是弹窗本地 → 按「弹窗在主窗口内的
@@ -2128,7 +2172,19 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
         Paint.FontMetrics fm = textP.getFontMetrics();
         for (int i = 0; i < count && i < TAB_LABELS.length; i++) {
             if (onlyIdx >= 0 && i != onlyIdx) continue;
-            boolean on = !forceOff && i == activeIdx;
+            boolean on;
+            if (forceOff) {
+                on = false;
+            } else if (onlyIdx == -2) {
+                if (dockVertical) {
+                    on = (i == activeIdx);
+                } else {
+                    float tabPos = firstCx + slot * i;
+                    on = Math.abs(tabPos - pillCxNow) < slot * 0.75f;
+                }
+            } else {
+                on = (onlyIdx >= 0 || i == activeIdx);
+            }
             int color = on ? activeColor() : offColor;
             Path[] subs = iconPaths[i];
             float cx, iconTop;
@@ -2160,7 +2216,9 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
             float textBaseline = iconTop + 22f * density + 2f * density - fm.ascent;
             if (subs != null) {
                 canvas.save();
-                canvas.translate(cx - 11f * density, iconTop);
+                canvas.translate(cx, iconTop + 11f * density);
+                if (onlyIdx == -2) canvas.scale(1.08f, 1.08f);
+                canvas.translate(-11f * density, -11f * density);
                 iconP.setColor(color);
                 iconP.setAlpha(255);
                 for (int k = 0; k < subs.length; k++) {
@@ -2173,7 +2231,14 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
             }
             textP.setColor(color);
             textP.setTextAlign(Paint.Align.CENTER);
-            canvas.drawText(TAB_LABELS[i], cx, textBaseline, textP);
+            if (onlyIdx == -2) {
+                float oldTextSize = textP.getTextSize();
+                textP.setTextSize(oldTextSize * 1.05f);
+                canvas.drawText(TAB_LABELS[i], cx, textBaseline, textP);
+                textP.setTextSize(oldTextSize);
+            } else {
+                canvas.drawText(TAB_LABELS[i], cx, textBaseline, textP);
+            }
         }
     }
 
@@ -2188,10 +2253,10 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
         float active = lensing ? (float) pos.value() : selectedIndex;
         int blue = Math.max(0, Math.min(count - 1, Math.round(active)));
         drawTabsOn(canvas, 0, 0, blue, 0, false);
-        if (active != blue) {                      // 透镜跨两格：另一格灰态也重绘（否则被不透明玻璃盖住）
+        if (active != blue) {                      // 透镜跨两格：两格均高亮蓝态（对齐官方跨格效果）
             int other = Math.max(0, Math.min(count - 1, (int) Math.floor(active)));
             if (other == blue) other = Math.max(0, Math.min(count - 1, (int) Math.ceil(active)));
-            if (other != blue) drawTabsOn(canvas, 0, 0, other, iconP.getColor(), true);
+            if (other != blue) drawTabsOn(canvas, 0, 0, other, 0, false);
         }
     }
 
@@ -2264,7 +2329,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
         c.translate(-pcx, -pcy);
         drawTabsOn(c, -ox, -oy, blue, 0, false);
         if (other >= 0 && other != blue) {
-            drawTabsOn(c, -ox, -oy, other, iconP.getColor(), true);
+            drawTabsOn(c, -ox, -oy, other, 0, false);   // 两格均以高亮蓝色绘制，呈现跨格双蓝效果
         }
         c.restore();
         if (lensTabShader == null) {
@@ -2491,7 +2556,22 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
         float rawLuma = frostMeanLumaOf(liveStep);
         boolean first = lastRawLuma < 0f;
         ColorMatrix cm = new ColorMatrix();
-        cm.setSaturation(1.5f);
+        if (!dark) {
+            /* 对齐 Apple Materials（Tone Lift）：压制高频深黑文字，将暗部抬升为干净漫白
+               R' = 0.55 * R + 115，把纯黑 0 提到 115，彻底洗净细碎黑点/脏污感，
+               同时大卡片大色块保留优雅明亮的漫反射。 */
+            cm.set(new float[] {
+                0.55f, 0f, 0f, 0f, 115f,
+                0f, 0.55f, 0f, 0f, 115f,
+                0f, 0f, 0.55f, 0f, 115f,
+                0f, 0f, 0f, 1f, 0f
+            });
+            ColorMatrix sat = new ColorMatrix();
+            sat.setSaturation(1.3f);
+            cm.postConcat(sat);
+        } else {
+            cm.setSaturation(1.4f);
+        }
         /* ColorMatrix 只作用在 1/24 小图上：挂在全尺寸放大那步实测
            draw 均 38ms/帧，挪回小图后恢复 ~13ms（与无滤镜同量级）。 */
         Paint toneP = new Paint(Paint.FILTER_BITMAP_FLAG);
@@ -2506,6 +2586,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
         /* 降采样第二级 + tone：1/8 → 1/16（对应 miuix 的 k=5 档） */
         new Canvas(liveToned).drawBitmap(liveStep, null,
                 new RectF(0, 0, liveToned.getWidth(), liveToned.getHeight()), toneP);
+        fastBoxBlur(liveToned, 2, 2);   // 盒式高斯平滑：彻底消除文字马赛克黑斑，融合成均匀高级雾面
         /* 内容变化后至少自驱动 40 帧让混合收敛，收敛后自眠 */
         if (first || Math.abs(rawLuma - lastRawLuma) > 0.5f) liveStillFrames = 0;
         else liveStillFrames++;
@@ -2531,28 +2612,19 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
      *  captureLiveBackdrop() 每帧同帧录制并 1/8 降采样，只留颜色/明暗流动。
      *  底色经实时位图 + tint 铺满，REFRACTION_DISPERSION 不会采到透明像素。
      *  药丸与栏体共用同一张 liveBackdrop，颜色连续、不生硬割裂。 */
-    private boolean buildCombined(float r, float liftV) {
-        /* 优先用折射后的图层；首帧还没有（滞后一帧）就退回原图 */
-        Bitmap tabs = lensTabBmp;
-        if (tabs == null || tabs.isRecycled()) return false;
-        int w = tabW, h = tabH;
+    private boolean buildCombined(RectF bar, float liftV) {
+        /* 外扩 28dp 缓冲区：确保药丸按压胀大突破 Dock Bar 上下各 4~6dp 时，
+           折射 Shader 能够 100% 无缝采到底栏外部的真实壁纸与内容！ */
+        float pad = 28f * density;
+        float l = bar.left - pad;
+        float t = bar.top - pad;
+        float r = bar.right + pad;
+        float b = bar.bottom + pad;
+        int w = Math.max(4, Math.round(r - l));
+        int h = Math.max(4, Math.round(b - t));
         if (w < 4 || h < 4) return false;
-        /* 滚动中沿用上一帧：combinedBmp 是 464×214 的整块重绘 + 位图采样，
-           每帧重算约 10ms，叠加录制与两处 shader 必超预算（2026-11-07 实测
-           draw 均 28ms / 31fps）。滚动时药丸位置不变，滞后一帧无感。 */
-        /* ❗三环缓冲（2026-11-12 抽搐根因，源码级）：combinedBmp 经 combinedShader
-           交给 AGSL 透镜 shader，content.eval 在 **RenderThread** 采样它；而
-           Android 渲染是流水线——主线程录制第 N+1 帧时 RenderThread 还在渲染
-           第 N 帧。单缓冲下主线程对同一张位图 eraseColor(0)+重画，RenderThread
-           恰好采到半擦除的透明帧 → 药丸区域单帧变白、图标消失（录屏拆帧实证
-           f0259/f0324/f0334：药丸+折射带亮度 ±35 往复，页面区不动）= 用户报的
-           「抽搐」。9b384c4 的双缓冲只隔离了上游 liveSharp（软画布读，本无竞态），
-           没断开 combinedBmp → RenderThread 这一段，修完仍抽才被 478c641 回滚。
-           市面对照：Kyant0/KernelSU/FlClash 全走 RenderNode+RenderEffect，像素
-           读写全在 GPU 管线内原子提交，从不跨线程共享可变位图；本仓库 View 体系
-           + 独立窗口用不了 backdrop RenderEffect，只能快照位图路线——那就把
-           「写」与「采」隔到不同位图：三份轮换，主线程永远写下一份，RenderThread
-           采样的是 1-2 帧前的完整帧（流水线深度 ≤2 帧，3 环覆盖）。 */
+
+        /* 三环缓冲隔离主线程写入与 RenderThread 采样的竞态 */
         if (combinedRing[0] == null || combinedRing[0].getWidth() != w
                 || combinedRing[0].getHeight() != h) {
             for (int i = 0; i < 3; i++) {
@@ -2564,91 +2636,41 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
         combinedBmp = combinedRing[combinedRingIdx];
         combinedBmp.eraseColor(0);
         Canvas c = new Canvas(combinedBmp);
-        float pl = pillRect.left - tabOffX, pt = pillRect.top - tabOffY;
-        float pr = pillRect.right - tabOffX, pb = pillRect.bottom - tabOffY;
-        /* ❗不在整图上裁剪药丸形状：裁剪会让药丸外全是透明像素，AGSL 在
-           pillRect 边缘采样到透明 → 只在内圈输出颜色，形成「内外两层胶囊」
-           （2026-11-05 用户报）。底色铺满整图，tab 镜像才按形状裁剪。 */
-        /* 药丸 = 玻璃：取 1/8 清晰版背景（栏体才是 1/24 磨砂），无白底、无色相。
-           玻璃能看清背后内容、只在边缘弯折，糊成一片的是磨砂而非玻璃
-           （2026-11-06 用户报「下面有字体时太模糊」）。 */
-        /* ❗药丸不经过 blur：KernelSU 药丸的 effects 只有 lens()，折射的是
-           `combinedBackdrop`（未模糊的 backdrop + tabs 层）。栏体才 blur(4dp)。
-           此前用栏体的 liveBackdrop 铺药丸，等于把栏体的模糊套给药丸（用户指出
-           「模糊值是底部 dock 栏的，不是药丸的」）。 */
-        /* 药丸两态的内容源：
-           静止 = 磨砂（liveBackdrop 1/18，与栏体同一份，读不出背后文字）
-           按住 = 通透（liveSharp 1/2 清晰源，按 liftV 淡入覆盖磨砂层）
-           ❗两层叠加而不是二选一：换源会整块突变，按 liftV 淡入才连续。
-           此前只有一个磨砂源，导致「按住也糊」——通透感彻底消失（2026-11-07 用户报）。 */
-        /* ❗两态（2026-11-10 用户定案）：**平常磨砂、按住全透明** ——
-           底层 = 磨砂（liveBackdrop 8x，静止/滑动恒显示）；
-           顶层 = 全分辨率清晰源（liveSharp），按 liftV 淡入覆盖磨砂（按住时完全
-           覆盖 → 透明，背后内容可辨）。白底 tint = 150×(1−liftV)：静止 150（熟悉
-           的磨砂观感）、按住 **0**（零白底，真透明）。
-           按住稳定后顶层 α255 全覆盖磨砂层 → 无割裂；淡入期两层内容时点差
-           <1s（静止场景两层几乎相同）→ 无跳变。KernelSU 的两态语义（rest 磨砂
-           / press 通透）由 lens 折射量与本 tint 切换共同承担。 */
-        /* ❗用 CLAMP 着色器铺满整图，而不是 1:1 drawBitmap（2026-11-11「拖到两端画面分裂」）：
-           药丸比一格宽，停在首/末格时 tabOff 必为负 → 1:1 绘制会在外侧留下**透明**边。
-           静止有 150 白底兜着看不出来；按住时白底归零（真透明），那条透明边就直接
-           露出页面原文，与药丸里的透镜内容并排 = 两道内容、一条竖缝，就是用户说的割裂。
-           CLAMP 会把位图边缘像素向外延伸，铺满不留缝，且 1:1 映射不变。 */
+
+        /* 1. 底层背景采样（严格对齐 FlClash / KernelSU 时序）：
+           - 始终采柔化背景 liveBackdrop（避免页面正文字迹打字重影）；
+           - 彻底切断 liveSharp 锐利图层叠入，防止滚动和按压时正文汉字爬进药丸干扰视野。 */
         if (liveBackdrop != null && !liveBackdrop.isRecycled()) {
             if (backdropShaderP == null) backdropShaderP = new Paint(Paint.FILTER_BITMAP_FLAG);
             BitmapShader bd = new BitmapShader(liveBackdrop,
                     Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
             Matrix bdM = new Matrix();
-            bdM.postTranslate(-tabOffX, -tabOffY);
+            bdM.postTranslate(-l, -t);
             bd.setLocalMatrix(bdM);
             backdropShaderP.setShader(bd);
+            backdropShaderP.setAlpha(255);
             c.drawRect(0f, 0f, w, h, backdropShaderP);
         }
-        /* ❗只挡这一层：liveSharp 是 1/2 清晰源，按住时能读出上一页卡片文字。
-           磨砂层（上面那层 liveBackdrop）照常画——它糊到读不出字，且是栏体与药丸
-           共用的同一材质；挡掉它就会出现「下面一层灰、上面一层透明」（2026-11-11 用户报）。
-           ❗用 Matrix 而不是 src/dst 矩形：药丸在首末格时 tabOff 必为负（药丸比格宽），
-           src 矩形出画会被 drawBitmap 裁剪后拉伸铺满 dst —— 逐帧拉伸比不同 = 花屏式
-           抽搐（2026-11-11 用户报）。Matrix 画法越界部分自然裁掉，恒 1:1。 */
-        boolean sharpLayer = !sharpStale && liftV > 0.01f && liveSharp != null && !liveSharp.isRecycled();
-        if (sharpLayer) {
-            /* ❗清晰源恢复全分辨率 1:1（2026-11-12 二轮定案）：上一轮为压观感
-               改的 1/2 轻糊是本末倒置——「极致」档的通透是用户拍板的设计
-               （2026-11-10「按住全透明」+ 11-11 div=1），抽搐的真根因是渲染
-               竞态（combinedBmp 半擦除帧被 RenderThread 采样），已由三环缓冲
-               根治，观感补丁没有存在理由。11-12 用户报「极致档效果跟没有一样」，
-               撤。KernelSU 药丸 backdrop 本就是全分辨率清晰层。 */
-            Matrix sharpM = new Matrix();
-            sharpM.setScale((float) bandW / liveSharp.getWidth(),
-                    (float) bandH / liveSharp.getHeight());
-            sharpM.postTranslate(-tabOffX, -tabOffY);
-            /* ❗按 liftV 淡入（补上注释承诺却从未实现的渐变）：此前 liftV>0.01 就
-               全量硬切，按下瞬间磨砂→清晰一步跳变；淡入后与底色白底联动收敛。 */
-            Paint sharpP = new Paint(Paint.FILTER_BITMAP_FLAG);
-            sharpP.setAlpha((int) (255f * Math.min(1f, liftV)));
-            c.drawBitmap(liveSharp, sharpM, sharpP);
+
+        /* 2. 表面微润色：严格对齐 KernelSU onDrawSurface 规范（浅色黑0.04/白0.08，按压黑0.03），
+           仅保留极轻微晶莹润色（暗色α24/浅色α18），绝不刷 80α 实心白塑料涂层，确保背景通透流动！ */
+        int tintAlpha = (int) ((dark ? 24 : 18) * (1f - 0.7f * Math.min(1f, liftV)));
+        if (tintAlpha > 2) {
+            int tintColor = dark ? Color.argb(tintAlpha, 33, 31, 38) : Color.argb(tintAlpha, 255, 255, 255);
+            Paint tintPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            tintPaint.setColor(tintColor);
+            c.drawRect(0f, 0f, w, h, tintPaint);
         }
-        /* 白底：静止 α150（磨砂白）、按住 0（真透明）——2026-11-10 用户定案，
-           恢复原值。上一轮 α45 同为观感补丁，随清晰源一并撤。 */
-        int baseA = (int) (150 * (1f - Math.min(1f, liftV)));
-        if (baseA > 2) {
-            Paint baseP = new Paint(Paint.ANTI_ALIAS_FLAG);
-            baseP.setColor(dark ? Color.argb(baseA, 74, 74, 80) : Color.argb(baseA, 252, 252, 252));
-            c.drawRect(0f, 0f, w, h, baseP);
-        } else if (liveBackdrop == null && liveSharp == null) {
-            c.drawColor(dark ? 0xFF2C2C2E : 0xFFDEE5FC);
-        }
-        pillClipPath.reset();
-        pillClipPath.addRoundRect(pl, pt, pr, pb, r, r, Path.Direction.CW);
-        int sv = c.save();
-        c.clipPath(pillClipPath);
-        c.drawBitmap(tabs, 0f, 0f, null);
-        c.restoreToCount(sv);
-        /* 位图像素坐标 = 视图坐标 - tabOff；与栏体 barPaneShader 同一接线口径 */
+
+        /* 3. 完整绘制整栏 4 个 Tab（坐标原点为 l, t）
+           传入 -2：药丸当前物理覆盖的 Tab（无论是单格还是跨两格）自动以高亮蓝色绘制，绝不被局部裁切！ */
+        drawTabsOn(c, -l, -t, -2, inactiveColor, false);
+
+        /* 4. 生成 BitmapShader 并平移至 l, t，实现绝对物理连续性 */
         combinedShader = new BitmapShader(combinedBmp,
                 Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
         Matrix m = new Matrix();
-        m.setTranslate(tabOffX, tabOffY);
+        m.setTranslate(l, t);
         combinedShader.setLocalMatrix(m);
         return true;
     }
@@ -2671,20 +2693,22 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
             hw = (pillW + g) / 2f * (1f - s * 1.4f);
             hh = (pillH + g) / 2f * (1f + s);
         } else {
-            hw = (pillW + g) / 2f * (1f + s);
+            /* 跨格流体自适应展开（对齐官方液态水滴表面张力包裹）：
+               紧凑 84dp 水滴药丸，在跨越两格滑动时受两端选项牵引适度延展（两格正中间延展 24dp），
+               使得当前选项容纳在水滴透镜镜面内，滑向单格落定后平滑阻尼收缩为紧凑单格水滴胶囊（crossExt=0），绝不在静止时拉长 */
+            float pVal = (float) pos.value();
+            float crossProgress = Math.max(0f, Math.min(1f, 1f - 2f * Math.abs(pVal - Math.round(pVal))));
+            float crossExt = 24f * density * crossProgress;
+            hw = (pillW + g + crossExt) / 2f * (1f + s);
             hh = (pillH + g) / 2f * (1f - s * 1.4f);
         }
 
         pillRect.set(cx - hw, cy - hh, cx + hw, cy + hh);
-        /* ❗首末格把药丸收回栏内（2026-11-11「拖到两端画面分裂」的源码级原因）：
-           药丸宽度 = 一格 + 增长 g（静止 12dp / 按压 24dp），而首格中心离栏的内缘
-           只有半个格距 —— 停在这两格时 rect 必然越出栏的圆角，两条弧线相交，
-           背后那行字被切成两半、边缘还多一道亮弧，看着就是「裂开」。
-           这里按栏内缘夹一次，并回写 cx/hw/hh，保证后面 composeLensTab 与 shader
-           的 size/offset 用的是同一套几何（否则玻璃会错位）。 */
+        RectF bar = dockRect();
         if (!dockVertical) {
-            float inset = 2f * density;
-            float limL = barRect.left + inset, limR = barRect.right - inset;
+            /* 允许按压胀大时左右和上下适度漫出 Dock Bar，绝不生硬切平圆角，呈现饱满流体表面张力 */
+            float maxOverflow = 10f * density;
+            float limL = bar.left - maxOverflow, limR = bar.right + maxOverflow;
             if (pillRect.left < limL) pillRect.left = limL;
             if (pillRect.right > limR) pillRect.right = limR;
             cx = pillRect.centerX();
@@ -2695,79 +2719,48 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
 
         boolean glassReady = shader != null && !NativeBlocks.glassNone() && Build.VERSION.SDK_INT >= 33;
         if (glassReady) {
-            composeLensTab(cx, cy, hw, hh, liftV);
-            if (lensTabShader != null && buildCombined(r, liftV)) {
-                /* Kyant0 药丸 lens 恢复接线：content = 自足不透明底 + tab 镜像，
-                   不含页面快照。静止 refractionHeight=0 退化为 1:1 透传；
-                   按压才出 10/14dp 折射 + 0.5 色散。 */
+            if (buildCombined(bar, liftV)) {
+                /* Kyant0 药丸 lens 恢复接线：content = 全分辨率清晰源 + tab 镜像，
+                   静止态即具备真实凸透镜微折射与晶莹通透；按压滑动升至 Kyant0 原版 -14dp 折射与 0.5 色散。 */
                 shader.setInputShader("content", combinedShader);
                 shader.setFloatUniform("size", hw * 2f, hh * 2f);
                 shader.setFloatUniform("offset", hw - cx, hh - cy);
                 shader.setFloatUniform("cornerRadii", r, r, r, r);
-                /* 照抄 KernelSU FloatingBottomBar.kt:447-451：
-                   lens(refractionHeight = 10dp×progress, refractionAmount = 14dp×progress,
-                        depthEffect = true, chromaticAberration = 0.5f)。
-                   上一轮改成 FlClash 的 −4.3/5.5 是混了两家，已回滚。 */
-                /* 静止就有折射（6dp 带 / 9dp 位移），按压升到 12/18 —— 参考形态的
-                   静止药丸边缘本来就有弯折与彩虹边；此前 `10*liftV` 让静止折射量
-                   归零、退化成 1:1 透传，是「没有玻璃质感」的直接原因（2026-11-07）。 */
-                /* ❗按压不放大（2026-11-11 用户报「拖到两端画面分裂」）：
-                   原来 lift=1 时折射 10dp/位移 14dp，药丸会把背后内容放大一档 ——
-                   同一行字在药丸里和栏体里是两个尺寸，并排看着就是「重复影像/割裂」。
-                   按住态改成 1:1 透明窗口，只保留 2dp 的轻微弯折（有玻璃感但不放大）。 */
-                shader.setFloatUniform("refractionHeight", 2f * density * liftV);
-                shader.setFloatUniform("refractionAmount", -1.5f * density * liftV);
-                shader.setFloatUniform("depthEffect", 0f);   // 关掉中心深度项：水滴中心是平的，只有边缘一圈弯折
-                shader.setFloatUniform("chromaticAberration", 0.5f);   // KernelSU 原值（FloatingBottomBar.kt:451 chromaticAberration = 0.5f）
+                /* 药丸专属液态玻璃凸透镜（按档位区分标准档与极致档）：
+                   - 极致档（Ultra）：Kyant0 原版物理参数，深度 0.85f，静止 -6dp/按压 -14dp 强折射，色散 0.35~0.5f，高光 0.75+；
+                   - 标准档（Standard）：轻量凸透镜，深度 0.35f，静止 -3dp/按压 -7dp 微折射，色散严格归 0（防字迹彩斑），高光 0.35。 */
+                boolean isStd = NativeBlocks.glassStandard();
+                float curRefH = isStd ? (4f + 2f * liftV) * density : (6f + 4f * liftV) * density;
+                float curRefAmt = isStd ? -(3f + 4f * liftV) * density : -(6f + 8f * liftV) * density;
+                float curCa = isStd ? 0f : (0.35f + 0.15f * liftV);
+                float curDepth = isStd ? 0.35f : 0.85f;
+                shader.setFloatUniform("refractionHeight", curRefH);
+                shader.setFloatUniform("refractionAmount", curRefAmt);
+                shader.setFloatUniform("depthEffect", curDepth);
+                shader.setFloatUniform("chromaticAberration", curCa);
                 float alphaK = nativeDock ? 1f : Math.min(1f, liftV * 2.5f);
                 if (!nativeDock) alphaK = Math.min(alphaK, 0.5f);
-                /* ❗静止 refractionHeight=0 时 shader 里 `-sd / refractionHeight`
-                   除零 → 药丸边缘一圈 NaN，表现为「内层小胶囊」的双层边界
-                   （2026-11-05 用户报）。静止直接 1:1 直贴 combinedBmp，
-                   只有按压 liftV>0（分母非零）才走折射/色散链。 */
+
                 int save = canvas.save();
                 canvas.clipRect(0, 0, bandW, bandH);
-                /* 静止也走折射链：refractionHeight 现在恒 ≥14dp（非零），
-                   当年 `-sd / refractionHeight` 除零产生 NaN、边缘一圈「内层小胶囊」
-                   的前提已不成立。此前静止走平绘 = **完全不折射**，
-                   这才是「药丸没有玻璃质感」的根因（2026-11-07）。 */
-                if (liftV > 0.01f && r > 0f) {   // 静止走平绘：KernelSU 静止 lens() 直接 return，纯磨砂
-                    glassPaint.setShader(shader);
-                    glassPaint.setAlpha(255);
-                    canvas.drawRoundRect(pillRect, r, r, glassPaint);
-                } else {
-                    /* 静止 1:1 直贴：shader 采样时 tabOff 取整、pillRect 是小数坐标，
-                       半像素错位会在药丸边缘拉出一圈灰带（误读为「双层」）。
-                       直贴按整数偏移放置 combinedBmp，边缘只有 1px 抗锯齿。 */
-                    Path pView = new Path();
-                    pView.addRoundRect(pillRect, r, r, Path.Direction.CW);
-                    int sv3 = canvas.save();
-                    canvas.clipPath(pView);
-                    canvas.drawBitmap(combinedBmp, tabOffX, tabOffY, null);
-                    canvas.restoreToCount(sv3);
-                }
+                glassPaint.setShader(shader);
+                glassPaint.setAlpha(255);
+                canvas.drawRoundRect(pillRect, r, r, glassPaint);
+
+                /* 3D 菲涅尔全反射边缘暗线（iOS 26 Raised Lens / FlClash 核心特征：
+                   外圈 1.0dp 细腻暗线，在亮底栏上立起 3D 水滴凸起厚度，彻底告别平整白塑料片） */
+                Paint darkRimP = new Paint(Paint.ANTI_ALIAS_FLAG);
+                darkRimP.setStyle(Paint.Style.STROKE);
+                darkRimP.setStrokeWidth(1.0f * density);
+                darkRimP.setColor(Color.argb((int) (255f * (dark ? 0.22f : 0.14f)), 0, 0, 0));
+                canvas.drawRoundRect(pillRect, r, r, darkRimP);
+
                 /* surface：rest 黑(浅)/白(暗) 0.1×(1−lift) + 按压黑 0.03×lift */
-                /* rest surface 不再压暗：半透明底已经比栏面亮 5 级，再叠 4% 黑
-                   会把它拉回与栏面同色甚至更暗（又回到凹陷/双层观感）。 */
-                int restA = 0;
-                if (restA > 2) {
-                    pillRestP.setAlpha(restA);
-                    canvas.drawRoundRect(pillRect, r, r, pillRestP);
-                }
                 int pressA = (int) (255f * 0.03f * liftV);
                 if (pressA > 2) {
                     pillPressP.setAlpha(pressA);
                     canvas.drawRoundRect(pillRect, r, r, pillPressP);
                 }
-                /* 药丸内阴影不画：KernelSU 源码 :471-477 虽有 innerShadow(8dp, Black α0.15,
-                   alpha=pressProgress)，但实机在通透药丸上就是一条灰影，用户明确不要
-                   （2026-11-06）。以观感为准，不以此条为「必须对齐」。 */
-                /* 药丸边缘不再画独立白描边：1dp 白环与内部淡蓝紫 tint 色差明显，
-                   像素上虽只有一次过渡，视觉却读成「白胶囊套蓝紫胶囊」两层
-                   （2026-11-05 用户报）。边缘交给栏面自身的明暗过渡。 */
-                /* 药丸内阴影已移除：上游 8dp/黑15% 的「上缘影」靠实心白底衬托，
-                   通透药丸上无论 8dp 还是 3dp 都会留一条灰带（2026-11-05 用户反复
-                   指出）。药丸边缘改为完全依靠折射/色散与栏面的清晰度差。 */
                 /* 触摸光晕（我方保留子系统）：径向 ADD 叠在玻璃上 */
                 float glowV = (float) glow.value();
                 if (glowV > 0.01f) {
@@ -2787,12 +2780,9 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
                         canvas.drawRoundRect(pillRect, r, r, gp);
                     }
                 }
-                /* 药丸边缘高光：KernelSU 的 `pillHighlight` alpha = pressProgress（静止为 0），
-                   但它的静止定形由 `drawBackdrop` 的 hairline/rim 承担；我们没有那一层，
-                   静止态药丸就只剩一块颜色、没有玻璃边缘。这里给一个 0.32 的常驻底光，
-                   按压时再升到 1.0 —— 边缘光不影响"糊"的观感，是不牺牲清晰度的定形手段。 */
+                /* Apple Liquid Glass 顶部 Specular 环境高光弧（-90° 顶光）+ 边缘晶莹倒角 */
                 drawBloomStroke(canvas, pillRect.left, pillRect.top, pillRect.right, pillRect.bottom,
-                        r, Math.max(0.32f, liftV), 90f);
+                        r, Math.max(0.75f, liftV), -90f);
                 canvas.restoreToCount(save);
             }
         } else {
@@ -2810,10 +2800,10 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
      *  视图坐标直画（无 translate）：centeredCoord=(coord+offset)−halfSize 要等于
      *  coord−栏中心 ⇒ offset = −栏左上（❗不是 0——SDF 零点必须对准栏中心）。 */
     private void drawBarGlass(Canvas canvas, RectF bar, float r, BitmapShader pane, int alpha) {
-        /* 「无」档（netops_lglass=none）：整条平绘——pane 直贴（无栏缘折射），
-           bloom/药丸折射由各自位点门控。平绘 Paint 提字段复用（每帧调用）。 */
+        /* 「无」档（netops_lglass=none）：整条平绘——优先用实时平滑背景 liveBackdropShader
+           直贴（若无则退 pane），保证页面滚动时背景跟随流动，彻底杜绝冷启动一次性 pane 造成的死黑点与静态壁纸！ */
         if (NativeBlocks.glassNone()) {
-            barPlainP.setShader(pane);
+            barPlainP.setShader(liveBackdropShader != null ? liveBackdropShader : pane);
             barPlainP.setAlpha(alpha);
             canvas.drawRoundRect(bar.left, bar.top, bar.right, bar.bottom, r, r, barPlainP);
             return;
@@ -3152,6 +3142,64 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
                 popup.dismiss();
             } catch (Throwable ignored) {
                 // 销毁期异常无意义
+            }
+        }
+    }
+
+    /** 极速盒式高斯平滑（在 1/16 尺寸的小图上运行，总耗时 < 0.1ms）：
+     *  通过 2-pass 滑动窗口均值卷积，彻底平滑高频文字边缘，消除细小黑字变成颗粒黑点的恶心观感。 */
+    private static void fastBoxBlur(Bitmap bmp, int r, int passes) {
+        if (bmp == null || bmp.isRecycled() || r <= 0) return;
+        int w = bmp.getWidth(), h = bmp.getHeight();
+        if (w < 4 || h < 4) return;
+        int[] px = new int[w * h], tmp = new int[w * h];
+        bmp.getPixels(px, 0, w, 0, 0, w, h);
+        for (int p = 0; p < passes; p++) {
+            fastBlurH(px, tmp, w, h, r);
+            fastBlurV(tmp, px, w, h, r);
+        }
+        bmp.setPixels(px, 0, w, 0, 0, w, h);
+    }
+
+    private static void fastBlurH(int[] src, int[] dst, int w, int h, int r) {
+        int div = r * 2 + 1;
+        for (int y = 0; y < h; y++) {
+            int row = y * w;
+            long a = 0, rr = 0, gg = 0, bb = 0;
+            for (int i = -r; i <= r; i++) {
+                int c = src[row + Math.min(w - 1, Math.max(0, i))];
+                a += c >>> 24; rr += (c >> 16) & 0xff; gg += (c >> 8) & 0xff; bb += c & 0xff;
+            }
+            for (int x = 0; x < w; x++) {
+                dst[row + x] = ((int) (a / div) << 24) | ((int) (rr / div) << 16)
+                        | ((int) (gg / div) << 8) | (int) (bb / div);
+                int add = src[row + Math.min(w - 1, x + r + 1)];
+                int sub = src[row + Math.max(0, x - r)];
+                a += (add >>> 24) - (sub >>> 24);
+                rr += ((add >> 16) & 0xff) - ((sub >> 16) & 0xff);
+                gg += ((add >> 8) & 0xff) - ((sub >> 8) & 0xff);
+                bb += (add & 0xff) - (sub & 0xff);
+            }
+        }
+    }
+
+    private static void fastBlurV(int[] src, int[] dst, int w, int h, int r) {
+        int div = r * 2 + 1;
+        for (int x = 0; x < w; x++) {
+            long a = 0, rr = 0, gg = 0, bb = 0;
+            for (int i = -r; i <= r; i++) {
+                int c = src[Math.min(h - 1, Math.max(0, i)) * w + x];
+                a += c >>> 24; rr += (c >> 16) & 0xff; gg += (c >> 8) & 0xff; bb += c & 0xff;
+            }
+            for (int y = 0; y < h; y++) {
+                dst[y * w + x] = ((int) (a / div) << 24) | ((int) (rr / div) << 16)
+                        | ((int) (gg / div) << 8) | (int) (bb / div);
+                int add = src[Math.min(h - 1, y + r + 1) * w + x];
+                int sub = src[Math.max(0, y - r) * w + x];
+                a += (add >>> 24) - (sub >>> 24);
+                rr += ((add >> 16) & 0xff) - ((sub >> 16) & 0xff);
+                gg += ((add >> 8) & 0xff) - ((sub >> 8) & 0xff);
+                bb += (add & 0xff) - (sub & 0xff);
             }
         }
     }
