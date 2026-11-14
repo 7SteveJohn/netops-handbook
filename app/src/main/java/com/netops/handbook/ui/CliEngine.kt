@@ -15,18 +15,29 @@ import org.json.JSONObject
  */
 object CliEngine {
 
+    /* MagicOS 定制 java.util.regex 对个别语法 Pattern.compile 直接抛错
+       （2026-11-14 手机真机实锤：CliEngine.<clinit> ExceptionInInitializerError
+       → 打开即闪退）。防御式初始化：逐条编译 try-catch，失败条目跳过并记日志
+       ——匹配能力降级，绝不崩类初始化。 */
+    private fun safeRegex(pattern: String): Regex? = try {
+        Regex(pattern)
+    } catch (t: Throwable) {
+        android.util.Log.w("CliEngine", "正则编译失败（平台 regex 差异，条目降级）：$pattern", t)
+        null
+    }
+
     /* ================= 判定规则（22-cli-rules.js 1:1） ================= */
 
-    private val PLAT = listOf(
-        Regex("""^(kubectl|helm|istioctl|cilium|calicoctl|crictl|docker|ncp)\b""") to "k8s",
-        Regex("""^(show bgp|show ip|show version|show run|show log|show mac|show vlan|show spanning|show mpls|show interfaces|show interface|configure terminal|enable|write memory)\b""") to "cs",
-        Regex("""^(display|system-view|undo|reset|screen-length)\b""") to "hw",
+    private val PLAT: List<Pair<Regex, String>> = listOf(
+        safeRegex("""^(kubectl|helm|istioctl|cilium|calicoctl|crictl|docker|ncp)\b""") to "k8s",
+        safeRegex("""^(show bgp|show ip|show version|show run|show log|show mac|show vlan|show spanning|show mpls|show interfaces|show interface|configure terminal|enable|write memory)\b""") to "cs",
+        safeRegex("""^(display|system-view|undo|reset|screen-length)\b""") to "hw",
         /* win 要排在 lx 的 route/ping 组之前：route print/arp -a/tracert 是 Windows 语义 */
-        Regex("""^(ipconfig|netsh|route print|route add|arp -a|pktmon|typeperf|wevtutil|get-net|systeminfo|w32tm|tracert|winver)\b""") to "win",
-        Regex("""^(ip|ss|tc|iptables|ip6tables|nft|systemctl|journalctl|ethtool|nmcli|sysctl|bpftool|dig|nslookup|hostname|bridge|netns|nsenter|tcpdump|bird|birdc|ufw|firewall-cmd|nm)\b""") to "lx",
-        Regex("""^(git|ansible|python|pip|curl|wget|ssh|scp|nc|ping|traceroute|tracepath|mtr|arping|route|netstat|ifconfig|uname|cat|grep|tee|mkdir|cp|mv|chmod|source|export|nmap|lsof)\b""") to "lx",
-        Regex("""^(nmap|lsof)\b""") to "lx"
-    )
+        safeRegex("""^(ipconfig|netsh|route print|route add|arp -a|pktmon|typeperf|wevtutil|get-net|systeminfo|w32tm|tracert|winver)\b""") to "win",
+        safeRegex("""^(ip|ss|tc|iptables|ip6tables|nft|systemctl|journalctl|ethtool|nmcli|sysctl|bpftool|dig|nslookup|hostname|bridge|netns|nsenter|tcpdump|bird|birdc|ufw|firewall-cmd|nm)\b""") to "lx",
+        safeRegex("""^(git|ansible|python|pip|curl|wget|ssh|scp|nc|ping|traceroute|tracepath|mtr|arping|route|netstat|ifconfig|uname|cat|grep|tee|mkdir|cp|mv|chmod|source|export|nmap|lsof)\b""") to "lx",
+        safeRegex("""^(nmap|lsof)\b""") to "lx"
+    ).filter { it.first != null }.map { it.first!! to it.second }
 
     fun detectPlat(cmd: String): String? {
         val c = cmd.trim()
@@ -35,39 +46,46 @@ object CliEngine {
     }
 
     /* 不是命令的东西：YAML 键、注释、提示符残留、纯中文功能名、路径、参数片段 */
-    private val NOT_CMD = listOf(
-        Regex("""^#"""), Regex("""^//"""), Regex("""^--"""), Regex("""^\*"""), Regex("""^\d+\."""),
-        Regex(""":$"""), Regex("""^- """), Regex("""^[{}[\]]+$"""),
-        Regex("""^[a-z][a-z0-9_.-]*:\s"""),
-        Regex("""^[<\[].*[>\]]\s*$"""),
-        Regex("""^[一-龥]+$"""), Regex("""^[一-龥]"""),
-        Regex("""^/[\w./-]+$"""),
-        Regex("""^[x]+(\.[x]+)+$"""),
-        Regex("""^\d+([/\s]|$)"""),
-        Regex("""\s/\s"""),
-        Regex("""^[(（]"""), Regex("""[)（]${'$'}"""),
-        Regex("""^(vid|vlan-id|interface|option|sub-option)\s*[:=]""")
-    )
+    private val NOT_CMD: List<Regex> = listOf(
+        safeRegex("""^#"""), safeRegex("""^//"""), safeRegex("""^--"""), safeRegex("""^\*"""), safeRegex("""^\d+\."""),
+        safeRegex(""":$"""), safeRegex("""^- """), safeRegex("""^[{}[\]]+$"""),
+        safeRegex("""^[a-z][a-z0-9_.-]*:\s"""),
+        safeRegex("""^[<\[].*[>\]]\s*$"""),
+        safeRegex("""^[一-龥]+$"""), safeRegex("""^[一-龥]"""),
+        safeRegex("""^/[\w./-]+$"""),
+        safeRegex("""^[x]+(\.[x]+)+$"""),
+        safeRegex("""^\d+([/\s]|$)"""),
+        safeRegex("""\s/\s"""),
+        safeRegex("""^[(（]"""), safeRegex("""[)）]$"""),
+        safeRegex("""^(vid|vlan-id|interface|option|sub-option)\s*[:=]""")
+    ).filterNotNull()
 
-    private val OK_CMD = Regex("""^[a-zA-Z][a-zA-Z0-9_@:>.+/-]*(\s+[^\s]*)?""")
-    private val HAN = Regex("""[一-龥]""")
+    private val OK_CMD: Regex? = safeRegex("""^[a-zA-Z][a-zA-Z0-9_@:>.+/-]*(\s+[^\s]*)?""")
+    private val HAN: Regex? = safeRegex("""[一-龥]""")
+    private val WS = safeRegex("""\s""")
 
     fun isCommand(s: String?): Boolean {
         val c = (s ?: "").trim()
         if (c.length < 2) return false
         for (re in NOT_CMD) if (re.containsMatchIn(c)) return false
-        if (!OK_CMD.containsMatchIn(c)) return false
-        if (HAN.containsMatchIn(c.split(Regex("""\s"""))[0])) return false  /* 首词必须纯 ASCII */
+        val ok = OK_CMD ?: return false
+        if (!ok.containsMatchIn(c)) return false
+        val han = HAN ?: return true
+        if (han.containsMatchIn(c.split(WS ?: Regex("\\s"))[0])) return false  /* 首词必须纯 ASCII */
         return true
     }
 
-    /** 去掉提示符与行内注释，返回可直接敲的形式。 */
+    /** 去掉提示符与行内注释，返回可直接敲的形式（逐条防御，失败跳过该清洗）。 */
     fun normalize(s: String?): String {
         var c = (s ?: "").trim()
-        c = c.replace(Regex("""^[<\[][^>\]]*[>\]]\s*"""), "")     /* <Huawei> / [Huawei] */
-        c = c.replace(Regex("""^[a-zA-Z][\w.-]*[>#]\s*"""), "")   /* sw1# / R1> */
-        c = c.replace(Regex("""\s+#+.*$"""), "").trim()            /* 行尾注释 */
-        c = c.replace(Regex("""^#+\s*"""), "")
+        val r1 = safeRegex("""^[<\[][^>\]]*[>\]]\s*""")
+        val r2 = safeRegex("""^[a-zA-Z][\w.-]*[>#]\s*""")
+        val r3 = safeRegex("""\s+#+.*$""")
+        val r4 = safeRegex("""^#+\s*""")
+        if (r1 != null) c = c.replace(r1, "")
+        if (r2 != null) c = c.replace(r2, "")
+        if (r3 != null) c = c.replace(r3, "").trim()
+        if (r4 != null) c = c.replace(r4, "")
         return c
     }
 
