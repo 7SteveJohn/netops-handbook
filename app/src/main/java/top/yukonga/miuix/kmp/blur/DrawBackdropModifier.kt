@@ -757,3 +757,352 @@ private class DrawBackdropNode(
             blending = false
             return
         }
+
+        // Pass 2: build the higher bracket level into [secondary]; draw() cross-fades the two.
+        secondary.ensureMain()
+        effectScope.forcedDownscaleExp = expHi
+        effectScope.apply(effects)
+        chainFullResNoiseIfNeeded()
+        secondary.mainLayer?.renderEffect = effectScope.renderEffect
+        secondary.padding = effectScope.padding
+        secondary.downscaleFactor = effectScope.downscaleFactor.coerceAtLeast(1)
+        effectScope.forcedDownscaleExp = -1
+
+        blendFactor = factor
+        blending = true
+    }
+
+    /**
+     * Composite mode: progressiveBlur() recorded the level radii + downscale and split the
+     * effects chain; assemble the downscaled level-stack effect (pre → levels → folded ramp
+     * blend or ramp-masked post branch → dither/noise) into [BackdropEffectScope.renderEffect]
+     * for [primary], and the full-res overlay effect (variable loop blur + ramp mask) with its
+     * band bbox for [sharpLayer]. Re-runs the effects uniformly when the platform can't express
+     * the stack.
+     */
+    private fun finalizeProgressiveComposite() {
+        val scope = effectScope
+        val gradient = progressiveGradient
+        val rX = scope.cachedProgRadiusX
+        val rY = scope.cachedProgRadiusY
+        if (gradient == null || rX.isNaN() || rY.isNaN()) {
+            // No progressiveBlur call in the effects block: draw uniformly, gradient ignored.
+            chainFullResNoiseIfNeeded()
+            sharpOverlayActive = false
+            stackDitherChained = false
+            return
+        }
+        val paddedW = scope.cachedProgSizeW
+        val paddedH = scope.cachedProgSizeH
+        val pre = scope.progressivePreEffect
+        var post = scope.renderEffect
+        var postBlend = scope.progressivePostBlend
+        if (postBlend != null && post != null) {
+            // Mixed post chain (effects chained after the recorded blend): restore the blend at
+            // the chain head and take the general branch form for the whole chain.
+            post = obtainBlendColorsEffect(scope, postBlend).chain(post)
+            postBlend = null
+        }
+        // exp > 0: pre-quantization dither capped at the anti-banding amplitude (the aesthetic
+        // remainder renders per screen pixel via the upscale noise pass); exp == 0: the layer is
+        // already full resolution, so this slot carries the full coefficient.
+        val noiseCoeff = scope.noiseCoefficient
+        val ditherCoeff = when {
+            noiseCoeff <= 0f -> 0f
+            scope.cachedProgExp > 0 -> minOf(noiseCoeff * 2f, STACK_DITHER_MAX)
+            else -> noiseCoeff
+        }
+        val stack = if (cachedStackEffect != null &&
+            cachedStackRadiusX == rX &&
+            cachedStackRadiusY == rY &&
+            cachedStackW == paddedW &&
+            cachedStackH == paddedH &&
+            cachedStackGradient == gradient &&
+            cachedStackPre === pre &&
+            cachedStackPost === post &&
+            cachedStackPostBlend == postBlend &&
+            cachedStackDither == ditherCoeff
+        ) {
+            cachedStackEffect
+        } else {
+            createProgressiveStackEffect(
+                rX,
+                rY,
+                scope.cachedProgExp,
+                scope.padding,
+                scope.size.width,
+                scope.size.height,
+                gradient.angle,
+                gradient.startFraction,
+                gradient.endFraction,
+                gradient.curve,
+                pre,
+                post,
+                postBlend,
+                scope,
+            )?.let { built ->
+                if (ditherCoeff > 0f) built.chain(obtainStackDitherEffect(ditherCoeff)) else built
+            }?.also {
+                cachedStackEffect = it
+                cachedStackRadiusX = rX
+                cachedStackRadiusY = rY
+                cachedStackW = paddedW
+                cachedStackH = paddedH
+                cachedStackGradient = gradient
+                cachedStackPre = pre
+                cachedStackPost = post
+                cachedStackPostBlend = postBlend
+                cachedStackDither = ditherCoeff
+            }
+        }
+        compositeAttempted = true
+        compositeSupported = stack != null
+        if (stack == null) {
+            // Unsupported: rebuild the whole chain with the flag re-derived as false, so
+            // progressiveBlur() falls back to its uniform loop-shader build.
+            scope.progressiveCompositeActive = false
+            scope.apply(effects)
+            chainFullResNoiseIfNeeded()
+            sharpOverlayActive = false
+            stackDitherChained = false
+            return
+        }
+        scope.renderEffect = stack
+        stackDitherChained = ditherCoeff > 0f && noiseCoeff <= NOISE_GRAIN_THRESHOLD
+
+        val sw = scope.size.width
+        val sh = scope.size.height
+        val exp = scope.cachedProgExp
+        if (exp == 0) {
+            // nativeSharpEnd already bound the clear end to the native source — no overlay needed.
+            sharpOverlayActive = false
+            return
+        }
+        if (sharpOverlayGradient != gradient || sharpOverlayW != sw || sharpOverlayH != sh ||
+            sharpRadiusX != rX || sharpRadiusY != rY || sharpExp != exp
+        ) {
+            // The bbox margin covers the overlay loop blur's tap reach so edge-clamp smear stays
+            // on rows/columns the ramp mask zeroes out; quantized to the loop's tap bound
+            // (multiples of 4, ≥ the reach) so an animating radius doesn't resize the band and
+            // reallocate the overlay layer's backing texture.
+            val loopReach =
+                (progressiveLoopTapBound(maxOf(progressiveSharpLoopRadius(rX, exp), progressiveSharpLoopRadius(rY, exp))) + 1).toFloat()
+            val band = progressiveSharpBandBounds(
+                sw,
+                sh,
+                gradient.angle,
+                gradient.startFraction,
+                gradient.endFraction,
+                gradient.curve,
+                margin = loopReach,
+            )
+            if (band == null || band.width < 1f || band.height < 1f) {
+                sharpOverlayEffect = null
+                sharpBandOffset = IntOffset.Zero
+                sharpBandSize = IntSize.Zero
+            } else {
+                val left = floor(band.left).toInt()
+                val top = floor(band.top).toInt()
+                sharpBandOffset = IntOffset(left, top)
+                sharpBandSize = IntSize(
+                    (ceil(band.right).toInt() - left).coerceAtLeast(1),
+                    (ceil(band.bottom).toInt() - top).coerceAtLeast(1),
+                )
+                sharpOverlayEffect = createProgressiveSharpOverlayEffect(
+                    rX,
+                    rY,
+                    exp,
+                    sw,
+                    sh,
+                    left.toFloat(),
+                    top.toFloat(),
+                    sharpBandSize.width.toFloat(),
+                    sharpBandSize.height.toFloat(),
+                    gradient.angle,
+                    gradient.startFraction,
+                    gradient.endFraction,
+                    gradient.curve,
+                    scope,
+                )
+            }
+            sharpOverlayGradient = gradient
+            sharpOverlayW = sw
+            sharpOverlayH = sh
+            sharpRadiusX = rX
+            sharpRadiusY = rY
+            sharpExp = exp
+        }
+        sharpOverlayActive = sharpOverlayEffect != null
+    }
+
+    /**
+     * Full-res path: chains noise into the RenderEffect. The downscaled path defers it to
+     * [drawUpscaledLayer] so each screen pixel still gets independent dithering — unless the
+     * composite stack carries the duty itself ([stackDitherChained]). Composite pass 1 skips
+     * this: [finalizeProgressiveComposite] chains noise after the assembled stack instead.
+     *
+     * Cached on input identity + coefficient so repeated [updateEffects] runs don't allocate a
+     * fresh native effect per pass.
+     */
+    private fun chainFullResNoiseIfNeeded() {
+        val noiseCoeff = effectScope.noiseCoefficient
+        if (noiseCoeff > 0f && effectScope.downscaleFactor <= 1) {
+            val input = effectScope.renderEffect
+            if (effectScope.cachedNoiseChainResult != null &&
+                effectScope.cachedNoiseChainInput === input &&
+                effectScope.cachedNoiseChainCoeff == noiseCoeff
+            ) {
+                effectScope.renderEffect = effectScope.cachedNoiseChainResult
+                return
+            }
+            effectScope.runtimeShaderEffect(
+                key = "NoiseDither",
+                shaderString = NOISE_DITHER_SHADER,
+                uniformShaderName = "child",
+            ) {
+                setFloatUniform("noise_coeff", noiseCoeff)
+            }
+            effectScope.cachedNoiseChainInput = input
+            effectScope.cachedNoiseChainCoeff = noiseCoeff
+            effectScope.cachedNoiseChainResult = effectScope.renderEffect
+        }
+    }
+
+    override fun onAttach() {
+        effectScope.runtimeShaderCache = currentValueOf(LocalRuntimeShaderCache)
+        if (enabled) {
+            primary.ensureMain()
+            observeEffects()
+        }
+    }
+
+    /**
+     * Sets the downsample effect (cached per [target]/[slot]) on [source], records [dest] at
+     * ([destW], [destH]) by drawing [source] with [scale], then clears [source]'s render effect
+     * so it does not leak to the next pass.
+     */
+    private fun DrawScope.applyDownsampleStep(
+        target: LevelTarget,
+        slot: Int,
+        source: GraphicsLayer,
+        sourceW: Int,
+        sourceH: Int,
+        dest: GraphicsLayer,
+        destW: Int,
+        destH: Int,
+        scale: Float,
+        shaderKey: String,
+        shaderSrc: String,
+    ) {
+        source.renderEffect = target.downsampleEffect(slot, shaderKey, sourceW, sourceH) {
+            runtimeShaderEffect(
+                runtimeShader = effectScope.obtainRuntimeShader(shaderKey, shaderSrc).apply {
+                    setFloatUniform("maxCoord", sourceW - 0.5f, sourceH - 0.5f)
+                },
+                uniformShaderName = "child",
+            )
+        }
+        recordLayer(dest, size = IntSize(destW, destH)) {
+            scale(scale, scale, Offset.Zero) { drawLayer(source) }
+        }
+        source.renderEffect = null
+    }
+
+    /**
+     * Upscales [layer] to full resolution. When noise dithering is active — and not already
+     * carried by the composite stack ([stackDitherChained]) — the upscaled content is staged in
+     * [target]'s noise layer first so noise lands per screen pixel instead of per scaled block.
+     */
+    private fun DrawScope.drawUpscaledLayer(
+        target: LevelTarget,
+        layer: GraphicsLayer,
+        scaleUp: Float,
+        currentPadding: Float,
+        scaleFactor: Int,
+        residualX: Float,
+        residualY: Float,
+        fullWidth: Int,
+        fullHeight: Int,
+    ) {
+        val noiseCoeff = if (stackDitherChained) 0f else effectScope.noiseCoefficient
+        if (noiseCoeff > 0f) {
+            layer.topLeft = IntOffset.Zero
+            val noiseL = target.noiseLayer
+                ?: graphicsContext.createGraphicsLayer().also { target.noiseLayer = it }
+            recordLayer(noiseL, size = IntSize(fullWidth, fullHeight)) {
+                scale(scaleUp, scaleUp, Offset.Zero) { drawLayer(layer) }
+            }
+            noiseL.renderEffect = target.noiseRenderEffect(noiseCoeff) {
+                val noiseShader = effectScope.obtainRuntimeShader("NoiseDither", NOISE_DITHER_SHADER)
+                noiseShader.setFloatUniform("noise_coeff", noiseCoeff)
+                runtimeShaderEffect(noiseShader, "child")
+            }
+            noiseL.topLeft =
+                if (currentPadding != 0f) {
+                    IntOffset(-currentPadding.toInt(), -currentPadding.toInt())
+                } else {
+                    IntOffset.Zero
+                }
+            translate(-residualX, -residualY) { drawLayer(noiseL) }
+            noiseL.renderEffect = null
+        } else {
+            layer.topLeft =
+                if (currentPadding != 0f) {
+                    IntOffset(-(currentPadding / scaleFactor).toInt(), -(currentPadding / scaleFactor).toInt())
+                } else {
+                    IntOffset.Zero
+                }
+            translate(-residualX, -residualY) {
+                scale(scaleUp, scaleUp, Offset.Zero) { drawLayer(layer) }
+            }
+        }
+    }
+
+    /**
+     * Drops the composite layer and its caches. Called when [progressiveGradient] is cleared on a
+     * live node so the full-resolution offscreen layer doesn't outlive the gradient mode; the
+     * supported flags survive (platform capability doesn't change).
+     */
+    fun releaseCompositeResources() {
+        sharpLayer?.let { graphicsContext.releaseGraphicsLayer(it) }
+        sharpLayer = null
+        sharpOverlayActive = false
+        cachedStackEffect = null
+        cachedStackRadiusX = Float.NaN
+        cachedStackRadiusY = Float.NaN
+        cachedStackW = Float.NaN
+        cachedStackH = Float.NaN
+        cachedStackGradient = null
+        cachedStackPre = null
+        cachedStackPost = null
+        cachedStackPostBlend = null
+        cachedStackDither = Float.NaN
+        stackDitherEffect = null
+        stackDitherCoeff = Float.NaN
+        stackDitherChained = false
+        sharpOverlayEffect = null
+        sharpOverlayGradient = null
+        sharpOverlayW = Float.NaN
+        sharpOverlayH = Float.NaN
+        sharpRadiusX = Float.NaN
+        sharpRadiusY = Float.NaN
+        sharpExp = -1
+        sharpBandOffset = IntOffset.Zero
+        sharpBandSize = IntSize.Zero
+    }
+
+    fun releaseGraphicsLayers() {
+        primary.release()
+        secondary.release()
+        crossfadeResultLayer?.let { graphicsContext.releaseGraphicsLayer(it) }
+        crossfadeResultLayer = null
+        releaseCompositeResources()
+        blending = false
+        effectScope.reset()
+    }
+
+    override fun onDetach() {
+        releaseGraphicsLayers()
+        layoutCoordinates = null
+    }
+}
