@@ -255,6 +255,10 @@ public class AppBarView extends View implements ThemeBus.DarkAware {
     private android.view.ViewGroup wallpaperSource;
     public void setWallpaperSource(android.view.ViewGroup v) { wallpaperSource = v; }
 
+    /** 触摸转发目标改指（View 层退役 2026-11-14）：内容层已迁 Compose，
+     *  非按钮区透传改派 ComposeView（dispatchTouchEvent 直入 Compose 输入管线）。 */
+    public void setAnchor(ViewGroup v) { anchor = v; }
+
     /** 滚动中由 MainActivity 的滚动监听驱动：顶栏玻璃实时跟随栏下内容。 */
     public void setScrolling() {
         scrollIdleUntil = SystemClock.uptimeMillis() + 200L;
@@ -810,26 +814,17 @@ public class AppBarView extends View implements ThemeBus.DarkAware {
         }
     }
 
-    /** 按钮动作 = 触发对应 HTML 按钮的 click()：抽屉/返回/搜索/主题的全部既有
-     *  逻辑留在页面侧，原生只接管观感。visibility:hidden 的元素收不到真触摸，
-     *  必须程序化 click（事件处理器照常执行）。 */
+    /** 非主题键动作注入（View 层退役 2026-11-14）：0=抽屉 1=搜索——WebView 摘除后
+     *  evaluateJavascript click(btnNav/btnSearch) 链已死，宿主原生直触。
+     *  主题键走 themeFlip（旧链保留）。 */
+    public java.util.function.IntConsumer navAction = i -> { };
+
     private void fire(int idx) {
-        if (webView == null) return;
-        /* 主题键走原生翻转：不依赖 HTML btnTheme 闭包（点击链路曾静默失效）。
-           顺序必须先 JS store.set 再 pushTheme——pushTheme 的 apply() 读 store，
-           反了会被旧值翻回（2026-11-08）。 */
         if (idx == 2) {
             themeFlip.run();
             return;
         }
-        String id = idx == 0 ? "btnNav" : "btnSearch";
-        String js = "(function(){try{var b=document.getElementById('" + id + "');"
-                + "if(b)b.click();}catch(e){}})()";
-        try {
-            webView.evaluateJavascript(js, null);
-        } catch (Throwable t) {
-            Log.w(TAG, "触发按钮失败", t);
-        }
+        navAction.accept(idx);
     }
 
     /** 主题二态翻转（由 MainActivity 注入：fire(2) 时执行）。 */

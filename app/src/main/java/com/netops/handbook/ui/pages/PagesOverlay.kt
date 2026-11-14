@@ -11,13 +11,14 @@ import com.netops.handbook.ui.OpsTheme
 import org.json.JSONObject
 
 /**
- * 页面路由总出口（2026-11-14 M3 终局）：GlassDockHost 组合内的兄弟节点层，
- * 按 AppShellState.pageRoute when 切页——退役 11 个独立 ComposeView 页宿主。
+ * 页面路由总出口（2026-11-14 M3 终局；View 层退役轮次修订）：
+ * GlassDockHost 内容层 Box 内按 AppShellState.pageRoute when 切页——
+ * 退役 11 个独立 ComposeView 页宿主。
  *
- * 背景：MagicOS 上 AndroidView 内嵌套 ComposeView 内容不合成（三连实验+
- * M3 首验空屏实锤），页面必须与 dock 同层组合；dock 玻璃 record 的对象
- * 是 AndroidView（壁纸层），页面为兄弟节点不参与 record。
- * 未迁移页（search=View 版）经 nativeSearch.show() 走 View 层。
+ * View 层退役后页面与壁纸 Image 同在一个 record Box 内：dock 玻璃折射
+ * 对象 = 壁纸 + 页面本体（KernelSU 同款「滚动实时折射」）。覆盖层
+ * （search/settings/drawer=View 版）经 overLayer（ComposeView 之上的
+ * FrameLayout 兄弟层）显示，M4 起逐个迁 Compose。
  */
 @Composable
 fun PagesOverlay(

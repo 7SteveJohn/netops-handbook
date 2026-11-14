@@ -108,6 +108,10 @@ public class MainActivity extends AppCompatActivity {
 
     private WebView webView;
     private FrameLayout root;
+    /** View 层退役(2026-11-14)：覆盖层容器(搜索/设置/抽屉/切换淡出)，z 在 ComposeView 之上。 */
+    private FrameLayout overLayer;
+    /** USE_GLASS2 宿主的 ComposeView：AppBarView 触摸转发目标(anchor)。 */
+    private androidx.compose.ui.platform.ComposeView composeHost;
     /** 液态玻璃内容容器：壁纸+WebView，挂折射 RenderEffect（2026-11-02）。 */
     private FrameLayout contentContainer;
     /** JS 开关在 attach 前上报时的缓存态（boot 时序：attach 后补施）。 */
@@ -207,10 +211,22 @@ public class MainActivity extends AppCompatActivity {
         root.setId(View.generateViewId());
         root.setFitsSystemWindows(false);
         root.setBackgroundColor(bg);
-        /* P1 宿主(2026-11-12):USE_GLASS2 时旧根包进 Compose(AndroidView),
-           玻璃 dock 同树叠加(FlClash/KernelSU 同代);false = 旧 PopupWindow 链。 */
+        /* ❗先于 Compose 首帧触碰 WallpaperPrefs：object 的 Compose State 若在
+           组合快照内才类初始化，会落进未 apply 的子快照 → 「Reading a state that
+           was created after the snapshot was taken」崩溃（2026-11-14 18:54 实锤，
+           纯时序竞态：native-data 后台线程先碰则幸存）。 */
+        com.netops.handbook.lens.WallpaperPrefs.INSTANCE.getClass();
+        /* View 层退役(2026-11-14):USE_GLASS2 时三层宿主——
+           root(壁纸 backdrop+View 残页) → ComposeView(壁纸 Image+页面+dock) →
+           overLayer(搜索/设置/抽屉 View 覆盖层)。树内零 AndroidView：MagicOS
+           interop 三坑(嵌套 ComposeView 不合成/View 盖 Compose 兄弟/guard
+           2×bar 双重定位)全因 View 层内嵌。overLayer 各孩子自管显隐(默认
+           GONE)，容器不拦截触摸;false = 旧 PopupWindow 链。 */
+        overLayer = new FrameLayout(this);
+        overLayer.setLayoutParams(new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         if (com.netops.handbook.lens.glass2.DockBus.USE_GLASS2) {
-            com.netops.handbook.lens.glass2.GlassHostKt.installGlassHost(this, root,
+            composeHost = com.netops.handbook.lens.glass2.GlassHostKt.installGlassHost(this, root, overLayer,
                 new com.netops.handbook.lens.glass2.GlassHostHooks() {
                     @Override public void onGo(String route, String arg) {
                         com.netops.handbook.lens.Router.INSTANCE.go(route, arg, false);
@@ -358,7 +374,10 @@ public class MainActivity extends AppCompatActivity {
             final String keep;
             final Runnable target;
             switch (route) {
-                case "learn":  keep = "home";  target = () -> pagesGo("home", null); break;
+                /* M3 终局 + View 层退役：全部路由落 Compose 页（AppShellState.pageRoute）。
+                   ❗pagesGo 键 = PagesOverlay when 分支键（learn，非 JS keep 的 home）；
+                   phase/phase-focus 曾漏接 nativePhase.show（View 残页=空屏），2026-11-14 接上。 */
+                case "learn":  keep = "home";  target = () -> pagesGo("learn", null); break;
                 case "fault":  keep = "fault"; target = () -> pagesGo("fault", ""); break;
                 case "iv":     keep = "iv";    target = () -> pagesGo("iv", ""); break;
                 case "dict":   keep = "dict";  target = () -> pagesGo("dict", ""); break;
@@ -373,13 +392,13 @@ public class MainActivity extends AppCompatActivity {
                 case "phase": {
                     keep = "phase";
                     final String pid = (arg == null || arg.isEmpty()) ? "p-1" : arg;
-                    target = () -> nativePhase.show(pid);
+                    target = () -> pagesGo("phase", pid);
                     break;
                 }
                 case "phase-focus": {
                     keep = "phase";
                     final String[] pp = (arg == null ? "p-1|" : arg).split("\\|");
-                    target = () -> nativePhase.show(pp[0], pp.length > 1 ? pp[1] : "");
+                    target = () -> pagesGo("phase-focus", arg == null ? "p-1|" : arg);
                     break;
                 }
                 case "cli":
@@ -610,6 +629,15 @@ public class MainActivity extends AppCompatActivity {
         root.addView(v);
     }
 
+    /** 覆盖层宿主（View 层退役 2026-11-14）：与 addNativePage 同参，但挂 overLayer
+     *  （ComposeView 之上的兄弟层）——Compose 页之下会被盖住，必须在其上。 */
+    private void addOverlayPage(android.view.View v) {
+        v.setLayoutParams(new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        v.setVisibility(android.view.View.GONE);
+        overLayer.addView(v);
+    }
+
     /** 横屏竖排 dock 占左缘 102dp（轨 88 + 左距 14）：原生页整体右移，
      *  否则侧栏把每页左侧内容压住（2026-10-28 真机：卡片/标题左半边被吃掉）。
      *  竖屏归零 —— 底栏横趴在底部，不吃横向空间。幂等：margin 已对就跳过，
@@ -697,7 +725,14 @@ public class MainActivity extends AppCompatActivity {
                 if (nativeFav != null) runOnUiThread(() -> nativeFav.setPageData(root));
                 if (nativeDrawer != null) runOnUiThread(() -> nativeDrawer.setPageData(root));
                 /* M3-1：数据版本源 bump（Compose 页重读）+ 壁纸初值驱动（boot 后
-                   direct/directMode 不再依赖 JS syncNativePageMode——M1d 该环已死）。 */
+                   direct/directMode 不再依赖 JS syncNativePageMode——M1d 该环已死）。
+                   init 必须先于 apply：apply 里的 wallBitmap 解码依赖 init 挂的
+                   appContext（View 层退役 2026-11-14）。 */
+                {
+                    org.json.JSONArray wps0 = root.optJSONArray("wallpapers");
+                    if (wps0 != null) com.netops.handbook.lens.WallpaperPrefs.INSTANCE.init(
+                            MainActivity.this, wps0);
+                }
                 runOnUiThread(() -> {
                     com.netops.handbook.ui.PageData.INSTANCE.setRoot(root);
                     com.netops.handbook.ui.PageData.INSTANCE.bumpVersion();
@@ -708,12 +743,8 @@ public class MainActivity extends AppCompatActivity {
                     org.json.JSONArray wps = root.optJSONArray("wallpapers");
                     if (wps != null) runOnUiThread(() -> settingsPanel.setWallpapers(wps));
                 }
-                /* M2-4：壁纸清单喂 WallpaperPrefs（真源），迁移桥就绪后由 JS boot 推存量。 */
-                {
-                    org.json.JSONArray wps = root.optJSONArray("wallpapers");
-                    if (wps != null) runOnUiThread(() ->
-                            com.netops.handbook.lens.WallpaperPrefs.init(this, wps));
-                }
+                /* M2-4：壁纸清单喂 WallpaperPrefs（真源）——init 已上移至 apply 之前
+                   （wallBitmap 解码依赖 init 的 appContext，2026-11-14）。 */
                 android.util.Log.i("NativeData", String.format(
                         "装载完成 %.1fKB %dms phases=%d modules=%d faults=%d iv=%d dict=%d hash=%s",
                         txt.length() / 1024f, System.currentTimeMillis() - t0,
@@ -809,7 +840,7 @@ public class MainActivity extends AppCompatActivity {
                 });
         settingsPanel.setLayoutParams(new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
-        root.addView(settingsPanel);     /* 面板必须在所有原生页之上 */
+        overLayer.addView(settingsPanel);     /* 覆盖层(overLayer)=ComposeView 之上 */
         ThemeBus.register(settingsPanel);
         /* 面板开合 → 侧栏退位（侧栏是独立弹窗，永远压在面板上） */
         settingsPanel.setOnOpen(open -> {
@@ -839,10 +870,11 @@ public class MainActivity extends AppCompatActivity {
            早加会被后面创建的原生页盖住 —— 抽屉里「阶段一：…」右半截被页面白卡压掉的
            真因（2026-10-28 复查；内容左缩进从 102dp 收到 70dp 后才暴露）。 */
 
-        /* 原生搜索页（N5）：原生输入框 + 命中高亮 + 键盘自适应。 */
+        /* 原生搜索页（N5）：原生输入框 + 命中高亮 + 键盘自适应。
+           View 层退役(2026-11-14)：覆盖层归 overLayer（ComposeView 之上），否则被 Compose 页盖住。 */
         nativeSearch = new com.netops.handbook.lens.NativeSearchView(this);
         ThemeBus.register(nativeSearch);
-        addNativePage(nativeSearch);
+        addOverlayPage(nativeSearch);
         nativeSearch.setNav((type, id, pid) -> {
             if ("mod".equals(type)) {
                 nativeGo("phase-focus", (pid == null || pid.isEmpty() ? "p-1" : pid) + "|" + id);
@@ -910,10 +942,10 @@ public class MainActivity extends AppCompatActivity {
         switchOverlay.setLayoutParams(new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         switchOverlay.setVisibility(android.view.View.GONE);
-        root.addView(switchOverlay);
+        overLayer.addView(switchOverlay);
 
-        /* 抽屉最后加：z 序压在全部原生页之上（见构造处注释） */
-        root.addView(nativeDrawer);
+        /* 抽屉最后加：z 序压在全部覆盖层之上（overLayer 内部顺序同旧约定） */
+        overLayer.addView(nativeDrawer);
 
         /* 原生页滚动 → 顶栏玻璃实时重抓：这些页的滚动不经过 WebView，
            JS 侧监听不到，玻璃会静止不动（2026-10-30 用户：「通透在哪儿」） */
@@ -1016,6 +1048,8 @@ public class MainActivity extends AppCompatActivity {
             appbarBar = com.netops.handbook.lens.AppBarView.attach(this, root, webView);
             ThemeBus.register(appbarBar);   /* 替代原 attach 时 setDark：register 自带当前值回调 */
             if (nativeBackdrop != null) appbarBar.setWallpaperSource(nativeBackdrop);
+            /* View 层退役(2026-11-14)：非按钮区透传改派 Compose 树（root 里已无活页面）。 */
+            if (composeHost != null) appbarBar.setAnchor(composeHost);
             /* 主题键原生翻转：只改**模式**（auto 之外的显式深浅），
                不必再指望 evaluateJavascript 写得进网页层——pushTheme 会推
                apply()，JS 的 UI.theme.get() 直接走 themeMode() 桥回读，失败面为零。 */
@@ -1023,6 +1057,19 @@ public class MainActivity extends AppCompatActivity {
                 String m = resolvedDark() ? "light" : "dark";
                 rememberTheme(m);
                 pushTheme(resolvedDark(m));
+            });
+            /* View 层退役(2026-11-14)：抽屉/搜索键原生直触（HTML click 链已死）。
+               0=抽屉（open + dock 退位）；1=搜索（Router.go 落 nativeSearch+页面态）。 */
+            appbarBar.navAction = i -> runOnUiThread(() -> {
+                if (i == 0) {
+                    if (nativeDrawer != null) {
+                        nativeDrawer.open();
+                        com.netops.handbook.lens.glass2.DockBus.INSTANCE.pushOverlaid(true);
+                        NetOpsShell.INSTANCE.setOverlaid(true);
+                    }
+                } else if (i == 1) {
+                    com.netops.handbook.lens.Router.INSTANCE.go("search", "", false);
+                }
             });
         } catch (Throwable t) {
             Log.w(TAG, "原生顶栏挂载失败（不影响主流程）", t);
