@@ -19,7 +19,7 @@ const OUT = path.join(ROOT, '..', 'app', 'src', 'main', 'assets', 'native-data.j
 /* ---- 1. 在沙箱里跑数据文件（它们只写 window.*） ---- */
 const sandbox = { window: {} };
 vm.createContext(sandbox);
-['10-core.js', '20-extend.js', '21-quiz.js'].forEach(f => {
+['10-core.js', '20-extend.js', '21-quiz.js', '23-cli-common.js'].forEach(f => {
   const src = fs.readFileSync(path.join(DATA_DIR, f), 'utf8');
   vm.runInContext(src, sandbox, { filename: f });
 });
@@ -143,7 +143,16 @@ const out = {
   glossary: arr(EXT.glossary),
   quiz: arr(QUIZ),
   roadmap: arr(EXT.roadmap),
-  wallpapers
+  wallpapers,
+  /* M1(2026-11-14)：CLI 命令库原料（原生 CliDb 聚合用，与 32-boot buildCliDb
+     同四源：dict 由原生直读 dict.rows，这里补 mods/faults 原始 c/o + common）。 */
+  cli: {
+    common: arr(W.NETOPS_CLI_COMMON),
+    mods: (CORE.phases || []).flatMap(p => arr(p.modules).map(m => ({
+      t: cleanTitle(m.t), c: str(m.c), o: str(m.o)
+    }))),
+    faults: arr(CORE.faults).map(f => ({ t: cleanTitle(f.t), c: str(f.c), o: str(f.o) }))
+  }
 };
 
 const json = JSON.stringify(out);

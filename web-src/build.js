@@ -18,7 +18,7 @@ const CSS_FILES = [
 const JS_FILES = [
   'js/00-guard.js',
   'js/data/10-core.js', 'js/data/20-extend.js', 'js/data/21-quiz.js',
-  'js/data/22-cli-rules.js',
+  'js/data/22-cli-rules.js', 'js/data/23-cli-common.js',
   'js/10-topo.js', 'js/20-ui.js', 'js/30-core.js', 'js/31-views.js', 'js/32-boot.js', 'js/33-apple.js'
 ];
 
