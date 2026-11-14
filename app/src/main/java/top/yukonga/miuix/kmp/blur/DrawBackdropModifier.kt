@@ -397,7 +397,7 @@ private class DrawBackdropNode(
 
         if (scaleFactor <= 1) {
             target.cascadeFirstStepScale = 1
-            recordLayer(layer, size = IntSize(fullWidth, fullHeight)) { recordBackdrop(target) }
+            recordLayer(this@DrawBackdropNode, layer, size = IntSize(fullWidth, fullHeight)) { recordBackdrop(target) }
             layer.topLeft =
                 if (currentPadding != 0f) {
                     IntOffset(-currentPadding.toInt(), -currentPadding.toInt())
@@ -409,7 +409,7 @@ private class DrawBackdropNode(
             target.cascadeFirstStepScale = 2
             val w = (fullWidth / 2).coerceAtLeast(1)
             val h = (fullHeight / 2).coerceAtLeast(1)
-            recordLayer(layer, size = IntSize(w, h)) { recordBackdrop(target) }
+            recordLayer(this@DrawBackdropNode, layer, size = IntSize(w, h)) { recordBackdrop(target) }
             drawUpscaledLayer(
                 target,
                 layer,
@@ -432,7 +432,7 @@ private class DrawBackdropNode(
 
             // Step 0: record backdrop at ½ size (GPU bilinear, no shader).
             val firstCascade = target.obtainCascade(0)
-            recordLayer(firstCascade, size = IntSize(firstW, firstH)) { recordBackdrop(target) }
+            recordLayer(this@DrawBackdropNode, firstCascade, size = IntSize(firstW, firstH)) { recordBackdrop(target) }
 
             when (scaleFactor) {
                 4 -> {
@@ -614,6 +614,7 @@ private class DrawBackdropNode(
             val result = crossfadeResultLayer
                 ?: graphicsContext.createGraphicsLayer().also { crossfadeResultLayer = it }
             recordLayer(
+                this@DrawBackdropNode,
                 result,
                 size = IntSize(size.width.toInt().coerceAtLeast(1), size.height.toInt().coerceAtLeast(1)),
             ) {
@@ -636,7 +637,7 @@ private class DrawBackdropNode(
         if (bandSize.width <= 0 || bandSize.height <= 0) return
         val bandOffset = sharpBandOffset
         val layer = sharpLayer ?: graphicsContext.createGraphicsLayer().also { sharpLayer = it }
-        recordLayer(layer, size = bandSize) {
+        recordLayer(this@DrawBackdropNode, layer, size = bandSize) {
             translate(-bandOffset.x.toFloat(), -bandOffset.y.toFloat()) {
                 onDrawBackdrop {
                     with(backdrop) {
@@ -1002,7 +1003,7 @@ private class DrawBackdropNode(
                 uniformShaderName = "child",
             )
         }
-        recordLayer(dest, size = IntSize(destW, destH)) {
+        recordLayer(this@DrawBackdropNode, dest, size = IntSize(destW, destH)) {
             scale(scale, scale, Offset.Zero) { drawLayer(source) }
         }
         source.renderEffect = null
@@ -1029,7 +1030,7 @@ private class DrawBackdropNode(
             layer.topLeft = IntOffset.Zero
             val noiseL = target.noiseLayer
                 ?: graphicsContext.createGraphicsLayer().also { target.noiseLayer = it }
-            recordLayer(noiseL, size = IntSize(fullWidth, fullHeight)) {
+            recordLayer(this@DrawBackdropNode, noiseL, size = IntSize(fullWidth, fullHeight)) {
                 scale(scaleUp, scaleUp, Offset.Zero) { drawLayer(layer) }
             }
             noiseL.renderEffect = target.noiseRenderEffect(noiseCoeff) {
