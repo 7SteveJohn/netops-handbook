@@ -4,10 +4,10 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
-import android.content.Context
 import android.graphics.RectF
-import android.view.MotionEvent
-import android.view.View
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
@@ -20,8 +20,8 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.layer.GraphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
-import androidx.compose.ui.viewinterop.AndroidView
 import kotlin.math.min
 
 /* 贴底/无玻璃/竖排三种平面形态 + 触摸守卫(2026-11-12 P2)。
@@ -37,7 +37,6 @@ internal fun DockedFlat(
     iconP: Paint,
     textP: Paint,
     contentH: Float,
-    anchor: View,
     @Suppress("UNUSED_PARAMETER") refreshTick: Int,
     /* 贴底过渡(2026-11-14 平移旧 dockedProgress):0=悬浮胶囊 1=贴底。
        圆角 half↔14dp 插值、M3 指示器淡入;interactive=false 时不挂守卫
@@ -76,7 +75,7 @@ internal fun DockedFlat(
                 }
             }
         })
-        if (interactive) TouchGuard(model, bar, anchor)
+        if (interactive) TouchGuard(model, bar)
     }
 }
 
@@ -91,7 +90,6 @@ internal fun FloatFlat(
     iconP: Paint,
     textP: Paint,
     contentH: Float,
-    anchor: View,
     @Suppress("UNUSED_PARAMETER") refreshTick: Int,
 ) {
     val density = GlassDockEnv.density()
@@ -124,7 +122,7 @@ internal fun FloatFlat(
                 }
             }
         })
-        TouchGuard(model, bar, anchor)
+        TouchGuard(model, bar)
     }
 }
 
@@ -137,7 +135,6 @@ internal fun RailFlat(
     colors: DockDraw.Colors,
     iconPaths: Array<Array<Path>>,
     iconP: Paint,
-    anchor: View,
     @Suppress("UNUSED_PARAMETER") refreshTick: Int,
 ) {
     val density = GlassDockEnv.density()
@@ -167,91 +164,65 @@ internal fun RailFlat(
                 }
             }
         })
-        TouchGuard(model, rail, anchor)
+        TouchGuard(model, rail)
     }
 }
 
-/* ================= 触摸守卫(旧 onTouchEvent 1:1 语义) ================= */
+/* ================= 触摸守卫(2026-11-14 纯 Compose 手势带) ================= */
 
 /**
- * 药丸带内 = dock 手势;带外 = 转发内容层(旧 forwardToPage:改派 anchor 根
- * 分发,命中测试自动找当前可见页,原生页与 WebView 通用,2026-11-10)。
+ * 旧实现 = 全窗 AndroidView 守卫(带内接管/带外转发 anchor View)。
+ * View 层退役后 anchor 不在树上=转发死路;AndroidView interop 定位双坑
+ * (2×bar 双重定位 / View 盖 Compose 兄弟)也不再可忍——守卫改纯 Compose:
+ * 面积收口到 area 矩形(offsetPx+sizePx 定位,与 drawBehind 同基准),
+ * 带外不拦截=触摸自然落到 Compose 页。
+ *
+ * 带内判定仍走 model.inPillBand(窗口本地 y):横排=栏带内(栏带外的横向
+ * 余量自然落页);竖排=轨条全域(旧 rail 命中口径)。跟拍语义 1:1:
+ * 多指只跟起手那根;跟拍指先抬而余指在场=onPointerLost;守卫协程被中断
+ * (页面销毁/父级拦截)=onUp(cancelled) CANCEL 收场。
  */
-internal class TouchGuardView(
-    context: Context,
-    private val model: DockModel,
-    private val anchor: View,
-) : View(context) {
-    private val area = RectF()
-    private val scr = IntArray(2)
-    private val ascrr = IntArray(2)
-    private var pillMode = false
-
-    fun setGeometry(r: RectF) { area.set(r) }
-
-    override fun onTouchEvent(e: MotionEvent): Boolean {
-        getLocationOnScreen(scr)
-        anchor.getLocationOnScreen(ascrr)
-        val offX = (scr[0] - ascrr[0]).toFloat()
-        val offY = (scr[1] - ascrr[1]).toFloat()
-        val wx = e.x + offX
-        val wy = e.y + offY
-        when (e.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                pillMode = model.inPillBand(wy)
-                if (pillMode) {
-                    model.onDown(wx, wy, e.getPointerId(0), e.eventTime)
-                } else {
-                    forward(e, offX, offY)
-                }
-            }
-            MotionEvent.ACTION_MOVE -> {
-                if (!pillMode) { forward(e, offX, offY); return true }
-                if (!model.pressed) return true
-                if (e.findPointerIndex(model.activePointer()) < 0) {
-                    model.onPointerLost(); return true
-                }
-                val pi = e.findPointerIndex(model.activePointer())
-                model.onMove(e.getX(pi) + offX, e.getY(pi) + offY,
-                    model.activePointer(), e.eventTime)
-            }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                if (!pillMode) { forward(e, offX, offY); return true }
-                model.onUp(e.actionMasked == MotionEvent.ACTION_CANCEL)
-            }
-            MotionEvent.ACTION_POINTER_DOWN -> if (pillMode) {
-                /* 多指:只跟起手那根(旧 findPointerIndex 守卫同语义) */
-            }
-            MotionEvent.ACTION_POINTER_UP -> if (pillMode) {
-                /* 主指在多指中抬起:留给下一个 MOVE 的 onPointerLost 收场(旧同) */
-            }
-        }
-        return true
-    }
-
-    private fun forward(e: MotionEvent, offX: Float, offY: Float) {
-        val c = MotionEvent.obtain(e)
-        c.offsetLocation(offX, offY)
-        try {
-            anchor.dispatchTouchEvent(c)
-        } catch (t: Throwable) {
-            android.util.Log.w("GlassDock", "转发触摸到主窗口失败", t)
-        } finally {
-            c.recycle()
-        }
-    }
-}
-
 @Composable
-internal fun TouchGuard(model: DockModel, area: RectF, anchor: View) {
-    /* ❗全窗守卫(2026-11-12):AndroidView+Modifier.offset 在本机 interop 下被
-       双重定位(实测 guard 落在 2×bar 处,点按全穿透)。旧 PopupWindow 本就是
-       「收到→带内接管/带外转发」模型——守卫铺满窗口、事件里按窗口坐标判区,
-       语义与旧实现 1:1,定位问题不存在。 */
-    AndroidView(
-        factory = { ctx -> TouchGuardView(ctx, model, anchor).apply { isClickable = true } },
-        update = { it.setGeometry(area) },
-        modifier = Modifier.fillMaxSize()
+internal fun TouchGuard(model: DockModel, area: RectF) {
+    if (area.width() <= 0f || area.height() <= 0f) return
+    Box(
+        Modifier
+            /* ❗sizePx 先于 offsetPx(2026-11-14 实测)：offset-first 时节点不渲染
+               也不命中(全窗可视化对照实证)；GlassBar 栏体节点同序(sizePx→
+               offsetPx)定位正常。 */
+            .sizePx(area.width(), area.height())
+            .offsetPx(area.left, area.top)
+            .pointerInput(model) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val id = down.id.value.toInt()
+                    if (!model.inPillBand(area.top + down.position.y)) {
+                        return@awaitEachGesture   // 带外:放行给页面(不消费)
+                    }
+                    model.onDown(area.left + down.position.x,
+                        area.top + down.position.y, id, down.uptimeMillis)
+                    down.consume()
+                    try {
+                        while (true) {
+                            val ev = awaitPointerEvent()
+                            val t = ev.changes.firstOrNull { it.id == down.id }
+                            if (t == null || !t.pressed) {
+                                /* 跟拍指收场:余指在场=onPointerLost(旧 MOVE
+                                   findPointerIndex<0 分支);全抬=onUp 提交 */
+                                if (ev.changes.any { it.pressed && it.id != down.id })
+                                    model.onPointerLost()
+                                else model.onUp(false)
+                                break
+                            }
+                            model.onMove(area.left + t.position.x,
+                                area.top + t.position.y, id, t.uptimeMillis)
+                            ev.changes.forEach { it.consume() }
+                        }
+                    } finally {
+                        if (model.pressed) model.onUp(true)   // 守卫中断=CANCEL
+                    }
+                }
+            }
     )
 }
 
