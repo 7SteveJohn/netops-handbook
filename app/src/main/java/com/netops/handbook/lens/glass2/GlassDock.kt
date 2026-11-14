@@ -6,8 +6,8 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.os.Build
-import android.view.MotionEvent
-import android.view.View
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
@@ -23,10 +23,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Shape
@@ -42,12 +47,12 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import com.netops.handbook.lens.glass.BloomStrokeFx
 import com.netops.handbook.lens.glass.LiquidGlassShaders
 import kotlin.math.abs
@@ -58,13 +63,13 @@ import kotlin.math.min
 import kotlin.math.round
 
 /**
- * Compose 液态玻璃 dock(2026-11-12 P2,FlClash/KernelSU 同代架构)。
+ * Compose 液态玻璃 dock(2026-11-12 P2,FlClash/KernelSU 同代架构;
+ * 2026-11-14 View 层退役——record 源=Compose 壁纸 Image,页面 sibling 直绘)。
  *
- * 结构 = Kyant0 backdrop 同构:内容层(AndroidView 包既有 View 树)record 进
- * GraphicsLayer;玻璃节点 drawLayer 回放 + graphicsLayer.renderEffect 挂
- * blur→vibrancy→lens 链——像素全在 GPU 管线内原子提交,无跨线程位图、
- * 无 PixelCopy、无独立窗口。旧 LensBarView 的抽搐/闪白/割裂一族 bug 在此
- * 架构下不存在。
+ * 结构 = Kyant0 backdrop 同构;2026-11-14 本机(MagicOS)定案:record 全灭主
+ * 画布 → 内容源弃 record,改壁纸 BitmapShader 直喂(见 GlassDockHost 长注);
+ * 玻璃节点 graphicsLayer.renderEffect 挂 blur→vibrancy→lens 链不变——
+ * 像素全在 GPU 管线内原子提交,无跨线程位图、无 PixelCopy、无独立窗口。
  *
  * 玻璃层级(对齐上游 z 序):
  *   栏体 = 投影 → [回放(blur+vibrancy) → 栏缘 lens(24dp)] → surface tint
@@ -76,34 +81,70 @@ import kotlin.math.round
  */
 @Composable
 fun GlassDockHost(
-    anchor: View, modifier: Modifier = Modifier,
+    modifier: Modifier = Modifier,
     pages: @Composable () -> Unit = {},
 ) {
-    val captureLayer = rememberGraphicsLayer()
     var winSize by remember { mutableStateOf(IntSize.Zero) }
-    Box(modifier.fillMaxSize()) {
-        AndroidView(
-            factory = { anchor },
-            modifier = Modifier
-                .fillMaxSize()
-                .onSizeChanged { winSize = it }
-                .drawWithContent {
-                    /* 捕获:本节点内容(View 层=壁纸/旧 View 页)进 layer。dock 在本
-                       子树外,天然无自反馈(探针实证:record 范围与玻璃必须互斥)。
-                       M3 终局:Compose 页为本 Box 兄弟节点(PagesOverlay),不进
-                       record 也不被嵌套——MagicOS 嵌套 ComposeView 不合成(M3 首验)。 */
-                    captureLayer.record { this@drawWithContent.drawContent() }
-                    drawLayer(captureLayer)
-                }
-        )
-        /* M3 终局:页面层 = dock 同组合兄弟节点(嵌套 ComposeView 在 MagicOS 不合成) */
-        pages()
-        GlassDock(captureLayer, anchor, winSize)
+    val dark = com.netops.handbook.ui.AppShellState.isDark
+    Box(modifier.fillMaxSize().onSizeChanged { winSize = it }) {
+        /* 内容层(2026-11-14 View 层退役)：壁纸底 + 页面 同树。
+           ❗❗本机(MagicOS)四轮实证定案：
+           ① GraphicsLayer.record() 一经调用即毁整棵主画布(v13-v16 探针,
+              v12 无 record 全绿)→ dock 玻璃内容源改壁纸 BitmapShader 直喂；
+           ② 直接画进根 Box 的普通内容不上屏(壁纸底/红块页全灭；空参
+              graphicsLayer 包装也无效,v18)——内容子树必须挂 drawWithContent
+              直绘包装(v12 实证全绿,本机 Compose 管线只认带 draw 修饰的节点)。
+           页面不参与折射(M3 终局拍板口径,平板同)。 */
+        Box(Modifier.fillMaxSize().drawWithContent { this@drawWithContent.drawContent() }) {
+            WallpaperLayer(dark)
+            pages()
+        }
+        GlassDock(winSize)
     }
 }
 
+/** 壁纸底(Compose Image,直铺口径)：wallBitmap 解码自 WallpaperPrefs(预糊
+ *  +横竖配对同 NativeBackdrop 口径)；深色压暗 ColorMatrix 0.36(旧 ImageView
+ *  同式)。无壁纸 = 纯色底(非 direct 页底色)。 */
 @Composable
-private fun GlassDock(captureLayer: GraphicsLayer, anchor: View, winSize: IntSize) {
+private fun WallpaperLayer(dark: Boolean) {
+    val bmp = com.netops.handbook.lens.WallpaperPrefs.wallBitmap
+    if (bmp != null) {
+        Image(
+            bitmap = bmp.asImageBitmap(),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+            colorFilter = if (dark) ColorFilter.colorMatrix(
+                ColorMatrix().apply { setToScale(0.36f, 0.36f, 0.36f, 1f) }) else null,
+        )
+    } else {
+        Box(Modifier.fillMaxSize().background(
+            if (dark) androidx.compose.ui.graphics.Color(0xFF0C0D10)
+            else androidx.compose.ui.graphics.Color(0xFFF2F2F7)))
+    }
+}
+
+/** 壁纸内容源 BitmapShader：wallBitmap 按全屏 Crop 口径铺满 (winW×winH)，
+ *  再平移到节点本地坐标（节点原点=(nodeL,nodeT)）——即「bar 背后那块壁纸」。 */
+private fun wallShader(
+    bmp: android.graphics.Bitmap,
+    winW: Float, winH: Float,
+    nodeL: Float, nodeT: Float,
+): android.graphics.BitmapShader {
+    val sh = android.graphics.BitmapShader(
+        bmp, android.graphics.Shader.TileMode.CLAMP, android.graphics.Shader.TileMode.CLAMP)
+    val scale = maxOf(winW / bmp.width, winH / bmp.height)
+    val m = android.graphics.Matrix()
+    m.postScale(scale, scale)
+    m.postTranslate((winW - bmp.width * scale) / 2f - nodeL,
+        (winH - bmp.height * scale) / 2f - nodeT)
+    sh.setLocalMatrix(m)
+    return sh
+}
+
+@Composable
+private fun GlassDock(winSize: IntSize) {
     val context = LocalContext.current
     val hostView = LocalView.current
     val density = context.resources.displayMetrics.density
@@ -155,6 +196,11 @@ private fun GlassDock(captureLayer: GraphicsLayer, anchor: View, winSize: IntSiz
     val winW = winSize.width.toFloat()
     val winH = winSize.height.toFloat()
     val vertical = winW > winH
+    /* ❗AGSL 可用性(2026-11-14 本机实证)：MagicOS 手机上挂 RuntimeShader
+       RenderEffect 的节点会让同窗全部普通内容不被合成(v22 探针:禁 AGSL
+       全绿)；平板同代全绿。⇒ HONOR 手机禁 AGSL,玻璃降级=壁纸直喂无折射。 */
+    val agslOk = !android.os.Build.MANUFACTURER.contains("HONOR", true) ||
+            winW >= 600f * density
     val glassNone = glassLevel == "none"
     val glassLive = !glassNone && !vertical && Build.VERSION.SDK_INT >= 33
 
@@ -218,27 +264,28 @@ private fun GlassDock(captureLayer: GraphicsLayer, anchor: View, winSize: IntSiz
             tween(300, easing = LinearOutSlowInEasing))
     }
 
-    Box(Modifier.fillMaxSize()) {
+    /* 抽屉/设置在场 → 整个 dock(含守卫带)让位(旧 lensBar.setOverlaid 语义) */
+    if (!DockBus.overlaid) Box(Modifier.fillMaxSize()) {
         if (vertical) {
-            RailFlat(model, railRectW, colors, iconPaths, iconP, anchor, refreshTick)
+            RailFlat(model, railRectW, colors, iconPaths, iconP, refreshTick)
         } else {
             val p = dockP.value
             if (p > 0.01f) Box(Modifier.fillMaxSize().graphicsLayer { alpha = p }) {
                 DockedFlat(model, barRectW, colors, iconPaths, iconP, textP,
-                    contentH, anchor, refreshTick,
+                    contentH, refreshTick,
                     progress = p, interactive = p >= 0.99f)
             }
             if (p < 0.99f) {
                 val f = 1f - p
                 if (glassLive) {
                     Box(Modifier.fillMaxSize().graphicsLayer { alpha = f }) {
-                        GlassBar(captureLayer, model, barRectW, colors, iconPaths, iconP, textP,
-                            contentH, glassLevel == "standard", anchor, refreshTick)
+                        GlassBar(model, barRectW, colors, iconPaths, iconP, textP,
+                            contentH, glassLevel == "standard", winSize, agslOk, refreshTick)
                     }
                 } else {
                     Box(Modifier.fillMaxSize().graphicsLayer { alpha = f }) {
                         FloatFlat(model, barRectW, colors, iconPaths, iconP, textP,
-                            contentH, anchor, refreshTick)
+                            contentH, refreshTick)
                     }
                 }
             }
@@ -259,7 +306,6 @@ internal fun barPadPx(density: Float): Float = (15.6f * density - 0.5f) * 2.0784
 
 @Composable
 private fun GlassBar(
-    captured: GraphicsLayer,
     model: DockModel,
     bar: RectF,
     colors: DockDraw.Colors,
@@ -268,7 +314,8 @@ private fun GlassBar(
     textP: Paint,
     contentH: Float,
     standard: Boolean,
-    anchor: View,
+    winSize: IntSize,
+    agslOk: Boolean,
     refreshTick: Int,
 ) {
     val density = GlassDockEnv.density()
@@ -283,7 +330,6 @@ private fun GlassBar(
     val shadowP = remember { DockDraw.shadowPaint(colors, density) }
     val tintP = remember(colors) { Paint(Paint.ANTI_ALIAS_FLAG).apply { color = colors.sfTint } }
     val vibFx = remember { DockDraw.vibrancyEffect() }
-    val barGlassLayer = rememberGraphicsLayer()
     val blurBarFx = remember(density) { DockDraw.blurEffect(4f * density) }
     val blurPillFx = remember(density) { DockDraw.blurEffect(4f * density) }
     val barShape = remember(bar.height()) {
@@ -375,35 +421,24 @@ private fun GlassBar(
                     rimFocus = 0f, rimAdded = if (colors.dark) 0.38f else 0f,
                     rimSide = 0f,
                     haze = 0.72f, hazeBlur = 15.6f)
-                renderEffect = barFx.effect(floatArrayOf(
-                    bar.width(), bar.height(), glowV, model.glowX, model.glowY))
+                /* AGSL 门(2026-11-14)：MagicOS 手机上此节点毒杀同窗全部普通
+                   内容(v22 探针)——手机走壁纸直喂 fill(降级,无折射镜)。 */
+                renderEffect = if (agslOk) barFx.effect(floatArrayOf(
+                    bar.width(), bar.height(), glowV, model.glowX, model.glowY)) else null
             }
             .drawBehind {
                 clipRect(0f, 0f, size.width, size.height) {
-                    if (DockBus.CAPTURE_PAGES) {
-                        translate(-(bar.left - barPad), -(bar.top - barPad)) {
-                            drawLayer(captured)
-                        }
+                    /* 内容源(2026-11-14 本机定案)：record 全灭主画布 → 弃用。
+                       壁纸 BitmapShader 直喂(全屏 Crop 映射到节点坐标=bar 背后
+                       那块壁纸)；无壁纸首帧用不透明 barFill 兜底。 */
+                    val bmp = com.netops.handbook.lens.WallpaperPrefs.wallBitmap
+                    if (bmp != null) {
+                        snapPaint.shader = wallShader(bmp,
+                            winSize.width.toFloat(), winSize.height.toFloat(),
+                            bar.left - barPad, bar.top - barPad)
+                        ntc { c -> c.drawRect(0f, 0f, size.width, size.height, snapPaint) }
                     } else {
-                        /* HONOR(MagicOS):内容源 = PageSnap 快照(窗口坐标)对齐节点。
-                           读 version 订阅绘制:快照更新 → 玻璃层重绘(draw 阶段订阅,
-                           不触发重组)。快照未就绪首帧用不透明 barFill 兜底。 */
-                        val snap = PageSnap.latest()
-                        if (snap != null) {
-                            val sh = android.graphics.BitmapShader(
-                                snap, android.graphics.Shader.TileMode.CLAMP,
-                                android.graphics.Shader.TileMode.CLAMP)
-                            val m = android.graphics.Matrix().apply {
-                                postTranslate(PageSnap.snapL - (bar.left - barPad),
-                                    PageSnap.snapT - (bar.top - barPad))
-                            }
-                            sh.setLocalMatrix(m)
-                            snapPaint.shader = sh
-                            PageSnap.version
-                            ntc { c -> c.drawRect(0f, 0f, size.width, size.height, snapPaint) }
-                        } else {
-                            ntc { c -> c.drawRect(0f, 0f, size.width, size.height, fillP) }
-                        }
+                        ntc { c -> c.drawRect(0f, 0f, size.width, size.height, fillP) }
                     }
                 }
             }
@@ -445,7 +480,7 @@ private fun GlassBar(
              节点外扩 pad = 采样 reach(按最大折射档 4.3dp 预留,两档共用) ---- */
         val lensPad = ((4.3f * density + 2.5f * density * 2.0784f) + 12f)
             .toInt().coerceAtLeast(16)
-        if (liftV > 0.01f) Box(Modifier
+        if (liftV > 0.01f && agslOk) Box(Modifier
             .sizePx(nodeW + 2f * lensPad, nodeH + 2f * lensPad)
             .offsetPx(nodeL - lensPad, nodeT - lensPad)
         ) {
@@ -501,27 +536,14 @@ private fun GlassBar(
                 }) {
                     Box(Modifier.fillMaxSize().drawBehind {
                         clipRect(0f, 0f, size.width, size.height) {
-                            if (DockBus.CAPTURE_PAGES) {
-                                translate(-(nodeL - lensPad), -(nodeT - lensPad)) {
-                                    drawLayer(captured)
-                                }
-                            } else {
-                                /* HONOR(MagicOS):镜内容源 = 同一张 PageSnap 快照
-                                   (药丸节点 ⊆ bar±barPad,快照覆盖足够)。 */
-                                val snap = PageSnap.latest()
-                                if (snap != null) {
-                                    val sh = android.graphics.BitmapShader(
-                                        snap, android.graphics.Shader.TileMode.CLAMP,
-                                        android.graphics.Shader.TileMode.CLAMP)
-                                    val m = android.graphics.Matrix().apply {
-                                        postTranslate(PageSnap.snapL - (nodeL - lensPad),
-                                            PageSnap.snapT - (nodeT - lensPad))
-                                    }
-                                    sh.setLocalMatrix(m)
-                                    snapPaint.shader = sh
-                                    PageSnap.version
-                                    ntc { c -> c.drawRect(0f, 0f, size.width, size.height, snapPaint) }
-                                }
+                            /* 镜内容源(2026-11-14 本机定案)：同壁纸 BitmapShader
+                               (药丸节点 ⊆ bar±barPad,同一映射覆盖足够)。 */
+                            val bmp = com.netops.handbook.lens.WallpaperPrefs.wallBitmap
+                            if (bmp != null) {
+                                snapPaint.shader = wallShader(bmp,
+                                    winSize.width.toFloat(), winSize.height.toFloat(),
+                                    nodeL - lensPad, nodeT - lensPad)
+                                ntc { c -> c.drawRect(0f, 0f, size.width, size.height, snapPaint) }
                             }
                         }
                     })
@@ -544,7 +566,7 @@ private fun GlassBar(
         })
 
         /* ---- 触摸守卫 ---- */
-        TouchGuard(model, bar, anchor)
+        TouchGuard(model, bar)
     }
 }
 

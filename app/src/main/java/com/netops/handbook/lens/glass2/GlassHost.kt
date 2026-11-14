@@ -1,18 +1,23 @@
 package com.netops.handbook.lens.glass2
 
 import android.view.ViewGroup
+import android.view.View
 import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 
 /**
- * P1 宿主(2026-11-12,2026-11-14 M3 终局改造)。
+ * P1 宿主(2026-11-12;2026-11-14 两轮改造)。
  *
- * 单一路径：旧根(View 层=壁纸 backdrop)包进 Compose AndroidView，
- * Compose 页(PagesOverlay)为 dock 同组合兄弟节点——M3 首验实锤 MagicOS
- * 「AndroidView 内嵌套 ComposeView 内容不合成」，页面必须与 dock 同组合；
- * WebView 已摘除(M1d-3)，树里只剩 View/Compose，record 全绿(探针实证)。
+ * 三层结构(View 层退役)：
+ *   holder{ under(root=壁纸 backdrop+View 残页,GONE 为主) → ComposeView → over(覆盖层) }
+ * - Compose 树内不再有 AndroidView：MagicOS interop 三坑(嵌套 ComposeView
+ *   不合成 / View 盖 Compose 兄弟 / guard 2×bar 双重定位)全因 View 层内嵌。
+ *   壁纸与页面均为 Compose 本体(record 源)，覆盖层(搜索/设置/抽屉)留 View
+ *   实现放在 over 层(普通 FrameLayout 兄弟层序，全设备可靠)。
+ * - 返回 ComposeView 给 Java 侧：AppBarView 的非按钮区触摸转发
+ *   (forwardToContent→anchor.dispatchTouchEvent)改指 Compose 树。
  *
  * 回调用 GlassHostHooks 接口（Java 匿名类友好——Kotlin 函数类型的 Unit
  * 返回在 Java lambda 里会因 void↔Unit 推断失败）。
@@ -26,11 +31,18 @@ interface GlassHostHooks {
 }
 
 fun ComponentActivity.installGlassHost(
-    anchor: FrameLayout,
+    under: View,
+    over: View,
     hooks: GlassHostHooks,
-) {
+): ComposeView {
     val holder = FrameLayout(this)
     setContentView(holder)
+    holder.addView(
+        under,
+        FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+        )
+    )
     val compose = ComposeView(this)
     compose.setViewCompositionStrategy(
         ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed
@@ -41,8 +53,14 @@ fun ComponentActivity.installGlassHost(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
         )
     )
+    holder.addView(
+        over,
+        FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+        )
+    )
     compose.setContent {
-        GlassDockHost(anchor) {
+        GlassDockHost {
             com.netops.handbook.ui.pages.PagesOverlay(
                 data = { com.netops.handbook.ui.PageData.dataRoot },
                 onGo = { r, a -> hooks.onGo(r, a) },
@@ -50,4 +68,5 @@ fun ComponentActivity.installGlassHost(
                 onState = { id, kind, on -> hooks.onState(id, kind, on) })
         }
     }
+    return compose
 }
