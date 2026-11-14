@@ -87,3 +87,4 @@ dist/
 
 # 隔离实验工作区（KernelSU 同帧管线原型，独立 git 仓，不入主库）
 /new/
+.refs/
