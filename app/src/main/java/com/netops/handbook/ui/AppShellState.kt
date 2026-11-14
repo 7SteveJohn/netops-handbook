@@ -40,6 +40,10 @@ object AppShellState {
 
     /** M3-2：速查单表深链（ref 路由 arg；null=列表模式）。 */
     var refsDetail by mutableStateOf<String?>(null)
+
+    /** M3-2⑦：阶段页当前 pid/focus（Router 动作表写入）。 */
+    var phasePid by mutableStateOf("p-1")
+    var phaseFocus by mutableStateOf<String?>(null)
 }
 
 /** native-data 装载版本源（M3：Compose 页据此重读数据；MainActivity 装载完成时 bump）。 */

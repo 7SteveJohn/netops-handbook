@@ -139,6 +139,8 @@ public class MainActivity extends AppCompatActivity {
     /** M3-2⑥：排障/面试 Compose 页宿主（DocListConfig 驱动双路由）。 */
     private androidx.compose.ui.platform.ComposeView composeFault;
     private androidx.compose.ui.platform.ComposeView composeIv;
+    /** M3-2⑦：阶段详情 Compose 页宿主。 */
+    private androidx.compose.ui.platform.ComposeView composePhase;
     private org.json.JSONObject nativeDataRoot;
     private com.netops.handbook.lens.NativeMeView nativeMe;
     private com.netops.handbook.lens.NativeSettingsPanel settingsPanel;
@@ -331,6 +333,14 @@ public class MainActivity extends AppCompatActivity {
         composeSimple.setVisibility(android.view.View.VISIBLE);
     }
 
+    /** M3-2⑦：阶段页显隐（pid + 可选 focus 模块深链）。 */
+    private void showPhase(String pid, String focusId) {
+        if (composePhase == null) return;
+        com.netops.handbook.ui.AppShellState.INSTANCE.setPhasePid(pid);
+        com.netops.handbook.ui.AppShellState.INSTANCE.setPhaseFocus(focusId);
+        composePhase.setVisibility(android.view.View.VISIBLE);
+    }
+
     /** M3-2：速查页显隐（null=列表，id=单表直达）。 */
     private void showRefs(String detailId) {
         if (composeRefs == null) return;
@@ -467,6 +477,8 @@ public class MainActivity extends AppCompatActivity {
             composeDict.setVisibility(android.view.View.GONE);
         if (!"fault".equals(keep) && composeFault != null)
             composeFault.setVisibility(android.view.View.GONE);
+        if (!"phase".equals(keep) && composePhase != null)
+            composePhase.setVisibility(android.view.View.GONE);
         if (!"iv".equals(keep) && composeIv != null)
             composeIv.setVisibility(android.view.View.GONE);
         /* keep==null = 本路由没有原生页（CLI 等 WebView 独占页）→ 壁纸层让位，
@@ -652,7 +664,7 @@ public class MainActivity extends AppCompatActivity {
                 ? Math.round(70f * getResources().getDisplayMetrics().density) : 0;
         android.view.View[] pages = {nativeHome, nativePhase, nativeFault, nativeIv, nativeDict,
                 nativeRefs, nativeGlossary, nativeRoadmap, nativeQuiz, nativeSearch,
-                nativeMe, nativeFav, cliCompose, composeSimple, composeRefs, composeQuiz, composeFav, composeMe, composeHome, composeDict, composeFault, composeIv};
+                nativeMe, nativeFav, cliCompose, composeSimple, composeRefs, composeQuiz, composeFav, composeMe, composeHome, composeDict, composeFault, composeIv, composePhase};
         for (android.view.View p : pages) {
             if (p == null) continue;
             android.view.ViewGroup.LayoutParams lp0 = p.getLayoutParams();
