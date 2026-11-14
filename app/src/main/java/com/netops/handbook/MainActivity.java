@@ -120,6 +120,10 @@ public class MainActivity extends AppCompatActivity {
     private String currentNativeKeep = null;
     private com.netops.handbook.lens.NativeHomeView nativeHome;
     private com.netops.handbook.lens.NativeSearchView nativeSearch;
+    /** M1b(2026-11-14)：CLI 页 Compose 宿主（唯一非 View 原生页；M1d 摘 WebView 后
+     *  全部页面进 Compose 树的先行样本）。 */
+    private androidx.compose.ui.platform.ComposeView cliCompose;
+    private JSONObject nativeDataRoot;
     private com.netops.handbook.lens.NativeMeView nativeMe;
     private com.netops.handbook.lens.NativeSettingsPanel settingsPanel;
     private com.netops.handbook.lens.NativeFavView nativeFav;
@@ -248,9 +252,11 @@ public class MainActivity extends AppCompatActivity {
                     break;
                 }
                 case "cli":
-                    /* WebView 独占（M1 迁 Compose）：keep=null = 全部原生页让位。 */
-                    switchNativeTo(null, () -> { });
-                    return;
+                    /* M1b：cli 已迁 Compose 页（CliScreen）——keep="cli" 走通用互斥。 */
+                    keep = "cli"; target = () -> {
+                        if (cliCompose != null) cliCompose.setVisibility(android.view.View.VISIBLE);
+                    };
+                    break;
                 default:
                     return;
             }
@@ -300,6 +306,7 @@ public class MainActivity extends AppCompatActivity {
         if (!"search".equals(keep) && nativeSearch != null) nativeSearch.hide();
         if (!"me".equals(keep) && nativeMe != null) nativeMe.hide();
         if (!"fav".equals(keep) && nativeFav != null) nativeFav.hide();
+        if (!"cli".equals(keep) && cliCompose != null) cliCompose.setVisibility(android.view.View.GONE);
         /* keep==null = 本路由没有原生页（CLI 等 WebView 独占页）→ 壁纸层让位，
            否则它（z 序在 WebView 之上）会把 WebView 盖死：页面看不见、触摸却穿透。
            任何原生页显示时收回让位。 */
@@ -484,7 +491,7 @@ public class MainActivity extends AppCompatActivity {
                 ? Math.round(70f * getResources().getDisplayMetrics().density) : 0;
         android.view.View[] pages = {nativeHome, nativePhase, nativeFault, nativeIv, nativeDict,
                 nativeRefs, nativeGlossary, nativeRoadmap, nativeQuiz, nativeSearch,
-                nativeMe, nativeFav};
+                nativeMe, nativeFav, cliCompose};
         for (android.view.View p : pages) {
             if (p == null) continue;
             android.view.ViewGroup.LayoutParams lp0 = p.getLayoutParams();
@@ -546,6 +553,7 @@ public class MainActivity extends AppCompatActivity {
                 org.json.JSONObject meta = root.getJSONObject("meta");
                 org.json.JSONObject c = meta.getJSONObject("counts");
                 nativeData = root;
+                nativeDataRoot = root;   // M1b：CliScreen 数据源
                 if (nativePhase != null) runOnUiThread(() -> nativePhase.setPageData(root));
                 if (nativeFault != null) runOnUiThread(() -> nativeFault.setPageData(root));
                 if (nativeIv != null) runOnUiThread(() -> nativeIv.setPageData(root));
@@ -658,6 +666,13 @@ public class MainActivity extends AppCompatActivity {
                 });
         settingsPanel.setLayoutParams(new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        /* M1b：CLI 页 = Compose 页（与其他 View 页同层互斥；z 序在面板之下）。 */
+        cliCompose = new androidx.compose.ui.platform.ComposeView(this);
+        cliCompose.setViewCompositionStrategy(
+                androidx.compose.ui.platform.ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed);
+        cliCompose.setCliContent(() -> nativeDataRoot,
+                () -> com.netops.handbook.ui.AppShellState.INSTANCE.isDark());
+        addNativePage(cliCompose);
         root.addView(settingsPanel);     /* 面板必须在所有原生页之上 */
         ThemeBus.register(settingsPanel);
         /* 面板开合 → 侧栏退位（侧栏是独立弹窗，永远压在面板上） */

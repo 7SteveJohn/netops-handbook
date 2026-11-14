@@ -76,6 +76,11 @@ object CliEngine {
     data class Item(val cmd: String, val raw: String, val fn: String, val plat: String, val out: String?)
 
     private var db: List<Item>? = null
+    private var commonItems: List<Item> = emptyList()
+
+    /** 快捷命令 chips（renderQuick：按分组过滤，plat=all 恒显示）。 */
+    fun commonFor(group: String): List<Item> =
+        commonItems.filter { group == "all" || it.plat == group }
 
     /** 聚合四源（native-data root）。懒加载+缓存；线程安全=幂等纯函数。 */
     fun build(root: JSONObject): List<Item> {
@@ -129,13 +134,17 @@ object CliEngine {
         }
         /* 4. 内置常用命令（带平台标记，回显贴近真实输出） */
         val common = cli.optJSONArray("common") ?: JSONArray()
+        val commons = ArrayList<Item>()
         for (i in 0 until common.length()) {
             val x = common.optJSONObject(i) ?: continue
             val n = normalize(x.optString("cmd"))
             if (!isCommand(n)) continue
             push(n, x.optString("cmd"), x.optString("fn"),
                 x.optString("plat").ifEmpty { detectPlat(n) ?: "lx" }, x.optString("out").ifEmpty { null })
+            commons.add(Item(n.lowercase(), x.optString("cmd"), x.optString("fn"),
+                x.optString("plat").ifEmpty { "lx" }, x.optString("out").ifEmpty { null }))
         }
+        commonItems = commons
         db = items
         return items
     }
