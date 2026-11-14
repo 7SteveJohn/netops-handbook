@@ -79,6 +79,9 @@ fun PagesOverlay(
         "cli" -> OpsTheme(dark, direct) {
             CliScreen(data, dark)
         }
+        "search" -> OpsTheme(dark, direct) {
+            SearchPage(data, dark) { r, a -> onGo(r, a) }
+        }
     }
 }
 

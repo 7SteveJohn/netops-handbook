@@ -36,6 +36,7 @@ object Router {
         Meta("iv", "面试题库", "高频真题与 STAR 话术", "me", "amber"),
         Meta("me", "我的", "进度 · 收藏 · 设置", "me", "teal"),
         Meta("phase", "阶段详情", "", "learn", "teal"),
+        Meta("phase-focus", "阶段详情", "", "learn", "teal"),
         Meta("refs", "速查表", "面试前十分钟", "learn", "blue"),
         Meta("ref", "速查表", "", "learn", "blue"),
         Meta("glossary", "术语词典", "网络与云原生黑话", "learn", "purple"),

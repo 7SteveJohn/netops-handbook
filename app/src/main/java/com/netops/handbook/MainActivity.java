@@ -396,7 +396,7 @@ public class MainActivity extends AppCompatActivity {
                 case "quiz":   keep = "quiz";  target = () -> pagesGo("quiz", ""); break;
                 case "me":     keep = "me";    target = () -> pagesGo("me", ""); break;
                 case "fav":    keep = "fav";   target = () -> pagesGo("fav", ""); break;
-                case "search": keep = "search"; target = () -> { com.netops.handbook.ui.AppShellState.INSTANCE.pagesGo("search", ""); nativeSearch.show(); }; break;
+                case "search": keep = "search"; target = () -> pagesGo("search", ""); break;
                 case "phase": {
                     keep = "phase";
                     final String pid = (arg == null || arg.isEmpty()) ? "p-1" : arg;
@@ -1064,7 +1064,10 @@ public class MainActivity extends AppCompatActivity {
                0=抽屉（open + dock 退位）；1=搜索（Router.go 落 nativeSearch+页面态）。 */
             appbarBar.navAction = i -> runOnUiThread(() -> {
                 if (i == 0) {
-                    if (nativeDrawer != null) {
+                    /* navBack 态(阶段/搜索等子路由)左键=返回；根路由=抽屉。 */
+                    if (com.netops.handbook.lens.Router.INSTANCE.getNavBack()) {
+                        com.netops.handbook.lens.Router.INSTANCE.back();
+                    } else if (nativeDrawer != null) {
                         nativeDrawer.open();
                         pushOverlaidAll(true);
                     }
