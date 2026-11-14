@@ -161,6 +161,7 @@ public class MainActivity extends AppCompatActivity {
             java.util.concurrent.Executors.newSingleThreadExecutor();
     /** 相册选图的请求码。 */
     private static final int REQ_PICK_IMAGE = 9001;
+    private static final int REQ_IMPORT_BACKUP = 9002;
     /** 文件导入（<input type=file> 选择器）请求码。 */
     private static final int REQ_CHOOSER = 9002;
     /** 文件导入回调（onShowFileChooser 暂存，onActivityResult 回传）。 */
@@ -225,7 +226,7 @@ public class MainActivity extends AppCompatActivity {
 
     /* ---- M1c：设置真源收口（SP 落地 + 原生直驱；桥与面板回调共用） ---- */
 
-    private void applyThemeMode(String mode) {
+    public void applyThemeMode(String mode) {
         String m = ("light".equals(mode) || "dark".equals(mode)) ? mode : "auto";
         rememberTheme(m);
         boolean dark = resolvedDark(m);
@@ -234,7 +235,7 @@ public class MainActivity extends AppCompatActivity {
         applyBarAppearance(dark);
     }
 
-    private void applyGlassLevel(String level) {
+    public void applyGlassLevel(String level) {
         if (!"none".equals(level) && !"standard".equals(level) && !"ultra".equals(level)) return;
         getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(KEY_GLASS, level).apply();
         com.netops.handbook.lens.NativeBlocks.GLASS_LEVEL = level;
@@ -244,7 +245,7 @@ public class MainActivity extends AppCompatActivity {
         if (settingsPanel != null) settingsPanel.setGlassLevel(level);
     }
 
-    private void applyDockStyle(boolean docked) {
+    public void applyDockStyle(boolean docked) {
         getSharedPreferences(PREFS, MODE_PRIVATE).edit()
                 .putBoolean(KEY_DOCKSTYLE_DOCKED, docked).apply();
         dockDocked = docked;
@@ -257,6 +258,40 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String KEY_GLASS = "glass_level";
     private static final String KEY_DOCKSTYLE_DOCKED = "dockstyle_docked";
+
+    /** M1d(2026-11-14)：备份恢复后刷新原生状态页（done/fav SP 已由 merge 合并）。 */
+    public void refreshNativeState(org.json.JSONObject done, org.json.JSONObject fav) {
+        if (nativePhase != null) nativePhase.mergeLegacyState(
+                done == null ? "{}" : done.toString(),
+                fav == null ? "{}" : fav.toString());
+        markStatePagesDirty();
+    }
+
+    /** M1d：备份导出（saveFile 落 Downloads）。 */
+    public void exportBackup() {
+        ioPool.execute(() -> {
+            try {
+                String json = com.netops.handbook.lens.BackupManager.buildJson(this);
+                String path = saveFile(
+                        json.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                        com.netops.handbook.lens.BackupManager.fileName(), "application/json");
+                runOnUiThread(() -> Toast.makeText(this, "已导出到 " + path, Toast.LENGTH_LONG).show());
+            } catch (Throwable e) {
+                Log.w(TAG, "备份导出失败", e);
+                runOnUiThread(() -> Toast.makeText(this, "导出失败：" + e.getMessage(),
+                        Toast.LENGTH_LONG).show());
+            }
+        });
+    }
+
+    /** M1d：备份恢复入口（系统文件选择器）。 */
+    public void importBackup() {
+        Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        i.addCategory(Intent.CATEGORY_OPENABLE);
+        i.setType("application/json");
+        try { startActivityForResult(i, REQ_IMPORT_BACKUP); }
+        catch (Throwable e) { Toast.makeText(this, "无法打开文件选择器", Toast.LENGTH_SHORT).show(); }
+    }
 
     /** M2-1(2026-11-14)：Router.onNavigate 动作表——route→(keep, showTarget)
      *  与 Bridge.showNativeX 逐条对应（keep 口径注意 learn→"home"）。
@@ -677,6 +712,10 @@ public class MainActivity extends AppCompatActivity {
         nativeMe = new com.netops.handbook.lens.NativeMeView(this);
         ThemeBus.register(nativeMe);
         addNativePage(nativeMe);
+        nativeMe.setBackupHooks(new com.netops.handbook.lens.NativeMeView.BackupHooks() {
+            @Override public void onExport() { exportBackup(); }
+            @Override public void onImport() { importBackup(); }
+        });
         nativeMe.setNav(route -> {
             if ("settings".equals(route)) {
                 runOnUiThread(() -> {
@@ -2141,6 +2180,29 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
             cb.onReceiveValue(results);
+            return;
+        }
+        /* M1d：备份恢复文件读取（OpenDocument JSON）。 */
+        if (requestCode == REQ_IMPORT_BACKUP && resultCode == RESULT_OK && data != null) {
+            Uri uri = data.getData();
+            if (uri == null) return;
+            ioPool.execute(() -> {
+                String text = null;
+                try (java.io.InputStream is = getContentResolver().openInputStream(uri);
+                     java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream()) {
+                    byte[] buf = new byte[8192];
+                    int n;
+                    while ((n = is.read(buf)) > 0) bo.write(buf, 0, n);
+                    text = new String(bo.toByteArray(), java.nio.charset.StandardCharsets.UTF_8);
+                } catch (Throwable e) { Log.w(TAG, "读取备份失败", e); }
+                final String t = text;
+                runOnUiThread(() -> {
+                    if (t == null) { Toast.makeText(this, "读取备份失败", Toast.LENGTH_LONG).show(); return; }
+                    com.netops.handbook.lens.BackupManager.Summary r =
+                            com.netops.handbook.lens.BackupManager.import(this, t);
+                    Toast.makeText(this, r.message, Toast.LENGTH_LONG).show();
+                });
+            });
             return;
         }
         if (requestCode == REQ_PICK_IMAGE && resultCode == RESULT_OK && data != null) {

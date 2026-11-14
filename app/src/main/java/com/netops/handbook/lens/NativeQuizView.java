@@ -124,6 +124,39 @@ public class NativeQuizView extends LinearLayout implements ThemeBus.DarkAware {
                 "共 " + quiz.length() + " 题 · 点选项即判分，不做记忆、只做查漏", 12.5f, false, pal.textMute);
         sub.setPadding(0, pal.dp(6), 0, 0);
         head.addView(sub);
+        /* M1d-2(2026-11-14)：错题重刷入口（HTML act=wrong 同语义）——判分写
+           netops_native/quizWrong（qKey 指纹→{m,n}），此处按指纹过滤重建。 */
+        JSONObject wrongMap = wrongMap();
+        int wrongN = wrongMap.length();
+        LinearLayout chips = new LinearLayout(getContext());
+        chips.setOrientation(HORIZONTAL);
+        LinearLayout.LayoutParams clp0 = NativeBlocks.matchP();
+        clp0.topMargin = pal.dp(10);
+        head.addView(chips, clp0);
+        TextView chipAll = NativeBlocks.tv(getContext(), pal, "全部", 11.5f, true,
+                wrongOnly ? pal.textMute : pal.accent);
+        chipAll.setBackground(NativeBlocks.shape(pal, wrongOnly ? pal.chipBgOff : pal.chipBgOn, pal.dp(9)));
+        chipAll.setPadding(pal.dp(10), pal.dp(5), pal.dp(10), pal.dp(5));
+        chipAll.setOnClickListener(v -> { if (!wrongOnly) return; wrongOnly = false; dirty = true; buildPage(); });
+        chips.addView(chipAll);
+        TextView chipWrong = NativeBlocks.tv(getContext(), pal,
+                "只刷错题" + (wrongN > 0 ? " · " + wrongN : ""), 11.5f, true,
+                wrongOnly ? pal.accent : pal.textMute);
+        chipWrong.setBackground(NativeBlocks.shape(pal, wrongOnly ? pal.chipBgOn : pal.chipBgOff, pal.dp(9)));
+        chipWrong.setPadding(pal.dp(10), pal.dp(5), pal.dp(10), pal.dp(5));
+        LinearLayout.LayoutParams wlp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        wlp.leftMargin = pal.dp(8);
+        chipWrong.setLayoutParams(wlp);
+        chipWrong.setOnClickListener(v -> {
+            if (wrongN == 0) {
+                android.widget.Toast.makeText(getContext(), "错题本是空的，先做一组题",
+                        android.widget.Toast.LENGTH_SHORT).show();
+                return;
+            }
+            wrongOnly = true; dirty = true; buildPage();
+        });
+        chips.addView(chipWrong);
         LinearLayout.LayoutParams hlp = NativeBlocks.matchP();
         hlp.bottomMargin = pal.dp(10);
         head.setLayoutParams(hlp);
@@ -131,10 +164,53 @@ public class NativeQuizView extends LinearLayout implements ThemeBus.DarkAware {
                 page.getWidth() > 0 ? page.getWidth()
                         : getResources().getDisplayMetrics().widthPixels));
 
+        int no = 0;
         for (int i = 0; i < quiz.length(); i++) {
             JSONObject q = quiz.optJSONObject(i);
-            if (q != null) page.addView(quizCard(q, i + 1));
+            if (q == null) continue;
+            if (wrongOnly && !wrongMap.has(qKey(q.optString("q")))) continue;
+            no++;
+            page.addView(quizCard(q, no));
         }
+    }
+
+    /* ---- M1d-2：错题本持久化（qKey=FNV-1a 32bit→base36，32-boot.js:1882 同款） ---- */
+    private boolean wrongOnly = false;
+
+    private JSONObject wrongMap() {
+        try {
+            return new JSONObject(getContext().getSharedPreferences("netops_native", MODE_PRIVATE)
+                    .getString("quizWrong", "{}"));
+        } catch (Throwable e) { return new JSONObject(); }
+    }
+
+    private static String qKey(String text) {
+        String s = text == null ? "" : text;
+        int h = 2166136261;
+        for (int i = 0; i < s.length(); i++) {
+            h ^= s.charAt(i);
+            h *= 16777619;
+        }
+        return Integer.toUnsignedLong(h).toString(36);
+    }
+
+    /** 判分落账（对=清错、错=计数+1）。 */
+    private void recordJudge(JSONObject q, boolean right) {
+        try {
+            android.content.SharedPreferences sp = getContext()
+                    .getSharedPreferences("netops_native", MODE_PRIVATE);
+            JSONObject w = wrongMap();
+            String k = qKey(q.optString("q"));
+            if (right) { w.remove(k); }
+            else {
+                JSONObject e = w.optJSONObject(k);
+                if (e == null) e = new JSONObject();
+                e.put("m", q.optString("m"));
+                e.put("n", e.optInt("n", 0) + 1);
+                w.put(k, e);
+            }
+            sp.edit().putString("quizWrong", w.toString()).apply();
+        } catch (Throwable ignored) { }
     }
 
     private View quizCard(JSONObject q, int no) {
@@ -166,6 +242,7 @@ public class NativeQuizView extends LinearLayout implements ThemeBus.DarkAware {
             card.addView(opt, lp);
             opt.setOnClickListener(v -> {
                 boolean right = idx == answer;
+                recordJudge(q, right);   // M1d-2：错题本落账（对=清错）
                 opt.setBackground(NativeBlocks.shape(pal, right ? pal.noteOk : pal.noteDanger, pal.dp(10)));
                 opt.setTextColor(right ? (pal.dark ? Color.WHITE : Color.rgb(21, 128, 61)) : Color.rgb(185, 28, 28));
                 if (!right && answer >= 0) {

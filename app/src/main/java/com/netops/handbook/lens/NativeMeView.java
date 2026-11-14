@@ -27,6 +27,15 @@ public class NativeMeView extends LinearLayout implements ThemeBus.DarkAware {
         void go(String route);   /* "settings" = 打开原生设置面板 */
     }
 
+    /** M1d(2026-11-14)：备份入口回调（导出/恢复由 MainActivity 实现）。 */
+    public interface BackupHooks {
+        void onExport();
+        void onImport();
+    }
+    private BackupHooks backupHooks;
+
+    public void setBackupHooks(BackupHooks h) { backupHooks = h; }
+
     private JSONObject root;
     private boolean dark = false, direct = false;
     private final ScrollView scroller;
@@ -174,6 +183,14 @@ public class NativeMeView extends LinearLayout implements ThemeBus.DarkAware {
            聚焦个人数据（进度/收藏/设置）。 */
         page.addView(section("设置"));
         page.addView(navRow("外观与壁纸", "主题 · 壁纸", "settings"));
+
+        /* M1d：数据备份（原生接管——原入口在 HTML 我的页，WebView 摘除后由本页承载） */
+        LinearLayout bkExport = navRow("备份导出", "进度 · 收藏 · 错题 → Downloads", null);
+        bkExport.setOnClickListener(v -> { if (backupHooks != null) backupHooks.onExport(); });
+        page.addView(bkExport);
+        LinearLayout bkImport = navRow("恢复备份", "从 JSON 文件导入", null);
+        bkImport.setOnClickListener(v -> { if (backupHooks != null) backupHooks.onImport(); });
+        page.addView(bkImport);
 
         page.addView(footer());
     }
