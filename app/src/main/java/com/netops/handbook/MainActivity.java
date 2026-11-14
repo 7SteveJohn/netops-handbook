@@ -134,6 +134,8 @@ public class MainActivity extends AppCompatActivity {
     private androidx.compose.ui.platform.ComposeView composeMe;
     /** M3-2④：学习首页 Compose 页宿主。 */
     private androidx.compose.ui.platform.ComposeView composeHome;
+    /** M3-2⑤：命令字典 Compose 页宿主。 */
+    private androidx.compose.ui.platform.ComposeView composeDict;
     private org.json.JSONObject nativeDataRoot;
     private com.netops.handbook.lens.NativeMeView nativeMe;
     private com.netops.handbook.lens.NativeSettingsPanel settingsPanel;
@@ -356,7 +358,9 @@ public class MainActivity extends AppCompatActivity {
                 }; break;
                 case "fault":  keep = "fault"; target = () -> nativeFault.show(); break;
                 case "iv":     keep = "iv";    target = () -> nativeIv.show(); break;
-                case "dict":   keep = "dict";  target = () -> nativeDict.show(); break;
+                case "dict":   keep = "dict";  target = () -> {
+                    if (composeDict != null) composeDict.setVisibility(android.view.View.VISIBLE);
+                }; break;
                 case "refs":   keep = "refs";  target = () -> showRefs(null); break;
                 case "ref":    keep = "refs";  target = () -> showRefs(arg); break;
                 case "glossary": keep = "glossary"; target = () -> showSimple("glossary"); break;
@@ -452,6 +456,8 @@ public class MainActivity extends AppCompatActivity {
             composeMe.setVisibility(android.view.View.GONE);
         if (!"home".equals(keep) && composeHome != null)
             composeHome.setVisibility(android.view.View.GONE);
+        if (!"dict".equals(keep) && composeDict != null)
+            composeDict.setVisibility(android.view.View.GONE);
         /* keep==null = 本路由没有原生页（CLI 等 WebView 独占页）→ 壁纸层让位，
            否则它（z 序在 WebView 之上）会把 WebView 盖死：页面看不见、触摸却穿透。
            任何原生页显示时收回让位。 */
@@ -635,7 +641,7 @@ public class MainActivity extends AppCompatActivity {
                 ? Math.round(70f * getResources().getDisplayMetrics().density) : 0;
         android.view.View[] pages = {nativeHome, nativePhase, nativeFault, nativeIv, nativeDict,
                 nativeRefs, nativeGlossary, nativeRoadmap, nativeQuiz, nativeSearch,
-                nativeMe, nativeFav, cliCompose, composeSimple, composeRefs, composeQuiz, composeFav, composeMe, composeHome};
+                nativeMe, nativeFav, cliCompose, composeSimple, composeRefs, composeQuiz, composeFav, composeMe, composeHome, composeDict};
         for (android.view.View p : pages) {
             if (p == null) continue;
             android.view.ViewGroup.LayoutParams lp0 = p.getLayoutParams();
