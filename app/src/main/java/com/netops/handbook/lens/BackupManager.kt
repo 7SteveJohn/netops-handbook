@@ -27,11 +27,11 @@ object BackupManager {
 
     /* ---- 导出 ---- */
 
-    fun fileName(): String = "NetOps-数据备份-" +
+    @JvmStatic fun fileName(): String = "NetOps-数据备份-" +
         java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
             .format(java.util.Date()) + ".json"
 
-    fun buildJson(activity: Activity): String = collectData(activity).toString(2)
+    @JvmStatic fun buildJson(activity: Activity): String = collectData(activity).toString(2)
 
     private fun collectData(activity: Activity): JSONObject {
         val data = JSONObject()
@@ -56,7 +56,7 @@ object BackupManager {
 
     /* ---- 导入 ---- */
 
-    fun import(activity: Activity, text: String): Summary {
+    @JvmStatic fun importData(activity: Activity, text: String): Summary {
         val data = try { JSONObject(text) } catch (e: Throwable) {
             return Summary(false, 0, 0, "导入失败：不是有效的 JSON 备份")
         }

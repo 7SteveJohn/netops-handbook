@@ -24,20 +24,14 @@ import androidx.compose.runtime.setValue
 object DockBus {
 
     /* ---- 档位开关(编译期定,回退改 false 即回旧链) ----
-       2026-11-14 恢复 glass2 默认+按设备分流内容源:
-       - 非 HONOR(MagicOS):页面 record 同帧折射(KernelSU 结构原样,平板已验证);
-       - HONOR(MagicOS)(MagicOS):WebView 被 GraphicsLayer.record 离屏重绘时
-         Chromium tile 内存超限拒绘(探针 D 验证点实锤)——页面直绘,玻璃内容源
-         走 PageSnap(PixelCopy 直读已合成 Surface,同旧路线已验证通道),
-         玻璃链(prism shader/RenderEffect)原样保留。 */
+       2026-11-14 M1d-3:WebView 已摘除(唯一 record 死因),树里只剩 View/Compose——
+       全设备统一 glass2 record 同帧折射(KernelSU 结构原样),分流/PageSnap 妥协层
+       待 M3 清理退役。旧 LensBarView 保留为库内回退位。 */
     const val USE_GLASS2 = true
 
-    /** 页面内容能否 record 离屏(玻璃同帧折射):HONOR(MagicOS) 的 WebView 判死 →
-     *  false = 页面直绘 + PageSnap 快照喂玻璃。 */
-    val CAPTURE_PAGES: Boolean by lazy {
-        val m = android.os.Build.MANUFACTURER.uppercase()
-        !(m.contains("HUAWEI") || m.contains("HONOR"))
-    }
+    /** 页面内容能否 record 离屏：M1d-3 WebView 摘除后树里只剩 View/Compose——
+     *  探针实证 record 对 View/Compose 全绿（死的只有 WebView），恒 true。 */
+    val CAPTURE_PAGES: Boolean = true
 
     /* ---- 几何(JS 上报,窗口本地 px) ---- */
     val barRect = RectF()                       // 栏体矩形(窗口本地)

@@ -179,26 +179,26 @@ public class NativeQuizView extends LinearLayout implements ThemeBus.DarkAware {
 
     private JSONObject wrongMap() {
         try {
-            return new JSONObject(getContext().getSharedPreferences("netops_native", MODE_PRIVATE)
+            return new JSONObject(getContext().getSharedPreferences("netops_native", Context.MODE_PRIVATE)
                     .getString("quizWrong", "{}"));
         } catch (Throwable e) { return new JSONObject(); }
     }
 
     private static String qKey(String text) {
         String s = text == null ? "" : text;
-        int h = 2166136261;
+        int h = -2128831035;   /* 2166136261 的 int 位型（FNV-1a 32bit 初值） */
         for (int i = 0; i < s.length(); i++) {
             h ^= s.charAt(i);
             h *= 16777619;
         }
-        return Integer.toUnsignedLong(h).toString(36);
+        return Long.toString(Integer.toUnsignedLong(h), 36);
     }
 
     /** 判分落账（对=清错、错=计数+1）。 */
     private void recordJudge(JSONObject q, boolean right) {
         try {
             android.content.SharedPreferences sp = getContext()
-                    .getSharedPreferences("netops_native", MODE_PRIVATE);
+                    .getSharedPreferences("netops_native", Context.MODE_PRIVATE);
             JSONObject w = wrongMap();
             String k = qKey(q.optString("q"));
             if (right) { w.remove(k); }

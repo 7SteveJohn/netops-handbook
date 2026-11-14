@@ -123,7 +123,7 @@ public class MainActivity extends AppCompatActivity {
     /** M1b(2026-11-14)：CLI 页 Compose 宿主（唯一非 View 原生页；M1d 摘 WebView 后
      *  全部页面进 Compose 树的先行样本）。 */
     private androidx.compose.ui.platform.ComposeView cliCompose;
-    private JSONObject nativeDataRoot;
+    private org.json.JSONObject nativeDataRoot;
     private com.netops.handbook.lens.NativeMeView nativeMe;
     private com.netops.handbook.lens.NativeSettingsPanel settingsPanel;
     private com.netops.handbook.lens.NativeFavView nativeFav;
@@ -207,7 +207,7 @@ public class MainActivity extends AppCompatActivity {
         bindInsets();
         bindBackKey();
 
-        createWebView(bg, savedInstanceState);
+        createContentShell(bg);
         /* ThemeBus 单源初值：所有消费者已在 createWebView 里 register（register 自带
            当前值回调），这里把总线状态同步成记忆主题——首帧前统一广播。 */
         ThemeBus.setDark(resolvedDark());
@@ -222,6 +222,27 @@ public class MainActivity extends AppCompatActivity {
     /** M2-4(2026-11-14)：WallpaperPrefs 驱动入口（原 applyNativePageMode 的公开包装）。 */
     public void applyPageMode(boolean direct, String wpFile, float blurDp) {
         applyNativePageMode(direct, wpFile, blurDp);
+    }
+
+    /** 壁纸/直铺模式全页广播（M1d-3 手术误删，按 HEAD 原样恢复）。 */
+    private void applyNativePageMode(boolean direct, String wpFile, float blurDp) {
+        runOnUiThread(() -> {
+            if (nativeBackdrop != null) nativeBackdrop.setWallpaper(direct ? wpFile : "", blurDp);
+            if (lensBar != null) lensBar.onBackdropChanged();
+            if (appbarBar != null) appbarBar.invalidateBackdrop();
+            if (nativeHome != null) nativeHome.setDirectMode(direct);
+            if (nativePhase != null) nativePhase.setDirectMode(direct);
+            if (nativeFault != null) nativeFault.setDirectMode(direct);
+            if (nativeIv != null) nativeIv.setDirectMode(direct);
+            if (nativeDict != null) nativeDict.setDirectMode(direct);
+            if (nativeRefs != null) nativeRefs.setDirectMode(direct);
+            if (nativeGlossary != null) nativeGlossary.setDirectMode(direct);
+            if (nativeRoadmap != null) nativeRoadmap.setDirectMode(direct);
+            if (nativeQuiz != null) nativeQuiz.setDirectMode(direct);
+            if (nativeSearch != null) nativeSearch.setDirectMode(direct);
+            if (nativeFav != null) nativeFav.setDirectMode(direct);
+            if (nativeMe != null) nativeMe.setDirectMode(direct);
+        });
     }
 
     /* ---- M1c：设置真源收口（SP 落地 + 原生直驱；桥与面板回调共用） ---- */
@@ -267,21 +288,11 @@ public class MainActivity extends AppCompatActivity {
         markStatePagesDirty();
     }
 
-    /** M1d：备份导出（saveFile 落 Downloads）。 */
+    /** M1d：备份导出（bridge.saveFile 自带异步落盘+Toast）。 */
     public void exportBackup() {
-        ioPool.execute(() -> {
-            try {
-                String json = com.netops.handbook.lens.BackupManager.buildJson(this);
-                String path = saveFile(
-                        json.getBytes(java.nio.charset.StandardCharsets.UTF_8),
-                        com.netops.handbook.lens.BackupManager.fileName(), "application/json");
-                runOnUiThread(() -> Toast.makeText(this, "已导出到 " + path, Toast.LENGTH_LONG).show());
-            } catch (Throwable e) {
-                Log.w(TAG, "备份导出失败", e);
-                runOnUiThread(() -> Toast.makeText(this, "导出失败：" + e.getMessage(),
-                        Toast.LENGTH_LONG).show());
-            }
-        });
+        if (bridge == null) return;
+        bridge.saveFile(com.netops.handbook.lens.BackupManager.fileName(),
+                com.netops.handbook.lens.BackupManager.buildJson(this));
     }
 
     /** M1d：备份恢复入口（系统文件选择器）。 */
@@ -297,7 +308,7 @@ public class MainActivity extends AppCompatActivity {
      *  与 Bridge.showNativeX 逐条对应（keep 口径注意 learn→"home"）。
      *  cli = 唯一 WebView 独占路由（M1 迁走）：keep=null 壁纸层让位走 WebView。 */
     private void wireNativeRouter() {
-        com.netops.handbook.lens.Router.onNavigate = (st, restoreScroll) -> {
+        com.netops.handbook.lens.Router.INSTANCE.onNavigate = (st, restoreScroll) -> {
             String route = st.route;
             final String arg = st.arg;
             final String keep;
@@ -334,22 +345,23 @@ public class MainActivity extends AppCompatActivity {
                     };
                     break;
                 default:
-                    return;
+                    return kotlin.Unit.INSTANCE;
             }
             switchNativeTo(keep, target);
             /* 顶栏标题/副标题/返回态：Router 直接产出（原 setAppBarState JSON 的
                name/sub/navBack 三键；bgrev/overlaid 等仍走原链路）。 */
             if (appbarBar != null) {
-                String name = com.netops.handbook.lens.Router.title;
-                String sub = com.netops.handbook.lens.Router.subtitle;
+                String name = com.netops.handbook.lens.Router.INSTANCE.getTitle();
+                String sub = com.netops.handbook.lens.Router.INSTANCE.getSubtitle();
                 appbarBar.setState("{\"name\":" + org.json.JSONObject.quote(name)
                         + ",\"sub\":" + org.json.JSONObject.quote(sub)
-                        + ",\"navBack\":" + com.netops.handbook.lens.Router.navBack + "}");
+                        + ",\"navBack\":" + com.netops.handbook.lens.Router.INSTANCE.getNavBack() + "}");
             }
+            return kotlin.Unit.INSTANCE;
         };
         /* 返回键覆盖层收口（优先级链与原 JS back 同构：drawer→…；卡片收起随页面
            迁 Compose 后由各页 back 处理器接管）。 */
-        com.netops.handbook.lens.Router.overlayCloser = () -> {
+        com.netops.handbook.lens.Router.INSTANCE.overlayCloser = () -> {
             if (nativeDrawer != null && nativeDrawer.isOpen()) {
                 nativeDrawer.close();
                 return true;
@@ -533,16 +545,15 @@ public class MainActivity extends AppCompatActivity {
      *  真源迁移见 M2-4）。Router 直接驱动 switchNativeTo（onNavigate 动作表见 onCreate）。 */
     private void nativeGo(String route, String arg) {
         com.netops.handbook.lens.glass2.DockBus.bump();   // glass2: 路由变化重绘玻璃
-        com.netops.handbook.lens.Router.go(route, arg);
+        com.netops.handbook.lens.Router.INSTANCE.go(route, arg, false);
     }
 
-    /** 让页面层把当前设置状态推给原生面板。 */
+    /** 设置面板状态刷新（M1d：原生直读 SP——原 JS NetOpsNativePushSettings 环随
+     *  WebView 摘除退役；theme/wallpaper 真源 = PREFS.theme + WallpaperPrefs）。 */
     private void pushSettingsState() {
-        if (webView == null) return;
-        String js = "window.NetOpsNativePushSettings && NetOpsNativePushSettings();";
-        webView.post(() -> {
-            if (webView != null) webView.evaluateJavascript(js, null);
-        });
+        if (settingsPanel == null) return;
+        settingsPanel.updateState(themeMode(),
+                com.netops.handbook.lens.WallpaperPrefs.INSTANCE.getSelect());
     }
 
     /** 底栏样式镜像（netops_tabbar=regular → 贴底方角；float → 悬浮胶囊）。
@@ -668,13 +679,10 @@ public class MainActivity extends AppCompatActivity {
      * 建（或重建）WebView。载入失败与渲染进程被杀都走这一条路径，
      * 避免初始化配置在两处副本之间漂移。
      */
-    private void createWebView(int bg, Bundle state) {
-        webView = new WebView(this);
-        webView.setLayoutParams(new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
-        webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
-        webView.setBackgroundColor(bg);
-        /* 2026-11-02 液态玻璃内容容器：壁纸+WebView 包进一层，整层挂
+    /** M1d-3(2026-11-14)：WebView 摘除——内容壳只承载壁纸层+原生页（WebView
+     *  独占路由 cli 已于 M1b 迁 Compose；状态真源已 SP 化 M2-4/M1c）。 */
+    private void createContentShell(int bg) {
+        /* 2026-11-02 液态玻璃内容容器：壁纸层包进一层，整层挂
            RenderEffect(RuntimeShader)——shader 的 uContent=本层实时内容，
            药丸区域内折射、区域外原样（Kyant0/AndroidLiquidGlass 机制移植，
            GPU 逐帧零回读）。挂载点见 attach 时 lensBar.attachContentContainer。 */
@@ -684,7 +692,6 @@ public class MainActivity extends AppCompatActivity {
         root.addView(contentContainer);
         /* 首帧主题色：NetOpsShell 已向 ThemeBus 注册（onCreate 末尾
            ThemeBus.setDark(resolvedDark()) 统一广播），此处不再点名。 */
-        contentContainer.addView(webView);
         /* 原生收藏夹页（N2 收尾）。 */
         nativeFav = new com.netops.handbook.lens.NativeFavView(this);
         ThemeBus.register(nativeFav);
@@ -754,9 +761,7 @@ public class MainActivity extends AppCompatActivity {
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         /* M1b：CLI 页 = Compose 页（与其他 View 页同层互斥；z 序在面板之下）。 */
         cliCompose = new androidx.compose.ui.platform.ComposeView(this);
-        cliCompose.setViewCompositionStrategy(
-                androidx.compose.ui.platform.ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed);
-        cliCompose.setCliContent(() -> nativeDataRoot,
+        com.netops.handbook.ui.CliScreenKt.setCliContent(cliCompose, () -> nativeDataRoot,
                 () -> com.netops.handbook.ui.AppShellState.INSTANCE.isDark());
         addNativePage(cliCompose);
         root.addView(settingsPanel);     /* 面板必须在所有原生页之上 */
@@ -880,11 +885,9 @@ public class MainActivity extends AppCompatActivity {
         hookAppbarScroll(nativeGlossary);
         hookAppbarScroll(nativeRoadmap);
 
-        configureWebView();
         bridge = new Bridge();
-        webView.addJavascriptInterface(bridge, "NetBridge");
 
-        pageReady = false;
+        pageReady = true;
         rendererGone = false;
 
         /* 侧栏让位：每次布局后对齐原生页左缩进（旋转/分屏都走这里，幂等） */
@@ -985,89 +988,8 @@ public class MainActivity extends AppCompatActivity {
            顶栏一帧不画、露出 CSS 顶栏白块（2026-11-07 定位）。 */
         applyAppBarSelfGeometry();
 
-        boolean restored = false;
-        if (state != null) {
-            try { restored = webView.restoreState(state) != null; } catch (Exception e) { restored = false; }
-        }
-        if (!restored) webView.loadUrl(page());
-    }
-
-    /** 渲染进程没了 / 反复载入失败后的自我了断式重建。 */
-    private void rebuildWebView() {
-        runOnUiThread(() -> {
-            /* 渲染进程被回收时系统文件选择器可能还开着：先按契约回掉挂起的
-               <input type=file>（恰好一次 null），否则 onActivityResult 会把
-               选择结果喂给已销毁的 WebView（N-3 状态迁移未闭环） */
-            if (uploadMessage != null) {
-                try { uploadMessage.onReceiveValue(null); } catch (Exception ignored) { }
-                uploadMessage = null;
-            }
-            try {
-                if (webView != null) {
-                    root.removeView(webView);
-                    try { webView.removeJavascriptInterface("NetBridge"); } catch (Exception ignored) { }
-                    webView.destroy();
-                }
-            } catch (Exception e) {
-                Log.w(TAG, "销毁旧 WebView 失败（继续重建）", e);
-            }
-            webView = null;
-            /* 原生层随旧 WebView 一起退役（旧实例的几何/背景抓图全部失效）。
-               R1 曾漏了这一步：重建后新旧两个透镜窗叠画，几何各用各的 —— 双实例
-               是「重影」类症状的候选根源之一，这里底栏顶栏一并收干净。 */
-            if (lensBar != null) {
-                try { lensBar.detach(); } catch (Throwable ignored) { }
-                lensBar = null;
-            }
-            if (appbarBar != null) {
-                try { appbarBar.detach(); } catch (Throwable ignored) { }
-                appbarBar = null;
-            }
-            reloadTries = 0;
-            createWebView(resolvedDark() ? BG_DARK : BG_LIGHT, null);
-        });
-    }
-
-    /**
-     * 主文档载入失败：先有限次自动重载（资源被安全软件瞬时拦截时可自愈），
-     * 仍失败就显示错误页 —— 旧实现什么也不做，用户只会看到永久白屏。
-     */
-    private void handleLoadFailure(String why) {
-        if (webView == null || rendererGone) return;
-        if (reloadTries++ < 2) {
-            final WebView failed = webView;
-            Log.w(TAG, "首页载入失败，第 " + reloadTries + " 次自动重试：" + why);
-            failed.postDelayed(() -> {
-                /* 实例身份比对（N-2）：重试窗口内渲染进程被回收重建时，守卫若读
-                   字段当前值会放过期重试命中新实例（双启动）。捕获失败实例本身。 */
-                if (failed == webView && !rendererGone) failed.loadUrl(page());
-            }, 600L * reloadTries);
-            return;
-        }
-        Log.e(TAG, "首页多次载入失败：" + why);
-        pageReady = false;
-        String skin = resolvedDark()
-                ? "background:#0B1220;color:#f5f5f7" : "background:#f5f7fb;color:#1d1d1f";
-        String mute = resolvedDark() ? "#8e8e93" : "#86868b";
-        webView.loadDataWithBaseURL(null,
-                "<!doctype html><meta charset=utf-8>"
-              + "<meta name=viewport content='width=device-width,initial-scale=1'>"
-              + "<body style='font:15px/1.7 system-ui;margin:0;padding:26vh 26px 0;" + skin + ";text-align:center'>"
-              + "<b>页面没能载入</b><br>"
-              + "<span style='font-size:13px;opacity:.85'>本应用完全离线、不申请网络权限；"
-              + "连续三次载入失败通常是安装包资源损坏，或被安全软件拦截。</span><br><br>"
-              + "<a href='" + RETRY_PAGE + "' style='color:#2563eb'>重新载入</a>"
-              + "<p style='color:" + mute + ";font-size:12px'>NetOps 2.0 · 网络学习辅助手册</p></body>",
-                "text/html", "utf-8", null);
-    }
-
-    @Override
-    protected void onSaveInstanceState(@NonNull Bundle outState) {
-        super.onSaveInstanceState(outState);
-        // 旋转已被 configChanges 接管，这里保的是「进程被杀后重建」
-        if (webView != null && !rendererGone) {
-            try { webView.saveState(outState); } catch (Exception e) { Log.w(TAG, "saveState 失败", e); }
-        }
+        /* M1d-3：无 WebView 载入链——几何自算一次落位（网页就绪钩子已不存在）。 */
+        computeDockGeometry();
     }
 
     @Override
@@ -1187,167 +1109,7 @@ public class MainActivity extends AppCompatActivity {
 
     // ------------------------------------------------------------------ WebView
 
-    private void configureWebView() {
-        WebSettings s = webView.getSettings();
-        s.setJavaScriptEnabled(true);          // 全部逻辑在本地脚本内
-        s.setDomStorageEnabled(true);          // 打卡 / 收藏 / 主题偏好持久化
-        s.setDatabaseEnabled(true);
-        s.setAllowFileAccess(true);            // assets 与外部目录（devpage 热加载）都要
-        s.setAllowContentAccess(false);
-        /* 2026-09-24：devpage 指向应用外部目录后，file:// 页面加载同目录子资源
-           （壁纸 img / CSS url）被 WebView 判为跨 file 访问而拒载（真机探针实证
-           img FAIL；assets 源不受影响——android_asset 走内部资产通道不经文件系统）。
-           打开两个开关；内容全部本地打包、blockExternal 拦外部导航，无远程输入面。 */
-        s.setAllowFileAccessFromFileURLs(true);
-        s.setAllowUniversalAccessFromFileURLs(true);
-        s.setUseWideViewPort(true);
-        s.setLoadWithOverviewMode(true);
-        s.setSupportZoom(false);
-        s.setBuiltInZoomControls(false);
-        s.setDisplayZoomControls(false);
-        s.setTextZoom(100);                    // 跟随系统字号会破坏栅格，这里锁定
-        s.setCacheMode(WebSettings.LOAD_NO_CACHE);
-        s.setMediaPlaybackRequiresUserGesture(true);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            s.setSafeBrowsingEnabled(false);   // 无网络，避免多余的初始化开销
-        }
-
-        /* 玻璃核心：offscreenPreRaster 预栅格化离屏缓冲，保障 backdrop-filter
-           模糊/色散渲染。2026-09-29 定案：WebView 已升 Chromium 151（lens-probe
-           实证 blur 无需硬件层），LAYER_TYPE_HARDWARE 反而令超长页 fling 时
-           栅格被驱逐而整页丢内容 —— 回归 LAYER_TYPE_NONE 走默认合成。 */
-        s.setOffscreenPreRaster(true);
-        preRasterDropped = false;
-        webView.setLayerType(View.LAYER_TYPE_NONE, null);
-
-        if ((getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
-            WebView.setWebContentsDebuggingEnabled(true);
-        }
-
-        /* 文件导入：必须实现 onShowFileChooser，否则 <input type=file> 无法弹出系统选择器 */
-        webView.setWebChromeClient(new android.webkit.WebChromeClient() {
-            @Override
-            public boolean onShowFileChooser(WebView view,
-                                             android.webkit.ValueCallback<Uri[]> filePathCallback,
-                                             android.webkit.WebChromeClient.FileChooserParams fileChooserParams) {
-                if (uploadMessage != null) {
-                    uploadMessage.onReceiveValue(null);
-                    uploadMessage = null;
-                }
-                uploadMessage = filePathCallback;
-                try {
-                    Intent intent = fileChooserParams.createIntent();
-                    startActivityForResult(intent, REQ_CHOOSER);
-                    return true;
-                } catch (Exception e) {
-                    uploadMessage = null;
-                    return false;
-                }
-            }
-        });
-
-        webView.setWebViewClient(new WebViewClient() {
-            /**
-             * 2026-09-25（探针三臂鉴别实证）：Android 17 / Chrome 151 的 WebView 对
-             * file→file 访问整体硬拦 —— 主文档可载，但子资源 img 与 XHR 全拒
-             * （status=0），setAllowFileAccessFromFileURLs/Universal 两个开关已失效。
-             * devpage 热加载源的子资源由此处从应用进程直接流式供给，绕开 file 策略；
-             * 只接管应用外部目录，android_asset 等其余请求返回 null 走默认通道。
-             */
-            @Override
-            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
-                Uri u = request == null ? null : request.getUrl();
-                if (u == null || !"file".equalsIgnoreCase(u.getScheme())) return null;
-                File ext = getExternalFilesDir(null);
-                if (ext == null) return null;
-                String url = u.toString();
-                String prefix = "file://" + ext.getAbsolutePath() + "/";
-                if (!url.startsWith(prefix)) return null;
-                String rel = url.substring(prefix.length());
-                /* URL 里的路径是百分号编码的（中文名 → %E7%BA%B3…），磁盘上是解码后的
-                   文件名——不先解码就会全部 404（首次实测就是这么败的）。Uri.decode 只解
-                   %XX、不动 '+'，正是这里要的语义。 */
-                rel = Uri.decode(rel);
-                try {
-                    File f = new File(ext, rel);
-                    if (rel.contains("..")
-                            || !f.getCanonicalPath().startsWith(ext.getCanonicalPath() + File.separator)
-                            || !f.isFile()) {
-                        return emptyResponse(404, "not found");
-                    }
-                    return new WebResourceResponse(mimeFor(f.getName()), null,
-                            new FileInputStream(f));
-                } catch (Exception e) {
-                    Log.w(TAG, "子资源接管失败：" + rel, e);
-                    return emptyResponse(500, "intercept error");
-                }
-            }
-
-            @Override
-            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                return blockExternal(request.getUrl());
-            }
-
-            @SuppressWarnings("deprecation")
-            @Override
-            public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                return blockExternal(Uri.parse(url));
-            }
-
-            @Override
-            public void onPageFinished(WebView view, String url) {
-                pageReady = true;
-                reloadTries = 0;
-                flushInsets();
-                computeDockGeometry();
-                hideHtmlPill();
-                pushTheme(resolvedDark());   // ❗记忆优先（sun 记过 dark 就恒 dark）：
-                                             // isNightMode() 会把原生页推回浅色（2026-11-08
-                                             // 「切到字典/面试深色立马取消」根因）
-                if (lensBar != null) lensBar.requestFrostRefresh();   // 新页落定 → 重抓栏后霜
-            }
-
-            @Override
-            public void doUpdateVisitedHistory(WebView view, String url, boolean isReload) {
-                /* SPA 路由（pushState）不发 onPageFinished——历史变更时补抓霜，
-                   否则栏体停在上一页的雾（2026-11-03 P3）。 */
-                if (lensBar != null) lensBar.requestFrostRefresh();
-            }
-
-            @SuppressWarnings("deprecation")
-            @Override
-            public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
-                if (failingUrl != null && failingUrl.startsWith(page())) handleLoadFailure(description);
-            }
-
-            @Override
-            public void onReceivedError(WebView view, WebResourceRequest request,
-                                        android.webkit.WebResourceError error) {
-                if (request == null || !request.isForMainFrame()) return;   // 子资源（壁纸）失败忽略
-                String u = request.getUrl() == null ? "" : request.getUrl().toString();
-                if (!u.startsWith(page())) return;
-                handleLoadFailure(error == null ? "unknown" : String.valueOf(error.getDescription()));
-            }
-
-            /**
-             * 渲染进程被系统回收或崩溃后，旧 WebView 实例不可再用，任何后续调用都会闪退。
-             * 必须返回 true（= 应用已接管）；返回 false 会让系统直接杀掉整个进程。
-             * 低版本不会回调本方法（API 26+），因此无需版本判断。
-             */
-            @Override
-            public boolean onRenderProcessGone(WebView view, android.webkit.RenderProcessGoneDetail detail) {
-                rendererGone = true;
-                pageReady = false;
-                Log.e(TAG, "WebView 渲染进程退出，重建界面。didCrash="
-                        + (detail != null && detail.didCrash()));
-                Toast.makeText(MainActivity.this, "界面进程被系统回收，正在恢复", Toast.LENGTH_SHORT).show();
-                rebuildWebView();
-                return true;
-            }
-        });
-    }
-
-    /** 只允许留在本地页面内；其余（含 http/https）全部丢弃。 */
+/** 只允许留在本地页面内；其余（含 http/https）全部丢弃。 */
     private boolean blockExternal(Uri uri) {
         if (uri == null) return true;
         if (RETRY_PAGE.equals(uri.toString())) {
@@ -1422,12 +1184,9 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void flushInsets() {
-        if (!pageReady || pendingInsetsJs == null || webView == null) return;
-        final String js = pendingInsetsJs;
-        webView.post(() -> {
-            if (webView != null) webView.evaluateJavascript(js, null);
-        });
-        remeasureLensSoon();
+        if (!pageReady) return;
+        /* M1d-3：JS --sa-bottom 推送环随 WebView 摘除退役；原生几何/顶栏照常自算。 */
+        computeDockGeometry();
         applyAppBarSelfGeometry();   // 安全区变了顶栏矩形必变
     }
 
@@ -1501,7 +1260,7 @@ public class MainActivity extends AppCompatActivity {
         try {
             WindowInsetsCompat wi = ViewCompat.getRootWindowInsets(root);
             if (wi != null) {
-                android.graphics.Insets bars = wi.getInsets(
+                androidx.core.graphics.Insets bars = wi.getInsets(
                         WindowInsetsCompat.Type.systemBars()
                                 | WindowInsetsCompat.Type.displayCutout());
                 safeBottomPx = bars.bottom;
@@ -1642,7 +1401,7 @@ public class MainActivity extends AppCompatActivity {
             public void handleOnBackPressed() {
                 /* M2-1(2026-11-14):返回键走原生 Router——同步应答，退役 500ms JS
                    应答窗口与 backAckPending 竞态防护（JS_BACK 字段保留至 M6 清）。 */
-                boolean consumed = com.netops.handbook.lens.Router.back();
+                boolean consumed = com.netops.handbook.lens.Router.INSTANCE.back();
                 onBackConsumed(consumed);
             }
         });
@@ -2199,8 +1958,8 @@ public class MainActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     if (t == null) { Toast.makeText(this, "读取备份失败", Toast.LENGTH_LONG).show(); return; }
                     com.netops.handbook.lens.BackupManager.Summary r =
-                            com.netops.handbook.lens.BackupManager.import(this, t);
-                    Toast.makeText(this, r.message, Toast.LENGTH_LONG).show();
+                            com.netops.handbook.lens.BackupManager.importData(this, t);
+                    Toast.makeText(this, r.getMessage(), Toast.LENGTH_LONG).show();
                 });
             });
             return;
@@ -2215,11 +1974,12 @@ public class MainActivity extends AppCompatActivity {
             ioPool.execute(() -> {
                 String dataUrl = null;
                 try { dataUrl = readImageAsDataUrl(uri); } catch (Exception e) { Log.w(TAG, "解码选图失败", e); }
+                final String pickedUrl = dataUrl;   // lambda 捕获需 effectively final
                 /* M2-4：相册图先落盘进 WallpaperPrefs（原生真源；dataURL 仍发 JS
                    双写过渡——WebView .wall 显示与 localStorage 备份用）。 */
-                if (dataUrl != null) {
+                if (pickedUrl != null) {
                     runOnUiThread(() -> com.netops.handbook.lens.WallpaperPrefs
-                            .setCustomFromDataUrl(this@MainActivity, dataUrl));
+                            .setCustomFromDataUrl(MainActivity.this, pickedUrl));
                 }
                 if (dataUrl == null) {
                     runOnUiThread(() -> Toast.makeText(MainActivity.this,

@@ -185,10 +185,10 @@ public class NativeMeView extends LinearLayout implements ThemeBus.DarkAware {
         page.addView(navRow("外观与壁纸", "主题 · 壁纸", "settings"));
 
         /* M1d：数据备份（原生接管——原入口在 HTML 我的页，WebView 摘除后由本页承载） */
-        LinearLayout bkExport = navRow("备份导出", "进度 · 收藏 · 错题 → Downloads", null);
+        View bkExport = navRow("备份导出", "进度 · 收藏 · 错题 → Downloads", null);
         bkExport.setOnClickListener(v -> { if (backupHooks != null) backupHooks.onExport(); });
         page.addView(bkExport);
-        LinearLayout bkImport = navRow("恢复备份", "从 JSON 文件导入", null);
+        View bkImport = navRow("恢复备份", "从 JSON 文件导入", null);
         bkImport.setOnClickListener(v -> { if (backupHooks != null) backupHooks.onImport(); });
         page.addView(bkImport);
 

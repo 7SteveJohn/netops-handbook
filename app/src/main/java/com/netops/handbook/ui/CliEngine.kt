@@ -83,7 +83,7 @@ object CliEngine {
         commonItems.filter { group == "all" || it.plat == group }
 
     /** 聚合四源（native-data root）。懒加载+缓存；线程安全=幂等纯函数。 */
-    fun build(root: JSONObject): List<Item> {
+    @JvmStatic fun build(root: JSONObject): List<Item> {
         db?.let { return it }
         val items = ArrayList<Item>()
         val seen = HashMap<String, Item>()

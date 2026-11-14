@@ -47,7 +47,8 @@ object Router {
     ).associateBy { it.route }
 
     /* ---- 当前状态（Compose State：顶栏/壳层直接订阅） ---- */
-    data class State(val route: String, val arg: String?)
+    /* M1d-3：@JvmField 供 Java(MainActivity) 字段式访问（route/arg 由 Java lambda 读）。 */
+    data class State(@JvmField val route: String, @JvmField val arg: String?)
 
     var current by mutableStateOf(State("learn", null))
         private set
@@ -63,6 +64,7 @@ object Router {
     private val scrollMem = HashMap<String, Int>()   // keyOf → 滚动位置
 
     /** 宿主动作出口（MainActivity 接线：驱动 switchNativeTo/页面显隐）。 */
+    @JvmField
     var onNavigate: ((State, restoreScroll: Boolean) -> Unit)? = null
 
     /** 滚动位置存取（页面侧提供；过渡期 View 页由 NativeScrollView 喂）。 */
@@ -70,8 +72,8 @@ object Router {
     var scrollRestorer: ((Int) -> Unit)? = null
 
     /** 覆盖层收口钩子（搜索条/sheet/drawer——宿主按原优先级实现，Router 只问）。 */
-    var overlayCloser: (() -> Boolean)? = null        // 返回 true = 有覆盖层被收
-    var cardCloser: (() -> Boolean)? = null           // 展开卡片收起
+    @JvmField var overlayCloser: (() -> Boolean)? = null        // 返回 true = 有覆盖层被收
+    @JvmField var cardCloser: (() -> Boolean)? = null           // 展开卡片收起
 
     private fun keyOf(st: State) = st.route + ":" + (st.arg ?: "")
     private fun isRoot(r: String) = META[r]?.let { it.tab == it.route } ?: false
@@ -89,7 +91,7 @@ object Router {
     }
 
     /* ---- go（32-boot.js:257） ---- */
-    fun go(route: String, arg: String? = null, replace: Boolean = false) {
+    @JvmStatic fun go(route: String, arg: String? = null, replace: Boolean = false) {
         val r = if (META.containsKey(route)) route else "learn"
         val st = State(r, arg)
         if (st == current) {
@@ -115,7 +117,7 @@ object Router {
     }
 
     /* ---- back（32-boot.js:298）。返回 true = 已消费 ---- */
-    fun back(): Boolean {
+    @JvmStatic fun back(): Boolean {
         overlayCloser?.let { if (it()) return true }
         cardCloser?.let { if (it()) return true }
         if (stack.isEmpty()) {
