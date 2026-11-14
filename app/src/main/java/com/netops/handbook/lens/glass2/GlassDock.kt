@@ -375,14 +375,37 @@ private fun GlassBar(
         Box(Modifier
             .sizePx(bar.width() + 2f * barPad, bar.height() + 2f * barPad)
             .offsetPx(bar.left - barPad, bar.top - barPad)
+            /* ① 按压胀大(最外)：整体缩放,不改布局与守卫命中区。 */
             .graphicsLayer {
-                val d = density
-                /* 栏体按压胀大(KernelSU FloatingBottomBar layerBlock 口径,2026-11-14 平移):
-                   只缩放绘制,不改布局与守卫命中区;transformOrigin 默认 = 节点中心
-                   = bar 中心(pad 对称外扩),与旧路线 canvas.scale(dockS, 中心) 同构。 */
                 val dockS = 1f + (16f * density / max(1f, bar.width())) * liftV
                 scaleX = dockS
                 scaleY = dockS
+            }
+            /* ② ❗输出裁到栏体胶囊(2026-11-14 割裂修复)：玻璃节点=栏±pad 全矩形,
+               shader 形状外在本机不归零→整矩形玻璃上屏,弹窗矩形与页面割裂
+               (平板 t11/t12 实证:提亮矩形硬边)。clip 层内缩 pad=栏形输出;
+               effect 输入仍=全 pad 内容(折射采样 reach 不变)。 */
+            .graphicsLayer {
+                clip = true
+                val p = barPad.toFloat()
+                shape = object : androidx.compose.ui.graphics.Shape {
+                    override fun createOutline(
+                        size: androidx.compose.ui.geometry.Size,
+                        layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+                        density: androidx.compose.ui.unit.Density,
+                    ): androidx.compose.ui.graphics.Outline =
+                        androidx.compose.ui.graphics.Outline.Rounded(
+                            androidx.compose.ui.geometry.RoundRect(
+                                rect = androidx.compose.ui.geometry.Rect(
+                                    p, p, size.width - p, size.height - p),
+                                cornerRadius = androidx.compose.ui.geometry.CornerRadius(
+                                    bar.height() / 2f)
+                            )
+                        )
+                }
+            }
+            .graphicsLayer {
+                val d = density
                 DockDraw.setPrismUniforms(
                     sh = barFx.shader,
                     nodeOriginX = bar.left - barPad, nodeOriginY = bar.top - barPad,
@@ -409,8 +432,6 @@ private fun GlassBar(
                     rimFocus = 0f, rimAdded = if (colors.dark) 0.38f else 0f,
                     rimSide = 0f,
                     haze = 0.72f, hazeBlur = 15.6f)
-                /* AGSL 门(2026-11-14)：MagicOS 手机上此节点毒杀同窗全部普通
-                   内容(v22 探针)——手机走壁纸直喂 fill(降级,无折射镜)。 */
                 renderEffect = if (agslOk) barFx.effect(floatArrayOf(
                     bar.width(), bar.height(), glowV, model.glowX, model.glowY)) else null
             }

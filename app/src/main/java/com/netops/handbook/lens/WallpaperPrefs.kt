@@ -124,6 +124,7 @@ object WallpaperPrefs {
      */
     private fun decodeWallAsync(file: String) {
         if (file.isEmpty()) { wallBitmap = null; return }
+        android.util.Log.i("WallpaperPrefs", "decodeWallAsync file=$file blur=${blurDp()}")
         val blur = blurDp()
         decodeExec.execute {
             val ctx = appContext ?: return@execute
@@ -148,6 +149,8 @@ object WallpaperPrefs {
             val soft = if (sharp.config == android.graphics.Bitmap.Config.HARDWARE)
                 sharp.copy(android.graphics.Bitmap.Config.ARGB_8888, false) else sharp
             wallBitmap = preBlur(ctx, soft, blur)
+            android.util.Log.i("WallpaperPrefs",
+                "wallBitmap ready ${soft.width}x${soft.height} cfg=${soft.config}")
         }
     }
 
