@@ -95,11 +95,10 @@ private fun RefsTableCard(r: JSONObject, colors: OpsColors) {
             Spacer(Modifier.height(4.dp))
             Text(d, color = colors.textMute, fontSize = 11.5.sp)
         }
-        val cols = r.optJSONArray("cols")
-        val rows = r.optJSONArray("rows")
-        val n = cols?.length() ?: 0
-        if (n == 0 || rows == null) return@OpsCard
-        val rows0 = rows
+        val cols = r.optJSONArray("cols") ?: return@OpsCard
+        val rows = r.optJSONArray("rows") ?: return@OpsCard
+        val n = cols.length()
+        if (n == 0) return@OpsCard
         Spacer(Modifier.height(4.dp))
         Row(Modifier.padding(top = 10.dp, bottom = 4.dp)) {
             for (i in 0 until n) {
@@ -112,8 +111,8 @@ private fun RefsTableCard(r: JSONObject, colors: OpsColors) {
                 )
             }
         }
-        for (i in 0 until rows0.length()) {
-            val cells = rows0.optJSONArray(i) ?: continue
+                for (i in 0 until rows.length()) {
+            val cells = rows.optJSONArray(i) ?: continue
             Row(
                 Modifier
                     .fillMaxWidth()
