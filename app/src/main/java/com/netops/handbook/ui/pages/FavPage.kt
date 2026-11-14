@@ -90,12 +90,12 @@ fun FavPage(dataSupplier: () -> org.json.JSONObject?, dark: Boolean, onGo: (Stri
     Column(
         Modifier
             .fillMaxSize()
-            .padding(top = statusTop + 84.dp, bottom = navBottom + 84.dp)
+            .padding(top = statusTop + 84.dp, bottom = navBottom)
             .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
         LazyColumn(
             Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 12.dp),
+            contentPadding = PaddingValues(bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             item {

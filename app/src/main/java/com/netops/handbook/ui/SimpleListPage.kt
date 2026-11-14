@@ -66,14 +66,14 @@ fun SimpleListPage(kind: SimpleKind, dataSupplier: () -> org.json.JSONObject?, d
             .background(colors.bg)
             .padding(
                 top = statusTop + 84.dp,     // 56(顶栏)+28(呼吸) 魔数同 View 版
-                bottom = navBottom + 84.dp   // dock 玻璃让位同款
+                bottom = navBottom   // dock 玻璃让位同款
             )
             .padding(horizontal = 14.dp, vertical = 10.dp)
             .imePadding()
     ) {
         LazyColumn(
             Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 12.dp)
+            contentPadding = PaddingValues(bottom = 96.dp)
         ) {
             item {
                 OpsCard {

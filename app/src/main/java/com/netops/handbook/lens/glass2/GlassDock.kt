@@ -158,8 +158,12 @@ private fun GlassDock() {
         while (true) {
             withFrameNanos { }
             model.tick()
-            if (!DockBus.CAPTURE_PAGES && snapWindow != null
-                && !DockBus.docked && DockBus.nativeDock
+            /* ❗内容源=跨窗 PixelCopy(2026-11-15 终态)：dock 独立弹窗后玻璃物理上
+               看不到页面——液态玻璃(页面内容在栏体里流动折射)必须抓**主窗已合成
+               surface**(壁纸+页面),PixelCopy 直读不触发重绘、弹窗在主窗 surface
+               之外=零自反馈(旧 LensBarView 同拓扑跑数月实证)。25fps 节流在
+               PageSnap 内。 */
+            if (snapWindow != null && !DockBus.docked && DockBus.nativeDock
                 && DockBus.glassLevel != "none") {
                 val bar = DockBus.barRect
                 if (bar.width() > 4 && bar.height() > 4) {
@@ -437,17 +441,31 @@ private fun GlassBar(
             }
             .drawBehind {
                 clipRect(0f, 0f, size.width, size.height) {
-                    /* 内容源(2026-11-14 本机定案)：record 全灭主画布 → 弃用。
-                       壁纸 BitmapShader 直喂(全屏 Crop 映射到节点坐标=bar 背后
-                       那块壁纸)；无壁纸首帧用不透明 barFill 兜底。 */
-                    val bmp = com.netops.handbook.lens.WallpaperPrefs.wallBitmap
-                    if (bmp != null) {
-                        snapPaint.shader = wallShader(bmp,
-                            winSize.width.toFloat(), winSize.height.toFloat(),
-                            bar.left - barPad, bar.top - barPad)
+                    /* 内容源=PageSnap 跨窗快照(主窗壁纸+页面内容,窗口坐标对齐)；
+                       快照未就绪首帧退壁纸直喂，再退 barFill。 */
+                    val snap = PageSnap.latest()
+                    if (snap != null) {
+                        val sh = android.graphics.BitmapShader(
+                            snap, android.graphics.Shader.TileMode.CLAMP,
+                            android.graphics.Shader.TileMode.CLAMP)
+                        val m = android.graphics.Matrix().apply {
+                            postTranslate(PageSnap.snapL - (bar.left - barPad),
+                                PageSnap.snapT - (bar.top - barPad))
+                        }
+                        sh.setLocalMatrix(m)
+                        snapPaint.shader = sh
+                        PageSnap.version
                         ntc { c -> c.drawRect(0f, 0f, size.width, size.height, snapPaint) }
                     } else {
-                        ntc { c -> c.drawRect(0f, 0f, size.width, size.height, fillP) }
+                        val bmp = com.netops.handbook.lens.WallpaperPrefs.wallBitmap
+                        if (bmp != null) {
+                            snapPaint.shader = wallShader(bmp,
+                                winSize.width.toFloat(), winSize.height.toFloat(),
+                                bar.left - barPad, bar.top - barPad)
+                            ntc { c -> c.drawRect(0f, 0f, size.width, size.height, snapPaint) }
+                        } else {
+                            ntc { c -> c.drawRect(0f, 0f, size.width, size.height, fillP) }
+                        }
                     }
                 }
             }
@@ -545,14 +563,29 @@ private fun GlassBar(
                 }) {
                     Box(Modifier.fillMaxSize().drawBehind {
                         clipRect(0f, 0f, size.width, size.height) {
-                            /* 镜内容源(2026-11-14 本机定案)：同壁纸 BitmapShader
-                               (药丸节点 ⊆ bar±barPad,同一映射覆盖足够)。 */
-                            val bmp = com.netops.handbook.lens.WallpaperPrefs.wallBitmap
-                            if (bmp != null) {
-                                snapPaint.shader = wallShader(bmp,
-                                    winSize.width.toFloat(), winSize.height.toFloat(),
-                                    nodeL - lensPad, nodeT - lensPad)
+                            /* 镜内容源=PageSnap 跨窗快照(药丸节点 ⊆ bar±barPad,
+                               同一快照覆盖足够)。 */
+                            val snap = PageSnap.latest()
+                            if (snap != null) {
+                                val sh = android.graphics.BitmapShader(
+                                    snap, android.graphics.Shader.TileMode.CLAMP,
+                                    android.graphics.Shader.TileMode.CLAMP)
+                                val m = android.graphics.Matrix().apply {
+                                    postTranslate(PageSnap.snapL - (nodeL - lensPad),
+                                        PageSnap.snapT - (nodeT - lensPad))
+                                }
+                                sh.setLocalMatrix(m)
+                                snapPaint.shader = sh
+                                PageSnap.version
                                 ntc { c -> c.drawRect(0f, 0f, size.width, size.height, snapPaint) }
+                            } else {
+                                val bmp = com.netops.handbook.lens.WallpaperPrefs.wallBitmap
+                                if (bmp != null) {
+                                    snapPaint.shader = wallShader(bmp,
+                                        winSize.width.toFloat(), winSize.height.toFloat(),
+                                        nodeL - lensPad, nodeT - lensPad)
+                                    ntc { c -> c.drawRect(0f, 0f, size.width, size.height, snapPaint) }
+                                }
                             }
                         }
                     })

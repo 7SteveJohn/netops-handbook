@@ -63,14 +63,22 @@ object PageSnap {
         pending = true
         snapL = l
         snapT = t
+        if (diag == 0) android.util.Log.i(TAG, "first request rect=($l,$t,$r,$b) win=${dl.width}x${dl.height}")
         PixelCopy.request(window, Rect(l, t, r, b), target, { res ->
             pending = false
             if (res == PixelCopy.SUCCESS) {
                 writeIdx = (writeIdx + 1) % 3
                 version++
+                if (diag == 0) android.util.Log.i(TAG, "snap ready ${target.width}x${target.height}")
+            } else if (diag < 5) {
+                android.util.Log.w(TAG, "PixelCopy res=$res")
             }
+            diag++
         }, Handler(Looper.getMainLooper()))
     }
+
+    private const val TAG = "PageSnap"
+    @Volatile private var diag = 0
 
     /** 最新完整帧(drawBehind/RenderThread 读安全:读槽≠写槽≠上一槽)。 */
     fun latest(): Bitmap? = ring[(writeIdx + 2) % 3]

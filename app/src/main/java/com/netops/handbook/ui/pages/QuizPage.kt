@@ -106,10 +106,10 @@ fun QuizPage(dataSupplier: () -> org.json.JSONObject?, dark: Boolean) {
     Column(
         Modifier
             .fillMaxSize()
-            .padding(top = statusTop + 84.dp, bottom = navBottom + 84.dp)
+            .padding(top = statusTop + 84.dp, bottom = navBottom)
             .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 12.dp)) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 96.dp)) {
             item {
                 OpsCard {
                     Text("模拟测验", color = colors.textMain, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
