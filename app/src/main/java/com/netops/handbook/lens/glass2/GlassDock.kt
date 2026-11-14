@@ -578,8 +578,11 @@ private fun GlassBar(
                         rimFrost = 2.5f * liftV,
                         rimTail = 0f, rimFocus = 1f, rimAdded = 0f, rimSide = 0f,
                         haze = 0f, hazeBlur = 0f)
+                    /* key 里 liftV 量化 1/20 档:弹簧尾段微变化不再逐帧重建
+                       RenderEffect(重建=GPU shader 上传=闪烁嫌疑之一)。 */
+                    val liftQ = kotlin.math.round(liftV * 20f) / 20f
                     renderEffect = lensFx.effect(floatArrayOf(
-                        nodeW, nodeH, nodeL, nodeT, liftV, cx, cy))
+                        nodeW, nodeH, nodeL, nodeT, liftQ, cx, cy))
                 }) {
                     Box(Modifier.fillMaxSize().drawBehind {
                         clipRect(0f, 0f, size.width, size.height) {
@@ -607,10 +610,11 @@ private fun GlassBar(
                                     ntc { c -> c.drawRect(0f, 0f, size.width, size.height, snapPaint) }
                                 }
                             }
-                            /* ❗FlClash 镜内容语义(11-12 取证):镜内=回放「栏体玻璃
-                               成品」而非生页面——镜内容层补画栏体 tint(否则镜内比
-                               磨砂栏体"更透"=看着像洞,用户实测点破)。坐标=节点
-                               本地(窗口-(nodeL-lensPad,nodeT-lensPad))。 */
+                            /* 镜内容=栏体同款材质(FlClash「镜内容=回放栏体玻璃
+                               成品」+iOS 27 按压凸起语义)：快照+**全量 pillTint**
+                               →镜内亮度=栏体×brightness(暗 1.33)=发光凸起；
+                               通透感=内容 1:1 透过 tint(中心不位移,边缘 bevel
+                               折射)。tint 缺失=镜比栏体暗=暗洞(w13 实测)。 */
                             val tintP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                                 color = colors.pillTint
                             }
