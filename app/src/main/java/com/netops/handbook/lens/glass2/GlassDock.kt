@@ -23,14 +23,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.foundation.shape.RoundedCornerShape
 import top.yukonga.miuix.kmp.blur.blur
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.drawBackdrop
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.zIndex
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.ContentScale
@@ -379,6 +383,7 @@ private fun GlassBar(
              快照适配(bar/药丸各一份实例,origin 组合期写入)。 ---- */
         val barBackdrop = remember { PageSnapBackdrop { winSize } }
         val pillBackdrop = remember { PageSnapBackdrop { winSize } }
+        val tabsBackdrop = rememberLayerBackdrop()
         val baseHighlight = rememberGravityRotatedHighlight(iosIndicatorSpecular, extraDegrees = -45f)
         val pillHighlight = rememberGravityRotatedHighlight(iosIndicatorSpecular, extraDegrees = 90f)
 
@@ -391,14 +396,9 @@ private fun GlassBar(
         Box(Modifier
             .sizePx(bar.width(), bar.height())
             .offsetPx(bar.left, bar.top)
-            .graphicsLayer {
-                val dockS = 1f + (16f * density / max(1f, bar.width())) * liftV
-                scaleX = dockS
-                scaleY = dockS
-            }
             .drawBackdrop(
                 backdrop = barBackdrop,
-                shape = { RoundedCornerShape((bar.height() / 2f / density).dp) },
+                shape = { RectangleShape },
                 effects = {
                     padding = maxOf(padding, 40f * density)
                     vibrancy()
@@ -410,6 +410,35 @@ private fun GlassBar(
             )
         ) { }
 
+        /* ---- 隐形导出链(照抄 KernelSU 第二条 Row):栏体成品(同 bar 效果)
+             +全蓝 tab,经 layerBackdrop 进 tabsBackdrop→药丸 combined 折射。
+             alpha 0 不上屏,仅录制。 ---- */
+        if (Build.VERSION.SDK_INT >= 33) Box(Modifier
+            .alpha(0f)
+            .layerBackdrop(tabsBackdrop)
+            .sizePx(bar.width(), bar.height())
+            .offsetPx(bar.left, bar.top)
+            .drawBackdrop(
+                backdrop = barBackdrop,
+                shape = { RectangleShape },
+                effects = {
+                    padding = maxOf(padding, 40f * density)
+                    vibrancy()
+                    blur(4f * density, 4f * density)
+                    lens(refractionHeight = 24f * density, refractionAmount = 24f * density)
+                },
+                onDrawSurface = { drawRect(color = Color(colors.pillTint)) },
+            )
+            .drawBehind {
+                ntc { c ->
+                    for (i in 0 until model.count) {
+                        val cellCx = model.axisFirst + model.axisPitch * i
+                        DockDraw.drawTab(c, i, i, false, cellCx, cy, contentH, density,
+                            colors, iconPaths, iconP, textP)
+                    }
+                }
+            }
+        ) { }
         /* ---- 托盘(静止选中,prism _Lens):HCT secondary tone90/4 @85%,
              α×(1−lift);抬起后由玻璃镜接管 ---- */
         Box(Modifier.fillMaxSize().drawBehind {
@@ -453,7 +482,7 @@ private fun GlassBar(
                 .sizePx(nodeW, nodeH)
                 .offsetPx(nodeL, nodeT)
                 .drawBackdrop(
-                    backdrop = pillBackdrop,
+                    backdrop = tabsBackdrop,   // 镜中只有栏体成品,不透生背景(用户定案)
                     shape = { RoundedCornerShape((pillR / density).dp) },
                     effects = {
                         lens(
@@ -464,7 +493,14 @@ private fun GlassBar(
                         )
                     },
                     highlight = { pillHighlight.value.copy(alpha = liftV) },
-                    onDrawSurface = { drawRect(color = Color(colors.pillTint)) },
+                    onDrawSurface = {
+                        drawRect(
+                            color = if (!colors.dark) Color.Black.copy(alpha = 0.1f)
+                                    else Color.White.copy(alpha = 0.1f),
+                            alpha = 1f - liftV,
+                        )
+                        drawRect(Color.Black.copy(alpha = 0.03f * liftV))
+                    },
                 )
                 .innerShadow(
                     shape = RoundedCornerShape((pillR / density).dp),
