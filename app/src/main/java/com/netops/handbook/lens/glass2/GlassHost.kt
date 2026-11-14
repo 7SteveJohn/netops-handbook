@@ -7,53 +7,47 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 
 /**
- * P1 宿主(2026-11-12,2026-11-14 分流改造)。
+ * P1 宿主(2026-11-12,2026-11-14 M3 终局改造)。
  *
- * 平板/非 HONOR(CAPTURE_PAGES=true):原样——旧根包进 Compose AndroidView,
- * 页面 record 同帧折射(KernelSU 结构,平板真机全绿)。
+ * 单一路径：旧根(View 层=壁纸 backdrop)包进 Compose AndroidView，
+ * Compose 页(PagesOverlay)为 dock 同组合兄弟节点——M3 首验实锤 MagicOS
+ * 「AndroidView 内嵌套 ComposeView 内容不合成」，页面必须与 dock 同组合；
+ * WebView 已摘除(M1d-3)，树里只剩 View/Compose，record 全绿(探针实证)。
  *
- * HONOR(MagicOS,CAPTURE_PAGES=false):**兄弟节点版**——旧根(View 树含 WebView)
- * 直接 setContentView 直挂 window,MagicOS 定制 WebView 进 Compose AndroidView
- * 连直绘都不显示(13:22 实测:record 死 + 直绘也死,独立合成层被宿主包裹破坏);
- * dock 玻璃用 ComposeView 作为同窗兄弟节点叠加在旧根之上,玻璃内容源 =
- * PageSnap(PixelCopy 直读已合成 Surface,旧路线跑过多轮已验证)。
- * 触摸 = GlassDock 内 TouchGuard 全窗自判区域,带外转发 anchor(同窗同语义)。
+ * 回调用 GlassHostHooks 接口（Java 匿名类友好——Kotlin 函数类型的 Unit
+ * 返回在 Java lambda 里会因 void↔Unit 推断失败）。
  */
-fun ComponentActivity.installGlassHost(anchor: FrameLayout) {
-    if (DockBus.CAPTURE_PAGES) {
-        val holder = FrameLayout(this)
-        setContentView(holder)
-        val compose = ComposeView(this)
-        compose.setViewCompositionStrategy(
-            ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed
+interface GlassHostHooks {
+    fun onGo(route: String, arg: String?)
+    fun onExport()
+    fun onImport()
+    fun onSettings()
+    fun onState(id: String, kind: String, on: Boolean)
+}
+
+fun ComponentActivity.installGlassHost(
+    anchor: FrameLayout,
+    hooks: GlassHostHooks,
+) {
+    val holder = FrameLayout(this)
+    setContentView(holder)
+    val compose = ComposeView(this)
+    compose.setViewCompositionStrategy(
+        ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed
+    )
+    holder.addView(
+        compose,
+        FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
         )
-        holder.addView(
-            compose,
-            FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
-            )
-        )
-        compose.setContent { GlassDockHost(anchor) }
-    } else {
-        /* HONOR(MagicOS)兄弟节点版:旧根直挂,玻璃层 addContentView 叠加 */
-        setContentView(anchor)
-        val overlay = FrameLayout(this)
-        val compose = ComposeView(this)
-        compose.setViewCompositionStrategy(
-            ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed
-        )
-        overlay.addView(
-            compose,
-            FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
-            )
-        )
-        addContentView(
-            overlay,
-            FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
-            )
-        )
-        compose.setContent { GlassDockHost(anchor) }
+    )
+    compose.setContent {
+        GlassDockHost(anchor) {
+            com.netops.handbook.ui.pages.PagesOverlay(
+                data = { com.netops.handbook.ui.PageData.dataRoot },
+                onGo = { r, a -> hooks.onGo(r, a) },
+                onExport = { hooks.onExport() }, onImport = { hooks.onImport() },
+                onState = { id, kind, on -> hooks.onState(id, kind, on) })
+        }
     }
 }

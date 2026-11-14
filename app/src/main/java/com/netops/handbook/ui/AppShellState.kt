@@ -44,6 +44,21 @@ object AppShellState {
     /** M3-2⑦：阶段页当前 pid/focus（Router 动作表写入）。 */
     var phasePid by mutableStateOf("p-1")
     var phaseFocus by mutableStateOf<String?>(null)
+
+    /** M3 终局：页面路由（GlassDockHost 组合内 when 切页；MainActivity.pagesGo 写入）。 */
+    var pageRoute by mutableStateOf("learn")
+    var pageArg by mutableStateOf<String?>(null)
+
+    fun pagesGo(route: String, arg: String?) {
+        pageRoute = route
+        pageArg = arg
+        selected = when (route) {
+            "fault" -> 1
+            "dict" -> 2
+            "me" -> 3
+            else -> 0
+        }
+    }
 }
 
 /** native-data 装载版本源（M3：Compose 页据此重读数据；MainActivity 装载完成时 bump）。 */

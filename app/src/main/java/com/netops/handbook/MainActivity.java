@@ -122,23 +122,17 @@ public class MainActivity extends AppCompatActivity {
     private com.netops.handbook.lens.NativeSearchView nativeSearch;
     /** M1b(2026-11-14)：CLI 页 Compose 宿主（唯一非 View 原生页；M1d 摘 WebView 后
      *  全部页面进 Compose 树的先行样本）。 */
-    private androidx.compose.ui.platform.ComposeView cliCompose;
-    /** M3-1：术语表/路线图共用 Compose 页宿主。 */
-    private androidx.compose.ui.platform.ComposeView composeSimple;
-    /** M3-2：速查表 Compose 页宿主。 */
-    private androidx.compose.ui.platform.ComposeView composeRefs;
+
     /** M3-2②：模拟测验 Compose 页宿主。 */
-    private androidx.compose.ui.platform.ComposeView composeQuiz;
+
     /** M3-2③：收藏夹/我的 Compose 页宿主。 */
-    private androidx.compose.ui.platform.ComposeView composeFav;
-    private androidx.compose.ui.platform.ComposeView composeMe;
+
     /** M3-2④：学习首页 Compose 页宿主。 */
-    private androidx.compose.ui.platform.ComposeView composeHome;
+
     /** M3-2⑤：命令字典 Compose 页宿主。 */
-    private androidx.compose.ui.platform.ComposeView composeDict;
+
     /** M3-2⑥：排障/面试 Compose 页宿主（DocListConfig 驱动双路由）。 */
-    private androidx.compose.ui.platform.ComposeView composeFault;
-    private androidx.compose.ui.platform.ComposeView composeIv;
+
     /** M3-2⑦：阶段详情 Compose 页宿主。 */
     private androidx.compose.ui.platform.ComposeView composePhase;
     private org.json.JSONObject nativeDataRoot;
@@ -216,7 +210,18 @@ public class MainActivity extends AppCompatActivity {
         /* P1 宿主(2026-11-12):USE_GLASS2 时旧根包进 Compose(AndroidView),
            玻璃 dock 同树叠加(FlClash/KernelSU 同代);false = 旧 PopupWindow 链。 */
         if (com.netops.handbook.lens.glass2.DockBus.USE_GLASS2) {
-            com.netops.handbook.lens.glass2.GlassHostKt.installGlassHost(this, root);
+            com.netops.handbook.lens.glass2.GlassHostKt.installGlassHost(this, root,
+                new com.netops.handbook.lens.glass2.GlassHostHooks() {
+                    @Override public void onGo(String route, String arg) {
+                        com.netops.handbook.lens.Router.INSTANCE.go(route, arg, false);
+                    }
+                    @Override public void onExport() { exportBackup(); }
+                    @Override public void onImport() { importBackup(); }
+                    @Override public void onSettings() { showSettingsPanel(); }
+                    @Override public void onState(String id, String kind, boolean on) {
+                        markStatePagesDirty();
+                    }
+                });
         } else {
             setContentView(root);
         }
@@ -296,6 +301,18 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    /** M3-2③：原生设置面板开合（M4 迁 Compose 前保留 View 版）。 */
+    private kotlin.Unit showSettingsPanel() {
+        if (settingsPanel == null) return kotlin.Unit.INSTANCE;
+        settingsPanel.setDockDocked(dockDocked);
+        settingsPanel.setGlassLevel(com.netops.handbook.lens.NativeBlocks.GLASS_LEVEL);
+        settingsPanel.show();
+        pushSettingsState();
+        if (lensBar != null) lensBar.setOverlaid(true);
+        com.netops.handbook.lens.glass2.DockBus.pushOverlaid(true);
+        return kotlin.Unit.INSTANCE;
+    }
+
     private static final String KEY_GLASS = "glass_level";
     private static final String KEY_DOCKSTYLE_DOCKED = "dockstyle_docked";
 
@@ -308,55 +325,30 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /** M1d：备份导出（bridge.saveFile 自带异步落盘+Toast）。 */
-    public void exportBackup() {
-        if (bridge == null) return;
+    public kotlin.Unit exportBackup() {
+        if (bridge == null) return kotlin.Unit.INSTANCE;
         bridge.saveFile(com.netops.handbook.lens.BackupManager.fileName(),
                 com.netops.handbook.lens.BackupManager.buildJson(this));
+        return kotlin.Unit.INSTANCE;
     }
 
     /** M1d：备份恢复入口（系统文件选择器）。 */
-    public void importBackup() {
+    public kotlin.Unit importBackup() {
         Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         i.addCategory(Intent.CATEGORY_OPENABLE);
         i.setType("application/json");
         try { startActivityForResult(i, REQ_IMPORT_BACKUP); }
         catch (Throwable e) { Toast.makeText(this, "无法打开文件选择器", Toast.LENGTH_SHORT).show(); }
+        return kotlin.Unit.INSTANCE;
     }
 
     /** M2-1(2026-11-14)：Router.onNavigate 动作表——route→(keep, showTarget)
      *  与 Bridge.showNativeX 逐条对应（keep 口径注意 learn→"home"）。
      *  cli = 唯一 WebView 独占路由（M1 迁走）：keep=null 壁纸层让位走 WebView。 */
-    /** M3-1：SimpleListPage 显隐（glossary/roadmap 共用宿主）。 */
-    private void showSimple(String route) {
-        if (composeSimple == null) return;
-        com.netops.handbook.ui.AppShellState.INSTANCE.setSimpleRoute(route);
-        composeSimple.setVisibility(android.view.View.VISIBLE);
-    }
-
-    /** M3-2⑦：阶段页显隐（pid + 可选 focus 模块深链）。 */
-    private void showPhase(String pid, String focusId) {
-        if (composePhase == null) return;
-        com.netops.handbook.ui.AppShellState.INSTANCE.setPhasePid(pid);
-        com.netops.handbook.ui.AppShellState.INSTANCE.setPhaseFocus(focusId);
-        composePhase.setVisibility(android.view.View.VISIBLE);
-    }
-
-    /** M3-2：速查页显隐（null=列表，id=单表直达）。 */
-    private void showRefs(String detailId) {
-        if (composeRefs == null) return;
-        com.netops.handbook.ui.AppShellState.INSTANCE.setRefsDetail(detailId);
-        composeRefs.setVisibility(android.view.View.VISIBLE);
-    }
-
-    /** M3-2③：原生设置面板开合（M4 迁 Compose 前保留 View 版）。 */
-    private void showSettingsPanel() {
-        if (settingsPanel == null) return;
-        settingsPanel.setDockDocked(dockDocked);
-        settingsPanel.setGlassLevel(com.netops.handbook.lens.NativeBlocks.GLASS_LEVEL);
-        settingsPanel.show();
-        pushSettingsState();
-        if (lensBar != null) lensBar.setOverlaid(true);
-        com.netops.handbook.lens.glass2.DockBus.pushOverlaid(true);
+    /** M3 终局：页面路由落点——写 AppShellState 页面态，GlassDockHost 组合内
+     *  when 切页（退役 11 个 ComposeView 页宿主与显隐白名单）。 */
+    private void pagesGo(String route, String arg) {
+        com.netops.handbook.ui.AppShellState.INSTANCE.pagesGo(route, arg);
     }
 
     private void wireNativeRouter() {
@@ -366,32 +358,18 @@ public class MainActivity extends AppCompatActivity {
             final String keep;
             final Runnable target;
             switch (route) {
-                case "learn":  keep = "home";  target = () -> {
-                    if (composeHome != null) composeHome.setVisibility(android.view.View.VISIBLE);
-                }; break;
-                case "fault":  keep = "fault"; target = () -> {
-                    if (composeFault != null) composeFault.setVisibility(android.view.View.VISIBLE);
-                }; break;
-                case "iv":     keep = "iv";    target = () -> {
-                    if (composeIv != null) composeIv.setVisibility(android.view.View.VISIBLE);
-                }; break;
-                case "dict":   keep = "dict";  target = () -> {
-                    if (composeDict != null) composeDict.setVisibility(android.view.View.VISIBLE);
-                }; break;
-                case "refs":   keep = "refs";  target = () -> showRefs(null); break;
-                case "ref":    keep = "refs";  target = () -> showRefs(arg); break;
-                case "glossary": keep = "glossary"; target = () -> showSimple("glossary"); break;
-                case "roadmap":  keep = "roadmap";  target = () -> showSimple("roadmap"); break;
-                case "quiz":   keep = "quiz";  target = () -> {
-                    if (composeQuiz != null) composeQuiz.setVisibility(android.view.View.VISIBLE);
-                }; break;
-                case "me":     keep = "me";    target = () -> {
-                    if (composeMe != null) composeMe.setVisibility(android.view.View.VISIBLE);
-                }; break;
-                case "fav":    keep = "fav";   target = () -> {
-                    if (composeFav != null) composeFav.setVisibility(android.view.View.VISIBLE);
-                }; break;
-                case "search": keep = "search"; target = () -> nativeSearch.show(); break;
+                case "learn":  keep = "home";  target = () -> pagesGo("home", null); break;
+                case "fault":  keep = "fault"; target = () -> pagesGo("fault", ""); break;
+                case "iv":     keep = "iv";    target = () -> pagesGo("iv", ""); break;
+                case "dict":   keep = "dict";  target = () -> pagesGo("dict", ""); break;
+                case "refs":   keep = "refs";  target = () -> pagesGo("refs", ""); break;
+                case "ref":    keep = "refs";  target = () -> pagesGo("ref", arg); break;
+                case "glossary": keep = "glossary"; target = () -> pagesGo("glossary", ""); break;
+                case "roadmap":  keep = "roadmap";  target = () -> pagesGo("roadmap", ""); break;
+                case "quiz":   keep = "quiz";  target = () -> pagesGo("quiz", ""); break;
+                case "me":     keep = "me";    target = () -> pagesGo("me", ""); break;
+                case "fav":    keep = "fav";   target = () -> pagesGo("fav", ""); break;
+                case "search": keep = "search"; target = () -> { com.netops.handbook.ui.AppShellState.INSTANCE.pagesGo("search", ""); nativeSearch.show(); }; break;
                 case "phase": {
                     keep = "phase";
                     final String pid = (arg == null || arg.isEmpty()) ? "p-1" : arg;
@@ -407,7 +385,7 @@ public class MainActivity extends AppCompatActivity {
                 case "cli":
                     /* M1b：cli 已迁 Compose 页（CliScreen）——keep="cli" 走通用互斥。 */
                     keep = "cli"; target = () -> {
-                        if (cliCompose != null) cliCompose.setVisibility(android.view.View.VISIBLE);
+                        pagesGo("cli", "");
                     };
                     break;
                 default:
@@ -460,27 +438,6 @@ public class MainActivity extends AppCompatActivity {
         if (!"search".equals(keep) && nativeSearch != null) nativeSearch.hide();
         if (!"me".equals(keep) && nativeMe != null) nativeMe.hide();
         if (!"fav".equals(keep) && nativeFav != null) nativeFav.hide();
-        if (!"cli".equals(keep) && cliCompose != null) cliCompose.setVisibility(android.view.View.GONE);
-        if (!"glossary".equals(keep) && !"roadmap".equals(keep) && composeSimple != null)
-            composeSimple.setVisibility(android.view.View.GONE);
-        if (!"refs".equals(keep) && !"ref".equals(keep) && composeRefs != null)
-            composeRefs.setVisibility(android.view.View.GONE);
-        if (!"quiz".equals(keep) && composeQuiz != null)
-            composeQuiz.setVisibility(android.view.View.GONE);
-        if (!"fav".equals(keep) && composeFav != null)
-            composeFav.setVisibility(android.view.View.GONE);
-        if (!"me".equals(keep) && composeMe != null)
-            composeMe.setVisibility(android.view.View.GONE);
-        if (!"home".equals(keep) && composeHome != null)
-            composeHome.setVisibility(android.view.View.GONE);
-        if (!"dict".equals(keep) && composeDict != null)
-            composeDict.setVisibility(android.view.View.GONE);
-        if (!"fault".equals(keep) && composeFault != null)
-            composeFault.setVisibility(android.view.View.GONE);
-        if (!"phase".equals(keep) && composePhase != null)
-            composePhase.setVisibility(android.view.View.GONE);
-        if (!"iv".equals(keep) && composeIv != null)
-            composeIv.setVisibility(android.view.View.GONE);
         /* keep==null = 本路由没有原生页（CLI 等 WebView 独占页）→ 壁纸层让位，
            否则它（z 序在 WebView 之上）会把 WebView 盖死：页面看不见、触摸却穿透。
            任何原生页显示时收回让位。 */
@@ -664,7 +621,7 @@ public class MainActivity extends AppCompatActivity {
                 ? Math.round(70f * getResources().getDisplayMetrics().density) : 0;
         android.view.View[] pages = {nativeHome, nativePhase, nativeFault, nativeIv, nativeDict,
                 nativeRefs, nativeGlossary, nativeRoadmap, nativeQuiz, nativeSearch,
-                nativeMe, nativeFav, cliCompose, composeSimple, composeRefs, composeQuiz, composeFav, composeMe, composeHome, composeDict, composeFault, composeIv, composePhase};
+                nativeMe, nativeFav};
         for (android.view.View p : pages) {
             if (p == null) continue;
             android.view.ViewGroup.LayoutParams lp0 = p.getLayoutParams();
@@ -852,11 +809,6 @@ public class MainActivity extends AppCompatActivity {
                 });
         settingsPanel.setLayoutParams(new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
-        /* M1b：CLI 页 = Compose 页（与其他 View 页同层互斥；z 序在面板之下）。 */
-        cliCompose = new androidx.compose.ui.platform.ComposeView(this);
-        com.netops.handbook.ui.CliScreenKt.setCliContent(cliCompose, () -> nativeDataRoot,
-                () -> com.netops.handbook.ui.AppShellState.INSTANCE.isDark());
-        addNativePage(cliCompose);
         root.addView(settingsPanel);     /* 面板必须在所有原生页之上 */
         ThemeBus.register(settingsPanel);
         /* 面板开合 → 侧栏退位（侧栏是独立弹窗，永远压在面板上） */

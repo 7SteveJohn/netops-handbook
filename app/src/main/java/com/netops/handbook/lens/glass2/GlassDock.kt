@@ -75,33 +75,30 @@ import kotlin.math.round
  * 两态语义(2026-11-10 用户定案):平常磨砂、按住全透明。
  */
 @Composable
-fun GlassDockHost(anchor: View, modifier: Modifier = Modifier) {
-    if (DockBus.CAPTURE_PAGES) {
-        val captureLayer = rememberGraphicsLayer()
-        var winSize by remember { mutableStateOf(IntSize.Zero) }
-        Box(modifier.fillMaxSize()) {
-            AndroidView(
-                factory = { anchor },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .onSizeChanged { winSize = it }
-                    .drawWithContent {
-                        /* 捕获:本节点内容(整棵 View 树)进 layer。dock 在本子树外,
-                           天然无自反馈(探针实证:record 范围与玻璃必须互斥)。 */
-                        captureLayer.record { this@drawWithContent.drawContent() }
-                        drawLayer(captureLayer)
-                    }
-            )
-            GlassDock(captureLayer, anchor, winSize)
-        }
-    } else {
-        /* HONOR(MagicOS)兄弟节点版:本 Composable 挂在独立 ComposeView(overlay
-           叠加在旧根之上,见 GlassHost.kt),页面由旧根直绘,玻璃内容源 PageSnap。 */
-        val captureLayer = rememberGraphicsLayer()   // 占位(手机分支玻璃不 record 页面)
-        var winSize by remember { mutableStateOf(IntSize.Zero) }
-        Box(modifier.fillMaxSize().onSizeChanged { winSize = it }) {
-            GlassDock(captureLayer, anchor, winSize)
-        }
+fun GlassDockHost(
+    anchor: View, modifier: Modifier = Modifier,
+    pages: @Composable () -> Unit = {},
+) {
+    val captureLayer = rememberGraphicsLayer()
+    var winSize by remember { mutableStateOf(IntSize.Zero) }
+    Box(modifier.fillMaxSize()) {
+        AndroidView(
+            factory = { anchor },
+            modifier = Modifier
+                .fillMaxSize()
+                .onSizeChanged { winSize = it }
+                .drawWithContent {
+                    /* 捕获:本节点内容(View 层=壁纸/旧 View 页)进 layer。dock 在本
+                       子树外,天然无自反馈(探针实证:record 范围与玻璃必须互斥)。
+                       M3 终局:Compose 页为本 Box 兄弟节点(PagesOverlay),不进
+                       record 也不被嵌套——MagicOS 嵌套 ComposeView 不合成(M3 首验)。 */
+                    captureLayer.record { this@drawWithContent.drawContent() }
+                    drawLayer(captureLayer)
+                }
+        )
+        /* M3 终局:页面层 = dock 同组合兄弟节点(嵌套 ComposeView 在 MagicOS 不合成) */
+        pages()
+        GlassDock(captureLayer, anchor, winSize)
     }
 }
 
