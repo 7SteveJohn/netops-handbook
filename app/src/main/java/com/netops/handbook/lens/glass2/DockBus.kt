@@ -24,11 +24,20 @@ import androidx.compose.runtime.setValue
 object DockBus {
 
     /* ---- 档位开关(编译期定,回退改 false 即回旧链) ----
-       ❗2026-11-14 手机回退:glass2(=true)在华为 AAP-AN00(HarmonyOS SDK37)上
-       巨卡+渲染异常(内容区空白/原生 dock 未接管,截图实证)——record 捕获管线
-       在该机 interop 退化,待诊断。平板 HA28NA50 无此问题(11-12 全绿)。
-       手机侧暂时回旧 LensBarView 路线(观感=Antigravity 存档版)。 */
-    const val USE_GLASS2 = false
+       2026-11-14 恢复 glass2 默认+按设备分流内容源:
+       - 非 HONOR(MagicOS):页面 record 同帧折射(KernelSU 结构原样,平板已验证);
+       - HONOR(MagicOS)(MagicOS):WebView 被 GraphicsLayer.record 离屏重绘时
+         Chromium tile 内存超限拒绘(探针 D 验证点实锤)——页面直绘,玻璃内容源
+         走 PageSnap(PixelCopy 直读已合成 Surface,同旧路线已验证通道),
+         玻璃链(prism shader/RenderEffect)原样保留。 */
+    const val USE_GLASS2 = true
+
+    /** 页面内容能否 record 离屏(玻璃同帧折射):HONOR(MagicOS) 的 WebView 判死 →
+     *  false = 页面直绘 + PageSnap 快照喂玻璃。 */
+    val CAPTURE_PAGES: Boolean by lazy {
+        val m = android.os.Build.MANUFACTURER.uppercase()
+        !(m.contains("HUAWEI") || m.contains("HONOR"))
+    }
 
     /* ---- 几何(JS 上报,窗口本地 px) ---- */
     val barRect = RectF()                       // 栏体矩形(窗口本地)
@@ -44,7 +53,11 @@ object DockBus {
     var nativeDock by mutableStateOf(false)   // 原生底栏接管(netops_native_dock)
     var docked by mutableStateOf(false)           // 底栏样式=原生贴底(netops_tabbar=regular)
     var glassLevel by mutableStateOf("ultra") // none / standard / ultra
-    var dark by mutableStateOf(false)               // 主题(ThemeBus 同步)
+    /* M2-2(2026-11-14):dark 单源化——委托 AppShellState.isDark（ThemeBus 只写
+       单源；GlassDock 组合期读本属性=订阅 AppShellState,重组语义不变）。 */
+    var dark: Boolean
+        get() = com.netops.handbook.ui.AppShellState.isDark
+        set(v) { com.netops.handbook.ui.AppShellState.isDark = v }
     var railTopPx by mutableFloatStateOf(0f)    // 竖排侧栏顶部让位(顶栏底边,窗口本地)
     var overlaid by mutableStateOf(false)       // 抽屉在场 → dock 让位隐藏
 
