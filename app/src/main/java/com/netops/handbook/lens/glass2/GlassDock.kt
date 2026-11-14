@@ -22,6 +22,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.foundation.shape.RoundedCornerShape
+import top.yukonga.miuix.kmp.blur.blur
+import top.yukonga.miuix.kmp.blur.drawBackdrop
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.draw.clip
@@ -108,7 +110,7 @@ fun GlassDockHost(
 
 /** 壁纸内容源 BitmapShader：wallBitmap 按全屏 Crop 口径铺满 (winW×winH)，
  *  再平移到节点本地坐标（节点原点=(nodeL,nodeT)）——即「bar 背后那块壁纸」。 */
-private fun wallShader(
+internal fun wallShader(
     bmp: android.graphics.Bitmap,
     winW: Float, winH: Float,
     nodeL: Float, nodeT: Float,
@@ -167,7 +169,7 @@ private fun GlassDock() {
                 && DockBus.glassLevel != "none") {
                 val bar = DockBus.barRect
                 if (bar.width() > 4 && bar.height() > 4) {
-                    val pad = barPadPx(GlassDockEnv.density())
+                    val pad = (40f * GlassDockEnv.density() + 8f).toInt()
                     PageSnap.request(snapView, RectF(
                         bar.left - pad, bar.top - pad, bar.right + pad, bar.bottom + pad))
                 }
@@ -372,104 +374,42 @@ private fun GlassBar(
              液体弯折 60dp 深度)、tint/contrast/haze/sat 按 pill 预设;
              暗线(uEdge.x=hairline)与 rim(uLight.x)由 shader 画;
              触摸光晕在 shader 内(uGlow/uGlowSpread)。 ---- */
-        val barPad = barPadPx(density).toInt().coerceAtLeast(16)
-        val barFx = remember { DockDraw.LensFx(PRISM_GLASS) }
-        val snapPaint = remember { Paint(Paint.FILTER_BITMAP_FLAG) }
-        val fillP = remember(colors) { Paint(Paint.ANTI_ALIAS_FLAG).apply { color = colors.barFill } }
+        /* ---- 玻璃源 = miuix-blur(KernelSU 系 manager 同款,ReSuKiSU 实证同机;
+             照抄 example IosLiquidGlassNavigationBar)。backdrop = PageSnap 跨窗
+             快照适配(bar/药丸各一份实例,origin 组合期写入)。 ---- */
+        val barBackdrop = remember { PageSnapBackdrop { winSize } }
+        val pillBackdrop = remember { PageSnapBackdrop { winSize } }
+        val baseHighlight = rememberGravityRotatedHighlight(iosIndicatorSpecular, extraDegrees = -45f)
+        val pillHighlight = rememberGravityRotatedHighlight(iosIndicatorSpecular, extraDegrees = 90f)
+
+        /* ---- 栏体玻璃(照抄 bar Row):节点=栏矩形;effects=padding 40dp 采样
+             模型(P3 首项,PageSnap 请求 pad 同步 40dp+)+vibrancy+blur 4dp+
+             lens 24/24;highlight=BloomStroke 重力旋转 α0.75;surface=栏体
+             tint(定稿全量 pillTint);按压胀大 layerBlock 驱动=liftV。 ---- */
+        barBackdrop.nodeL = bar.left
+        barBackdrop.nodeT = bar.top
         Box(Modifier
-            .sizePx(bar.width() + 2f * barPad, bar.height() + 2f * barPad)
-            .offsetPx(bar.left - barPad, bar.top - barPad)
-            /* ① 按压胀大(最外)：整体缩放,不改布局与守卫命中区。 */
+            .sizePx(bar.width(), bar.height())
+            .offsetPx(bar.left, bar.top)
             .graphicsLayer {
                 val dockS = 1f + (16f * density / max(1f, bar.width())) * liftV
                 scaleX = dockS
                 scaleY = dockS
             }
-            /* ② ❗输出裁到栏体胶囊(2026-11-14 割裂修复)：玻璃节点=栏±pad 全矩形,
-               shader 形状外在本机不归零→整矩形玻璃上屏,弹窗矩形与页面割裂
-               (平板 t11/t12 实证:提亮矩形硬边)。clip 层内缩 pad=栏形输出;
-               effect 输入仍=全 pad 内容(折射采样 reach 不变)。 */
-            .graphicsLayer {
-                clip = true
-                val p = barPad.toFloat()
-                shape = object : androidx.compose.ui.graphics.Shape {
-                    override fun createOutline(
-                        size: androidx.compose.ui.geometry.Size,
-                        layoutDirection: androidx.compose.ui.unit.LayoutDirection,
-                        density: androidx.compose.ui.unit.Density,
-                    ): androidx.compose.ui.graphics.Outline =
-                        androidx.compose.ui.graphics.Outline.Rounded(
-                            androidx.compose.ui.geometry.RoundRect(
-                                rect = androidx.compose.ui.geometry.Rect(
-                                    p, p, size.width - p, size.height - p),
-                                cornerRadius = androidx.compose.ui.geometry.CornerRadius(
-                                    bar.height() / 2f)
-                            )
-                        )
-                }
-            }
-            .graphicsLayer {
-                val d = density
-                DockDraw.setPrismUniforms(
-                    sh = barFx.shader,
-                    nodeOriginX = bar.left - barPad, nodeOriginY = bar.top - barPad,
-                    glassTLX = bar.left, glassTLY = bar.top,
-                    nodeW = bar.width() + 2f * barPad, nodeH = bar.height() + 2f * barPad,
-                    dp = d,
-                    shapeW = bar.width() / d, shapeH = bar.height() / d,
-                    bevel = 20f, frost = 0f,
-                    corner = bar.height() / 2f / d,
-                    refraction = 60f, saturation = if (colors.dark) 1.925f else 2.1f,
-                    brightness = 1f,
-                    tint = colors.pillTint,
-                    rim = if (colors.dark) 0.35f else 0f,
-                    rimWidth = 1.3f, endShade = 0f,
-                    glowCx = (model.glowX - bar.left) / d,
-                    glowCy = (model.glowY - bar.top) / d,
-                    glowStrength = 0.06f * glowV * glowV,
-                    contrast = if (colors.dark) -0.4f else 0.4f,
-                    glowReach = 28f * (1f + 3f * spreadV),
-                    glowWash = 0.7f,
-                    lineAlpha = if (colors.dark) 0f else 0.35f,
-                    partDp = 0f, rimFrost = 0f,
-                    rimTail = if (colors.dark) 0.17f else 0f,
-                    rimFocus = 0f, rimAdded = if (colors.dark) 0.38f else 0f,
-                    rimSide = 0f,
-                    haze = 0.72f, hazeBlur = 15.6f)
-                renderEffect = if (agslOk) barFx.effect(floatArrayOf(
-                    bar.width(), bar.height(), glowV, model.glowX, model.glowY)) else null
-            }
-            .drawBehind {
-                clipRect(0f, 0f, size.width, size.height) {
-                    /* 内容源=PageSnap 跨窗快照(主窗壁纸+页面内容,窗口坐标对齐)；
-                       快照未就绪首帧退壁纸直喂，再退 barFill。 */
-                    val snap = PageSnap.latest()
-                    if (snap != null) {
-                        val sh = android.graphics.BitmapShader(
-                            snap, android.graphics.Shader.TileMode.CLAMP,
-                            android.graphics.Shader.TileMode.CLAMP)
-                        val m = android.graphics.Matrix().apply {
-                            postTranslate(PageSnap.snapL - (bar.left - barPad),
-                                PageSnap.snapT - (bar.top - barPad))
-                        }
-                        sh.setLocalMatrix(m)
-                        snapPaint.shader = sh
-                        PageSnap.version
-                        ntc { c -> c.drawRect(0f, 0f, size.width, size.height, snapPaint) }
-                    } else {
-                        val bmp = com.netops.handbook.lens.WallpaperPrefs.wallBitmap
-                        if (bmp != null) {
-                            snapPaint.shader = wallShader(bmp,
-                                winSize.width.toFloat(), winSize.height.toFloat(),
-                                bar.left - barPad, bar.top - barPad)
-                            ntc { c -> c.drawRect(0f, 0f, size.width, size.height, snapPaint) }
-                        } else {
-                            ntc { c -> c.drawRect(0f, 0f, size.width, size.height, fillP) }
-                        }
-                    }
-                }
-            }
+            .drawBackdrop(
+                backdrop = barBackdrop,
+                shape = { RoundedCornerShape((bar.height() / 2f / density).dp) },
+                effects = {
+                    padding = maxOf(padding, 40f * density)
+                    vibrancy()
+                    blur(4f * density, 4f * density)
+                    lens(refractionHeight = 24f * density, refractionAmount = 24f * density)
+                },
+                highlight = { baseHighlight.value.copy(alpha = 0.75f) },
+                onDrawSurface = { drawRect(color = Color(colors.pillTint)) },
+            )
         ) { }
+
         /* ---- 托盘(静止选中,prism _Lens):HCT secondary tone90/4 @85%,
              α×(1−lift);抬起后由玻璃镜接管 ---- */
         Box(Modifier.fillMaxSize().drawBehind {
@@ -501,111 +441,43 @@ private fun GlassBar(
                 }
             }
         })
-        /* ---- 抬起玻璃镜(2026-11-15 换装 Kyant0/AndroidLiquidGlass lens 预设:
-             .refs/AndroidLiquidGlass Apache-2.0 供应商化,shader=LensShaders.kt)。
-             旧「Modifier.graphicsLayer{renderEffect} 包内容节点」结构本机实测整层
-             不上屏(红/绿填充 bisect 实证,影子层正常);照库方 LiquidBottomTabs
-             按压药丸结构:GraphicsLayer.record(快照+tint 胶囊)→layer.renderEffect
-             →drawLayer——record 路线本机已实证(GlassProbeActivity/§6.4)。
-             参数照库方按压药丸:refractionHeight 10dp·p / refractionAmount
-             14dp·p / CA 极致档开。pad = 折射采样 reach(14dp)+余量。 ---- */
-        val lensPad = (14f * density + 8f).toInt().coerceAtLeast(16)
-        val lensLayer = rememberGraphicsLayer()
-        val lensRefShader = remember {
-            android.graphics.RuntimeShader(RoundedRectRefractionShaderString) }
-        val lensDisShader = remember {
-            android.graphics.RuntimeShader(RoundedRectRefractionWithDispersionShaderString) }
-        if (liftV > 0.01f && agslOk && Build.VERSION.SDK_INT >= 33) Box(Modifier
-            .sizePx(nodeW + 2f * lensPad, nodeH + 2f * lensPad)
-            .offsetPx(nodeL - lensPad, nodeT - lensPad)
-        ) {
-            /* 投影(prism _lensShadows:offset(0,8) blur5 黑 5.5%,暗 3×) */
-            Box(Modifier.fillMaxSize().graphicsLayer {
-                alpha = liftV
-            }.drawBehind {
-                ntc { c ->
-                    val sp = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                        maskFilter = android.graphics.BlurMaskFilter(
-                            5f * density, android.graphics.BlurMaskFilter.Blur.NORMAL)
-                        color = if (colors.dark) android.graphics.Color.argb((255f * 0.165f * liftV).toInt(), 0, 0, 0)
-                                else android.graphics.Color.argb((255f * 0.055f * liftV).toInt(), 0, 0, 0)
-                    }
-                    c.drawRoundRect(lensPad.toFloat(), lensPad + 8f * density,
-                        lensPad + nodeW, lensPad + nodeH + 8f * density, pillR, pillR, sp)
-                }
-            })
-            /* mask:裁到**真药丸胶囊**——内缩 lensPad=药丸矩形,pad 环带不参与
-               输出(快照跨窗可能差一帧,shader 形状外直通会露接缝)。 */
-            Box(Modifier.fillMaxSize().graphicsLayer {
-                clip = true
-                val p = lensPad.toFloat()
-                shape = object : androidx.compose.ui.graphics.Shape {
-                    override fun createOutline(
-                        size: androidx.compose.ui.geometry.Size,
-                        layoutDirection: androidx.compose.ui.unit.LayoutDirection,
-                        density: androidx.compose.ui.unit.Density,
-                    ): androidx.compose.ui.graphics.Outline =
-                        androidx.compose.ui.graphics.Outline.Rounded(
-                            androidx.compose.ui.geometry.RoundRect(
-                                rect = androidx.compose.ui.geometry.Rect(
-                                    p, p, size.width - p, size.height - p),
-                                cornerRadius = androidx.compose.ui.geometry.CornerRadius(
-                                    pillR)
-                            )
+        /* ---- 按压药丸镜(照抄 miuix 药丸 Box):节点=药丸矩形无 pad(lens 自扩
+             录制面 refractionAmount);lens 10dp·p/14dp·p + depthEffect +
+             CA 0.5(照抄数值);highlight α×p;内影 8dp·p;surface=栏体 tint。
+             图标按 prism 语义由镜内层重绘不折射→combinedBackdrop 免掉;
+             速度挤压已内建于节点尺寸(jellyV),layerBlock 免掉。 ---- */
+        if (liftV > 0.01f && Build.VERSION.SDK_INT >= 33) {
+            pillBackdrop.nodeL = nodeL
+            pillBackdrop.nodeT = nodeT
+            Box(Modifier
+                .sizePx(nodeW, nodeH)
+                .offsetPx(nodeL, nodeT)
+                .drawBackdrop(
+                    backdrop = pillBackdrop,
+                    shape = { RoundedCornerShape((pillR / density).dp) },
+                    effects = {
+                        lens(
+                            refractionHeight = 10f * density * liftV,
+                            refractionAmount = 14f * density * liftV,
+                            depthEffect = true,
+                            chromaticAberration = 0.5f,
                         )
-                }
-            }.drawBehind {
-                /* ① 录制镜内容层 = PageSnap 快照(窗口系对齐) + 栏体同款全量
-                   pillTint 胶囊(库方=combinedBackdrop(page, tabs 自导出层) 同构,
-                   定稿 2026-11-15=镜与栏体同材质)。 */
-                lensLayer.record(androidx.compose.ui.unit.IntSize(
-                    size.width.toInt(), size.height.toInt())) {
-                    val snap = PageSnap.latest()
-                    if (snap != null) {
-                        val sh = android.graphics.BitmapShader(
-                            snap, android.graphics.Shader.TileMode.CLAMP,
-                            android.graphics.Shader.TileMode.CLAMP)
-                        val m = android.graphics.Matrix().apply {
-                            postTranslate(PageSnap.snapL - (nodeL - lensPad),
-                                PageSnap.snapT - (nodeT - lensPad))
-                        }
-                        sh.setLocalMatrix(m)
-                        PageSnap.version
-                        drawRect(androidx.compose.ui.graphics.ShaderBrush(sh))
-                    } else {
-                        val bmp = com.netops.handbook.lens.WallpaperPrefs.wallBitmap
-                        if (bmp != null) {
-                            drawRect(androidx.compose.ui.graphics.ShaderBrush(
-                                wallShader(bmp, winSize.width.toFloat(),
-                                    winSize.height.toFloat(),
-                                    nodeL - lensPad, nodeT - lensPad)))
-                        }
-                    }
-                    drawRoundRect(
-                        color = androidx.compose.ui.graphics.Color(colors.pillTint),
-                        topLeft = androidx.compose.ui.geometry.Offset(
-                            bar.left - (nodeL - lensPad), bar.top - (nodeT - lensPad)),
-                        size = androidx.compose.ui.geometry.Size(
-                            bar.width(), bar.height()),
-                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(
-                            bar.height() / 2f, bar.height() / 2f))
-                }
-                /* ② 库方折射效果:RuntimeShaderEffect 直挂 record 出来的 layer
-                   (带外直通、带内 SDF 渐变位移;CA 仅极致档)。 */
-                val sh2 = if (standard) lensRefShader else lensDisShader
-                sh2.setFloatUniform("size", nodeW, nodeH)
-                sh2.setFloatUniform("offset", -lensPad.toFloat(), -lensPad.toFloat())
-                sh2.setFloatUniform("cornerRadii", pillR, pillR, pillR, pillR)
-                sh2.setFloatUniform("refractionHeight", 10f * density * liftV)
-                sh2.setFloatUniform("refractionAmount", -14f * density * liftV)
-                sh2.setFloatUniform("depthEffect", 0f)
-                if (!standard) sh2.setFloatUniform("chromaticAberration", 1f)
-                lensLayer.renderEffect = android.graphics.RenderEffect
-                    .createRuntimeShaderEffect(sh2, "content").asComposeRenderEffect()
-                /* ③ 回放上屏 */
-                drawLayer(lensLayer)
-            })
+                    },
+                    highlight = { pillHighlight.value.copy(alpha = liftV) },
+                    onDrawSurface = { drawRect(color = Color(colors.pillTint)) },
+                )
+                .innerShadow(
+                    shape = RoundedCornerShape((pillR / density).dp),
+                    shadow = {
+                        InnerShadow(
+                            radius = 8.dp * liftV,
+                            alpha = liftV,
+                        )
+                    },
+                )
+            ) { }
         }
+
         /* ---- 镜内图标(prism items(inside)):画在玻璃镜之上,不折射。
              覆盖格全部高亮蓝(跨格双蓝,2026-11-14 平移——对齐官方跨格效果,
              原恒单格 selectedIndex)+ 选中微放大 1.08/1.05 ---- */
