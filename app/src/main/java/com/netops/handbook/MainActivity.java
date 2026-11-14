@@ -205,6 +205,70 @@ public class MainActivity extends AppCompatActivity {
            当前值回调），这里把总线状态同步成记忆主题——首帧前统一广播。 */
         ThemeBus.setDark(resolvedDark());
         loadNativeData();
+        wireNativeRouter();
+    }
+
+    /** M2-1(2026-11-14)：Router.onNavigate 动作表——route→(keep, showTarget)
+     *  与 Bridge.showNativeX 逐条对应（keep 口径注意 learn→"home"）。
+     *  cli = 唯一 WebView 独占路由（M1 迁走）：keep=null 壁纸层让位走 WebView。 */
+    private void wireNativeRouter() {
+        com.netops.handbook.lens.Router.onNavigate = (st, restoreScroll) -> {
+            String route = st.route;
+            final String arg = st.arg;
+            final String keep;
+            final Runnable target;
+            switch (route) {
+                case "learn":  keep = "home";  target = () -> nativeHome.show(); break;
+                case "fault":  keep = "fault"; target = () -> nativeFault.show(); break;
+                case "iv":     keep = "iv";    target = () -> nativeIv.show(); break;
+                case "dict":   keep = "dict";  target = () -> nativeDict.show(); break;
+                case "refs":   keep = "refs";  target = () -> nativeRefs.show(); break;
+                case "ref":    keep = "refs";  target = () -> nativeRefs.showDetail(arg); break;
+                case "glossary": keep = "glossary"; target = () -> nativeGlossary.show(); break;
+                case "roadmap":  keep = "roadmap";  target = () -> nativeRoadmap.show(); break;
+                case "quiz":   keep = "quiz";  target = () -> nativeQuiz.show(); break;
+                case "me":     keep = "me";    target = () -> nativeMe.show(); break;
+                case "fav":    keep = "fav";   target = () -> nativeFav.show(); break;
+                case "search": keep = "search"; target = () -> nativeSearch.show(); break;
+                case "phase": {
+                    keep = "phase";
+                    final String pid = (arg == null || arg.isEmpty()) ? "p-1" : arg;
+                    target = () -> nativePhase.show(pid);
+                    break;
+                }
+                case "phase-focus": {
+                    keep = "phase";
+                    final String[] pp = (arg == null ? "p-1|" : arg).split("\\|");
+                    target = () -> nativePhase.show(pp[0], pp.length > 1 ? pp[1] : "");
+                    break;
+                }
+                case "cli":
+                    /* WebView 独占（M1 迁 Compose）：keep=null = 全部原生页让位。 */
+                    switchNativeTo(null, () -> { });
+                    return;
+                default:
+                    return;
+            }
+            switchNativeTo(keep, target);
+            /* 顶栏标题/副标题/返回态：Router 直接产出（原 setAppBarState JSON 的
+               name/sub/navBack 三键；bgrev/overlaid 等仍走原链路）。 */
+            if (appbarBar != null) {
+                String name = com.netops.handbook.lens.Router.title;
+                String sub = com.netops.handbook.lens.Router.subtitle;
+                appbarBar.setState("{\"name\":" + org.json.JSONObject.quote(name)
+                        + ",\"sub\":" + org.json.JSONObject.quote(sub)
+                        + ",\"navBack\":" + com.netops.handbook.lens.Router.navBack + "}");
+            }
+        };
+        /* 返回键覆盖层收口（优先级链与原 JS back 同构：drawer→…；卡片收起随页面
+           迁 Compose 后由各页 back 处理器接管）。 */
+        com.netops.handbook.lens.Router.overlayCloser = () -> {
+            if (nativeDrawer != null && nativeDrawer.isOpen()) {
+                nativeDrawer.close();
+                return true;
+            }
+            return false;
+        };
     }
 
     /* ================= 全量原生化 · N0 数据管道 =================
@@ -376,15 +440,12 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    /** 原生页导航统一出口：全部经 JS 路由（标题/返回栈/互斥都在 render 里收口）。 */
+    /** 原生页导航统一出口：M2-1(2026-11-14) 起走原生 Router，拆除「原生→JS→原生」
+     *  导航环；JS 降级为状态存储服务（localStorage 读写链仍被设置面板/壁纸使用，
+     *  真源迁移见 M2-4）。Router 直接驱动 switchNativeTo（onNavigate 动作表见 onCreate）。 */
     private void nativeGo(String route, String arg) {
-        if (webView == null) return;
         com.netops.handbook.lens.glass2.DockBus.bump();   // glass2: 路由变化重绘玻璃
-        String js = "window.NetOpsNativeGo && NetOpsNativeGo("
-                + org.json.JSONObject.quote(route) + "," + org.json.JSONObject.quote(arg) + ");";
-        webView.post(() -> {
-            if (webView != null) webView.evaluateJavascript(js, null);
-        });
+        com.netops.handbook.lens.Router.go(route, arg);
     }
 
     /** 让页面层把当前设置状态推给原生面板。 */
@@ -1424,26 +1485,10 @@ public class MainActivity extends AppCompatActivity {
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
-                if (webView == null) { setEnabled(false); getOnBackPressedDispatcher().onBackPressed(); return; }
-                /* 应答窗口内的第二次返回直接忽略：冷启动网页未就绪时 500ms 超时
-                   会按「在根页面」处理，连按两下会被误判成确认退出（2026-09-30
-                   用户反馈「第一次打开就弹退出提示、之后确认机制消失」的竞态根源）。 */
-                if (backAckPending) return;
-                backAckPending = true;
-                final AtomicBoolean answered = new AtomicBoolean(false);
-                webView.evaluateJavascript(JS_BACK, value -> {
-                    if (answered.compareAndSet(false, true)) {
-                        backAckPending = false;
-                        onBackConsumed("true".equals(value));
-                    }
-                });
-                webView.postDelayed(() -> {
-                    if (answered.compareAndSet(false, true)) {
-                        backAckPending = false;
-                        Log.w(TAG, "网页未在时限内应答返回键，按根页面处理");
-                        onBackConsumed(false);
-                    }
-                }, BACK_ACK_TIMEOUT_MS);
+                /* M2-1(2026-11-14):返回键走原生 Router——同步应答，退役 500ms JS
+                   应答窗口与 backAckPending 竞态防护（JS_BACK 字段保留至 M6 清）。 */
+                boolean consumed = com.netops.handbook.lens.Router.back();
+                onBackConsumed(consumed);
             }
         });
     }
