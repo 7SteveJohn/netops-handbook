@@ -76,22 +76,32 @@ import kotlin.math.round
  */
 @Composable
 fun GlassDockHost(anchor: View, modifier: Modifier = Modifier) {
-    val captureLayer = rememberGraphicsLayer()
-    var winSize by remember { mutableStateOf(IntSize.Zero) }
-    Box(modifier.fillMaxSize()) {
-        AndroidView(
-            factory = { anchor },
-            modifier = Modifier
-                .fillMaxSize()
-                .onSizeChanged { winSize = it }
-                .drawWithContent {
-                    /* 捕获:本节点内容(整棵 View 树)进 layer。dock 在本子树外,
-                       天然无自反馈(探针实证:record 范围与玻璃必须互斥)。 */
-                    captureLayer.record { this@drawWithContent.drawContent() }
-                    drawLayer(captureLayer)
-                }
-        )
-        GlassDock(captureLayer, anchor, winSize)
+    if (DockBus.CAPTURE_PAGES) {
+        val captureLayer = rememberGraphicsLayer()
+        var winSize by remember { mutableStateOf(IntSize.Zero) }
+        Box(modifier.fillMaxSize()) {
+            AndroidView(
+                factory = { anchor },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .onSizeChanged { winSize = it }
+                    .drawWithContent {
+                        /* 捕获:本节点内容(整棵 View 树)进 layer。dock 在本子树外,
+                           天然无自反馈(探针实证:record 范围与玻璃必须互斥)。 */
+                        captureLayer.record { this@drawWithContent.drawContent() }
+                        drawLayer(captureLayer)
+                    }
+            )
+            GlassDock(captureLayer, anchor, winSize)
+        }
+    } else {
+        /* HONOR(MagicOS)兄弟节点版:本 Composable 挂在独立 ComposeView(overlay
+           叠加在旧根之上,见 GlassHost.kt),页面由旧根直绘,玻璃内容源 PageSnap。 */
+        val captureLayer = rememberGraphicsLayer()   // 占位(手机分支玻璃不 record 页面)
+        var winSize by remember { mutableStateOf(IntSize.Zero) }
+        Box(modifier.fillMaxSize().onSizeChanged { winSize = it }) {
+            GlassDock(captureLayer, anchor, winSize)
+        }
     }
 }
 
@@ -121,11 +131,24 @@ private fun GlassDock(captureLayer: GraphicsLayer, anchor: View, winSize: IntSiz
             commit = { i -> DockBus.onCommit?.invoke(i) })
     }
 
-    /* 帧循环:每帧推进弹簧,值写入 State(静止不变 → 零重绘,等价旧自眠)。 */
-    LaunchedEffect(model) {
+    /* 帧循环:每帧推进弹簧,值写入 State(静止不变 → 零重绘,等价旧自眠)。
+       HONOR(MagicOS)(CAPTURE_PAGES=false):同帧节流喂 PageSnap——玻璃内容源
+       = PixelCopy 快照(25fps,直读已合成 Surface,见 PageSnap.kt 头注)。 */
+    val snapWindow = (context as? android.app.Activity)?.window
+    LaunchedEffect(model, snapWindow) {
         while (true) {
             withFrameNanos { }
             model.tick()
+            if (!DockBus.CAPTURE_PAGES && snapWindow != null
+                && !DockBus.docked && DockBus.nativeDock
+                && DockBus.glassLevel != "none") {
+                val bar = DockBus.barRect
+                if (bar.width() > 4 && bar.height() > 4) {
+                    val pad = barPadPx(GlassDockEnv.density())
+                    PageSnap.request(snapWindow, RectF(
+                        bar.left - pad, bar.top - pad, bar.right + pad, bar.bottom + pad))
+                }
+            }
         }
     }
     LaunchedEffect(selIdx) { model.syncSelected(selIdx) }
@@ -232,6 +255,9 @@ internal fun railItemDp(): Float {
     return max(40f, min(72f, h * 0.075f))
 }
 
+/** prism 栏体节点外扩 pad(采样 reach)——GlassBar 与 PageSnap 共用同一矩形口径。 */
+internal fun barPadPx(density: Float): Float = (15.6f * density - 0.5f) * 2.0784f + 12f
+
 /* ================= 横排 · 液态玻璃(旗舰形态) ================= */
 
 @Composable
@@ -311,8 +337,10 @@ private fun GlassBar(
              液体弯折 60dp 深度)、tint/contrast/haze/sat 按 pill 预设;
              暗线(uEdge.x=hairline)与 rim(uLight.x)由 shader 画;
              触摸光晕在 shader 内(uGlow/uGlowSpread)。 ---- */
-        val barPad = ((15.6f * density - 0.5f) * 2.0784f + 12f).toInt().coerceAtLeast(16)
+        val barPad = barPadPx(density).toInt().coerceAtLeast(16)
         val barFx = remember { DockDraw.LensFx(PRISM_GLASS) }
+        val snapPaint = remember { Paint(Paint.FILTER_BITMAP_FLAG) }
+        val fillP = remember(colors) { Paint(Paint.ANTI_ALIAS_FLAG).apply { color = colors.barFill } }
         Box(Modifier
             .sizePx(bar.width() + 2f * barPad, bar.height() + 2f * barPad)
             .offsetPx(bar.left - barPad, bar.top - barPad)
@@ -355,8 +383,30 @@ private fun GlassBar(
             }
             .drawBehind {
                 clipRect(0f, 0f, size.width, size.height) {
-                    translate(-(bar.left - barPad), -(bar.top - barPad)) {
-                        drawLayer(captured)
+                    if (DockBus.CAPTURE_PAGES) {
+                        translate(-(bar.left - barPad), -(bar.top - barPad)) {
+                            drawLayer(captured)
+                        }
+                    } else {
+                        /* HONOR(MagicOS):内容源 = PageSnap 快照(窗口坐标)对齐节点。
+                           读 version 订阅绘制:快照更新 → 玻璃层重绘(draw 阶段订阅,
+                           不触发重组)。快照未就绪首帧用不透明 barFill 兜底。 */
+                        val snap = PageSnap.latest()
+                        if (snap != null) {
+                            val sh = android.graphics.BitmapShader(
+                                snap, android.graphics.Shader.TileMode.CLAMP,
+                                android.graphics.Shader.TileMode.CLAMP)
+                            val m = android.graphics.Matrix().apply {
+                                postTranslate(PageSnap.snapL - (bar.left - barPad),
+                                    PageSnap.snapT - (bar.top - barPad))
+                            }
+                            sh.setLocalMatrix(m)
+                            snapPaint.shader = sh
+                            PageSnap.version
+                            ntc { c -> c.drawRect(0f, 0f, size.width, size.height, snapPaint) }
+                        } else {
+                            ntc { c -> c.drawRect(0f, 0f, size.width, size.height, fillP) }
+                        }
                     }
                 }
             }
@@ -454,8 +504,27 @@ private fun GlassBar(
                 }) {
                     Box(Modifier.fillMaxSize().drawBehind {
                         clipRect(0f, 0f, size.width, size.height) {
-                            translate(-(nodeL - lensPad), -(nodeT - lensPad)) {
-                                drawLayer(captured)
+                            if (DockBus.CAPTURE_PAGES) {
+                                translate(-(nodeL - lensPad), -(nodeT - lensPad)) {
+                                    drawLayer(captured)
+                                }
+                            } else {
+                                /* HONOR(MagicOS):镜内容源 = 同一张 PageSnap 快照
+                                   (药丸节点 ⊆ bar±barPad,快照覆盖足够)。 */
+                                val snap = PageSnap.latest()
+                                if (snap != null) {
+                                    val sh = android.graphics.BitmapShader(
+                                        snap, android.graphics.Shader.TileMode.CLAMP,
+                                        android.graphics.Shader.TileMode.CLAMP)
+                                    val m = android.graphics.Matrix().apply {
+                                        postTranslate(PageSnap.snapL - (nodeL - lensPad),
+                                            PageSnap.snapT - (nodeT - lensPad))
+                                    }
+                                    sh.setLocalMatrix(m)
+                                    snapPaint.shader = sh
+                                    PageSnap.version
+                                    ntc { c -> c.drawRect(0f, 0f, size.width, size.height, snapPaint) }
+                                }
                             }
                         }
                     })

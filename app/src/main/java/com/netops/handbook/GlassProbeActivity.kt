@@ -7,6 +7,7 @@ import android.graphics.Shader
 import android.os.Build
 import android.os.Bundle
 import android.view.View
+import android.webkit.WebView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -44,6 +45,14 @@ import androidx.compose.ui.viewinterop.AndroidView
  *   C BLUR+LENS blur.then(shader) 全链(= dock 栏体的最终形态)
  * 每块都回放同一张捕获层,捕获层内容含 **AndroidView**(View 体系)的绘制——
  * 同时验证「View 内容能否进 Compose GraphicsLayer」(dock 迁移的前提)。
+ *
+ * 2026-11-14 手机诊断追加 **D WEBVIEW**:华为 AAP-AN00 上 glass2 主 app 内容层
+ * 死(回放残缺/4-5fps/GPU 4950ms)而本探针 A/B/C 全绿——唯一差异 = 主 app 捕获
+ * 源里有 **WebView**(FlClash/KernelSU 均无此步)。D = 捕获源加 WebView 块:
+ *   - D 块回放显示 WebView 内容 → WebView×record 无辜,根因另寻;
+ *   - D 块 WebView 区域黑/空(源区域自身正常显示)→ 确诊 HarmonyOS WebView
+ *     draw() 进 offscreen GraphicsLayer 失败——PixelCopy(Surface 直读)绕开的
+ *     正是这一步,解释旧路线在该机可用。
  *
  * 判读(截图):
  *  - 三块都有背景内容:A/B/C 全活 → 路线成立;
@@ -120,6 +129,20 @@ private fun Probe() {
                 },
                 modifier = Modifier.fillMaxWidth().height(560.dp)
             )
+            /* D 验证点源:WebView(Chromium 合成器,与普通 View 的 HWUI 绘制路径不同) */
+            AndroidView(
+                factory = { ctx ->
+                    WebView(ctx).apply {
+                        setBackgroundColor(0xFFE8F0FF.toInt())
+                        loadData(
+                            "<html><body style=\"background:#E8F0FF;font-size:30px;color:#0A3D91;padding:16px;font-family:sans-serif\">"
+                                + "<h2>WEBVIEW SOURCE</h2>"
+                                + "<p>BGP / OSPF / VXLAN / eBPF — D 块应显示本行</p></body></html>",
+                            "text/html", "utf-8")
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(300.dp)
+            )
         }
         /* 玻璃块与捕获子树平级(record 范围外) */
         Row(
@@ -153,6 +176,13 @@ private fun Probe() {
                         .asComposeRenderEffect()
                 }
             )
+            GlassBlock("D WEBVIEW", layer, Modifier.weight(1f)) {
+                if (Build.VERSION.SDK_INT >= 33) {
+                    val rs = RuntimeShader(SHADER_PASS)
+                    RenderEffect.createRuntimeShaderEffect(rs, "content")
+                        .asComposeRenderEffect()
+                } else null
+            }
         }
     }
 }

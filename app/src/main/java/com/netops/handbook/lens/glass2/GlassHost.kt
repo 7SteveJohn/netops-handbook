@@ -7,24 +7,53 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 
 /**
- * P1 宿主(2026-11-12):把既有 View 树(anchor=原 setContentView 的根)包进
- * Compose 的 AndroidView,玻璃 dock 叠加在同树顶层。
+ * P1 宿主(2026-11-12,2026-11-14 分流改造)。
  *
- * View 树内部零改动:触摸/insets/生命周期/转场全部原样工作;唯一的变化是
- * 根节点从 window 直挂变成「ComposeView > AndroidView > 旧根」。
+ * 平板/非 HONOR(CAPTURE_PAGES=true):原样——旧根包进 Compose AndroidView,
+ * 页面 record 同帧折射(KernelSU 结构,平板真机全绿)。
+ *
+ * HONOR(MagicOS,CAPTURE_PAGES=false):**兄弟节点版**——旧根(View 树含 WebView)
+ * 直接 setContentView 直挂 window,MagicOS 定制 WebView 进 Compose AndroidView
+ * 连直绘都不显示(13:22 实测:record 死 + 直绘也死,独立合成层被宿主包裹破坏);
+ * dock 玻璃用 ComposeView 作为同窗兄弟节点叠加在旧根之上,玻璃内容源 =
+ * PageSnap(PixelCopy 直读已合成 Surface,旧路线跑过多轮已验证)。
+ * 触摸 = GlassDock 内 TouchGuard 全窗自判区域,带外转发 anchor(同窗同语义)。
  */
 fun ComponentActivity.installGlassHost(anchor: FrameLayout) {
-    val holder = FrameLayout(this)
-    setContentView(holder)
-    val compose = ComposeView(this)
-    compose.setViewCompositionStrategy(
-        ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed
-    )
-    holder.addView(
-        compose,
-        FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+    if (DockBus.CAPTURE_PAGES) {
+        val holder = FrameLayout(this)
+        setContentView(holder)
+        val compose = ComposeView(this)
+        compose.setViewCompositionStrategy(
+            ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed
         )
-    )
-    compose.setContent { GlassDockHost(anchor) }
+        holder.addView(
+            compose,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        )
+        compose.setContent { GlassDockHost(anchor) }
+    } else {
+        /* HONOR(MagicOS)兄弟节点版:旧根直挂,玻璃层 addContentView 叠加 */
+        setContentView(anchor)
+        val overlay = FrameLayout(this)
+        val compose = ComposeView(this)
+        compose.setViewCompositionStrategy(
+            ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed
+        )
+        overlay.addView(
+            compose,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        )
+        addContentView(
+            overlay,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        )
+        compose.setContent { GlassDockHost(anchor) }
+    }
 }

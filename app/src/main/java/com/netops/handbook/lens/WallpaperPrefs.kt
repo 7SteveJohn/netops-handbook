@@ -44,7 +44,7 @@ object WallpaperPrefs {
     var wallpapers: JSONArray = JSONArray()
         private set
 
-    fun init(activity: Activity, wallpapersArray: JSONArray) {
+    @JvmStatic fun init(activity: Activity, wallpapersArray: JSONArray) {
         sp = activity.getSharedPreferences("netops_shell", Activity.MODE_PRIVATE)
         wallpapers = wallpapersArray
         select = sp.getString(K_SELECT, "none") ?: "none"
@@ -53,7 +53,7 @@ object WallpaperPrefs {
     }
 
     /** JS boot 一次性迁移：存量选择 + 相册 dataURL（可能数 MB，仅首次）+ tint。 */
-    fun migrate(activity: Activity, selectId: String, customDataUrl: String, glassTint: Int) {
+    @JvmStatic fun migrate(activity: Activity, selectId: String, customDataUrl: String, glassTint: Int) {
         if (sp.getBoolean(K_MIGRATED, false)) return
         sp.edit().putBoolean(K_MIGRATED, true).apply()
         tint = glassTint.coerceIn(10, 95)
@@ -69,10 +69,10 @@ object WallpaperPrefs {
     }
 
     /** 设置面板改壁纸（value = 壁纸 id / 'custom' / 'none'）。 */
-    fun setSelect(activity: Activity, id: String) = setSelectInternal(activity, id)
+    @JvmStatic fun setSelect(activity: Activity, id: String) = setSelectInternal(activity, id)
 
     /** 相册选图落盘（dataURL → files/wallpaper_custom.jpg）并切换。 */
-    fun setCustomFromDataUrl(activity: Activity, dataUrl: String): Boolean {
+    @JvmStatic fun setCustomFromDataUrl(activity: Activity, dataUrl: String): Boolean {
         val path = saveDataUrl(activity, dataUrl) ?: return false
         customFile = path
         sp.edit().putString(K_CUSTOM, path).apply()
@@ -106,7 +106,7 @@ object WallpaperPrefs {
     }
 
     /** 旋转重解析（MainActivity.onConfigurationChanged 调）。 */
-    fun applyForOrientationChange(activity: Activity) = apply(activity)
+    @JvmStatic fun applyForOrientationChange(activity: Activity) = apply(activity)
 
     /** 横竖屏配对解析（resolveWpForOrientation 同语义），custom → 绝对路径。 */
     fun resolveWp(activity: Activity, landscape: Boolean): JSONObject? {
