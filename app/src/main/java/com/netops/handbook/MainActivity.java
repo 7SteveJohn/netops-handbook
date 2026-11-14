@@ -125,6 +125,8 @@ public class MainActivity extends AppCompatActivity {
     private androidx.compose.ui.platform.ComposeView cliCompose;
     /** M3-1：术语表/路线图共用 Compose 页宿主。 */
     private androidx.compose.ui.platform.ComposeView composeSimple;
+    /** M3-2：速查表 Compose 页宿主。 */
+    private androidx.compose.ui.platform.ComposeView composeRefs;
     private org.json.JSONObject nativeDataRoot;
     private com.netops.handbook.lens.NativeMeView nativeMe;
     private com.netops.handbook.lens.NativeSettingsPanel settingsPanel;
@@ -317,6 +319,13 @@ public class MainActivity extends AppCompatActivity {
         composeSimple.setVisibility(android.view.View.VISIBLE);
     }
 
+    /** M3-2：速查页显隐（null=列表，id=单表直达）。 */
+    private void showRefs(String detailId) {
+        if (composeRefs == null) return;
+        com.netops.handbook.ui.AppShellState.INSTANCE.setRefsDetail(detailId);
+        composeRefs.setVisibility(android.view.View.VISIBLE);
+    }
+
     private void wireNativeRouter() {
         com.netops.handbook.lens.Router.INSTANCE.onNavigate = (st, restoreScroll) -> {
             String route = st.route;
@@ -328,8 +337,8 @@ public class MainActivity extends AppCompatActivity {
                 case "fault":  keep = "fault"; target = () -> nativeFault.show(); break;
                 case "iv":     keep = "iv";    target = () -> nativeIv.show(); break;
                 case "dict":   keep = "dict";  target = () -> nativeDict.show(); break;
-                case "refs":   keep = "refs";  target = () -> nativeRefs.show(); break;
-                case "ref":    keep = "refs";  target = () -> nativeRefs.showDetail(arg); break;
+                case "refs":   keep = "refs";  target = () -> showRefs(null); break;
+                case "ref":    keep = "refs";  target = () -> showRefs(arg); break;
                 case "glossary": keep = "glossary"; target = () -> showSimple("glossary"); break;
                 case "roadmap":  keep = "roadmap";  target = () -> showSimple("roadmap"); break;
                 case "quiz":   keep = "quiz";  target = () -> nativeQuiz.show(); break;
@@ -407,6 +416,8 @@ public class MainActivity extends AppCompatActivity {
         if (!"cli".equals(keep) && cliCompose != null) cliCompose.setVisibility(android.view.View.GONE);
         if (!"glossary".equals(keep) && !"roadmap".equals(keep) && composeSimple != null)
             composeSimple.setVisibility(android.view.View.GONE);
+        if (!"refs".equals(keep) && !"ref".equals(keep) && composeRefs != null)
+            composeRefs.setVisibility(android.view.View.GONE);
         /* keep==null = 本路由没有原生页（CLI 等 WebView 独占页）→ 壁纸层让位，
            否则它（z 序在 WebView 之上）会把 WebView 盖死：页面看不见、触摸却穿透。
            任何原生页显示时收回让位。 */
@@ -590,7 +601,7 @@ public class MainActivity extends AppCompatActivity {
                 ? Math.round(70f * getResources().getDisplayMetrics().density) : 0;
         android.view.View[] pages = {nativeHome, nativePhase, nativeFault, nativeIv, nativeDict,
                 nativeRefs, nativeGlossary, nativeRoadmap, nativeQuiz, nativeSearch,
-                nativeMe, nativeFav, cliCompose, composeSimple};
+                nativeMe, nativeFav, cliCompose, composeSimple, composeRefs};
         for (android.view.View p : pages) {
             if (p == null) continue;
             android.view.ViewGroup.LayoutParams lp0 = p.getLayoutParams();
