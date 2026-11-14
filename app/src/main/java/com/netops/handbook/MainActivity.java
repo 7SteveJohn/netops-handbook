@@ -127,6 +127,13 @@ public class MainActivity extends AppCompatActivity {
     private androidx.compose.ui.platform.ComposeView composeSimple;
     /** M3-2：速查表 Compose 页宿主。 */
     private androidx.compose.ui.platform.ComposeView composeRefs;
+    /** M3-2②：模拟测验 Compose 页宿主。 */
+    private androidx.compose.ui.platform.ComposeView composeQuiz;
+    /** M3-2③：收藏夹/我的 Compose 页宿主。 */
+    private androidx.compose.ui.platform.ComposeView composeFav;
+    private androidx.compose.ui.platform.ComposeView composeMe;
+    /** M3-2④：学习首页 Compose 页宿主。 */
+    private androidx.compose.ui.platform.ComposeView composeHome;
     private org.json.JSONObject nativeDataRoot;
     private com.netops.handbook.lens.NativeMeView nativeMe;
     private com.netops.handbook.lens.NativeSettingsPanel settingsPanel;
@@ -326,6 +333,17 @@ public class MainActivity extends AppCompatActivity {
         composeRefs.setVisibility(android.view.View.VISIBLE);
     }
 
+    /** M3-2③：原生设置面板开合（M4 迁 Compose 前保留 View 版）。 */
+    private void showSettingsPanel() {
+        if (settingsPanel == null) return;
+        settingsPanel.setDockDocked(dockDocked);
+        settingsPanel.setGlassLevel(com.netops.handbook.lens.NativeBlocks.GLASS_LEVEL);
+        settingsPanel.show();
+        pushSettingsState();
+        if (lensBar != null) lensBar.setOverlaid(true);
+        com.netops.handbook.lens.glass2.DockBus.pushOverlaid(true);
+    }
+
     private void wireNativeRouter() {
         com.netops.handbook.lens.Router.INSTANCE.onNavigate = (st, restoreScroll) -> {
             String route = st.route;
@@ -333,7 +351,9 @@ public class MainActivity extends AppCompatActivity {
             final String keep;
             final Runnable target;
             switch (route) {
-                case "learn":  keep = "home";  target = () -> nativeHome.show(); break;
+                case "learn":  keep = "home";  target = () -> {
+                    if (composeHome != null) composeHome.setVisibility(android.view.View.VISIBLE);
+                }; break;
                 case "fault":  keep = "fault"; target = () -> nativeFault.show(); break;
                 case "iv":     keep = "iv";    target = () -> nativeIv.show(); break;
                 case "dict":   keep = "dict";  target = () -> nativeDict.show(); break;
@@ -341,9 +361,15 @@ public class MainActivity extends AppCompatActivity {
                 case "ref":    keep = "refs";  target = () -> showRefs(arg); break;
                 case "glossary": keep = "glossary"; target = () -> showSimple("glossary"); break;
                 case "roadmap":  keep = "roadmap";  target = () -> showSimple("roadmap"); break;
-                case "quiz":   keep = "quiz";  target = () -> nativeQuiz.show(); break;
-                case "me":     keep = "me";    target = () -> nativeMe.show(); break;
-                case "fav":    keep = "fav";   target = () -> nativeFav.show(); break;
+                case "quiz":   keep = "quiz";  target = () -> {
+                    if (composeQuiz != null) composeQuiz.setVisibility(android.view.View.VISIBLE);
+                }; break;
+                case "me":     keep = "me";    target = () -> {
+                    if (composeMe != null) composeMe.setVisibility(android.view.View.VISIBLE);
+                }; break;
+                case "fav":    keep = "fav";   target = () -> {
+                    if (composeFav != null) composeFav.setVisibility(android.view.View.VISIBLE);
+                }; break;
                 case "search": keep = "search"; target = () -> nativeSearch.show(); break;
                 case "phase": {
                     keep = "phase";
@@ -418,6 +444,14 @@ public class MainActivity extends AppCompatActivity {
             composeSimple.setVisibility(android.view.View.GONE);
         if (!"refs".equals(keep) && !"ref".equals(keep) && composeRefs != null)
             composeRefs.setVisibility(android.view.View.GONE);
+        if (!"quiz".equals(keep) && composeQuiz != null)
+            composeQuiz.setVisibility(android.view.View.GONE);
+        if (!"fav".equals(keep) && composeFav != null)
+            composeFav.setVisibility(android.view.View.GONE);
+        if (!"me".equals(keep) && composeMe != null)
+            composeMe.setVisibility(android.view.View.GONE);
+        if (!"home".equals(keep) && composeHome != null)
+            composeHome.setVisibility(android.view.View.GONE);
         /* keep==null = 本路由没有原生页（CLI 等 WebView 独占页）→ 壁纸层让位，
            否则它（z 序在 WebView 之上）会把 WebView 盖死：页面看不见、触摸却穿透。
            任何原生页显示时收回让位。 */
@@ -601,7 +635,7 @@ public class MainActivity extends AppCompatActivity {
                 ? Math.round(70f * getResources().getDisplayMetrics().density) : 0;
         android.view.View[] pages = {nativeHome, nativePhase, nativeFault, nativeIv, nativeDict,
                 nativeRefs, nativeGlossary, nativeRoadmap, nativeQuiz, nativeSearch,
-                nativeMe, nativeFav, cliCompose, composeSimple, composeRefs};
+                nativeMe, nativeFav, cliCompose, composeSimple, composeRefs, composeQuiz, composeFav, composeMe, composeHome};
         for (android.view.View p : pages) {
             if (p == null) continue;
             android.view.ViewGroup.LayoutParams lp0 = p.getLayoutParams();
