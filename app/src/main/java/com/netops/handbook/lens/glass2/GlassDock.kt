@@ -34,6 +34,8 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ClipOp
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipRect
@@ -82,46 +84,24 @@ import kotlin.math.round
 @Composable
 fun GlassDockHost(
     modifier: Modifier = Modifier,
-    pages: @Composable () -> Unit = {},
 ) {
-    var winSize by remember { mutableStateOf(IntSize.Zero) }
-    val dark = com.netops.handbook.ui.AppShellState.isDark
-    Box(modifier.fillMaxSize().onSizeChanged { winSize = it }) {
-        /* 内容层(2026-11-14 View 层退役)：壁纸底 + 页面 同树。
-           ❗❗本机(MagicOS)四轮实证定案：
-           ① GraphicsLayer.record() 一经调用即毁整棵主画布(v13-v16 探针,
-              v12 无 record 全绿)→ dock 玻璃内容源改壁纸 BitmapShader 直喂；
-           ② 直接画进根 Box 的普通内容不上屏(壁纸底/红块页全灭；空参
-              graphicsLayer 包装也无效,v18)——内容子树必须挂 drawWithContent
-              直绘包装(v12 实证全绿,本机 Compose 管线只认带 draw 修饰的节点)。
-           页面不参与折射(M3 终局拍板口径,平板同)。 */
-        Box(Modifier.fillMaxSize().drawWithContent { this@drawWithContent.drawContent() }) {
-            WallpaperLayer(dark)
-            pages()
-        }
-        GlassDock(winSize)
-    }
-}
-
-/** 壁纸底(Compose Image,直铺口径)：wallBitmap 解码自 WallpaperPrefs(预糊
- *  +横竖配对同 NativeBackdrop 口径)；深色压暗 ColorMatrix 0.36(旧 ImageView
- *  同式)。无壁纸 = 纯色底(非 direct 页底色)。 */
-@Composable
-private fun WallpaperLayer(dark: Boolean) {
-    val bmp = com.netops.handbook.lens.WallpaperPrefs.wallBitmap
-    if (bmp != null) {
-        Image(
-            bitmap = bmp.asImageBitmap(),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
-            colorFilter = if (dark) ColorFilter.colorMatrix(
-                ColorMatrix().apply { setToScale(0.36f, 0.36f, 0.36f, 1f) }) else null,
-        )
-    } else {
-        Box(Modifier.fillMaxSize().background(
-            if (dark) androidx.compose.ui.graphics.Color(0xFF0C0D10)
-            else androidx.compose.ui.graphics.Color(0xFFF2F2F7)))
+    /* dock 独立窗(2026-11-14 双机实证终态)：dock 进专属 PopupWindow(自带
+       window/surface/composer=完全隔离)——同窗(哪怕同树)有 dock 子树时
+       普通内容不被 MagicOS 合成器绘制(手机+平板全配置探针 t1-t9)；旧
+       LensBarView 的 PopupWindow 拓扑在手机上跑过数月=双重实证。
+       坐标系:GlassDock 内部全用窗口本地坐标,GraphicsLayer 平移 -origin
+       把窗口系绘制折进弹窗(弹窗原点=DockBus.dockOrigin,几何变化时
+       DockPopupHost dismiss+重建)。 */
+    val origin = DockBus.dockOrigin
+    Box(
+        modifier
+            .fillMaxSize()
+            .graphicsLayer {
+                translationX = -origin.x.toFloat()
+                translationY = -origin.y.toFloat()
+            }
+    ) {
+        GlassDock()
     }
 }
 
@@ -144,7 +124,8 @@ private fun wallShader(
 }
 
 @Composable
-private fun GlassDock(winSize: IntSize) {
+private fun GlassDock() {
+    val winSize = IntSize(DockBus.winWpx, DockBus.winHpx)
     val context = LocalContext.current
     val hostView = LocalView.current
     val density = context.resources.displayMetrics.density
@@ -196,11 +177,10 @@ private fun GlassDock(winSize: IntSize) {
     val winW = winSize.width.toFloat()
     val winH = winSize.height.toFloat()
     val vertical = winW > winH
-    /* ❗AGSL 可用性(2026-11-14 本机实证)：MagicOS 手机上挂 RuntimeShader
-       RenderEffect 的节点会让同窗全部普通内容不被合成(v22 探针:禁 AGSL
-       全绿)；平板同代全绿。⇒ HONOR 手机禁 AGSL,玻璃降级=壁纸直喂无折射。 */
-    val agslOk = !android.os.Build.MANUFACTURER.contains("HONOR", true) ||
-            winW >= 600f * density
+    /* AGSL 恢复(2026-11-14 终态)：dock 已进独立弹窗(自有 surface),AGSL 毒杀
+       只伤同窗兄弟——弹窗内无页面,全设备恢复完整玻璃(v1-v16 dock 内部
+       AGSL+自身图标共存的旧证)。 */
+    val agslOk = true
     val glassNone = glassLevel == "none"
     val glassLive = !glassNone && !vertical && Build.VERSION.SDK_INT >= 33
 
@@ -254,6 +234,14 @@ private fun GlassDock(winSize: IntSize) {
     model.pillCy = pillCy
 
     val contentH = 36f * density   // 图标22 + gap2 + 文字12(旧 contentH 同式)
+
+    /* 弹窗几何上报(2026-11-14 dock 独立窗)：GlassDock 自算的最终矩形
+       (竖排=轨条/横排=栏带)推给 DockPopupHost——rect 变化(旋转/样式切)
+       时弹窗 dismiss+重建。 */
+    androidx.compose.runtime.SideEffect {
+        DockBus.pushDockRect(if (vertical) railRectW else barRectW,
+            barPadPx(density))
+    }
 
     /* 贴底↔悬浮 300ms 平滑过渡(2026-11-14 平移旧路线 dockedProgress):
        DecelerateInterpolator(1.8) ≈ LinearOutSlowIn;过渡期两形态交叉淡化

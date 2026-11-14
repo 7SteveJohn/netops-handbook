@@ -142,7 +142,12 @@ object WallpaperPrefs {
                 android.util.Log.w("WallpaperPrefs", "wallBitmap 解码失败 $file", e)
                 null
             } ?: return@execute
-            wallBitmap = preBlur(ctx, sharp, blur)
+            /* ❗强制 software 位图(2026-11-14 平板实证)：API 26+ 默认 HARDWARE
+               位图在 MagicOS 上层提升盖住 Compose 兄弟(平板 t1/t2:壁纸在/页面灭)；
+               software 位图无独立 surface,Compose Image 直绘安全。 */
+            val soft = if (sharp.config == android.graphics.Bitmap.Config.HARDWARE)
+                sharp.copy(android.graphics.Bitmap.Config.ARGB_8888, false) else sharp
+            wallBitmap = preBlur(ctx, soft, blur)
         }
     }
 

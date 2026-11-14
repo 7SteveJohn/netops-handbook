@@ -1372,9 +1372,13 @@ public class MainActivity extends AppCompatActivity {
                     slot, pillW, pillH, slot / 2f, winH - barH + barH / 2f, winH);
             if (lensBar != null && !com.netops.handbook.lens.glass2.DockBus.USE_GLASS2) {
                 lensBar.setLensBarRect(0f, winH - barH, winW, barH);
-                lensBar.setLensGeometry(slot, pillW, pillH, slot / 2f,
-                        winH - barH + barH / 2f, 4, winH);
+                lensBar.setLensGeometry(slot, pillW, pillH,
+                        slot / 2f, winH - barH + barH / 2f, 4, winH);
             }
+            float pad = (15.6f * d - 0.5f) * 2.0784f + 12f;
+            com.netops.handbook.lens.glass2.DockBus.pushPopupGeometry(
+                    winW, winH,
+                    com.netops.handbook.lens.glass2.DockBus.INSTANCE.getBarRect(), pad);
             return;
         }
         /* 竖屏悬浮 */
@@ -1399,6 +1403,12 @@ public class MainActivity extends AppCompatActivity {
             lensBar.setLensGeometry(slot, pillW, pillH,
                     barL + 8f * d + slot / 2f, barT + barH / 2f, 4, winH);
         }
+        /* dock 独立弹窗(2026-11-14)：窗口尺寸+栏矩形喂 DockPopupHost
+           (GlassDock 自算矩形经 SideEffect 二次精化；弹窗内部去重)。 */
+        float pad = (15.6f * d - 0.5f) * 2.0784f + 12f;
+        com.netops.handbook.lens.glass2.DockBus.pushPopupGeometry(
+                winW, winH,
+                com.netops.handbook.lens.glass2.DockBus.INSTANCE.getBarRect(), pad);
     }
 
     /** M1c(2026-11-14)：HTML 药丸隐藏 one-shot（退役测量职责——几何已原生自算；
