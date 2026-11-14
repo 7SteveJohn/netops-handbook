@@ -22,7 +22,7 @@ import org.json.JSONObject;
  * 为什么自己画：Web 版是内联 SVG；原生页里没有 WebView，也不该为一句话的图开一个。
  * 只取「结构可读」这个目标：圆角盒 + 箭头 + 标注 + 主题色，不做设备图标与自动折行。
  */
-class NativeTopoView extends View {
+public class NativeTopoView extends View {
 
     private final JSONObject dg;
     private final NativeBlocks.Palette pal;
@@ -38,7 +38,7 @@ class NativeTopoView extends View {
 
     private int height;
 
-    NativeTopoView(Context c, NativeBlocks.Palette p, JSONObject dg) {
+    public NativeTopoView(Context c, NativeBlocks.Palette p, JSONObject dg) {
         super(c);
         this.pal = p;
         this.dg = dg;

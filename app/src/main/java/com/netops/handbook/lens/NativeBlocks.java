@@ -38,13 +38,13 @@ public class NativeBlocks {
 
     public static boolean glassStandard() { return "standard".equals(GLASS_LEVEL); }
 
-    static class Palette {
-        float density;
-        boolean dark, direct;
-        int bg, cardBg, border, textMain, textSub, textMute, accent, chipBgOn, chipBgOff, hairline;
-        int noteInfo, noteWarn, noteDanger, noteOk, notePlain, codeBg, codeLabel;
+    public static class Palette {
+        public float density;
+        public boolean dark, direct;
+        public int bg, cardBg, border, textMain, textSub, textMute, accent, chipBgOn, chipBgOff, hairline;
+        public int noteInfo, noteWarn, noteDanger, noteOk, notePlain, codeBg, codeLabel;
 
-        int dp(float v) { return Math.round(v * density); }
+        public int dp(float v) { return Math.round(v * density); }
     }
 
     /** 对齐 01-tokens 的两套配色；direct = 直铺（有壁纸，页底透明 + 卡片半透明）。 */
