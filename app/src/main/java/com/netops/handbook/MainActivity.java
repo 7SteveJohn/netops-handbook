@@ -136,6 +136,9 @@ public class MainActivity extends AppCompatActivity {
     private androidx.compose.ui.platform.ComposeView composeHome;
     /** M3-2⑤：命令字典 Compose 页宿主。 */
     private androidx.compose.ui.platform.ComposeView composeDict;
+    /** M3-2⑥：排障/面试 Compose 页宿主（DocListConfig 驱动双路由）。 */
+    private androidx.compose.ui.platform.ComposeView composeFault;
+    private androidx.compose.ui.platform.ComposeView composeIv;
     private org.json.JSONObject nativeDataRoot;
     private com.netops.handbook.lens.NativeMeView nativeMe;
     private com.netops.handbook.lens.NativeSettingsPanel settingsPanel;
@@ -356,8 +359,12 @@ public class MainActivity extends AppCompatActivity {
                 case "learn":  keep = "home";  target = () -> {
                     if (composeHome != null) composeHome.setVisibility(android.view.View.VISIBLE);
                 }; break;
-                case "fault":  keep = "fault"; target = () -> nativeFault.show(); break;
-                case "iv":     keep = "iv";    target = () -> nativeIv.show(); break;
+                case "fault":  keep = "fault"; target = () -> {
+                    if (composeFault != null) composeFault.setVisibility(android.view.View.VISIBLE);
+                }; break;
+                case "iv":     keep = "iv";    target = () -> {
+                    if (composeIv != null) composeIv.setVisibility(android.view.View.VISIBLE);
+                }; break;
                 case "dict":   keep = "dict";  target = () -> {
                     if (composeDict != null) composeDict.setVisibility(android.view.View.VISIBLE);
                 }; break;
@@ -458,6 +465,10 @@ public class MainActivity extends AppCompatActivity {
             composeHome.setVisibility(android.view.View.GONE);
         if (!"dict".equals(keep) && composeDict != null)
             composeDict.setVisibility(android.view.View.GONE);
+        if (!"fault".equals(keep) && composeFault != null)
+            composeFault.setVisibility(android.view.View.GONE);
+        if (!"iv".equals(keep) && composeIv != null)
+            composeIv.setVisibility(android.view.View.GONE);
         /* keep==null = 本路由没有原生页（CLI 等 WebView 独占页）→ 壁纸层让位，
            否则它（z 序在 WebView 之上）会把 WebView 盖死：页面看不见、触摸却穿透。
            任何原生页显示时收回让位。 */
@@ -641,7 +652,7 @@ public class MainActivity extends AppCompatActivity {
                 ? Math.round(70f * getResources().getDisplayMetrics().density) : 0;
         android.view.View[] pages = {nativeHome, nativePhase, nativeFault, nativeIv, nativeDict,
                 nativeRefs, nativeGlossary, nativeRoadmap, nativeQuiz, nativeSearch,
-                nativeMe, nativeFav, cliCompose, composeSimple, composeRefs, composeQuiz, composeFav, composeMe, composeHome, composeDict};
+                nativeMe, nativeFav, cliCompose, composeSimple, composeRefs, composeQuiz, composeFav, composeMe, composeHome, composeDict, composeFault, composeIv};
         for (android.view.View p : pages) {
             if (p == null) continue;
             android.view.ViewGroup.LayoutParams lp0 = p.getLayoutParams();
