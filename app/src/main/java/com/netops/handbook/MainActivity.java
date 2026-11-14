@@ -208,6 +208,11 @@ public class MainActivity extends AppCompatActivity {
         wireNativeRouter();
     }
 
+    /** M2-4(2026-11-14)：WallpaperPrefs 驱动入口（原 applyNativePageMode 的公开包装）。 */
+    public void applyPageMode(boolean direct, String wpFile, float blurDp) {
+        applyNativePageMode(direct, wpFile, blurDp);
+    }
+
     /** M2-1(2026-11-14)：Router.onNavigate 动作表——route→(keep, showTarget)
      *  与 Bridge.showNativeX 逐条对应（keep 口径注意 learn→"home"）。
      *  cli = 唯一 WebView 独占路由（M1 迁走）：keep=null 壁纸层让位走 WebView。 */
@@ -558,6 +563,12 @@ public class MainActivity extends AppCompatActivity {
                     org.json.JSONArray wps = root.optJSONArray("wallpapers");
                     if (wps != null) runOnUiThread(() -> settingsPanel.setWallpapers(wps));
                 }
+                /* M2-4：壁纸清单喂 WallpaperPrefs（真源），迁移桥就绪后由 JS boot 推存量。 */
+                {
+                    org.json.JSONArray wps = root.optJSONArray("wallpapers");
+                    if (wps != null) runOnUiThread(() ->
+                            com.netops.handbook.lens.WallpaperPrefs.init(this, wps));
+                }
                 android.util.Log.i("NativeData", String.format(
                         "装载完成 %.1fKB %dms phases=%d modules=%d faults=%d iv=%d dict=%d hash=%s",
                         txt.length() / 1024f, System.currentTimeMillis() - t0,
@@ -635,6 +646,11 @@ public class MainActivity extends AppCompatActivity {
                 com.netops.handbook.lens.NativeBlocks.palette(this, resolvedDark(), false),
                 (kind, value) -> {
                     android.util.Log.i("NativeSettings", "apply " + kind + " = " + value);
+                    /* M2-4：壁纸选择截获——WallpaperPrefs 为真源（SP 落地+驱动
+                       NativeBackdrop），JS 链照旧跑（CLI 页 .wall 同步，双写过渡）。 */
+                    if ("wallpaper".equals(kind)) {
+                        com.netops.handbook.lens.WallpaperPrefs.setSelect(this, value);
+                    }
                     if (webView == null) return;
                     String js = "window.NetOpsNativeSet && NetOpsNativeSet("
                             + org.json.JSONObject.quote(kind) + "," + org.json.JSONObject.quote(value) + ");";
@@ -1892,6 +1908,16 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public void pickImage() { launchAlbumPicker(); }
 
+        /** M2-4(2026-11-14)：壁纸状态一次性迁移（JS boot 推送，netops_wp_mig_done
+         *  双侧标记防重复）。select = WP_KEY 存量；customDataUrl = 相册 dataURL
+         *  （仅 select=custom 时非空，落盘 files/wallpaper_custom.jpg）；
+         *  glassTint = netops_glass JSON 的 tint（blur 公式输入）。 */
+        @JavascriptInterface
+        public void migrateWallpaperState(String select, String customDataUrl, int glassTint) {
+            runOnUiThread(() -> com.netops.handbook.lens.WallpaperPrefs.migrate(
+                    MainActivity.this, select, customDataUrl == null ? "" : customDataUrl, glassTint));
+        }
+
         /** 底栏样式镜像（2026-11-09 面板「底栏样式」行回归）：JS 真源
          *  （netops_tabbar）切换时通知——贴底=方角满宽栏，悬浮=胶囊。 */
         @JavascriptInterface
@@ -2035,6 +2061,12 @@ public class MainActivity extends AppCompatActivity {
             ioPool.execute(() -> {
                 String dataUrl = null;
                 try { dataUrl = readImageAsDataUrl(uri); } catch (Exception e) { Log.w(TAG, "解码选图失败", e); }
+                /* M2-4：相册图先落盘进 WallpaperPrefs（原生真源；dataURL 仍发 JS
+                   双写过渡——WebView .wall 显示与 localStorage 备份用）。 */
+                if (dataUrl != null) {
+                    runOnUiThread(() -> com.netops.handbook.lens.WallpaperPrefs
+                            .setCustomFromDataUrl(this@MainActivity, dataUrl));
+                }
                 if (dataUrl == null) {
                     runOnUiThread(() -> Toast.makeText(MainActivity.this,
                             "读取图片失败，换一张或改用内置壁纸", Toast.LENGTH_LONG).show());
@@ -2109,6 +2141,7 @@ public class MainActivity extends AppCompatActivity {
         if (nativeBackdrop != null) {
             nativeBackdrop.notifyOrientationChanged(isLandscape);
         }
+        com.netops.handbook.lens.WallpaperPrefs.applyForOrientationChange(this);   // M2-4：横竖配对重解析
         // ❗系统深浅切换统一走 pushTheme（含推 JS html.dark + __netopsDark——
         //   WebView 的 matchMedia 恒 light，不推=HTML 卡片停在浅色，2026-11-08 实锤）
         boolean darkNow = resolvedDark();

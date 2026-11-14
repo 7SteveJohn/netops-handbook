@@ -2618,6 +2618,20 @@
     w.NetOpsNativePhaseShow = nativePhaseShow;
     w.NetOpsNativePhaseHide = nativePhaseHide;
     pushLegacyState();                     /* 启动即把旧状态并入原生 */
+    /* M2-4(2026-11-14) 壁纸真源迁移：存量一次性推 WallpaperPrefs（SP）。
+       双侧标记（localStorage netops_wp_mig_done + SP netops_wp_migrated）防重复；
+       dataURL 仅 select=custom 时推（可能数 MB）。之后原生为真源，本端
+       paintWallpaper/syncNativePageMode 照跑（CLI 页 .wall 显示），M6 拆除。 */
+    try {
+      if (w.NetBridge && w.NetBridge.migrateWallpaperState
+          && lsGet('netops_wp_mig_done') !== '1') {
+        var migSel = lsGet(WP_KEY) || 'none';
+        var migCustom = migSel === 'custom' ? (lsGet(WP_CUSTOM_KEY) || '') : '';
+        var migGlass = (typeof getGlass === 'function' && getGlass()) || {};
+        w.NetBridge.migrateWallpaperState(migSel, migCustom, migGlass.tint || 55);
+        lsSet('netops_wp_mig_done', '1');
+      }
+    } catch (e) { }
     var NATIVE_DOCK_KEY = 'netops_native_dock';
     function nativeDockOn() {
       /* 2026-11-08 恒开：原生 dock/顶栏是唯一渲染路径，设置面板开关已下线。

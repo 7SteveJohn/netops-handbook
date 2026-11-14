@@ -286,9 +286,19 @@ public class NativeBackdrop extends FrameLayout implements ThemeBus.DarkAware {
     }
 
     private Bitmap decode(String file) {
+        BitmapFactory.Options o = new BitmapFactory.Options();
+        o.inSampleSize = 2;                       // 采样源不需要原分辨率
+        /* M2-4(2026-11-14)：绝对路径 = 相册自定义壁纸落盘文件（WallpaperPrefs）；
+           其余按 assets wallpapers/ 解析。 */
+        if (file.startsWith("/")) {
+            try (InputStream is = new java.io.FileInputStream(file)) {
+                return BitmapFactory.decodeStream(is, null, o);
+            } catch (Throwable e) {
+                android.util.Log.w("NativeBackdrop", "decode 失败 " + file, e);
+                return null;
+            }
+        }
         try (InputStream is = getContext().getAssets().open("wallpapers/" + file)) {
-            BitmapFactory.Options o = new BitmapFactory.Options();
-            o.inSampleSize = 2;                       // 采样源不需要原分辨率
             return BitmapFactory.decodeStream(is, null, o);
         } catch (Throwable e) {
             android.util.Log.w("NativeBackdrop", "decode 失败 " + file, e);

@@ -4217,6 +4217,16 @@ A.refreshPhaseData = pushLegacyState;
 w.NetOpsNativePhaseShow = nativePhaseShow;
 w.NetOpsNativePhaseHide = nativePhaseHide;
 pushLegacyState();                      
+try {
+if (w.NetBridge && w.NetBridge.migrateWallpaperState
+&& lsGet('netops_wp_mig_done') !== '1') {
+var migSel = lsGet(WP_KEY) || 'none';
+var migCustom = migSel === 'custom' ? (lsGet(WP_CUSTOM_KEY) || '') : '';
+var migGlass = (typeof getGlass === 'function' && getGlass()) || {};
+w.NetBridge.migrateWallpaperState(migSel, migCustom, migGlass.tint || 55);
+lsSet('netops_wp_mig_done', '1');
+}
+} catch (e) { }
 var NATIVE_DOCK_KEY = 'netops_native_dock';
 function nativeDockOn() {
 return true;
@@ -4867,6 +4877,6 @@ if (document.readyState === 'loading') {
 document.addEventListener('DOMContentLoaded', init, { once: true });
 } else { init(); }
 })();
-;window.__BUILD__='20261114-0354-945450';</script>
+;window.__BUILD__='20261114-1442-48e50b';</script>
 </body>
 </html>
