@@ -50,6 +50,7 @@ object AppShellState {
     var pageArg by mutableStateOf<String?>(null)
 
     fun pagesGo(route: String, arg: String?) {
+        val prev = pageRoute
         pageRoute = route
         pageArg = arg
         selected = when (route) {
@@ -57,6 +58,14 @@ object AppShellState {
             "dict" -> 2
             "me" -> 3
             else -> 0
+        }
+        /* dock 联动单点(2026-11-15)：cli=全屏终端(输入行在 dock 弹窗带内)与
+           search=全屏覆盖——两路由 dock 退位，离开时回归。覆盖层(抽屉/设置)
+           不走此函数(仍走 MainActivity.pushOverlaidAll)。 */
+        if (route == "cli" || route == "search") {
+            com.netops.handbook.lens.glass2.DockBus.pushOverlaid(true)
+        } else if (prev == "cli" || prev == "search") {
+            com.netops.handbook.lens.glass2.DockBus.pushOverlaid(false)
         }
     }
 }

@@ -84,5 +84,5 @@ fun PagesOverlay(
 
 
 /** Java 桥用配置对象（fault/iv 两页共用 DocListPage）。 */
-val FaultCfg = DocListConfig("fault", "排障字典", "案例", "已解决", "faults")
+val FaultCfg = DocListConfig("fault", "排障字典", "案例", "已解决", "faults", "", "", true)
 val IvCfg = DocListConfig("iv", "面试题库", "真题", "已掌握", "interview", "IVQ", "Q", true)

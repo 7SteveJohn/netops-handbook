@@ -8,11 +8,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -157,6 +161,12 @@ fun CliScreen(dataSupplier: () -> JSONObject?, dark: Boolean) {
     Column(
         Modifier
             .fillMaxSize()
+            /* ❗顶栏让位(2026-11-15 平板实证)：缺 statusTop+84dp 时整页画进顶栏
+               下面，透过半透明顶栏 frost 看=花屏重影(其他页均有此让位)。 */
+            .padding(
+                top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 84.dp,
+                bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 10.dp
+            )
             .imePadding()
             .padding(horizontal = 16.dp, vertical = 10.dp)
     ) {

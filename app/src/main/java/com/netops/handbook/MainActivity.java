@@ -324,9 +324,17 @@ public class MainActivity extends AppCompatActivity {
         settingsPanel.setGlassLevel(com.netops.handbook.lens.NativeBlocks.GLASS_LEVEL);
         settingsPanel.show();
         pushSettingsState();
-        if (lensBar != null) lensBar.setOverlaid(true);
-        com.netops.handbook.lens.glass2.DockBus.pushOverlaid(true);
+        pushOverlaidAll(true);
         return kotlin.Unit.INSTANCE;
+    }
+
+    /** 覆盖层开合单点（2026-11-15）：dock 弹窗退位 + 顶栏整窗退位 + 壳层镜像。
+     *  旧链三处各自为政漏了顶栏 setState({"overlaid"})——JS 死后没人推。 */
+    private void pushOverlaidAll(boolean open) {
+        com.netops.handbook.lens.glass2.DockBus.pushOverlaid(open);
+        NetOpsShell.INSTANCE.setOverlaid(open);
+        if (appbarBar != null) appbarBar.setState(
+                "{\"overlaid\":" + open + "}");
     }
 
     private static final String KEY_GLASS = "glass_level";
@@ -467,8 +475,7 @@ public class MainActivity extends AppCompatActivity {
         if (settingsPanel != null) settingsPanel.hide();
         if (nativeDrawer != null && nativeDrawer.isOpen()) {
             nativeDrawer.close();
-            if (lensBar != null) lensBar.setOverlaid(false);
-            NetOpsShell.INSTANCE.setOverlaid(false);
+            pushOverlaidAll(false);
         }
     }
 
@@ -844,15 +851,10 @@ public class MainActivity extends AppCompatActivity {
         ThemeBus.register(settingsPanel);
         /* 面板开合 → 侧栏退位（侧栏是独立弹窗，永远压在面板上） */
         settingsPanel.setOnOpen(open -> {
-            if (lensBar != null) lensBar.setOverlaid(open);
-            com.netops.handbook.lens.glass2.DockBus.pushOverlaid(open);   // glass2 弹层让位
-            NetOpsShell.INSTANCE.setOverlaid(open);
+            pushOverlaidAll(open);
             /* 面板全屏实色盖上/揭开后，栏后内容已变：等淡入/淡出动画收尾再重抓
-               dock+顶栏的栏后霜，否则玻璃停留在旧画面（2026-11-09 用户报「dock
-               渲染延迟」——dock 霜图还是面板开合前的快照）。scheduleFrostCapture
-               自带 200/600/1200ms 三连发，动画 160ms 结束后的首抓正好命中。 */
+               顶栏的栏后霜（dock 已入独立弹窗无需重抓）。 */
             root.postDelayed(() -> {
-                if (lensBar != null) lensBar.requestFrostRefresh();
                 if (appbarBar != null) appbarBar.invalidateBackdrop();
             }, 200);
         });
@@ -862,7 +864,7 @@ public class MainActivity extends AppCompatActivity {
         nativeDrawer = new com.netops.handbook.lens.NativeDrawerView(this,
                 com.netops.handbook.lens.NativeBlocks.palette(this, resolvedDark(), false),
                 (route, arg) -> nativeGo(route, arg),
-                () -> { if (lensBar != null) lensBar.setOverlaid(false); NetOpsShell.INSTANCE.setOverlaid(false); });
+                () -> pushOverlaidAll(false));
         ThemeBus.register(nativeDrawer);
         nativeDrawer.setLayoutParams(new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
@@ -1064,8 +1066,7 @@ public class MainActivity extends AppCompatActivity {
                 if (i == 0) {
                     if (nativeDrawer != null) {
                         nativeDrawer.open();
-                        com.netops.handbook.lens.glass2.DockBus.INSTANCE.pushOverlaid(true);
-                        NetOpsShell.INSTANCE.setOverlaid(true);
+                        pushOverlaidAll(true);
                     }
                 } else if (i == 1) {
                     com.netops.handbook.lens.Router.INSTANCE.go("search", "", false);
@@ -1727,7 +1728,7 @@ public class MainActivity extends AppCompatActivity {
             if (nativeDrawer == null) return;
             runOnUiThread(() -> {
                 nativeDrawer.open();
-                if (lensBar != null) lensBar.setOverlaid(true);
+                pushOverlaidAll(true);
             });
         }
 
