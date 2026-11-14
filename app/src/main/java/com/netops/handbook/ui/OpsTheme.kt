@@ -1,5 +1,7 @@
 package com.netops.handbook.ui
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
@@ -82,3 +84,16 @@ fun opsColors(dark: Boolean, direct: Boolean): OpsColors {
 
 /** 页面组件读取入口（M3 起逐页替换 NativeBlocks.Palette）。 */
 val LocalOpsColors = staticCompositionLocalOf { opsColors(dark = false, direct = false) }
+
+/**
+ * 全站主题宿主（M3-1）：所有 Compose 页入口必须包此层——LocalOpsColors 缺省值
+ * 是 light/非直铺，深色页不包会把白底色板喂给组件（CliScreen 靠独立 dark 参数
+ * 侥幸绕开，M3 起统一走这里）。
+ */
+@Composable
+fun OpsTheme(dark: Boolean, direct: Boolean, content: @Composable () -> Unit) {
+    val colors = remember(dark, direct) { opsColors(dark, direct) }
+    androidx.compose.runtime.CompositionLocalProvider(LocalOpsColors provides colors) {
+        content()
+    }
+}

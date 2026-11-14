@@ -121,9 +121,9 @@ object BackupManager {
 
     private fun isObj(v: Any): Boolean = v is JSONObject
 
-    private fun commaToJson(comma: String): JSONObject {
+    private fun commaToJson(comma: String?): JSONObject {
         val o = JSONObject()
-        for (s in comma.split(",")) if (s.isNotEmpty()) o.put(s, 1)
+        for (s in (comma ?: "").split(",")) if (s.isNotEmpty()) o.put(s, 1)
         return o
     }
 }

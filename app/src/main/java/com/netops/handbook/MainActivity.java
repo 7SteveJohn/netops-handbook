@@ -123,6 +123,8 @@ public class MainActivity extends AppCompatActivity {
     /** M1b(2026-11-14)：CLI 页 Compose 宿主（唯一非 View 原生页；M1d 摘 WebView 后
      *  全部页面进 Compose 树的先行样本）。 */
     private androidx.compose.ui.platform.ComposeView cliCompose;
+    /** M3-1：术语表/路线图共用 Compose 页宿主。 */
+    private androidx.compose.ui.platform.ComposeView composeSimple;
     private org.json.JSONObject nativeDataRoot;
     private com.netops.handbook.lens.NativeMeView nativeMe;
     private com.netops.handbook.lens.NativeSettingsPanel settingsPanel;
@@ -228,6 +230,7 @@ public class MainActivity extends AppCompatActivity {
     private void applyNativePageMode(boolean direct, String wpFile, float blurDp) {
         runOnUiThread(() -> {
             if (nativeBackdrop != null) nativeBackdrop.setWallpaper(direct ? wpFile : "", blurDp);
+            com.netops.handbook.ui.AppShellState.INSTANCE.setDirect(direct);
             if (lensBar != null) lensBar.onBackdropChanged();
             if (appbarBar != null) appbarBar.invalidateBackdrop();
             if (nativeHome != null) nativeHome.setDirectMode(direct);
@@ -307,6 +310,13 @@ public class MainActivity extends AppCompatActivity {
     /** M2-1(2026-11-14)：Router.onNavigate 动作表——route→(keep, showTarget)
      *  与 Bridge.showNativeX 逐条对应（keep 口径注意 learn→"home"）。
      *  cli = 唯一 WebView 独占路由（M1 迁走）：keep=null 壁纸层让位走 WebView。 */
+    /** M3-1：SimpleListPage 显隐（glossary/roadmap 共用宿主）。 */
+    private void showSimple(String route) {
+        if (composeSimple == null) return;
+        com.netops.handbook.ui.AppShellState.INSTANCE.setSimpleRoute(route);
+        composeSimple.setVisibility(android.view.View.VISIBLE);
+    }
+
     private void wireNativeRouter() {
         com.netops.handbook.lens.Router.INSTANCE.onNavigate = (st, restoreScroll) -> {
             String route = st.route;
@@ -320,8 +330,8 @@ public class MainActivity extends AppCompatActivity {
                 case "dict":   keep = "dict";  target = () -> nativeDict.show(); break;
                 case "refs":   keep = "refs";  target = () -> nativeRefs.show(); break;
                 case "ref":    keep = "refs";  target = () -> nativeRefs.showDetail(arg); break;
-                case "glossary": keep = "glossary"; target = () -> nativeGlossary.show(); break;
-                case "roadmap":  keep = "roadmap";  target = () -> nativeRoadmap.show(); break;
+                case "glossary": keep = "glossary"; target = () -> showSimple("glossary"); break;
+                case "roadmap":  keep = "roadmap";  target = () -> showSimple("roadmap"); break;
                 case "quiz":   keep = "quiz";  target = () -> nativeQuiz.show(); break;
                 case "me":     keep = "me";    target = () -> nativeMe.show(); break;
                 case "fav":    keep = "fav";   target = () -> nativeFav.show(); break;
@@ -395,6 +405,8 @@ public class MainActivity extends AppCompatActivity {
         if (!"me".equals(keep) && nativeMe != null) nativeMe.hide();
         if (!"fav".equals(keep) && nativeFav != null) nativeFav.hide();
         if (!"cli".equals(keep) && cliCompose != null) cliCompose.setVisibility(android.view.View.GONE);
+        if (!"glossary".equals(keep) && !"roadmap".equals(keep) && composeSimple != null)
+            composeSimple.setVisibility(android.view.View.GONE);
         /* keep==null = 本路由没有原生页（CLI 等 WebView 独占页）→ 壁纸层让位，
            否则它（z 序在 WebView 之上）会把 WebView 盖死：页面看不见、触摸却穿透。
            任何原生页显示时收回让位。 */
@@ -578,7 +590,7 @@ public class MainActivity extends AppCompatActivity {
                 ? Math.round(70f * getResources().getDisplayMetrics().density) : 0;
         android.view.View[] pages = {nativeHome, nativePhase, nativeFault, nativeIv, nativeDict,
                 nativeRefs, nativeGlossary, nativeRoadmap, nativeQuiz, nativeSearch,
-                nativeMe, nativeFav, cliCompose};
+                nativeMe, nativeFav, cliCompose, composeSimple};
         for (android.view.View p : pages) {
             if (p == null) continue;
             android.view.ViewGroup.LayoutParams lp0 = p.getLayoutParams();
@@ -653,6 +665,13 @@ public class MainActivity extends AppCompatActivity {
                 if (nativeSearch != null) runOnUiThread(() -> nativeSearch.setPageData(root));
                 if (nativeFav != null) runOnUiThread(() -> nativeFav.setPageData(root));
                 if (nativeDrawer != null) runOnUiThread(() -> nativeDrawer.setPageData(root));
+                /* M3-1：数据版本源 bump（Compose 页重读）+ 壁纸初值驱动（boot 后
+                   direct/directMode 不再依赖 JS syncNativePageMode——M1d 该环已死）。 */
+                runOnUiThread(() -> {
+                    com.netops.handbook.ui.PageData.INSTANCE.setRoot(root);
+                    com.netops.handbook.ui.PageData.INSTANCE.bumpVersion();
+                    com.netops.handbook.lens.WallpaperPrefs.INSTANCE.apply(MainActivity.this);
+                });
                 if (nativeMe != null) runOnUiThread(() -> nativeMe.setPageData(root));
                 if (settingsPanel != null) {
                     org.json.JSONArray wps = root.optJSONArray("wallpapers");

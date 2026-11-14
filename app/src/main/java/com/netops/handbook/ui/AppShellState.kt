@@ -33,4 +33,17 @@ object AppShellState {
     var title by mutableStateOf("NetOps 2.0")
     var subtitle by mutableStateOf("网络学习辅助手册")
     var navBack by mutableStateOf(false)
+
+    /** M3-1：SimpleListPage 当前路由（"glossary"/"roadmap"/null——共用一个
+     *  Compose 页宿主，按此切内容）。 */
+    var simpleRoute by mutableStateOf<String?>(null)
+}
+
+/** native-data 装载版本源（M3：Compose 页据此重读数据；MainActivity 装载完成时 bump）。 */
+object PageData {
+    @Volatile var dataRoot: org.json.JSONObject? = null
+    var version by androidx.compose.runtime.mutableIntStateOf(0)
+
+    @JvmStatic fun setRoot(r: org.json.JSONObject) { dataRoot = r; version++ }
+    @JvmStatic fun bumpVersion() { version++ }
 }
