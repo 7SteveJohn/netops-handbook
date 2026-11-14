@@ -248,3 +248,175 @@ internal const val PROGRESSIVE_COMPOSITE_SHADER = """
  * [PROGRESSIVE_LEVEL_MASK_SHADER]; the Skiko composite applies it as its own terminator).
  */
 internal const val UNPREMUL_SHADER = """
+    uniform shader child;
+
+    half4 main(float2 xy) {
+        half4 c = child.eval(xy);
+        if (c.a > 0.0039) {
+            return half4(c.rgb / c.a, 1.0);
+        }
+        return c;
+    }
+"""
+
+/**
+ * Band mask for the progressive composite: weight `clamp(in_level − in_slope·raw, 0, 1)` of the
+ * smoothstepped gradient. `in_slope = 3`, `in_level` ∈ {1, 2} = the level stops of the Android
+ * stack DAG (≡ [PROGRESSIVE_COMPOSITE_SHADER]'s mix chain); `in_level = in_slope = 1` = the
+ * continuous `1 − raw` ramp for the post-effect chain; `in_level = −2`, `in_slope = −3` = the
+ * rising `clamp(3·raw − 2, 0, 1)` ramp masking the sharp end (the full-resolution overlay, or the
+ * Android stack's native source level at full resolution). The clamped
+ * weight is smoothstepped to match [PROGRESSIVE_COMPOSITE_SHADER]'s per-segment fractions:
+ * `s(1 − x) = 1 − s(x)` keeps the Android level masks complementary to the mix chain, so both
+ * platforms zero the walk's derivative at the segment stops alike. The child is renormalized to
+ * opaque before weighting — this is the Android masked levels' unpremul terminator (their native
+ * blurs mix in the padding ring's transparency), folded in here to save a pass; a no-op for the
+ * already-opaque children of the other mask uses.
+ */
+internal const val PROGRESSIVE_LEVEL_MASK_SHADER = """
+    uniform shader child;
+    uniform float2 in_gradAxis;
+    uniform float2 in_gradBand;
+    uniform float in_curve;
+    uniform float in_level;
+    uniform float in_slope;
+
+    half4 main(float2 xy) {
+        float p = dot(xy, in_gradAxis);
+        float raw = clamp((p - in_gradBand.x) / (in_gradBand.y - in_gradBand.x), 0.0, 1.0);
+        raw = pow(raw * raw * (3.0 - 2.0 * raw), in_curve);
+        float w = clamp(in_level - raw * in_slope, 0.0, 1.0);
+        w = w * w * (3.0 - 2.0 * w);
+        half4 c = child.eval(xy);
+        if (c.a > 0.0039) {
+            c = half4(c.rgb / c.a, 1.0);
+        }
+        return c * half(w);
+    }
+"""
+
+/**
+ * Brightness / contrast / saturation adjustment.
+ *
+ * Brightness is applied in linear (gamma 2.2) space to avoid sRGB hue shift;
+ * contrast and saturation are applied in sRGB space.
+ *
+ * Uniforms: `in_brightness ∈ [-1, +1]`, `in_contrast ∈ [0, +∞)`, `in_saturation ∈ [0, +∞)`.
+ */
+internal const val COLOR_CONTROLS_SHADER = """
+    uniform shader child;
+    uniform float in_brightness;
+    uniform float in_contrast;
+    uniform float in_saturation;
+
+    half4 main(float2 xy) {
+        half4 src = child.eval(xy);
+        half a = src.a;
+        if (a < 0.001) return src;
+
+        half3 c = src.rgb / a;
+
+        if (in_brightness != 0.0) {
+            c = pow(c, half3(2.2));
+            if (in_brightness > 0.0) {
+                c = mix(c, half3(1.0), half(in_brightness));
+            } else {
+                c = c * half(1.0 + in_brightness);
+            }
+            c = pow(c, half3(0.45454545));
+        }
+
+        if (in_contrast != 1.0) {
+            c = (c - 0.5) * half(in_contrast) + 0.5;
+        }
+
+        if (in_saturation != 1.0) {
+            half lum = dot(c, half3(0.2126, 0.7152, 0.0722));
+            c = mix(half3(lum), c, half(in_saturation));
+        }
+
+        c = clamp(c, half3(0.0), half3(1.0));
+        return half4(c * a, a);
+    }
+"""
+
+/** Noise dithering shader — 3-channel pseudo-random anti-banding. */
+internal const val NOISE_DITHER_SHADER = """
+    uniform shader child;
+    uniform float noise_coeff;
+
+    half4 main(float2 xy) {
+        float3 d = float3(
+            dot(xy, float2(6.9898, 78.233)),
+            dot(xy, float2(7.9898, 78.233)),
+            dot(xy, float2(8.9898, 78.233))
+        );
+        float3 n = (fract(sin(d) * float3(43734.5453, 43745.5453, 43767.5453)) - 0.5) * noise_coeff;
+        half4 color = child.eval(xy);
+        color.rg += half2(n.x);
+        color.rb += half2(n.y);
+        color.gb += half2(n.z);
+        return color;
+    }
+"""
+
+/** 2× downsample — 4-tap ±0.25 dual-filter, 9-tap tent footprint. */
+internal const val DOWNSAMPLE_2X_SHADER = """
+    uniform shader child;
+    uniform float2 maxCoord;
+    half4 main(float2 xy) {
+        float2 minCoord = float2(0.5);
+        half4 color = half4(0);
+        color += child.eval(clamp(xy + float2(-0.25, -0.25), minCoord, maxCoord));
+        color += child.eval(clamp(xy + float2( 0.25, -0.25), minCoord, maxCoord));
+        color += child.eval(clamp(xy + float2(-0.25,  0.25), minCoord, maxCoord));
+        color += child.eval(clamp(xy + float2( 0.25,  0.25), minCoord, maxCoord));
+        return color * 0.25;
+    }
+"""
+
+/** 4× downsample — 4-tap ±0.75 dual-filter, 16-tap tent footprint. */
+internal const val DOWNSAMPLE_4X_SHADER = """
+    uniform shader child;
+    uniform float2 maxCoord;
+    half4 main(float2 xy) {
+        float2 minCoord = float2(0.5);
+        half4 color = half4(0);
+        color += child.eval(clamp(xy + float2(-0.75, -0.75), minCoord, maxCoord));
+        color += child.eval(clamp(xy + float2( 0.75, -0.75), minCoord, maxCoord));
+        color += child.eval(clamp(xy + float2(-0.75,  0.75), minCoord, maxCoord));
+        color += child.eval(clamp(xy + float2( 0.75,  0.75), minCoord, maxCoord));
+        return color * 0.25;
+    }
+"""
+
+/**
+ * Edge bloom stroke shader. A rounded-rect SDF defines an outer mask + a stroke band,
+ * then a 3D hemispheric normal is built along the rounded edge so that the directional
+ * lights paint the inner halo.
+ *
+ * Two specializations selected at build time by [dualPeak]:
+ *
+ *  - `dualPeak = false`: each light's hemisphere is derived from its own projected XY
+ *    direction (`normalize(lightDir.xy)`); a positive cosine factor between the rim
+ *    normal and that hemisphere axis gates the light's contribution. Lights pointing
+ *    purely along Z fall back to the upper / lower split `(0, ∓1, 0)` for backwards
+ *    compatibility with overhead-only configurations. Single peak per light.
+ *
+ *  - `dualPeak = true`: each light contributes via `dot(N.xy, L.xy)²` (xy-only dot²),
+ *    so a single light produces two rim peaks 180° apart (where `n.xy` aligns and
+ *    anti-aligns with `L.xy`) and naturally drops to zero perpendicular to `L.xy` and
+ *    on the interior surface (where `n.xy → 0`). Matches the specular rim model used
+ *    by Apple-style Liquid Glass demos; pair with a zero-intensity second light to get
+ *    the canonical "two opposing peaks rotating with the light direction".
+ *
+ * Selecting the path at build time lets the driver compile out the unused branch and
+ * removes the `useDualPeak > 0.5` per-fragment comparison.
+ *
+ * Light directions are pre-normalized on the CPU side: `dir = normalize((srcX-0.5,
+ * srcY-0.7, srcZ))`, where `(0.5, 0.7, 0)` is the reference origin.
+ *
+ * Output is suited for overlay compositing: `result.rgb` carries premultiplied bloom
+ * contributions, `result.a = outMask`, all multiplied by the rounded-rect outer mask.
+ * Compose `BlendMode.Plus` then adds these contributions onto the surface below.
+ */
