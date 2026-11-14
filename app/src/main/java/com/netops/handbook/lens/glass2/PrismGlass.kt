@@ -167,6 +167,13 @@ half4 main(float2 fragCoord) {
     float2 normal = roundedBoxNormal(centered, halfSize, radius);
     float edge = inset;
 
+    /* 形状外碎片原样透出(FlClash 节点=玻璃精确矩形无此区;我方节点外扩采样
+       pad,形状外若继续走全管线会被 rim 暗线+shine 染成脏晕环——2026-11-15
+       按压药丸灰晕环实证)。1:1 透 content=与页面像素重合=不可见。 */
+    if (roundedBoxDistance(centered, halfSize, radius) > 0.0) {
+        return content.eval(fragCoord);
+    }
+
     bool lens = uOptics.x < 0.0;
     float bevel = max(min(uShape.z, halfMinor * 0.5), 1e-3);
     float rise = 1.0 - clamp(inset / bevel, 0.0, 1.0);

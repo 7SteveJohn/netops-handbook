@@ -44,7 +44,8 @@ object Router {
         Meta("quiz", "模拟测验", "随机抽题 · 自动判分", "iv", "purple"),
         Meta("cli", "CLI 模拟器", "离线命令沙盒", "learn", "emerald"),
         Meta("fav", "收藏夹", "", "me", "amber"),
-        Meta("search", "搜索结果", "", "learn", "teal")
+        Meta("search", "搜索结果", "", "learn", "teal"),
+        Meta("settings", "设置", "主题 · 壁纸 · 备份", "me", "teal")
     ).associateBy { it.route }
 
     /* ---- 当前状态（Compose State：顶栏/壳层直接订阅） ---- */

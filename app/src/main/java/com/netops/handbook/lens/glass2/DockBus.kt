@@ -1,6 +1,7 @@
 package com.netops.handbook.lens.glass2
 
 import android.graphics.RectF
+import android.view.View
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -40,6 +41,8 @@ object DockBus {
        合成器绘制；dock 进专属 PopupWindow(自带 window/surface/composer)。 */
     var winWpx by mutableIntStateOf(0)   // 窗口物理宽(computeDockGeometry 落)
     var winHpx by mutableIntStateOf(0)   // 窗口物理高
+    /** 内容树 View(PageSnap 软录源,dock 弹窗玻璃采样它)。 */
+    @JvmField var contentView: View? = null
     var dockOrigin by mutableStateOf(androidx.compose.ui.unit.IntOffset.Zero) // 弹窗原点(窗口本地)
     /** GlassDock 自算矩形+外扩 pad+窗口尺寸上报(弹窗几何真源)。 */
     @JvmField var onDockRect: ((android.graphics.RectF, Float) -> Unit)? = null

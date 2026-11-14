@@ -1,31 +1,29 @@
 package com.netops.handbook.lens.glass2
 
 import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Rect
 import android.graphics.RectF
-import android.view.PixelCopy
-import android.os.Handler
-import android.os.Looper
-import android.os.SystemClock
-import android.view.Window
+import android.view.View
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 
 /**
- * 页面内容快照源(2026-11-14 手机兼容,KernelSU 结构的该机内容通道)。
+ * 页面内容快照源(2026-11-15 终态,dock 独立弹窗的内容通道)。
  *
- * 背景:MagicOS(HONOR(MagicOS))定制 WebView 被 GraphicsLayer.record 离屏重绘时,
- * Chromium 合成器 tile 内存超限拒绘(`tile memory limits exceeded, some content
- * may not draw` 实锤,探针 D 验证点)——record 路在该机不可用。PixelCopy 直读
- * **已合成的窗口 Surface**,不触发 WebView.draw() 离屏重绘(旧 LensBarView 路线
- * 跑过多轮已验证),是该机唯一健康的内容通道。
+ * 演进:①PixelCopy 直读主窗 Surface(旧 LensBarView 路线)→ ②本机实测回调
+ * 时序不可靠(首帧后静默冻结/失败),且 alpha 通道不可控——**照抄旧 dock 最终
+ * 形态:View.draw() 同步录软件画布**(旧 captureBackdrop 同款,跑过数月):
+ * 内容树 ComposeView.draw() 软渲染进 ARGB 位图,alpha 完整、同步无回调丢失、
+ * 无自反馈(dock 在独立弹窗=另一棵 View 树,不在内容树内)。
  *
- * 结构 = 旧路线三环缓冲同构:3 张轮换位图,主线程 PixelCopy 回调写"写槽"并
- * 推进 writeIdx;Compose drawBehind(RenderThread)读 writeIdx−1 槽(上一份
- * 完整帧)——读写槽永不相交,流水线深度 ≤2,3 环覆盖。25fps 节流(旧同款)。
+ * 结构 = 三环缓冲同构:3 张轮换位图,主线程 post 写"写槽"并推进 writeIdx;
+ * Compose drawBehind(RenderThread)读 writeIdx−1 槽(上一份完整帧)——读写槽
+ * 永不相交,流水线深度 ≤2,3 环覆盖。25fps 节流(旧 captureLiveBackdrop 同款)。
  *
- * 平板/非 HONOR 设备不走此对象(DockBus.CAPTURE_PAGES=true → record 同帧)。
+ * 成本:内容树软渲染 ≈ 十几 ms/次(旧 captureBackdrop 实测同量级),40ms 节流
+ * 下主线程占空比可接受(旧 dock 同款跑数月)。
  */
 object PageSnap {
 
@@ -42,17 +40,21 @@ object PageSnap {
     var version by mutableIntStateOf(0)
         private set
 
-    /** 玻璃层每帧调用:节流 25fps,对 bar 外扩矩形发起 PixelCopy。 */
-    fun request(window: Window, contentRect: RectF) {
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private const val TAG = "PageSnap"
+    private var diag = 0
+
+    /** 玻璃层每帧调用:节流 25fps,对 bar 外扩矩形发起同步软录(post 到本帧遍历后)。 */
+    fun request(view: View, contentRect: RectF) {
         if (pending) return
-        val now = SystemClock.uptimeMillis()
+        if (view.width <= 0 || view.height <= 0) return
+        val now = android.os.SystemClock.uptimeMillis()
         if (now - lastMs < 40) return   // 25fps 节流(旧 captureLiveBackdrop 同款)
         lastMs = now
-        val dl = window.decorView
         val l = contentRect.left.toInt().coerceAtLeast(0)
         val t = contentRect.top.toInt().coerceAtLeast(0)
-        val r = contentRect.right.toInt().coerceAtMost(dl.width)
-        val b = contentRect.bottom.toInt().coerceAtMost(dl.height)
+        val r = contentRect.right.toInt().coerceAtMost(view.width)
+        val b = contentRect.bottom.toInt().coerceAtMost(view.height)
         val w = r - l
         val h = b - t
         if (w < 4 || h < 4) return
@@ -63,22 +65,28 @@ object PageSnap {
         pending = true
         snapL = l
         snapT = t
-        if (diag == 0) android.util.Log.i(TAG, "first request rect=($l,$t,$r,$b) win=${dl.width}x${dl.height}")
-        PixelCopy.request(window, Rect(l, t, r, b), target, { res ->
-            pending = false
-            if (res == PixelCopy.SUCCESS) {
+        if (diag == 0) android.util.Log.i(TAG, "first request rect=($l,$t,$r,$b) view=${view.width}x${view.height}")
+        mainHandler.post {
+            try {
+                val cap = Canvas(target)
+                cap.translate(-l.toFloat(), -t.toFloat())
+                view.draw(cap)
                 writeIdx = (writeIdx + 1) % 3
                 version++
-                if (diag == 0) android.util.Log.i(TAG, "snap ready ${target.width}x${target.height}")
-            } else if (diag < 5) {
-                android.util.Log.w(TAG, "PixelCopy res=$res")
+                if (diag == 0) {
+                    val px = target.getPixel(target.width / 2, target.height / 2)
+                    android.util.Log.i(TAG,
+                        "snap ready ${target.width}x${target.height} " +
+                        "px a=${px ushr 24} rgb=${px and 0xFFFFFF}")
+                }
+            } catch (t: Throwable) {
+                if (diag < 10) android.util.Log.w(TAG, "draw capture fail", t)
+            } finally {
+                pending = false
+                diag++
             }
-            diag++
-        }, Handler(Looper.getMainLooper()))
+        }
     }
-
-    private const val TAG = "PageSnap"
-    @Volatile private var diag = 0
 
     /** 最新完整帧(drawBehind/RenderThread 读安全:读槽≠写槽≠上一槽)。 */
     fun latest(): Bitmap? = ring[(writeIdx + 2) % 3]

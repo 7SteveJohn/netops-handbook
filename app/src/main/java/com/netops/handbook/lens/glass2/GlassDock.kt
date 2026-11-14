@@ -150,25 +150,24 @@ private fun GlassDock() {
             commit = { i -> DockBus.onCommit?.invoke(i) })
     }
 
-    /* 帧循环:每帧推进弹簧,值写入 State(静止不变 → 零重绘,等价旧自眠)。
-       HONOR(MagicOS)(CAPTURE_PAGES=false):同帧节流喂 PageSnap——玻璃内容源
-       = PixelCopy 快照(25fps,直读已合成 Surface,见 PageSnap.kt 头注)。 */
-    val snapWindow = (context as? android.app.Activity)?.window
-    LaunchedEffect(model, snapWindow) {
+    /* 帧循环:每帧推进弹簧,值写入 State(静止不变 → 零重绘,等价旧自眠)。 */
+    val snapView = DockBus.contentView
+    LaunchedEffect(model, snapView) {
         while (true) {
             withFrameNanos { }
             model.tick()
-            /* ❗内容源=跨窗 PixelCopy(2026-11-15 终态)：dock 独立弹窗后玻璃物理上
-               看不到页面——液态玻璃(页面内容在栏体里流动折射)必须抓**主窗已合成
-               surface**(壁纸+页面),PixelCopy 直读不触发重绘、弹窗在主窗 surface
-               之外=零自反馈(旧 LensBarView 同拓扑跑数月实证)。25fps 节流在
+            /* ❗内容源=PageSnap 软录内容树(2026-11-15 终态)：dock 独立弹窗后玻璃
+               物理上看不到页面——液态玻璃(页面内容在栏体里流动折射)必须录**内容
+               树**(壁纸+页面)。PixelCopy 路废弃(回调时序不可靠+alpha 不可控)，
+               照抄旧 dock 终态:View.draw() 软件画布同步录(无回调丢失、alpha
+               完整、无自反馈——dock 在独立弹窗=另一棵 View 树)。25fps 节流在
                PageSnap 内。 */
-            if (snapWindow != null && !DockBus.docked && DockBus.nativeDock
+            if (snapView != null && !DockBus.docked && DockBus.nativeDock
                 && DockBus.glassLevel != "none") {
                 val bar = DockBus.barRect
                 if (bar.width() > 4 && bar.height() > 4) {
                     val pad = barPadPx(GlassDockEnv.density())
-                    PageSnap.request(snapWindow, RectF(
+                    PageSnap.request(snapView, RectF(
                         bar.left - pad, bar.top - pad, bar.right + pad, bar.bottom + pad))
                 }
             }
@@ -361,6 +360,9 @@ private fun GlassBar(
     val nodeW = pw; val nodeH = ph
     val mag = 1f + 0.2f * liftV
 
+    /* DEBUG:镜内容层一次性诊断(定案后删) */
+    var lensDiagDone = false
+
     Box(Modifier.fillMaxSize()) {
         /* ---- 投影(栏体;prism bar 无投影?有 dropShadow——保留原样) ---- */
         Box(Modifier.fillMaxSize().drawBehind {
@@ -526,9 +528,27 @@ private fun GlassBar(
                         lensPad + nodeW, lensPad + nodeH + 8f * density, pillR, pillR, sp)
                 }
             })
-            /* mask:胶囊(裁镜折射输出) */
+            /* mask:裁到**真药丸胶囊**(2026-11-15 修正)——原 RoundedCornerShape
+               (pillR) 落在整个外扩节点上=裁出「药丸±lensPad 大胶囊」,镜输出
+               在 pad 环带可见=脏晕环。custom Outline 内缩 lensPad=药丸矩形。 */
             Box(Modifier.fillMaxSize().graphicsLayer {
-                shape = RoundedCornerShape((pillR / density).dp); clip = true
+                clip = true
+                val p = lensPad.toFloat()
+                shape = object : androidx.compose.ui.graphics.Shape {
+                    override fun createOutline(
+                        size: androidx.compose.ui.geometry.Size,
+                        layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+                        density: androidx.compose.ui.unit.Density,
+                    ): androidx.compose.ui.graphics.Outline =
+                        androidx.compose.ui.graphics.Outline.Rounded(
+                            androidx.compose.ui.geometry.RoundRect(
+                                rect = androidx.compose.ui.geometry.Rect(
+                                    p, p, size.width - p, size.height - p),
+                                cornerRadius = androidx.compose.ui.geometry.CornerRadius(
+                                    pillR)
+                            )
+                        )
+                }
             }) {
                 val lensFx = remember { DockDraw.LensFx(PRISM_GLASS) }
                 /* 档位差异化(2026-11-14 平移):极致档照抄 prism_ui 原版光学
@@ -586,6 +606,21 @@ private fun GlassBar(
                                         nodeL - lensPad, nodeT - lensPad)
                                     ntc { c -> c.drawRect(0f, 0f, size.width, size.height, snapPaint) }
                                 }
+                            }
+                            /* ❗FlClash 镜内容语义(11-12 取证):镜内=回放「栏体玻璃
+                               成品」而非生页面——镜内容层补画栏体 tint(否则镜内比
+                               磨砂栏体"更透"=看着像洞,用户实测点破)。坐标=节点
+                               本地(窗口-(nodeL-lensPad,nodeT-lensPad))。 */
+                            val tintP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                color = colors.pillTint
+                            }
+                            ntc { c ->
+                                c.drawRoundRect(
+                                    bar.left - (nodeL - lensPad),
+                                    bar.top - (nodeT - lensPad),
+                                    bar.right - (nodeL - lensPad),
+                                    bar.bottom - (nodeT - lensPad),
+                                    bar.height() / 2f, bar.height() / 2f, tintP)
                             }
                         }
                     })

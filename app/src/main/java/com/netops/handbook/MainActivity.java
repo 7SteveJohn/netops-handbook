@@ -238,6 +238,8 @@ public class MainActivity extends AppCompatActivity {
                         markStatePagesDirty();
                     }
                 });
+            /* dock 弹窗玻璃的内容源=内容树 View(PageSnap 软录,View 层退役终态)。 */
+            com.netops.handbook.lens.glass2.DockBus.INSTANCE.contentView = composeHost;
         } else {
             setContentView(root);
         }
@@ -381,6 +383,12 @@ public class MainActivity extends AppCompatActivity {
             final String arg = st.arg;
             final String keep;
             final Runnable target;
+            /* settings=覆盖层(V 设置面板,页面保持不动)——不走页面互斥。
+               (Compose MePage 外观与壁纸入口经此打开;漏接曾回落 learn。) */
+            if ("settings".equals(route)) {
+                showSettingsPanel();
+                return kotlin.Unit.INSTANCE;
+            }
             switch (route) {
                 /* M3 终局 + View 层退役：全部路由落 Compose 页（AppShellState.pageRoute）。
                    ❗pagesGo 键 = PagesOverlay when 分支键（learn，非 JS keep 的 home）；
