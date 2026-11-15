@@ -232,7 +232,9 @@ private fun GlassDock() {
         axisPitch = 64f * density
         axisFirst = barRectW.centerX() -
             axisPitch * (DockDraw.TAB_LABELS.size - 1) / 2f
-        pillW = 56f * density
+        /* KSU 药丸=整格宽×56dp(circleShape 落非正方=两端半圆胶囊),
+           56×56 正圆=「球」(11-15 用户终审指认) */
+        pillW = 64f * density
         pillH = 56f * density
         pillCy = barRectW.centerY()
     }
@@ -473,7 +475,10 @@ private fun GlassBar(
                     },
                     highlight = { pillHighlight.value.copy(alpha = liftV) },
                     onDrawSurface = {
-                        /* KSU:亮色黑10%渐退+黑3%渐入,暗色白10%渐退 */
+                        /* 材质连续:栏体同款 tint(白40%/暗35%)打底=药丸是栏体
+                           表面的凸起,不是独立灰球;其上 KSU 微暗指示
+                           黑10%·(1−p) 渐退+黑3%·p 渐入(暗色白10%) */
+                        drawRect(color = Color(colors.pillTint))
                         if (colors.dark) drawRect(Color.White.copy(alpha = 0.1f * (1f - liftV)))
                         else drawRect(Color.Black.copy(alpha = 0.1f * (1f - liftV)))
                         drawRect(Color.Black.copy(alpha = 0.03f * liftV))
