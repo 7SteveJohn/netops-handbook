@@ -419,23 +419,6 @@ private fun GlassBar(
             )
         ) { }
 
-        /* ---- 托盘(静止选中,prism _Lens):HCT secondary tone90/4 @85%,
-             α×(1−lift);抬起后由玻璃镜接管 ---- */
-        Box(Modifier.fillMaxSize().drawBehind {
-            ntc { c ->
-                val trayA = 0.85f * (1f - liftV)
-                if (trayA > 0.01f) {
-                    val trayCx = model.axisFirst + model.axisPitch * model.selectedIndex
-                    val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                        color = colors.tray
-                        alpha = (255f * trayA).toInt()
-                    }
-                    c.drawRoundRect(trayCx - model.pillW / 2f, cy - model.pillH / 2f,
-                        trayCx + model.pillW / 2f, cy + model.pillH / 2f,
-                        model.pillH / 2f, model.pillH / 2f, tp)
-                }
-            }
-        })
         /* ---- 灰态图标 = prism items(outside):药丸覆盖的格由镜内重绘。
              覆盖判定 0.75 格距(2026-11-14 平移旧 -2 口径):跨格时两格都让位,
              镜内层将两格均画高亮蓝(双蓝) ---- */
@@ -450,12 +433,15 @@ private fun GlassBar(
                 }
             }
         })
-        /* ---- 按压药丸镜(照抄 miuix 药丸 Box):节点=药丸矩形无 pad(lens 自扩
+        /* ---- 药丸(常驻,照抄 KSU 药丸 Box):节点=药丸矩形无 pad(lens 自扩
              录制面 refractionAmount);lens 10dp·p/14dp·p + depthEffect +
-             CA 0.5(照抄数值);highlight α×p;内影 8dp·p;surface=栏体 tint。
+             CA 0.5(照抄数值);highlight α×p;内影 8dp·p;
+             surface=黑10%×(1−p)+黑3%×p(暗色白10%)——rest=清玻璃微暗凸起,
+             按压=黑 tint 退场、折射渐入(KSU 同式,无托盘无 pillTint);
+             药丸 backdrop=生页面(catalog 同源,不加 blur=比栏体更透)。
              图标按 prism 语义由镜内层重绘不折射→combinedBackdrop 免掉;
              速度挤压已内建于节点尺寸(jellyV),layerBlock 免掉。 ---- */
-        if (liftV > 0.01f && Build.VERSION.SDK_INT >= 33) {
+        if (Build.VERSION.SDK_INT >= 33) {
             pillBackdrop.nodeL = nodeL
             pillBackdrop.nodeT = nodeT
             Box(Modifier
@@ -465,7 +451,6 @@ private fun GlassBar(
                     backdrop = pillBackdrop,
                     shape = { RoundedCornerShape((pillR / density).dp) },
                     effects = {
-                        blur(14f * density, 14f * density)   // 与栏体同霜:透过清玻璃=栏体磨砂表面
                         lens(
                             refractionHeight = 10f * density * liftV,
                             refractionAmount = 14f * density * liftV,
@@ -474,7 +459,12 @@ private fun GlassBar(
                         )
                     },
                     highlight = { pillHighlight.value.copy(alpha = liftV) },
-                    onDrawSurface = { drawRect(color = Color(colors.pillTint)) },   // 材质连续=栏体同款 tint
+                    onDrawSurface = {
+                        /* KSU:亮色黑10%渐退+黑3%渐入,暗色白10%渐退 */
+                        if (colors.dark) drawRect(Color.White.copy(alpha = 0.1f * (1f - liftV)))
+                        else drawRect(Color.Black.copy(alpha = 0.1f * (1f - liftV)))
+                        drawRect(Color.Black.copy(alpha = 0.03f * liftV))
+                    },
                 )
                 .innerShadow(
                     shape = RoundedCornerShape((pillR / density).dp),
