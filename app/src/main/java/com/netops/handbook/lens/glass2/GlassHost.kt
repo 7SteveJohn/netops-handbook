@@ -44,6 +44,9 @@ interface GlassHostHooks {
     fun onImport()
     fun onSettings()
     fun onState(id: String, kind: String, on: Boolean)
+
+    /** M4-2：抽屉收起动画走完（dock/顶栏退位收回，Java pushOverlaidAll(false)）。 */
+    fun onDrawerClosed()
 }
 
 fun ComponentActivity.installGlassHost(
@@ -79,6 +82,13 @@ fun ComponentActivity.installGlassHost(
                 onGo = { r, a -> hooks.onGo(r, a) },
                 onExport = { hooks.onExport() }, onImport = { hooks.onImport() },
                 onState = { id, kind, on -> hooks.onState(id, kind, on) })
+            /* M4-2 抽屉 Compose 版：PagesOverlay 之上的浮层（route 是页面，
+               抽屉=覆盖态，不进路由 when）。 */
+            com.netops.handbook.ui.pages.DrawerOverlay(
+                data = { com.netops.handbook.ui.PageData.dataRoot },
+                dark = com.netops.handbook.ui.AppShellState.isDark,
+                onGo = { r, a -> hooks.onGo(r, a) },
+                onClosed = { hooks.onDrawerClosed() })
         }
     }
     /* dock 已进独立弹窗(DockPopupHost)：与内容树完全隔离——同窗共存会在

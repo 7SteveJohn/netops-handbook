@@ -49,6 +49,10 @@ object AppShellState {
     var pageRoute by mutableStateOf("learn")
     var pageArg by mutableStateOf<String?>(null)
 
+    /** M4-2：抽屉开合（Compose DrawerOverlay 读此显示；☰ 键 Java 侧写入，
+     *  关闭=拖拽/scrim/back 由 Compose 端动画后置回 false）。 */
+    var drawerOpen by mutableStateOf(false)
+
     fun pagesGo(route: String, arg: String?) {
         val prev = pageRoute
         pageRoute = route

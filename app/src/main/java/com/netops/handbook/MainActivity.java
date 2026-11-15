@@ -143,7 +143,7 @@ public class MainActivity extends AppCompatActivity {
     private com.netops.handbook.lens.NativeMeView nativeMe;
     private com.netops.handbook.lens.NativeSettingsPanel settingsPanel;
     private com.netops.handbook.lens.NativeFavView nativeFav;
-    private com.netops.handbook.lens.NativeDrawerView nativeDrawer;
+    /* M4-2(2026-11-16)：抽屉 Compose 化（DrawerOverlay），View 版退役。 */
     private com.netops.handbook.lens.NativeDocList nativeFault;
     private com.netops.handbook.lens.NativeDocList nativeIv;
     private com.netops.handbook.lens.NativeDictView nativeDict;
@@ -236,6 +236,10 @@ public class MainActivity extends AppCompatActivity {
                     @Override public void onSettings() { showSettingsPanel(); }
                     @Override public void onState(String id, String kind, boolean on) {
                         markStatePagesDirty();
+                    }
+                    @Override public void onDrawerClosed() {
+                        /* M4-2：Compose 抽屉收起动画走完 → dock/顶栏退位收回。 */
+                        pushOverlaidAll(false);
                     }
                 });
             /* dock 弹窗玻璃的内容源=内容树 View(PageSnap 软录,View 层退役终态)。 */
@@ -439,10 +443,12 @@ public class MainActivity extends AppCompatActivity {
             return kotlin.Unit.INSTANCE;
         };
         /* 返回键覆盖层收口（优先级链与原 JS back 同构：drawer→…；卡片收起随页面
-           迁 Compose 后由各页 back 处理器接管）。 */
+           迁 Compose 后由各页 back 处理器接管）。M4-2：抽屉=Compose BackHandler
+           优先消费（带滑出动画）；此处保留兜底判定。 */
         com.netops.handbook.lens.Router.INSTANCE.overlayCloser = () -> {
-            if (nativeDrawer != null && nativeDrawer.isOpen()) {
-                nativeDrawer.close();
+            if (com.netops.handbook.ui.AppShellState.INSTANCE.getDrawerOpen()) {
+                com.netops.handbook.ui.AppShellState.INSTANCE.setDrawerOpen(false);
+                pushOverlaidAll(false);
                 return true;
             }
             return false;
@@ -481,8 +487,9 @@ public class MainActivity extends AppCompatActivity {
            点搜索/主题键会切页——新页被压在面板底下、面板不退 = 「卡住」（2026-11-09 用户报）。
            hide() 幂等（非 VISIBLE 直接 return），面板没开时零开销。 */
         if (settingsPanel != null) settingsPanel.hide();
-        if (nativeDrawer != null && nativeDrawer.isOpen()) {
-            nativeDrawer.close();
+        /* M4-2：抽屉 Compose 化——切页时路由 effect 自收（DrawerOverlay.routeSeen）。 */
+        if (com.netops.handbook.ui.AppShellState.INSTANCE.getDrawerOpen()) {
+            com.netops.handbook.ui.AppShellState.INSTANCE.setDrawerOpen(false);
             pushOverlaidAll(false);
         }
     }
@@ -738,7 +745,6 @@ public class MainActivity extends AppCompatActivity {
                 if (nativeHome != null) runOnUiThread(() -> nativeHome.setPageData(root));
                 if (nativeSearch != null) runOnUiThread(() -> nativeSearch.setPageData(root));
                 if (nativeFav != null) runOnUiThread(() -> nativeFav.setPageData(root));
-                if (nativeDrawer != null) runOnUiThread(() -> nativeDrawer.setPageData(root));
                 /* M3-1：数据版本源 bump（Compose 页重读）+ 壁纸初值驱动（boot 后
                    direct/directMode 不再依赖 JS syncNativePageMode——M1d 该环已死）。
                    init 必须先于 apply：apply 里的 wallBitmap 解码依赖 init 挂的
@@ -881,18 +887,9 @@ public class MainActivity extends AppCompatActivity {
         });
         settingsPanel.setOnAlbum(this::launchAlbumPicker);   /* 从相册选取（REQ_PICK_IMAGE 管线共用） */
 
-        /* 原生抽屉：最顶层 overlay。开合联动 dock（setOverlaid），否则药丸压住抽屉。 */
-        nativeDrawer = new com.netops.handbook.lens.NativeDrawerView(this,
-                com.netops.handbook.lens.NativeBlocks.palette(this, resolvedDark(), false),
-                (route, arg) -> nativeGo(route, arg),
-                () -> pushOverlaidAll(false));
-        ThemeBus.register(nativeDrawer);
-        nativeDrawer.setLayoutParams(new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
-        /* addView 顺序 = z 序：抽屉必须**最后**加（见下方 addView(nativeDrawer)），
-           早加会被后面创建的原生页盖住 —— 抽屉里「阶段一：…」右半截被页面白卡压掉的
-           真因（2026-10-28 复查；内容左缩进从 102dp 收到 70dp 后才暴露）。 */
-
+        /* 原生抽屉：M4-2(2026-11-16)退役——Compose DrawerOverlay 接管
+           （GlassContentHost 内 PagesOverlay 之上挂载，AppShellState.drawerOpen
+           驱动）。NativeDrawerView 类保留至 M6 物理删除。 */
         /* 原生搜索页（N5）：原生输入框 + 命中高亮 + 键盘自适应。
            View 层退役(2026-11-14)：覆盖层归 overLayer（ComposeView 之上），否则被 Compose 页盖住。 */
         nativeSearch = new com.netops.handbook.lens.NativeSearchView(this);
@@ -966,9 +963,6 @@ public class MainActivity extends AppCompatActivity {
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         switchOverlay.setVisibility(android.view.View.GONE);
         overLayer.addView(switchOverlay);
-
-        /* 抽屉最后加：z 序压在全部覆盖层之上（overLayer 内部顺序同旧约定） */
-        overLayer.addView(nativeDrawer);
 
         /* 原生页滚动 → 顶栏玻璃实时重抓：这些页的滚动不经过 WebView，
            JS 侧监听不到，玻璃会静止不动（2026-10-30 用户：「通透在哪儿」） */
@@ -1085,11 +1079,12 @@ public class MainActivity extends AppCompatActivity {
                0=抽屉（open + dock 退位）；1=搜索（Router.go 落 nativeSearch+页面态）。 */
             appbarBar.navAction = i -> runOnUiThread(() -> {
                 if (i == 0) {
-                    /* navBack 态(阶段/搜索等子路由)左键=返回；根路由=抽屉。 */
+                    /* navBack 态(阶段/搜索等子路由)左键=返回；根路由=抽屉。
+                       M4-2：抽屉 Compose 化（DrawerOverlay 读 AppShellState.drawerOpen）。 */
                     if (com.netops.handbook.lens.Router.INSTANCE.getNavBack()) {
                         com.netops.handbook.lens.Router.INSTANCE.back();
-                    } else if (nativeDrawer != null) {
-                        nativeDrawer.open();
+                    } else {
+                        com.netops.handbook.ui.AppShellState.INSTANCE.setDrawerOpen(true);
                         pushOverlaidAll(true);
                     }
                 } else if (i == 1) {
@@ -1336,7 +1331,6 @@ public class MainActivity extends AppCompatActivity {
                 + 8f * getResources().getDisplayMetrics().density;
         if (lensBar != null) lensBar.setRailTopInset(below);
         com.netops.handbook.lens.glass2.DockBus.setRailTop(below);   // glass2 竖排让位同源
-        if (nativeDrawer != null) nativeDrawer.setTopInset(below);
     }
 
     /** 旋转后顶栏几何三连发补测（120/500/900ms）：与 remeasureLensSoon 同模型——
@@ -1746,14 +1740,7 @@ public class MainActivity extends AppCompatActivity {
             runOnUiThread(() -> { switchNativeTo("fav", () -> nativeFav.show()); });
         }
 
-        @JavascriptInterface
-        public void showNativeDrawer() {
-            if (nativeDrawer == null) return;
-            runOnUiThread(() -> {
-                nativeDrawer.open();
-                pushOverlaidAll(true);
-            });
-        }
+        /* M4-2：showNativeDrawer 退役（抽屉 Compose 化，JS 桥已死无人调）。 */
 
         @JavascriptInterface
         public void hideAllNativePages() {
