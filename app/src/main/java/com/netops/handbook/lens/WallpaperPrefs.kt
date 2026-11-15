@@ -59,6 +59,7 @@ object WallpaperPrefs {
         select = sp.getString(K_SELECT, "none") ?: "none"
         customFile = sp.getString(K_CUSTOM, "") ?: ""
         tint = sp.getInt(K_TINT, 55)
+        apply(activity)   // 启动重放:进程被杀后 SP 状态仍生效(原仅面板触达)
     }
 
     /** JS boot 一次性迁移：存量选择 + 相册 dataURL（可能数 MB，仅首次）+ tint。 */
