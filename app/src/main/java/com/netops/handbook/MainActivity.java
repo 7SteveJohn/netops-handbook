@@ -745,12 +745,25 @@ public class MainActivity extends AppCompatActivity {
                    appContext（View 层退役 2026-11-14）。 */
                 {
                     org.json.JSONArray wps0 = root.optJSONArray("wallpapers");
+                    android.util.Log.i("WallDebug", "native-data wallpapers=" + (wps0 == null ? "null" : wps0.length()));
                     if (wps0 != null) com.netops.handbook.lens.WallpaperPrefs.INSTANCE.init(
                             MainActivity.this, wps0);
                 }
                 runOnUiThread(() -> {
                     com.netops.handbook.ui.PageData.INSTANCE.setRoot(root);
                     com.netops.handbook.ui.PageData.INSTANCE.bumpVersion();
+                    android.util.Log.i("WallDebug", "apply select=" + com.netops.handbook.lens.WallpaperPrefs.INSTANCE.getSelect()
+                            + " customFile=" + com.netops.handbook.lens.WallpaperPrefs.INSTANCE.getCustomFile());
+                    try {
+                        java.io.File spf = new java.io.File(getApplicationInfo().dataDir, "shared_prefs/netops.shell.xml");
+                        java.io.FileInputStream fis = new java.io.FileInputStream(spf);
+                        byte[] pbuf = new byte[2048]; int pn = fis.read(pbuf); fis.close();
+                        String body = new String(pbuf, 0, Math.max(0, pn));
+                        android.util.Log.i("WallDebug", "spFile=" + spf.getAbsolutePath()
+                                + " hasCustom=" + body.contains("custom") + " len=" + pn);
+                    } catch (Throwable t) {
+                        android.util.Log.i("WallDebug", "spRead fail: " + t);
+                    }
                     com.netops.handbook.lens.WallpaperPrefs.INSTANCE.apply(MainActivity.this);
                 });
                 if (nativeMe != null) runOnUiThread(() -> nativeMe.setPageData(root));
