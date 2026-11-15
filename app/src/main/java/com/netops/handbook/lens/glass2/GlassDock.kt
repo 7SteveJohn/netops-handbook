@@ -416,7 +416,7 @@ private fun GlassBar(
                             uniformShaderName = "content",
                         ) { }
                     }
-                    blur(14f * density, 14f * density)   // Dock Bar=磨砂:文字不可读
+                    blur(9f * density, 9f * density)   // Dock Bar=磨砂:文字不可读(KSU 口径 9dp,98d17be 材质连续性定案)
                     lens(refractionHeight = 24f * density, refractionAmount = 24f * density)
                 },
                 highlight = { baseHighlight.value.copy(alpha = 0.75f) },
@@ -465,7 +465,7 @@ private fun GlassBar(
                                 uniformShaderName = "content",
                             ) { }
                         }
-                        blur(14f * density, 14f * density)   // 栏体同霜=镜内只有栏体成品
+                        blur(9f * density, 9f * density)   // 栏体同霜 9dp=镜内只有栏体成品(98d17be 定案口径)
                         lens(
                             refractionHeight = 10f * density * liftV,
                             refractionAmount = 14f * density * liftV,
