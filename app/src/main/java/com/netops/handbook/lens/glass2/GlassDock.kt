@@ -217,27 +217,25 @@ private fun GlassDock() {
         railRectW.set(14f * density, cy0 - panelH / 2f, 14f * density + railW, cy0 + panelH / 2f)
         axisPitch = pitch
         axisFirst = railRectW.top + 4f * dp + pillH / 2f
-    } else {
-        /* 紧凑几何(照抄 KSU FloatingBottomBar 表现手法):药丸=一 tab 宽
-           56×56 方圆滑动指示器;图标 22dp+标签 11sp。
-           ❗tab 行从栏体矩形派生(11-15 终审):栏体唯一真源=computeDockGeometry
-           推送的 DockBus.barRect(含 safeBottom 锚底);旧实现 tab 行自算
-           pillCy=winH−32−8(无视 safeBottom),与推送栏体错位=四 tab+药丸
-           画到栏外(模拟器+真机同症)。tab 中心=栏体中心,64dp 格距居中。 */
-        if (barRectW.width() <= 4 || barRectW.height() <= 4) {
-            val barW = DockDraw.TAB_LABELS.size * 64f * density + 8f * density
-            barRectW.set((winW - barW) / 2f, winH - 64f * density - 8f * density,
-                (winW - barW) / 2f + barW, winH - 8f * density)
+        } else {
+            /* catalog 全宽口径(2026-11-15 用户示图拍板,Java computeDockGeometry
+               端计算推送):tabWidth=(barW−8dp)/tabs、药丸=格距+16dp cap96。
+               ❗tab 行/药丸几何真源=DockBus 推送值(pitch/pillW/pillH/firstCx);
+               推送缺失时兜底=旧紧凑 KSU 宽。tab 行中心对齐栏体(safeBottom
+               锚底),tab 中心=首格中心+格距递推。 */
+            if (barRectW.width() <= 4 || barRectW.height() <= 4) {
+                val barW = DockDraw.TAB_LABELS.size * 64f * density + 8f * density
+                barRectW.set((winW - barW) / 2f, winH - 64f * density - 8f * density,
+                    (winW - barW) / 2f + barW, winH - 8f * density)
+            }
+            axisPitch = if (DockBus.pitchPx > 4f) DockBus.pitchPx else 64f * density
+            axisFirst = if (DockBus.firstCxPx > 0f) DockBus.firstCxPx
+            else barRectW.centerX() -
+                axisPitch * (DockDraw.TAB_LABELS.size - 1) / 2f
+            pillW = if (DockBus.pillWPx > 4f) DockBus.pillWPx else 64f * density
+            pillH = if (DockBus.pillHPx > 4f) DockBus.pillHPx else 56f * density
+            pillCy = barRectW.centerY()
         }
-        axisPitch = 64f * density
-        axisFirst = barRectW.centerX() -
-            axisPitch * (DockDraw.TAB_LABELS.size - 1) / 2f
-        /* KSU 药丸=整格宽×56dp(circleShape 落非正方=两端半圆胶囊),
-           56×56 正圆=「球」(11-15 用户终审指认) */
-        pillW = 64f * density
-        pillH = 56f * density
-        pillCy = barRectW.centerY()
-    }
 
     model.count = DockDraw.TAB_LABELS.size
     model.dockVertical = vertical
@@ -339,38 +337,21 @@ private fun GlassBar(
         RoundedCornerShape((bar.height() / 2f / density).dp)
     }
 
-    /* 药丸几何(窗口本地):中心随 pos,尺寸随 lift/jelly。
-       2026-11-14 平移 Antigravity 规格并按 FlClash 原版口径修正:
-       - 静止零增长:JS 上报尺寸即渲染尺寸(FlClash 药丸=格距+8、下限 84dp,
-         上限由 CSS/Kotlin 兜底分档承担);
-       - 按压瞬间 +20dp 胀大,高度突破栏体漫出上下边缘(水滴凸透镜通透);
-       - 首末格夹取反转:由「收回栏内 2dp」改为「允许漫出 ≤10dp」——
-         漫出半径远小于 lensPad 采样 reach,不触发 pad NaN 坑。 */
-    val g = 20f * liftV * density
-    val s = jellyV
+    /* 药丸几何(2026-11-15 终版=KSU/catalog 真源,FloatingBottomBar.kt
+       .height(56).width(tabWidth)+layerBlock scale 同构):节点=固定
+       pillW×pillH 胶囊,中心随 pos 纯滑动(无跨格张力展开);按压放大=
+       graphicsLayer 同比 scale lerp(1,78/56,p)+速度挤压(scaleX 横拉/
+       scaleY 纵压),比例锁死=形状永不随按压突变球形(KSU 262/456 行;
+       旧「各向 +20dp 胀大」把 64×56 顶成 84×76≈正圆=用户点名的球)。 */
     var cx = model.axisFirst + model.axisPitch * posV
     val cy = model.pillCy
-    /* 跨格表面张力展开(2026-11-14 平移,11-15 修正反相):两格正中(半格位)
-       最宽 +24dp,落格(整数位)归零。旧式 1−2|x−round(x)| 在整数位=1,
-       rest 药丸恒 +24dp=80dp 胶囊(KSU 应为 56dp 方圆)。 */
-    val crossProgress = (2f * abs(posV - round(posV))).coerceIn(0f, 1f)
-    val crossExt = 24f * density * crossProgress
-    val pl0 = cx - (model.pillW + g + crossExt) / 2f * (1f + s)
-    val pr0 = cx + (model.pillW + g + crossExt) / 2f * (1f + s)
-    val pt0 = cy - (model.pillH + g) / 2f * (1f - s * 1.4f)
-    val pb0 = cy + (model.pillH + g) / 2f * (1f - s * 1.4f)
-    val over = 10f * density
-    val pl = max(pl0, bar.left - over)
-    val pr = min(pr0, bar.right + over)
-    val pw = pr - pl
-    val ph = pb0 - pt0
-    cx = (pl + pr) / 2f
-    val pillR = min(pw / 2f, ph / 2f)
+    val nodeL = cx - model.pillW / 2f
+    val nodeT = cy - model.pillH / 2f
+    val nodeW = model.pillW
+    val nodeH = model.pillH
+    val pillR = min(nodeW / 2f, nodeH / 2f)
     /* ❗无 pad(2026-11-12):旧位图路线的 pad 是采样余量;RenderEffect 路线
-       节点即药丸矩形——带 pad 的话 lens shader 对形状外像素输出 NaN(透明),
-       按压时 pad 环露出硬边矩形洞(录屏 t2 实证)。 */
-    val nodeL = pl; val nodeT = pt0
-    val nodeW = pw; val nodeH = ph
+       节点即药丸矩形——带 pad 的话 lens shader 对形状外像素输出 NaN(透明)。 */
     val mag = 1f + 0.2f * liftV
 
     Box(Modifier.fillMaxSize()) {
@@ -442,6 +423,12 @@ private fun GlassBar(
             Box(Modifier
                 .sizePx(nodeW, nodeH)
                 .offsetPx(nodeL, nodeT)
+                .graphicsLayer {
+                    /* KSU layerBlock 语义:按压同比放大+速度挤压,绘制期读取
+                       State(不触发重组);scale 溢出绘制=凸出栏体上下。 */
+                    scaleX = (1f + 0.393f * model.liftV) * (1f + model.jellyV)
+                    scaleY = (1f + 0.393f * model.liftV) * (1f - model.jellyV * 0.5f)
+                }
                 .drawBackdrop(
                     backdrop = pillBackdrop,
                     shape = { RoundedCornerShape((pillR / density).dp) },

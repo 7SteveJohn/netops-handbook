@@ -1406,16 +1406,18 @@ public class MainActivity extends AppCompatActivity {
                     com.netops.handbook.lens.glass2.DockBus.INSTANCE.getBarRect(), pad);
             return;
         }
-        /* 竖屏悬浮:紧凑 KSU 几何(2026-11-15 对齐 GlassDock)——bar 包裹
-           4×64dp tab+8dp 内边距,高 64dp,底距 8dp+safeBottom;tab 行/药丸
-           在 GlassDock 内从此矩形派生(中心对齐),此矩形=唯一真源。 */
-        float barW = 4f * 64f * d + 8f * d;
-        float barL = (winW - barW) / 2f;
+        /* 竖屏悬浮:catalog 全宽口径(2026-11-15 用户示图拍板「得像这样」,
+           覆盖 0ac4b96 紧凑 KSU 宽)——bar=屏宽−左右 12dp,高 64dp,底距
+           8dp+safeBottom;tabWidth=(barW−8dp)/tabs(catalog LiquidBottomTabs);
+           药丸=FlClash「格距+8dp」真源,cap 96dp(平板防超长条),比例≈1.57
+           胶囊(旧紧凑 64×56≈方圆,按压同比放大仍是圆盘=用户点名的球)。 */
+        float barW = winW - 2f * 12f * d;
+        float barL = 12f * d;
         float barH = 64f * d;
         float barT = winH - 8f * d - safeBottomPx - barH;
         com.netops.handbook.lens.glass2.DockBus.setBarRect(barL, barT, barW, barH);
-        float slot = 64f * d;
-        float pillW = 56f * d;
+        float slot = (barW - 8f * d) / 4f;
+        float pillW = Math.min(slot + 16f * d, 96f * d);
         float pillH = 56f * d;
         com.netops.handbook.lens.glass2.DockBus.setGeometry(
                 slot, pillW, pillH, barL + 4f * d + slot / 2f, barT + barH / 2f, winH);
