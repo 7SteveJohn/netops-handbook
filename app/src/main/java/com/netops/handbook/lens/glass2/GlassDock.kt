@@ -475,10 +475,13 @@ private fun GlassBar(
                     },
                     highlight = { pillHighlight.value.copy(alpha = liftV) },
                     onDrawSurface = {
-                        /* 材质连续:栏体同款 tint(白40%/暗35%)打底=药丸是栏体
-                           表面的凸起,不是独立灰球;其上 KSU 微暗指示
-                           黑10%·(1−p) 渐退+黑3%·p 渐入(暗色白10%) */
-                        drawRect(color = Color(colors.pillTint))
+                        /* rest=奶白磨砂高遮盖(栏体材质,§6.9「不是很透」=不透出
+                           位置背后的深色壁纸——壁纸明暗随位置变化,透出=忽明忽
+                           暗灰球);按压 tint 退场→清玻璃,镜内=磨砂内容
+                           (「变通透但只能看到栏体磨砂」);其上 KSU 黑10%·(1−p)
+                           微暗指示+黑3%·p(暗色白10%) */
+                        if (colors.dark) drawRect(Color(colors.pillTint).copy(alpha = 0.85f - 0.5f * liftV))
+                        else drawRect(Color(colors.pillTint).copy(alpha = 0.85f - 0.45f * liftV))
                         if (colors.dark) drawRect(Color.White.copy(alpha = 0.1f * (1f - liftV)))
                         else drawRect(Color.Black.copy(alpha = 0.1f * (1f - liftV)))
                         drawRect(Color.Black.copy(alpha = 0.03f * liftV))
@@ -498,15 +501,18 @@ private fun GlassBar(
 
         /* ---- 镜内图标(prism items(inside)):画在玻璃镜之上,不折射。
              覆盖格全部高亮蓝(跨格双蓝,2026-11-14 平移——对齐官方跨格效果,
-             原恒单格 selectedIndex)+ 选中微放大 1.08/1.05 ---- */
+             原恒单格 selectedIndex)。尺寸=KSU LocalFloatingBottomBarTabScale
+             语义:rest=1(统一尺寸只变色,1.08/1.05 恒放大=选中图标偏大已废),
+             按压 lerp(1,1.2,p) ---- */
         Box(Modifier.fillMaxSize().drawBehind {
             ntc { c ->
                 for (i in 0 until model.count) {
                     val cellCx = model.axisFirst + model.axisPitch * i
                     if (abs(cellCx - cx) >= model.axisPitch * 0.75f) continue
+                    val tabScale = 1f + 0.2f * liftV
                     DockDraw.drawTab(c, i, i, false, cellCx, cy, contentH, density,
                         colors, iconPaths, iconP, textP,
-                        magIcon = 1.08f, magText = 1.05f)
+                        magIcon = tabScale, magText = tabScale)
                 }
             }
         })
