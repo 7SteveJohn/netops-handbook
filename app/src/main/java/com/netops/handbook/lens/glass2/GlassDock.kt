@@ -370,6 +370,7 @@ private fun GlassBar(
              快照适配(bar/药丸各一份实例,origin 组合期写入)。 ---- */
         val barBackdrop = remember { PageSnapBackdrop { winSize } }
         val pillBackdrop = remember { PageSnapBackdrop { winSize } }
+        val baseHighlight = rememberGravityRotatedHighlight(iosIndicatorSpecular, extraDegrees = -45f)
         val pillHighlight = rememberGravityRotatedHighlight(iosIndicatorSpecular, extraDegrees = 90f)
 
         /* ---- 栏体玻璃(照抄 bar Row):节点=栏矩形;effects=padding 40dp 采样
@@ -383,17 +384,14 @@ private fun GlassBar(
             .offsetPx(bar.left, bar.top)
             .drawBackdrop(
                 backdrop = barBackdrop,
-                shape = { RectangleShape },
+                shape = { barShape },   // Capsule(2026-11-16 修矩形:割裂轮遗留 RectangleShape,弧形边缘=lens 折射的前提)
                 effects = {
                     PageSnap.version   // 快照更新 → 本节点重绘(miuix observeReads 捕获此读)
-                    if (colors.dark) {
-                        colorControls(brightness = 0f, contrast = 1f, saturation = 1.4f)
-                    } else {
-                        colorControls(brightness = 0f, contrast = 1f, saturation = 1.3f)
-                    }
+                    colorControls(brightness = 0f, contrast = 1f, saturation = 1.5f)   // KSU Vibrancy.kt 精确口径
                     blur(8f * density, 8f * density)   // catalog LiquidBottomTabs=blur8dp(11-15 用户「得像这样」)
                     lens(refractionHeight = 24f * density, refractionAmount = 24f * density)
                 },
+                highlight = { baseHighlight.value.copy(alpha = 0.75f) },   // 玻璃光泽=KSU 栏体同款(11-16 恢复:均匀无高光=塑料/薄膜感)
                 onDrawSurface = { drawRect(color = Color(colors.pillTint)) },
             )
         ) { }
