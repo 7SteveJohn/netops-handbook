@@ -389,7 +389,6 @@ private fun GlassBar(
              快照适配(bar/药丸各一份实例,origin 组合期写入)。 ---- */
         val barBackdrop = remember { PageSnapBackdrop { winSize } }
         val pillBackdrop = remember { PageSnapBackdrop { winSize } }
-        val baseHighlight = rememberGravityRotatedHighlight(iosIndicatorSpecular, extraDegrees = -45f)
         val pillHighlight = rememberGravityRotatedHighlight(iosIndicatorSpecular, extraDegrees = 90f)
 
         /* ---- 栏体玻璃(照抄 bar Row):节点=栏矩形;effects=padding 40dp 采样
@@ -410,16 +409,10 @@ private fun GlassBar(
                         colorControls(brightness = 0f, contrast = 1f, saturation = 1.4f)
                     } else {
                         colorControls(brightness = 0f, contrast = 1f, saturation = 1.3f)
-                        runtimeShaderEffect(
-                            key = "ToneLiftLight",
-                            shaderString = TONE_LIFT_SHADER,
-                            uniformShaderName = "content",
-                        ) { }
                     }
-                    blur(9f * density, 9f * density)   // Dock Bar=磨砂:文字不可读(KSU 口径 9dp,98d17be 材质连续性定案)
+                    blur(8f * density, 8f * density)   // catalog LiquidBottomTabs=blur8dp(11-15 用户「得像这样」)
                     lens(refractionHeight = 24f * density, refractionAmount = 24f * density)
                 },
-                highlight = { baseHighlight.value.copy(alpha = 0.75f) },
                 onDrawSurface = { drawRect(color = Color(colors.pillTint)) },
             )
         ) { }
@@ -438,11 +431,9 @@ private fun GlassBar(
                 }
             }
         })
-        /* ---- 药丸(常驻,§6.9 定案):材质=栏体同款磨砂链(sat+ToneLift+
-             blur14dp)——药丸里看到的是栏体磨砂成品,永不透到生背景;
-             rest=磨砂+黑10% 微暗凸起(「不是很透」);按压=黑 tint 退场+
-             lens 10dp·p/14dp·p 折射渐入+highlight/内影=「变通透」,
-             但镜内内容仍是磨砂栏体(§6.9:只能透过药丸看到 Dock Bar)。
+        /* ---- 药丸(常驻,2026-11-15 终版=catalog LiquidBottomTabs 口径):
+             effects=纯 lens(10·p,14·p,CA0.5),无 blur/vibrancy;rest=清玻璃
+             +黑10%·(1−p) 压暗指示透出生背景,按压折射渐入+highlight/内影。
              节点=药丸矩形无 pad(lens 自扩录制面);图标按 prism 语义由
              镜内层重绘不折射;速度挤压内建于节点尺寸(jellyV)。 ---- */
         if (Build.VERSION.SDK_INT >= 33) {
@@ -454,38 +445,25 @@ private fun GlassBar(
                 .drawBackdrop(
                     backdrop = pillBackdrop,
                     shape = { RoundedCornerShape((pillR / density).dp) },
-                    effects = {
-                        if (colors.dark) {
-                            colorControls(brightness = 0f, contrast = 1f, saturation = 1.4f)
-                        } else {
-                            colorControls(brightness = 0f, contrast = 1f, saturation = 1.3f)
-                            runtimeShaderEffect(
-                                key = "ToneLiftLightPill",
-                                shaderString = TONE_LIFT_SHADER,
-                                uniformShaderName = "content",
-                            ) { }
-                        }
-                        blur(9f * density, 9f * density)   // 栏体同霜 9dp=镜内只有栏体成品(98d17be 定案口径)
-                        lens(
-                            refractionHeight = 10f * density * liftV,
-                            refractionAmount = 14f * density * liftV,
-                            depthEffect = true,
-                            chromaticAberration = 0.5f,
-                        )
-                    },
-                    highlight = { pillHighlight.value.copy(alpha = liftV) },
-                    onDrawSurface = {
-                        /* rest=奶白磨砂高遮盖(栏体材质,§6.9「不是很透」=不透出
-                           位置背后的深色壁纸——壁纸明暗随位置变化,透出=忽明忽
-                           暗灰球);按压 tint 退场→清玻璃,镜内=磨砂内容
-                           (「变通透但只能看到栏体磨砂」);其上 KSU 黑10%·(1−p)
-                           微暗指示+黑3%·p(暗色白10%) */
-                        if (colors.dark) drawRect(Color(colors.pillTint).copy(alpha = 0.85f - 0.5f * liftV))
-                        else drawRect(Color(colors.pillTint).copy(alpha = 0.85f - 0.45f * liftV))
-                        if (colors.dark) drawRect(Color.White.copy(alpha = 0.1f * (1f - liftV)))
-                        else drawRect(Color.Black.copy(alpha = 0.1f * (1f - liftV)))
-                        drawRect(Color.Black.copy(alpha = 0.03f * liftV))
-                    },
+                effects = {
+                    /* catalog LiquidBottomTabs 药丸=纯 lens(10·p,14·p,CA),无
+                       vibrancy/无 blur——rest 透出生背景,按压折射渐入。 */
+                    lens(
+                        refractionHeight = 10f * density * liftV,
+                        refractionAmount = 14f * density * liftV,
+                        depthEffect = true,
+                        chromaticAberration = 0.5f,
+                    )
+                },
+                highlight = { pillHighlight.value.copy(alpha = liftV) },
+                onDrawSurface = {
+                    /* catalog 口径(11-15 用户「得像这样」):rest=清玻璃+黑10%·(1−p)
+                       压暗指示(暗色白10%),按压 tint 退场+黑3%·p——透明度即材质,
+                       奶白 α0.85 遮盖层已废(fc74a3f 反悔,用户以 catalog 图为准) */
+                    if (colors.dark) drawRect(Color.White.copy(alpha = 0.1f * (1f - liftV)))
+                    else drawRect(Color.Black.copy(alpha = 0.1f * (1f - liftV)))
+                    drawRect(Color.Black.copy(alpha = 0.03f * liftV))
+                },
                 )
                 .innerShadow(
                     shape = RoundedCornerShape((pillR / density).dp),
