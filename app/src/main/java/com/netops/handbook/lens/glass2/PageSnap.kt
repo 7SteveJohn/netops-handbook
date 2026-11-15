@@ -73,10 +73,10 @@ object PageSnap {
                 view.draw(cap)
                 writeIdx = (writeIdx + 1) % 3
                 version++
-                if (diag == 0) {
+                if (diag < 12) {
                     val px = target.getPixel(target.width / 2, target.height / 2)
                     android.util.Log.i(TAG,
-                        "snap ready ${target.width}x${target.height} " +
+                        "snap[${diag}] ${target.width}x${target.height} " +
                         "px a=${px ushr 24} rgb=${px and 0xFFFFFF}")
                 }
             } catch (t: Throwable) {

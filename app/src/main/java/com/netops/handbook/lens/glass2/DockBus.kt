@@ -60,7 +60,7 @@ object DockBus {
 
     /* ---- 模式 ----
        @JvmName:属性 setter 与下方 @JvmStatic 桥函数 JVM 签名冲突,错开命名 */
-    var nativeDock by mutableStateOf(false)   // 原生底栏接管(netops_native_dock)
+    var nativeDock by mutableStateOf(true)    // DEBUG:强制玻璃 dock(原 false,JS 桥已死无人置 true)
     var docked by mutableStateOf(false)           // 底栏样式=原生贴底(netops_tabbar=regular)
     var glassLevel by mutableStateOf("ultra") // none / standard / ultra
     /* M2-2(2026-11-14):dark 单源化——委托 AppShellState.isDark（ThemeBus 只写
