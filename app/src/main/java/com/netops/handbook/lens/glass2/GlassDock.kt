@@ -218,21 +218,20 @@ private fun GlassDock() {
         axisPitch = pitch
         axisFirst = railRectW.top + 4f * dp + pillH / 2f
     } else {
-        axisPitch = if (DockBus.pitchPx > 0) DockBus.pitchPx else winW / 4f
-        /* 兜底分档(2026-11-14 对齐 FlClash _minLensWidth84/_maxItemExtent86 + 设备档):
-           尺寸真源 = JS 上报(CSS 侧分档);此处只夹异常上限、兜上报未就绪。
-           手机 94×48(=86+8, FlClash 口径) / 平板(winW≥600dp) 96×52(11-13 验收值)。 */
-        val tablet = winW >= 600f * density
-        val maxPillW = (if (tablet) 96f else 84f) * density   // 手机药丸收短(用户:Antigravity 平板参数移植手机偏长)
-        val maxPillH = (if (tablet) 52f else 48f) * density
-        pillW = if (DockBus.pillWPx > 0) min(DockBus.pillWPx, maxPillW)
-                else min(axisPitch + 8f * density, maxPillW)
-        pillH = if (DockBus.pillHPx > 0) min(DockBus.pillHPx, maxPillH) else maxPillH
-        pillCy = if (DockBus.pillCyPx > 0) DockBus.pillCyPx else winH - pillH
-        axisFirst = if (DockBus.firstCxPx > 0) DockBus.firstCxPx else axisPitch / 2f
+        /* 紧凑几何(照抄 KSU FloatingBottomBar 表现手法):bar=包裹内容宽
+           (每 tab 64dp×4 + 8dp 内边距),高 64dp,水平居中,底部距 8dp;
+           药丸=一 tab 宽(56dp)×56dp 方圆,滑动指示器;图标 22dp+标签 11sp。 */
+        val tabW = 64f * density
+        axisPitch = tabW
+        val barW = DockDraw.TAB_LABELS.size * tabW + 8f * density
+        val barH = 64f * density
+        pillW = tabW - 8f * density
+        pillH = 56f * density
+        pillCy = winH - barH / 2f - 8f * density
+        axisFirst = (winW - barW) / 2f + 4f * density + tabW / 2f
         if (barRectW.width() <= 4 || barRectW.height() <= 4) {
-            val top = pillCy - pillH / 2f - 6f * density
-            barRectW.set(0f, top, winW, top + pillH + 12f * density)
+            barRectW.set((winW - barW) / 2f, pillCy - barH / 2f,
+                (winW - barW) / 2f + barW, pillCy + barH / 2f)
         }
     }
 
