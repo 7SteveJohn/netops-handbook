@@ -47,6 +47,15 @@ interface GlassHostHooks {
 
     /** M4-2：抽屉收起动画走完（dock/顶栏退位收回，Java pushOverlaidAll(false)）。 */
     fun onDrawerClosed()
+
+    /** M4-3：设置四项应用（theme/wallpaper/dockstyle/glasslevel，SP/ prefs 真源落地）。 */
+    fun onSettingsApply(kind: String, value: String)
+
+    /** M4-3：相册选壁纸（REQ_PICK_IMAGE 管线）。 */
+    fun onAlbum()
+
+    /** M4-3：设置页「完成」/back——Router.back() 走返回栈。 */
+    fun onBack()
 }
 
 fun ComponentActivity.installGlassHost(
@@ -81,7 +90,10 @@ fun ComponentActivity.installGlassHost(
                 data = { com.netops.handbook.ui.PageData.dataRoot },
                 onGo = { r, a -> hooks.onGo(r, a) },
                 onExport = { hooks.onExport() }, onImport = { hooks.onImport() },
-                onState = { id, kind, on -> hooks.onState(id, kind, on) })
+                onState = { id, kind, on -> hooks.onState(id, kind, on) },
+                onSettingsApply = { k, v -> hooks.onSettingsApply(k, v) },
+                onAlbum = { hooks.onAlbum() },
+                onBack = { hooks.onBack() })
             /* M4-2 抽屉 Compose 版：PagesOverlay 之上的浮层（route 是页面，
                抽屉=覆盖态，不进路由 when）。 */
             com.netops.handbook.ui.pages.DrawerOverlay(

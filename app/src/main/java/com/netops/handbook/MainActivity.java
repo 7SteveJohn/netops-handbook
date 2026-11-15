@@ -141,7 +141,7 @@ public class MainActivity extends AppCompatActivity {
     private androidx.compose.ui.platform.ComposeView composePhase;
     private org.json.JSONObject nativeDataRoot;
     private com.netops.handbook.lens.NativeMeView nativeMe;
-    private com.netops.handbook.lens.NativeSettingsPanel settingsPanel;
+    /* M4-3：NativeSettingsPanel 退役（Compose SettingsPage 接管）。 */
     private com.netops.handbook.lens.NativeFavView nativeFav;
     /* M4-2(2026-11-16)：抽屉 Compose 化（DrawerOverlay），View 版退役。 */
     private com.netops.handbook.lens.NativeDocList nativeFault;
@@ -233,13 +233,20 @@ public class MainActivity extends AppCompatActivity {
                     }
                     @Override public void onExport() { exportBackup(); }
                     @Override public void onImport() { importBackup(); }
-                    @Override public void onSettings() { showSettingsPanel(); }
+                    @Override public void onSettings() { /* M4-3：settings 路由化（onGo("settings")），此钩子退役。 */ }
                     @Override public void onState(String id, String kind, boolean on) {
                         markStatePagesDirty();
                     }
                     @Override public void onDrawerClosed() {
                         /* M4-2：Compose 抽屉收起动画走完 → dock/顶栏退位收回。 */
                         pushOverlaidAll(false);
+                    }
+                    @Override public void onSettingsApply(String kind, String value) {
+                        applySetting(kind, value);
+                    }
+                    @Override public void onAlbum() { launchAlbumPicker(); }
+                    @Override public void onBack() {
+                        com.netops.handbook.lens.Router.INSTANCE.back();
                     }
                 });
             /* dock 弹窗玻璃的内容源=内容树 View(PageSnap 软录,View 层退役终态)。 */
@@ -309,13 +316,13 @@ public class MainActivity extends AppCompatActivity {
         com.netops.handbook.lens.glass2.DockBus.pushGlassLevel(level);
         if (lensBar != null) lensBar.onGlassLevelChanged();
         if (appbarBar != null) appbarBar.invalidateBackdrop();
-        if (settingsPanel != null) settingsPanel.setGlassLevel(level);
     }
 
     public void applyDockStyle(boolean docked) {
         getSharedPreferences(PREFS, MODE_PRIVATE).edit()
                 .putBoolean(KEY_DOCKSTYLE_DOCKED, docked).apply();
         dockDocked = docked;
+        com.netops.handbook.ui.AppShellState.INSTANCE.setDockDocked(docked);
         com.netops.handbook.lens.glass2.DockBus.setDockedStyle(docked);
         if (lensBar != null) {
             lensBar.setDocked(docked);
@@ -323,15 +330,20 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    /** M3-2③：原生设置面板开合（M4 迁 Compose 前保留 View 版）。 */
-    private kotlin.Unit showSettingsPanel() {
-        if (settingsPanel == null) return kotlin.Unit.INSTANCE;
-        settingsPanel.setDockDocked(dockDocked);
-        settingsPanel.setGlassLevel(com.netops.handbook.lens.NativeBlocks.GLASS_LEVEL);
-        settingsPanel.show();
-        pushSettingsState();
-        pushOverlaidAll(true);
-        return kotlin.Unit.INSTANCE;
+    /** M4-3(2026-11-16)：设置页 Compose 化（SettingsPage 路由化），View 面板退役。
+     *  设置四项真源落地（原 NativeSettingsPanel setter lambda 逻辑抽取）。 */
+    public void applySetting(String kind, String value) {
+        android.util.Log.i("NativeSettings", "apply " + kind + " = " + value);
+        if ("wallpaper".equals(kind)) {
+            com.netops.handbook.lens.WallpaperPrefs.setSelect(this, value);
+        } else if ("theme".equals(kind)) {
+            applyThemeMode(value);
+        } else if ("glasslevel".equals(kind)) {
+            applyGlassLevel(value);
+        } else if ("dockstyle".equals(kind)) {
+            applyDockStyle("regular".equals(value));
+        }
+        /* JS 双写链随 WebView 摘除退役（M1d 后原生为唯一源）。 */
     }
 
     /** 覆盖层开合单点（2026-11-15）：dock 弹窗退位 + 顶栏整窗退位 + 壳层镜像。
@@ -387,12 +399,8 @@ public class MainActivity extends AppCompatActivity {
             final String arg = st.arg;
             final String keep;
             final Runnable target;
-            /* settings=覆盖层(V 设置面板,页面保持不动)——不走页面互斥。
-               (Compose MePage 外观与壁纸入口经此打开;漏接曾回落 learn。) */
-            if ("settings".equals(route)) {
-                showSettingsPanel();
-                return kotlin.Unit.INSTANCE;
-            }
+            /* M4-3：settings 路由化（SettingsPage，PagesOverlay when 分支）——
+               原 V 面板覆盖层特例退役。 */
             switch (route) {
                 /* M3 终局 + View 层退役：全部路由落 Compose 页（AppShellState.pageRoute）。
                    ❗pagesGo 键 = PagesOverlay when 分支键（learn，非 JS keep 的 home）；
@@ -409,6 +417,7 @@ public class MainActivity extends AppCompatActivity {
                 case "me":     keep = "me";    target = () -> pagesGo("me", ""); break;
                 case "fav":    keep = "fav";   target = () -> pagesGo("fav", ""); break;
                 case "search": keep = "search"; target = () -> pagesGo("search", ""); break;
+                case "settings": keep = "settings"; target = () -> pagesGo("settings", ""); break;
                 case "phase": {
                     keep = "phase";
                     final String pid = (arg == null || arg.isEmpty()) ? "p-1" : arg;
@@ -486,7 +495,6 @@ public class MainActivity extends AppCompatActivity {
         /* 设置面板是模态覆盖层：任何页面切换都收起。面板开着时顶栏（独立弹窗）仍可点，
            点搜索/主题键会切页——新页被压在面板底下、面板不退 = 「卡住」（2026-11-09 用户报）。
            hide() 幂等（非 VISIBLE 直接 return），面板没开时零开销。 */
-        if (settingsPanel != null) settingsPanel.hide();
         /* M4-2：抽屉 Compose 化——切页时路由 effect 自收（DrawerOverlay.routeSeen）。 */
         if (com.netops.handbook.ui.AppShellState.INSTANCE.getDrawerOpen()) {
             com.netops.handbook.ui.AppShellState.INSTANCE.setDrawerOpen(false);
@@ -634,11 +642,7 @@ public class MainActivity extends AppCompatActivity {
 
     /** 设置面板状态刷新（M1d：原生直读 SP——原 JS NetOpsNativePushSettings 环随
      *  WebView 摘除退役；theme/wallpaper 真源 = PREFS.theme + WallpaperPrefs）。 */
-    private void pushSettingsState() {
-        if (settingsPanel == null) return;
-        settingsPanel.updateState(themeMode(),
-                com.netops.handbook.lens.WallpaperPrefs.INSTANCE.getSelect());
-    }
+    /* M4-3：pushSettingsState 退役（Compose SettingsPage 直读 SP/WallpaperPrefs State）。 */
 
     /** 底栏样式镜像（netops_tabbar=regular → 贴底方角；float → 悬浮胶囊）。
      *  JS 是真源（localStorage），经 setDockDocked 桥同步；面板开合时以此刷新按钮态。 */
@@ -773,9 +777,8 @@ public class MainActivity extends AppCompatActivity {
                     com.netops.handbook.lens.WallpaperPrefs.INSTANCE.apply(MainActivity.this);
                 });
                 if (nativeMe != null) runOnUiThread(() -> nativeMe.setPageData(root));
-                if (settingsPanel != null) {
+                if (false) {
                     org.json.JSONArray wps = root.optJSONArray("wallpapers");
-                    if (wps != null) runOnUiThread(() -> settingsPanel.setWallpapers(wps));
                 }
                 /* M2-4：壁纸清单喂 WallpaperPrefs（真源）——init 已上移至 apply 之前
                    （wallBitmap 解码依赖 init 的 appContext，2026-11-14）。 */
@@ -838,54 +841,8 @@ public class MainActivity extends AppCompatActivity {
             @Override public void onExport() { exportBackup(); }
             @Override public void onImport() { importBackup(); }
         });
-        nativeMe.setNav(route -> {
-            if ("settings".equals(route)) {
-                runOnUiThread(() -> {
-                    if (settingsPanel != null) {
-                        settingsPanel.setDockDocked(dockDocked);   /* 面板按钮态=当前底栏样式 */
-                        settingsPanel.setGlassLevel(com.netops.handbook.lens.NativeBlocks.GLASS_LEVEL);
-                        settingsPanel.show();
-                        pushSettingsState();
-                    }
-                });
-            } else {
-                nativeGo(route, "");
-            }
-        });
-        settingsPanel = new com.netops.handbook.lens.NativeSettingsPanel(this,
-                com.netops.handbook.lens.NativeBlocks.palette(this, resolvedDark(), false),
-                (kind, value) -> {
-                    android.util.Log.i("NativeSettings", "apply " + kind + " = " + value);
-                    /* M1c(2026-11-14)：设置四项真源收口——全部 SP 落地+原生直驱
-                       （JS 链照旧跑双写过渡，M1d 摘 WebView 后原生为唯一源）。 */
-                    if ("wallpaper".equals(kind)) {
-                        com.netops.handbook.lens.WallpaperPrefs.setSelect(this, value);
-                    } else if ("theme".equals(kind)) {
-                        applyThemeMode(value);
-                    } else if ("glasslevel".equals(kind)) {
-                        applyGlassLevel(value);
-                    } else if ("dockstyle".equals(kind)) {
-                        applyDockStyle("regular".equals(value));
-                    }
-                    if (webView == null) return;
-                    String js = "window.NetOpsNativeSet && NetOpsNativeSet("
-                            + org.json.JSONObject.quote(kind) + "," + org.json.JSONObject.quote(value) + ");";
-                    webView.post(() -> { if (webView != null) webView.evaluateJavascript(js, null); });
-                });
-        settingsPanel.setLayoutParams(new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
-        overLayer.addView(settingsPanel);     /* 覆盖层(overLayer)=ComposeView 之上 */
-        ThemeBus.register(settingsPanel);
-        /* 面板开合 → 侧栏退位（侧栏是独立弹窗，永远压在面板上） */
-        settingsPanel.setOnOpen(open -> {
-            pushOverlaidAll(open);
-            /* 面板全屏实色盖上/揭开后，栏后内容已变：等淡入/淡出动画收尾再重抓
-               顶栏的栏后霜（dock 已入独立弹窗无需重抓）。 */
-            root.postDelayed(() -> {
-                if (appbarBar != null) appbarBar.invalidateBackdrop();
-            }, 200);
-        });
-        settingsPanel.setOnAlbum(this::launchAlbumPicker);   /* 从相册选取（REQ_PICK_IMAGE 管线共用） */
+        /* M4-3(2026-11-16)：设置页 Compose 化——NativeSettingsPanel(342 行 View)
+           整段退役（类保留至 M6 物理删除；settings 路由=SettingsPage）。 */
 
         /* 原生抽屉：M4-2(2026-11-16)退役——Compose DrawerOverlay 接管
            （GlassContentHost 内 PagesOverlay 之上挂载，AppShellState.drawerOpen
@@ -1286,7 +1243,6 @@ public class MainActivity extends AppCompatActivity {
                         if (nativeSearch != null) nativeSearch.setSafeArea(t2, b2);
                         if (nativeMe != null) nativeMe.setSafeArea(t2, b2);
                         if (nativeFav != null) nativeFav.setSafeArea(t2, b2);
-                        if (settingsPanel != null) settingsPanel.setSafeArea(t2, b2);
                     });
                 }
             }
@@ -1756,11 +1712,8 @@ public class MainActivity extends AppCompatActivity {
         /** 设置面板打开时，页面层把当前状态推回来。 */
         @JavascriptInterface
         public void setSettingsState(String theme, String wallpaper) {
-            if (settingsPanel == null) return;
             try {
                 runOnUiThread(() -> {
-                    /* settingsPanel 主题不再点名（ThemeBus 注册制），只推状态。 */
-                    settingsPanel.updateState(theme, wallpaper);
                 });
             } catch (Throwable ignored) { }
         }
@@ -1930,13 +1883,12 @@ public class MainActivity extends AppCompatActivity {
 
         /** 底栏样式镜像（2026-11-09 面板「底栏样式」行回归）：JS 真源
          *  （netops_tabbar）切换时通知——贴底=方角满宽栏，悬浮=胶囊。
-         *  M1c：转发 applyDockStyle（SP 落地+原生直驱，settingsPanel.setDockDocked
+         *  M1c：转发 applyDockStyle（SP 落地+原生直驱
          *  回推由 apply 内承担）。 */
         @JavascriptInterface
         public void setDockDocked(boolean d) {
             runOnUiThread(() -> {
                 applyDockStyle(d);
-                if (settingsPanel != null) settingsPanel.setDockDocked(d);
             });
         }
 
@@ -1950,8 +1902,7 @@ public class MainActivity extends AppCompatActivity {
                 com.netops.handbook.lens.glass2.DockBus.pushGlassLevel(level);   // glass2 档位
                 if (lensBar != null) lensBar.onGlassLevelChanged();
                 if (appbarBar != null) appbarBar.invalidateBackdrop();
-                if (settingsPanel != null) settingsPanel.setGlassLevel(level);
-            });
+                    });
         }
 
         /** 2026-08-12 19:16：网页侧"双按退出确认"确认后调用 —— 真正退出应用。
@@ -2103,8 +2054,6 @@ public class MainActivity extends AppCompatActivity {
                 if (webView != null) webView.post(() -> { if (webView != null) webView.evaluateJavascript(js, null); });
                 /* 面板若开着，刷新按钮态（「从相册选取」→「更换自定义壁纸」）：
                    JS 侧 applyWallpaper 已同步写完 WP_KEY='custom'，FIFO 队列里
-                   pushSettingsState 读到的必是新值。 */
-                runOnUiThread(() -> pushSettingsState());
             });
         }
     }
@@ -2177,9 +2126,6 @@ public class MainActivity extends AppCompatActivity {
         if (lensBar != null) {
             lensBar.reflow();
             lensBar.onBackdropChanged(); // 旋转后壁纸切换，通知玻璃层重采样
-        }
-        if (settingsPanel != null) {
-            settingsPanel.build();
         }
         boolean land = newConfig.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
         if (nativePhase != null) {

@@ -26,6 +26,9 @@ fun PagesOverlay(
     onGo: (String, String) -> Unit,
     onExport: () -> Unit, onImport: () -> Unit,
     onState: (String, String, Boolean) -> Unit,
+    onSettingsApply: (String, String) -> Unit = { _, _ -> },
+    onAlbum: () -> Unit = {},
+    onBack: () -> Unit = {},
 ) {
     val route = AppShellState.pageRoute
     val arg = AppShellState.pageArg
@@ -81,6 +84,12 @@ fun PagesOverlay(
         }
         "search" -> OpsTheme(dark, direct) {
             SearchPage(data, dark) { r, a -> onGo(r, a) }
+        }
+        "settings" -> OpsTheme(dark, direct) {
+            SettingsPage(
+                data = data, dark = dark,
+                onApply = onSettingsApply, onAlbum = onAlbum, onBack = onBack,
+            )
         }
     }
 }
