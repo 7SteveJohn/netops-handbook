@@ -454,7 +454,7 @@ private fun GlassBar(
                     backdrop = pillBackdrop,
                     shape = { RoundedCornerShape((pillR / density).dp) },
                     effects = {
-                        blur(14f * density, 14f * density)   // 栏体磨砂贴脸放大:镜内文字不可读(用户定案)
+                        blur(9f * density, 9f * density)     // 药丸材质=栏体同款磨砂(清玻璃看栏体表面,不多加霜)
                         lens(
                             refractionHeight = 10f * density * liftV,
                             refractionAmount = 14f * density * liftV,
@@ -463,14 +463,7 @@ private fun GlassBar(
                         )
                     },
                     highlight = { pillHighlight.value.copy(alpha = liftV) },
-                    onDrawSurface = {
-                        drawRect(
-                            color = if (!colors.dark) Color.Black.copy(alpha = 0.1f)
-                                    else Color.White.copy(alpha = 0.1f),
-                            alpha = 1f - liftV,
-                        )
-                        drawRect(Color.Black.copy(alpha = 0.03f * liftV))
-                    },
+                    onDrawSurface = { drawRect(color = Color(colors.pillTint)) },   // 材质连续=栏体同款 tint
                 )
                 .innerShadow(
                     shape = RoundedCornerShape((pillR / density).dp),
