@@ -37,20 +37,22 @@ import java.util.Random
  */
 fun Modifier.glassSpecularBorder(
     shape: androidx.compose.ui.graphics.Shape,
-    width: Dp = 0.75.dp,
+    width: Dp = 0.8.dp,
     intensity: Float = 1.0f,
 ): Modifier = composed {
     val ops = LocalOpsColors.current
     val dark = ops.dark
     val factor = intensity.coerceIn(0f, 1.6f)
+    /* 2026-11-16 对齐 dock bar.kt 规范真源（菲涅尔四停：顶亮→中隐→底微反光；
+       浅色底部=灰 outline 线非白线），线宽规范区间 0.6~0.85dp。 */
     val brush = Brush.verticalGradient(
-        0.0f to Color.White.copy(alpha = ((if (dark) 0.28f else 0.82f) * factor).coerceIn(0f, 1f)),
-        0.35f to Color.White.copy(alpha = ((if (dark) 0.07f else 0.18f) * factor).coerceIn(0f, 1f)),
-        0.75f to Color.White.copy(alpha = 0.03f),
+        0.0f to Color.White.copy(alpha = ((if (dark) 0.36f else 0.92f) * factor).coerceIn(0f, 1f)),
+        0.32f to Color.White.copy(alpha = ((if (dark) 0.08f else 0.22f) * factor).coerceIn(0f, 1f)),
+        0.72f to Color.White.copy(alpha = 0.02f),
         1.0f to if (dark) {
-            Color.White.copy(alpha = (0.16f * factor).coerceIn(0f, 1f))
+            Color.White.copy(alpha = (0.18f * factor).coerceIn(0f, 1f))
         } else {
-            ops.border.copy(alpha = (0.42f * factor).coerceIn(0f, 1f))
+            Color(0xFFC4C6D0).copy(alpha = (0.38f * factor).coerceIn(0f, 1f))
         }
     )
     this.border(width = width, brush = brush, shape = shape)

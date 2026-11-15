@@ -132,7 +132,7 @@ object DockDraw {
                 sliderStroke = Color.argb(18, 37, 99, 235)
                 icon = Color.rgb(66, 71, 84)              // #424754(FlClash 实测)
                 text = Color.rgb(66, 71, 84)
-                barShadow = Color.argb(26, 0, 0, 0)
+                barShadow = Color.argb(20, 0, 0, 0)   // 规范 §4：浅 α≤0.08
                 active = Color.rgb(37, 99, 235)           // --accent 浅 #2563eb
                 baseWhite = Color.rgb(252, 252, 252)
                 pillTint = Color.argb(102, 244, 244, 244)   // 白 40%(Antigravity 极轻 tint)

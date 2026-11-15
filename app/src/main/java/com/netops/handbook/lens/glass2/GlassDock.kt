@@ -8,6 +8,7 @@ import android.graphics.RectF
 import android.os.Build
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
@@ -49,6 +50,10 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.drawscope.Stroke
+import com.netops.handbook.ui.glassMicroNoise
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.rememberGraphicsLayer
@@ -329,7 +334,6 @@ private fun GlassBar(
         xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.ADD)
     } }
     val shadowP = remember { DockDraw.shadowPaint(colors, density) }
-    val tintP = remember(colors) { Paint(Paint.ANTI_ALIAS_FLAG).apply { color = colors.sfTint } }
     val vibFx = remember { DockDraw.vibrancyEffect() }
     val blurBarFx = remember(density) { DockDraw.blurEffect(4f * density) }
     val blurPillFx = remember(density) { DockDraw.blurEffect(4f * density) }
@@ -357,8 +361,8 @@ private fun GlassBar(
     Box(Modifier.fillMaxSize()) {
         /* ---- 投影(栏体;prism bar 无投影?有 dropShadow——保留原样) ---- */
         Box(Modifier.fillMaxSize().drawBehind {
-            ntc { it.drawRoundRect(bar.left, bar.top, bar.right, bar.bottom, bar.height() / 2f,
-                bar.height() / 2f, shadowP) }
+            ntc { it.drawRoundRect(bar.left, bar.top + 4f * density, bar.right,
+                bar.bottom + 4f * density, bar.height() / 2f, bar.height() / 2f, shadowP) }
         })
         /* ---- 栏体玻璃 = prism LiquidGlassStyle.pill 单 pass 全光学:
              uShape.z bevel=20(库默认)、uOptics.x refraction=60(库默认,栏缘
@@ -378,20 +382,26 @@ private fun GlassBar(
              tint(定稿全量 pillTint);按压胀大 layerBlock 驱动=liftV。 ---- */
         barBackdrop.nodeL = bar.left
         barBackdrop.nodeT = bar.top
-        /* ---- 栏体玻璃 = FlClash pill 实机视觉复刻(11-16 shader 逐行破案:
-             sampleBehind 在 uHaze>0 只采 haze 纹理,且 haze capture 用
-             Paint(黑@0.72) 调制绘制=背景压暗到 28% 的黑罩——15.6σ 模糊只是
-             载体,「72% 糊+28% 清晰」是从注释误读;这就是 FlClash 栏内看不到
-             文字的原因。实机视觉=均匀深灰/白玻璃微透糊内容+字不可见。
-             层序:糊(15.6σ+lens 串后)+黑罩+tint+rim。 ---- */
+        /* ---- 栏体玻璃 = 用户五条材质规范终版(2026-11-16,dock bar.kt 参数表
+             1:1):基底(暗=黑曜石 0xFF16181D@0.56 防发白/浅=纯白@0.68 防发灰,
+             禁单色平涂下的发灰蒙版)+曲面受光三停渐变+菲涅尔四停 rim(0.85dp)
+             +微噪点 0.016。糊层(blur15.6+lens)继续作模糊载体(PageSnap 架构)。 ---- */
         val navSat = if (colors.dark) 1.925f else 2.1f
-        val scrimAlpha = if (colors.dark) 0.5f else 0.15f
-        val rimP = remember(colors) { Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
-            color = android.graphics.Color.WHITE
-            alpha = 90   // FlClash rim/hairline 0.35
-        } }
-        val scrimP = remember { Paint(Paint.ANTI_ALIAS_FLAG) }
+        val baseTint = if (colors.dark) Color(0xFF16181D).copy(alpha = 0.56f)
+                       else Color.White.copy(alpha = 0.68f)
+        val sheenBrush = Brush.verticalGradient(
+            0.0f to Color.White.copy(alpha = if (colors.dark) 0.14f else 0.42f),
+            0.45f to Color.White.copy(alpha = if (colors.dark) 0.03f else 0.10f),
+            1.0f to Color.White.copy(alpha = if (colors.dark) 0.06f else 0.22f)
+        )
+        val outlineColor = Color(0xFFC4C6D0)   // 浅色底部=灰 outline 线(v2 outlineVariant 真源,规范:非白)
+        val fresnelRim = Brush.verticalGradient(
+            0.0f to Color.White.copy(alpha = if (colors.dark) 0.36f else 0.92f),
+            0.32f to Color.White.copy(alpha = if (colors.dark) 0.08f else 0.22f),
+            0.72f to Color.White.copy(alpha = 0.02f),
+            1.0f to if (colors.dark) Color.White.copy(alpha = 0.18f)
+                    else outlineColor.copy(alpha = 0.38f)
+        )
         /* 糊层(全强度):blur 15.6σ + 栏缘折射(lens 串在 blur 后=折射采样糊后
            内容,FlClash shader 同构——折射清晰原图会把大字原样卷进栏内=乱码感) */
         Box(Modifier
@@ -409,26 +419,14 @@ private fun GlassBar(
                 onDrawSurface = { },
             )
         ) { }
-        /* 黑罩+tint+rim 层:黑罩(FlClash haze capture 的黑调制等效,深 0.5/浅
-           0.15)+sfTint(pill 预设口径)+边缘白线 */
+        /* 基底+曲面受光+微噪点+菲涅尔 rim(Compose 层叠加,规范 §1/§2/§5) */
         Box(Modifier
             .sizePx(bar.width(), bar.height())
             .offsetPx(bar.left, bar.top)
-            .drawBehind {
-                ntc { c ->
-                    val r = bar.height() / 2f
-                    scrimP.color = android.graphics.Color.BLACK
-                    scrimP.alpha = (scrimAlpha * 255).toInt()
-                    c.drawRoundRect(bar.left, bar.top, bar.right, bar.bottom, r, r, scrimP)
-                    c.drawRoundRect(bar.left, bar.top, bar.right, bar.bottom, r, r, tintP)
-                    val sw = 1f * density
-                    rimP.strokeWidth = sw
-                    c.drawRoundRect(
-                        bar.left + sw / 2f, bar.top + sw / 2f,
-                        bar.right - sw / 2f, bar.bottom - sw / 2f,
-                        r - sw / 2f, r - sw / 2f, rimP)
-                }
-            }
+            .background(baseTint)
+            .background(brush = sheenBrush)
+            .glassMicroNoise(alpha = 0.016f)
+            .border(width = 0.85.dp, brush = fresnelRim, shape = barShape)
         ) { }
 
         /* ---- 灰态图标 = prism items(outside):药丸覆盖的格由镜内重绘。
@@ -471,7 +469,26 @@ private fun GlassBar(
                     },
                     highlight = { pillHighlight.value.copy(alpha = liftV) },
                     onDrawSurface = {
-                        drawRect(Color(colors.pillAccent))   // accent 实底(暗色=玻璃镜下压暗版)
+                        /* 规范 §3：禁实心高饱和色块——低透明度主题色透镜+顶部白
+                           高光渐变(0.55/0.18)，图标文字承载实色 primary；
+                           按压(liftV)=拖动聚光提亮档(暗 0.22→0.30/浅 0.13→0.20)。 */
+                        val primary = Color(colors.active)
+                        val tintAlpha = if (colors.dark) 0.22f + 0.08f * liftV
+                                        else 0.13f + 0.07f * liftV
+                        drawRect(brush = Brush.verticalGradient(
+                            0.0f to Color.White.copy(alpha = if (colors.dark) 0.18f else 0.55f),
+                            0.5f to primary.copy(alpha = tintAlpha),
+                            1.0f to primary.copy(alpha = tintAlpha * 1.15f)
+                        ))
+                        drawRoundRect(
+                            brush = Brush.verticalGradient(
+                                0.0f to Color.White.copy(alpha = if (colors.dark) 0.35f else 0.88f),
+                                0.5f to Color.White.copy(alpha = 0.08f),
+                                1.0f to Color.White.copy(alpha = if (colors.dark) 0.16f else 0.42f)
+                            ),
+                            cornerRadius = CornerRadius(pillR, pillR),
+                            style = Stroke(width = 0.6.dp.toPx())
+                        )
                     },
                 )
                 .innerShadow(
@@ -499,7 +516,7 @@ private fun GlassBar(
                     val tabScale = 1f + 0.2f * liftV
                     DockDraw.drawTab(c, i, i, false, cellCx, cy, contentH, density,
                         colors, iconPaths, iconP, textP,
-                        magIcon = tabScale, magText = tabScale, onAccentBg = true)
+                        magIcon = tabScale, magText = tabScale)
                 }
             }
         })
