@@ -1406,22 +1406,19 @@ public class MainActivity extends AppCompatActivity {
                     com.netops.handbook.lens.glass2.DockBus.INSTANCE.getBarRect(), pad);
             return;
         }
-        /* 竖屏悬浮 */
-        float side = Math.max(24f * d, safeLeftPx);
-        float bottom = 8f * d + safeBottomPx;
-        float barW = winW - 2f * side;
-        if (winW >= 600f * d) barW = Math.min(420f * d, winW - 2f * side);
+        /* 竖屏悬浮:紧凑 KSU 几何(2026-11-15 对齐 GlassDock)——bar 包裹
+           4×64dp tab+8dp 内边距,高 64dp,底距 8dp+safeBottom;tab 行/药丸
+           在 GlassDock 内从此矩形派生(中心对齐),此矩形=唯一真源。 */
+        float barW = 4f * 64f * d + 8f * d;
         float barL = (winW - barW) / 2f;
         float barH = 64f * d;
-        float barT = winH - bottom - barH;
+        float barT = winH - 8f * d - safeBottomPx - barH;
         com.netops.handbook.lens.glass2.DockBus.setBarRect(barL, barT, barW, barH);
-        float contentW = barW - 2f * 8f * d;
-        float slot = contentW / 4f;
-        boolean tablet = winW >= 600f * d;
-        float pillW = Math.min(slot + 8f * d, (tablet ? 96f : 94f) * d);
-        float pillH = (tablet ? 52f : 48f) * d;
+        float slot = 64f * d;
+        float pillW = 56f * d;
+        float pillH = 56f * d;
         com.netops.handbook.lens.glass2.DockBus.setGeometry(
-                slot, pillW, pillH, barL + 8f * d + slot / 2f, barT + barH / 2f, winH);
+                slot, pillW, pillH, barL + 4f * d + slot / 2f, barT + barH / 2f, winH);
         /* 过渡期双写：旧 LensBarView 路线（USE_GLASS2=false 回退位）同吃原生几何。 */
         if (lensBar != null && !com.netops.handbook.lens.glass2.DockBus.USE_GLASS2) {
             lensBar.setLensBarRect(barL, barT, barW, barH);

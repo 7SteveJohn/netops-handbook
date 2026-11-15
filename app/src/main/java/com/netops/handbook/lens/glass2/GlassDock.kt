@@ -218,21 +218,23 @@ private fun GlassDock() {
         axisPitch = pitch
         axisFirst = railRectW.top + 4f * dp + pillH / 2f
     } else {
-        /* 紧凑几何(照抄 KSU FloatingBottomBar 表现手法):bar=包裹内容宽
-           (每 tab 64dp×4 + 8dp 内边距),高 64dp,水平居中,底部距 8dp;
-           药丸=一 tab 宽(56dp)×56dp 方圆,滑动指示器;图标 22dp+标签 11sp。 */
-        val tabW = 64f * density
-        axisPitch = tabW
-        val barW = DockDraw.TAB_LABELS.size * tabW + 8f * density
-        val barH = 64f * density
-        pillW = tabW - 8f * density
-        pillH = 56f * density
-        pillCy = winH - barH / 2f - 8f * density
-        axisFirst = (winW - barW) / 2f + 4f * density + tabW / 2f
+        /* 紧凑几何(照抄 KSU FloatingBottomBar 表现手法):药丸=一 tab 宽
+           56×56 方圆滑动指示器;图标 22dp+标签 11sp。
+           ❗tab 行从栏体矩形派生(11-15 终审):栏体唯一真源=computeDockGeometry
+           推送的 DockBus.barRect(含 safeBottom 锚底);旧实现 tab 行自算
+           pillCy=winH−32−8(无视 safeBottom),与推送栏体错位=四 tab+药丸
+           画到栏外(模拟器+真机同症)。tab 中心=栏体中心,64dp 格距居中。 */
         if (barRectW.width() <= 4 || barRectW.height() <= 4) {
-            barRectW.set((winW - barW) / 2f, pillCy - barH / 2f,
-                (winW - barW) / 2f + barW, pillCy + barH / 2f)
+            val barW = DockDraw.TAB_LABELS.size * 64f * density + 8f * density
+            barRectW.set((winW - barW) / 2f, winH - 64f * density - 8f * density,
+                (winW - barW) / 2f + barW, winH - 8f * density)
         }
+        axisPitch = 64f * density
+        axisFirst = barRectW.centerX() -
+            axisPitch * (DockDraw.TAB_LABELS.size - 1) / 2f
+        pillW = 56f * density
+        pillH = 56f * density
+        pillCy = barRectW.centerY()
     }
 
     model.count = DockDraw.TAB_LABELS.size
@@ -346,9 +348,10 @@ private fun GlassBar(
     val s = jellyV
     var cx = model.axisFirst + model.axisPitch * posV
     val cy = model.pillCy
-    /* 跨格表面张力展开(2026-11-14 平移):两格正中最宽 +24dp,落格阻尼收缩。
-       位置驱动(与 jelly 速度形变并存),对齐 iOS 26 水滴张力语义。 */
-    val crossProgress = max(0f, min(1f, 1f - 2f * abs(posV - round(posV))))
+    /* 跨格表面张力展开(2026-11-14 平移,11-15 修正反相):两格正中(半格位)
+       最宽 +24dp,落格(整数位)归零。旧式 1−2|x−round(x)| 在整数位=1,
+       rest 药丸恒 +24dp=80dp 胶囊(KSU 应为 56dp 方圆)。 */
+    val crossProgress = (2f * abs(posV - round(posV))).coerceIn(0f, 1f)
     val crossExt = 24f * density * crossProgress
     val pl0 = cx - (model.pillW + g + crossExt) / 2f * (1f + s)
     val pr0 = cx + (model.pillW + g + crossExt) / 2f * (1f + s)
@@ -433,14 +436,13 @@ private fun GlassBar(
                 }
             }
         })
-        /* ---- 药丸(常驻,照抄 KSU 药丸 Box):节点=药丸矩形无 pad(lens 自扩
-             录制面 refractionAmount);lens 10dp·p/14dp·p + depthEffect +
-             CA 0.5(照抄数值);highlight α×p;内影 8dp·p;
-             surface=黑10%×(1−p)+黑3%×p(暗色白10%)——rest=清玻璃微暗凸起,
-             按压=黑 tint 退场、折射渐入(KSU 同式,无托盘无 pillTint);
-             药丸 backdrop=生页面(catalog 同源,不加 blur=比栏体更透)。
-             图标按 prism 语义由镜内层重绘不折射→combinedBackdrop 免掉;
-             速度挤压已内建于节点尺寸(jellyV),layerBlock 免掉。 ---- */
+        /* ---- 药丸(常驻,§6.9 定案):材质=栏体同款磨砂链(sat+ToneLift+
+             blur14dp)——药丸里看到的是栏体磨砂成品,永不透到生背景;
+             rest=磨砂+黑10% 微暗凸起(「不是很透」);按压=黑 tint 退场+
+             lens 10dp·p/14dp·p 折射渐入+highlight/内影=「变通透」,
+             但镜内内容仍是磨砂栏体(§6.9:只能透过药丸看到 Dock Bar)。
+             节点=药丸矩形无 pad(lens 自扩录制面);图标按 prism 语义由
+             镜内层重绘不折射;速度挤压内建于节点尺寸(jellyV)。 ---- */
         if (Build.VERSION.SDK_INT >= 33) {
             pillBackdrop.nodeL = nodeL
             pillBackdrop.nodeT = nodeT
@@ -451,6 +453,17 @@ private fun GlassBar(
                     backdrop = pillBackdrop,
                     shape = { RoundedCornerShape((pillR / density).dp) },
                     effects = {
+                        if (colors.dark) {
+                            colorControls(brightness = 0f, contrast = 1f, saturation = 1.4f)
+                        } else {
+                            colorControls(brightness = 0f, contrast = 1f, saturation = 1.3f)
+                            runtimeShaderEffect(
+                                key = "ToneLiftLightPill",
+                                shaderString = TONE_LIFT_SHADER,
+                                uniformShaderName = "content",
+                            ) { }
+                        }
+                        blur(14f * density, 14f * density)   // 栏体同霜=镜内只有栏体成品
                         lens(
                             refractionHeight = 10f * density * liftV,
                             refractionAmount = 14f * density * liftV,
