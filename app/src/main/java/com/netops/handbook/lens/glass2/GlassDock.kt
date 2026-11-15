@@ -23,6 +23,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.foundation.shape.RoundedCornerShape
 import top.yukonga.miuix.kmp.blur.blur
+import top.yukonga.miuix.kmp.blur.colorControls
+import top.yukonga.miuix.kmp.blur.runtimeShaderEffect
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.drawBackdrop
@@ -221,7 +223,7 @@ private fun GlassDock() {
            尺寸真源 = JS 上报(CSS 侧分档);此处只夹异常上限、兜上报未就绪。
            手机 94×48(=86+8, FlClash 口径) / 平板(winW≥600dp) 96×52(11-13 验收值)。 */
         val tablet = winW >= 600f * density
-        val maxPillW = (if (tablet) 96f else 94f) * density
+        val maxPillW = (if (tablet) 96f else 84f) * density   // 手机药丸收短(用户:Antigravity 平板参数移植手机偏长)
         val maxPillH = (if (tablet) 52f else 48f) * density
         pillW = if (DockBus.pillWPx > 0) min(DockBus.pillWPx, maxPillW)
                 else min(axisPitch + 8f * density, maxPillW)
@@ -399,10 +401,7 @@ private fun GlassBar(
                 backdrop = barBackdrop,
                 shape = { RectangleShape },
                 effects = {
-                    padding = maxOf(padding, 40f * density)
-                    vibrancy()
-                    blur(4f * density, 4f * density)
-                    lens(refractionHeight = 24f * density, refractionAmount = 24f * density)
+                    PageSnap.version   // 快照更新 → 本节点重绘(miuix observeReads 捕获此读)
                 },
                 highlight = { baseHighlight.value.copy(alpha = 0.75f) },
                 onDrawSurface = { drawRect(color = Color(colors.pillTint)) },
@@ -455,6 +454,7 @@ private fun GlassBar(
                     backdrop = pillBackdrop,
                     shape = { RoundedCornerShape((pillR / density).dp) },
                     effects = {
+                        blur(14f * density, 14f * density)   // 栏体磨砂贴脸放大:镜内文字不可读(用户定案)
                         lens(
                             refractionHeight = 10f * density * liftV,
                             refractionAmount = 14f * density * liftV,

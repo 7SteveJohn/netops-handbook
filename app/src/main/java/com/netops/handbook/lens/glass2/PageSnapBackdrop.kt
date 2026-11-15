@@ -38,6 +38,7 @@ internal class PageSnapBackdrop(
         layerBlock: (GraphicsLayerScope.() -> Unit)?,
         downscaleFactor: Int,
     ) {
+        android.util.Log.i("BarProbe", "latestNull=" + (PageSnap.latest() == null) + " nodeL=" + nodeL + " nodeT=" + nodeT + " snapL=" + PageSnap.snapL + " snapT=" + PageSnap.snapT + " scopeSize=" + size.width + "x" + size.height)
         withTransform({
             if (downscaleFactor > 1) {
                 val inv = 1f / downscaleFactor

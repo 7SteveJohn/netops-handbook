@@ -113,7 +113,7 @@ object DockDraw {
                 active = Color.rgb(10, 132, 255)          // --accent 暗 #0a84ff
                 baseWhite = Color.rgb(74, 74, 80)
                 /* prism pill dark tint: surfaceContainer.shiftTone(overCard) 近似 */
-                pillTint = Color.argb(122, 33, 31, 38)
+                pillTint = Color.argb(90, 33, 31, 38)    // 35%(Antigravity 存档 α90)
                 /* prism _Lens dark:Hct(secondary.hue, chroma, tone=4) @85%
                    ≈ secondary 混黑 92%(tone4 近黑蓝) */
                 tray = blend(active, Color.BLACK, 0.92f)
@@ -130,7 +130,7 @@ object DockDraw {
                 barShadow = Color.argb(26, 0, 0, 0)
                 active = Color.rgb(37, 99, 235)           // --accent 浅 #2563eb
                 baseWhite = Color.rgb(252, 252, 252)
-                pillTint = Color.argb(147, 244, 244, 244)
+                pillTint = Color.argb(102, 244, 244, 244)   // 白 40%(Antigravity 极轻 tint)
                 /* prism _Lens light:Hct(secondary.hue, chroma, tone=90) @85%
                    ≈ secondary 混白 85%(tone90 近白蓝) */
                 tray = blend(active, Color.WHITE, 0.85f)
