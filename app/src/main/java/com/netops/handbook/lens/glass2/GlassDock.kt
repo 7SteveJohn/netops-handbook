@@ -402,6 +402,18 @@ private fun GlassBar(
                 shape = { RectangleShape },
                 effects = {
                     PageSnap.version   // 快照更新 → 本节点重绘(miuix observeReads 捕获此读)
+                    if (colors.dark) {
+                        colorControls(brightness = 0f, contrast = 1f, saturation = 1.4f)
+                    } else {
+                        colorControls(brightness = 0f, contrast = 1f, saturation = 1.3f)
+                        runtimeShaderEffect(
+                            key = "ToneLiftLight",
+                            shaderString = TONE_LIFT_SHADER,
+                            uniformShaderName = "content",
+                        ) { }
+                    }
+                    blur(14f * density, 14f * density)   // Dock Bar=磨砂:文字不可读
+                    lens(refractionHeight = 24f * density, refractionAmount = 24f * density)
                 },
                 highlight = { baseHighlight.value.copy(alpha = 0.75f) },
                 onDrawSurface = { drawRect(color = Color(colors.pillTint)) },
@@ -454,7 +466,7 @@ private fun GlassBar(
                     backdrop = pillBackdrop,
                     shape = { RoundedCornerShape((pillR / density).dp) },
                     effects = {
-                        blur(9f * density, 9f * density)     // 药丸材质=栏体同款磨砂(清玻璃看栏体表面,不多加霜)
+                        blur(14f * density, 14f * density)   // 与栏体同霜:透过清玻璃=栏体磨砂表面
                         lens(
                             refractionHeight = 10f * density * liftV,
                             refractionAmount = 14f * density * liftV,
