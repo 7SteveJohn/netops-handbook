@@ -97,8 +97,13 @@ object DockDraw {
         var baseWhite = 0; private set   // 药丸白底(dark 74,74,80 / light 252,252,252)
         var tray = 0; private set
         var pillTint = 0; private set   // prism pill tint(0x93F4F4F4 / dark @48%)
+        var onAccent = 0; private set   // accent 实底药丸上的镜内图标/文字色(FlClash 口径)
+        var pillAccent = 0; private set // 药丸 accent 实底(暗色=透过玻璃压暗版,FlClash 药丸在玻璃镜下)
 
         init {
+            onAccent = Color.WHITE
+            pillAccent = if (dark) blend(Color.rgb(10, 132, 255), Color.BLACK, 0.55f)
+                         else Color.rgb(37, 99, 235)
             if (dark) {
                 railFill = Color.argb(204, 24, 24, 26)
                 barFill = Color.argb(255, 28, 28, 30)
@@ -245,10 +250,10 @@ object DockDraw {
         c: Canvas, i: Int, activeIdx: Int, forceOff: Boolean,
         cellCx: Float, pillCy: Float, contentH: Float, density: Float,
         colors: Colors, iconPaths: Array<Array<Path>>, iconP: Paint, textP: Paint,
-        magIcon: Float = 1f, magText: Float = 1f,
+        magIcon: Float = 1f, magText: Float = 1f, onAccentBg: Boolean = false,
     ) {
         val on = !forceOff && i == activeIdx
-        val color = if (on) colors.active else colors.icon
+        val color = if (on) (if (onAccentBg) colors.onAccent else colors.active) else colors.icon
         val subs = iconPaths[i]
         val iconTop = pillCy - contentH / 2f
         c.save()

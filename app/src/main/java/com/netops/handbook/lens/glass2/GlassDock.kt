@@ -370,7 +370,6 @@ private fun GlassBar(
              快照适配(bar/药丸各一份实例,origin 组合期写入)。 ---- */
         val barBackdrop = remember { PageSnapBackdrop { winSize } }
         val pillBackdrop = remember { PageSnapBackdrop { winSize } }
-        val baseHighlight = rememberGravityRotatedHighlight(iosIndicatorSpecular, extraDegrees = -45f)
         val pillHighlight = rememberGravityRotatedHighlight(iosIndicatorSpecular, extraDegrees = 90f)
 
         /* ---- 栏体玻璃(照抄 bar Row):节点=栏矩形;effects=padding 40dp 采样
@@ -379,21 +378,57 @@ private fun GlassBar(
              tint(定稿全量 pillTint);按压胀大 layerBlock 驱动=liftV。 ---- */
         barBackdrop.nodeL = bar.left
         barBackdrop.nodeT = bar.top
+        /* ---- 栏体玻璃 = FlClash pill 实机视觉复刻(11-16 shader 逐行破案:
+             sampleBehind 在 uHaze>0 只采 haze 纹理,且 haze capture 用
+             Paint(黑@0.72) 调制绘制=背景压暗到 28% 的黑罩——15.6σ 模糊只是
+             载体,「72% 糊+28% 清晰」是从注释误读;这就是 FlClash 栏内看不到
+             文字的原因。实机视觉=均匀深灰/白玻璃微透糊内容+字不可见。
+             层序:糊(15.6σ+lens 串后)+黑罩+tint+rim。 ---- */
+        val navSat = if (colors.dark) 1.925f else 2.1f
+        val scrimAlpha = if (colors.dark) 0.5f else 0.15f
+        val rimP = remember(colors) { Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            color = android.graphics.Color.WHITE
+            alpha = 90   // FlClash rim/hairline 0.35
+        } }
+        val scrimP = remember { Paint(Paint.ANTI_ALIAS_FLAG) }
+        /* 糊层(全强度):blur 15.6σ + 栏缘折射(lens 串在 blur 后=折射采样糊后
+           内容,FlClash shader 同构——折射清晰原图会把大字原样卷进栏内=乱码感) */
         Box(Modifier
             .sizePx(bar.width(), bar.height())
             .offsetPx(bar.left, bar.top)
             .drawBackdrop(
                 backdrop = barBackdrop,
-                shape = { barShape },   // Capsule(2026-11-16 修矩形:割裂轮遗留 RectangleShape,弧形边缘=lens 折射的前提)
+                shape = { barShape },
                 effects = {
                     PageSnap.version   // 快照更新 → 本节点重绘(miuix observeReads 捕获此读)
-                    colorControls(brightness = 0f, contrast = 1f, saturation = 1.5f)   // KSU Vibrancy.kt 精确口径
-                    blur(8f * density, 8f * density)   // catalog LiquidBottomTabs=blur8dp(11-15 用户「得像这样」)
+                    colorControls(brightness = 0f, contrast = 1f, saturation = navSat)
+                    blur(15.6f * density, 15.6f * density)
                     lens(refractionHeight = 24f * density, refractionAmount = 24f * density)
                 },
-                highlight = { baseHighlight.value.copy(alpha = 0.75f) },   // 玻璃光泽=KSU 栏体同款(11-16 恢复:均匀无高光=塑料/薄膜感)
-                onDrawSurface = { drawRect(color = Color(colors.pillTint)) },
+                onDrawSurface = { },
             )
+        ) { }
+        /* 黑罩+tint+rim 层:黑罩(FlClash haze capture 的黑调制等效,深 0.5/浅
+           0.15)+sfTint(pill 预设口径)+边缘白线 */
+        Box(Modifier
+            .sizePx(bar.width(), bar.height())
+            .offsetPx(bar.left, bar.top)
+            .drawBehind {
+                ntc { c ->
+                    val r = bar.height() / 2f
+                    scrimP.color = android.graphics.Color.BLACK
+                    scrimP.alpha = (scrimAlpha * 255).toInt()
+                    c.drawRoundRect(bar.left, bar.top, bar.right, bar.bottom, r, r, scrimP)
+                    c.drawRoundRect(bar.left, bar.top, bar.right, bar.bottom, r, r, tintP)
+                    val sw = 1f * density
+                    rimP.strokeWidth = sw
+                    c.drawRoundRect(
+                        bar.left + sw / 2f, bar.top + sw / 2f,
+                        bar.right - sw / 2f, bar.bottom - sw / 2f,
+                        r - sw / 2f, r - sw / 2f, rimP)
+                }
+            }
         ) { }
 
         /* ---- 灰态图标 = prism items(outside):药丸覆盖的格由镜内重绘。
@@ -430,25 +465,14 @@ private fun GlassBar(
                 .drawBackdrop(
                     backdrop = pillBackdrop,
                     shape = { RoundedCornerShape((pillR / density).dp) },
-                effects = {
-                    /* catalog LiquidBottomTabs 药丸=纯 lens(10·p,14·p,CA),无
-                       vibrancy/无 blur——rest 透出生背景,按压折射渐入。 */
-                    lens(
-                        refractionHeight = 10f * density * liftV,
-                        refractionAmount = 14f * density * liftV,
-                        depthEffect = true,
-                        chromaticAberration = 0.5f,
-                    )
-                },
-                highlight = { pillHighlight.value.copy(alpha = liftV) },
-                onDrawSurface = {
-                    /* catalog 口径(11-15 用户「得像这样」):rest=清玻璃+黑10%·(1−p)
-                       压暗指示(暗色白10%),按压 tint 退场+黑3%·p——透明度即材质,
-                       奶白 α0.85 遮盖层已废(fc74a3f 反悔,用户以 catalog 图为准) */
-                    if (colors.dark) drawRect(Color.White.copy(alpha = 0.1f * (1f - liftV)))
-                    else drawRect(Color.Black.copy(alpha = 0.1f * (1f - liftV)))
-                    drawRect(Color.Black.copy(alpha = 0.03f * liftV))
-                },
+                    effects = {
+                        /* FlClash 药丸=accent 实底胶囊(11-16 实机图):无折射无磨砂,
+                           透明度即材质的历史口径全部退役 */
+                    },
+                    highlight = { pillHighlight.value.copy(alpha = liftV) },
+                    onDrawSurface = {
+                        drawRect(Color(colors.pillAccent))   // accent 实底(暗色=玻璃镜下压暗版)
+                    },
                 )
                 .innerShadow(
                     shape = RoundedCornerShape((pillR / density).dp),
@@ -475,7 +499,7 @@ private fun GlassBar(
                     val tabScale = 1f + 0.2f * liftV
                     DockDraw.drawTab(c, i, i, false, cellCx, cy, contentH, density,
                         colors, iconPaths, iconP, textP,
-                        magIcon = tabScale, magText = tabScale)
+                        magIcon = tabScale, magText = tabScale, onAccentBg = true)
                 }
             }
         })
