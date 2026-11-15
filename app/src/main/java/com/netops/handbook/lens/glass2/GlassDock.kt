@@ -383,7 +383,6 @@ private fun GlassBar(
              快照适配(bar/药丸各一份实例,origin 组合期写入)。 ---- */
         val barBackdrop = remember { PageSnapBackdrop { winSize } }
         val pillBackdrop = remember { PageSnapBackdrop { winSize } }
-        val tabsBackdrop = rememberLayerBackdrop()
         val baseHighlight = rememberGravityRotatedHighlight(iosIndicatorSpecular, extraDegrees = -45f)
         val pillHighlight = rememberGravityRotatedHighlight(iosIndicatorSpecular, extraDegrees = 90f)
 
@@ -410,35 +409,6 @@ private fun GlassBar(
             )
         ) { }
 
-        /* ---- 隐形导出链(照抄 KernelSU 第二条 Row):栏体成品(同 bar 效果)
-             +全蓝 tab,经 layerBackdrop 进 tabsBackdrop→药丸 combined 折射。
-             alpha 0 不上屏,仅录制。 ---- */
-        if (Build.VERSION.SDK_INT >= 33) Box(Modifier
-            .alpha(0f)
-            .layerBackdrop(tabsBackdrop)
-            .sizePx(bar.width(), bar.height())
-            .offsetPx(bar.left, bar.top)
-            .drawBackdrop(
-                backdrop = barBackdrop,
-                shape = { RectangleShape },
-                effects = {
-                    padding = maxOf(padding, 40f * density)
-                    vibrancy()
-                    blur(4f * density, 4f * density)
-                    lens(refractionHeight = 24f * density, refractionAmount = 24f * density)
-                },
-                onDrawSurface = { drawRect(color = Color(colors.pillTint)) },
-            )
-            .drawBehind {
-                ntc { c ->
-                    for (i in 0 until model.count) {
-                        val cellCx = model.axisFirst + model.axisPitch * i
-                        DockDraw.drawTab(c, i, i, false, cellCx, cy, contentH, density,
-                            colors, iconPaths, iconP, textP)
-                    }
-                }
-            }
-        ) { }
         /* ---- 托盘(静止选中,prism _Lens):HCT secondary tone90/4 @85%,
              α×(1−lift);抬起后由玻璃镜接管 ---- */
         Box(Modifier.fillMaxSize().drawBehind {
@@ -482,7 +452,7 @@ private fun GlassBar(
                 .sizePx(nodeW, nodeH)
                 .offsetPx(nodeL, nodeT)
                 .drawBackdrop(
-                    backdrop = tabsBackdrop,   // 镜中只有栏体成品,不透生背景(用户定案)
+                    backdrop = pillBackdrop,
                     shape = { RoundedCornerShape((pillR / density).dp) },
                     effects = {
                         lens(
