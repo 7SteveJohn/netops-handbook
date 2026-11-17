@@ -31,7 +31,7 @@ android {
         targetSdk = 34
         /* 对外版本号固定 2.1.0（用户 2026-11-11 定：不再随交付递增）。
            versionCode 只作内部递增（保证覆盖安装可识别新旧包），不对外展示。 */
-        versionCode = 13
+        versionCode = 14
         versionName = "2.1.0"
     }
 

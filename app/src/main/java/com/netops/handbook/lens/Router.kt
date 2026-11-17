@@ -45,7 +45,10 @@ object Router {
         Meta("cli", "CLI 模拟器", "离线命令沙盒", "learn", "emerald"),
         Meta("fav", "收藏夹", "", "me", "amber"),
         Meta("search", "搜索结果", "", "learn", "teal"),
-        Meta("settings", "设置", "主题 · 壁纸 · 备份", "me", "teal")
+        Meta("settings", "设置", "主题 · 壁纸 · 备份", "me", "teal"),
+        /* 教材接入（2026-11-18）：书架/阅读两路由（PagesOverlay + MainActivity 同步接线） */
+        Meta("textbook", "运维教材全书", "12 领域 · 50 章 · 全文可搜", "learn", "amber"),
+        Meta("tbread", "教材阅读", "", "learn", "amber")
     ).associateBy { it.route }
 
     /* ---- 当前状态（Compose State：顶栏/壳层直接订阅） ---- */

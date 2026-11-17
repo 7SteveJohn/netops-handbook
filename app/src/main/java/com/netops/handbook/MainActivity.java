@@ -418,6 +418,9 @@ public class MainActivity extends AppCompatActivity {
                 case "fav":    keep = "fav";   target = () -> pagesGo("fav", ""); break;
                 case "search": keep = "search"; target = () -> pagesGo("search", ""); break;
                 case "settings": keep = "settings"; target = () -> pagesGo("settings", ""); break;
+                /* 教材接入（2026-11-18）：书架/阅读两路由，arg 透传（id 或 id@bi 深链）。 */
+                case "textbook": keep = "textbook"; target = () -> pagesGo("textbook", ""); break;
+                case "tbread":   keep = "tbread";   target = () -> pagesGo("tbread", arg == null ? "" : arg); break;
                 case "phase": {
                     keep = "phase";
                     final String pid = (arg == null || arg.isEmpty()) ? "p-1" : arg;

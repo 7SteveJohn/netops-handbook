@@ -91,6 +91,13 @@ fun PagesOverlay(
                 onApply = onSettingsApply, onAlbum = onAlbum, onBack = onBack,
             )
         }
+        /* 教材接入（2026-11-18）：书架 + 章节阅读（arg = id 或 id@bi 搜索深链） */
+        "textbook" -> OpsTheme(dark, direct) {
+            TextbookShelf { r, a -> onGo(r, a) }
+        }
+        "tbread" -> OpsTheme(dark, direct) {
+            TextbookReader(arg ?: "", { r, a -> onGo(r, a) })
+        }
     }
 }
 

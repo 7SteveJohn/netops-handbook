@@ -213,6 +213,10 @@ fun DrawerOverlay(
                 DrawerItem(colors, "学习手册", "${count(data(), "phases")} 阶段 · 89 模块") {
                     animateClose { onGo("learn", "") }
                 }
+                /* 教材接入（2026-11-18）：全书入口（页数由 gen-textbook 对账门禁锁 50）。 */
+                DrawerItem(colors, "运维教材全书", "12 领域 · 50 章 · 全文可搜") {
+                    animateClose { onGo("textbook", "") }
+                }
                 DrawerItem(colors, "我的", "进度 · 收藏 · 设置") {
                     animateClose { onGo("me", "") }
                 }

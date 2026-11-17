@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import com.netops.handbook.ui.LocalOpsColors
 import com.netops.handbook.ui.OpsCard
 import com.netops.handbook.ui.OpsColors
+import com.netops.handbook.ui.TbSearchIndex
 import com.netops.handbook.ui.PageData
 import androidx.compose.ui.draw.clip
 import org.json.JSONArray
@@ -148,6 +149,17 @@ fun SearchPage(data: () -> JSONObject?, dark: Boolean, onGo: (String, String) ->
     val toks = query.trim().lowercase().split("\\s+".toRegex()).filter { it.isNotEmpty() }
     val hl = if (dark) Color(0x5A816E3A) else Color(0x66E3B341)   // 琥珀底(旧 highlight 同系)
 
+    /* 教材全文检索（2026-11-18）：search.json 倒排索引，首次有查询词时懒加载并缓存 */
+    val ctx = LocalContext.current
+    var tbIndex by remember { mutableStateOf<TbSearchIndex?>(null) }
+    LaunchedEffect(toks.isNotEmpty()) {
+        if (toks.isNotEmpty() && tbIndex == null) tbIndex = TbSearchIndex.load(ctx)
+    }
+    val tbHits = remember(query, tbIndex) {
+        val tb = tbIndex
+        if (toks.isEmpty() || tb == null) emptyList() else tb.query(toks)
+    }
+
     val results = remember(query, index) {
         if (toks.isEmpty()) emptyList()
         else index.filter { it2 ->
@@ -197,12 +209,12 @@ fun SearchPage(data: () -> JSONObject?, dark: Boolean, onGo: (String, String) ->
             if (toks.isEmpty()) {
                 item {
                     Text(
-                        "输入关键词：模块名、命令、现象、术语都行\n多个词用空格分隔，会取交集",
+                        "输入关键词：模块名、命令、现象、术语、教材内容都行\n多个词用空格分隔，会取交集",
                         color = colors.textMute, fontSize = 12.5.sp,
                         modifier = Modifier.padding(top = 20.dp)
                     )
                 }
-            } else if (results.isEmpty()) {
+            } else if (results.isEmpty() && tbHits.isEmpty()) {
                 item {
                     Text("没有匹配的内容", color = colors.textMute, fontSize = 13.sp,
                         modifier = Modifier.padding(top = 24.dp))
@@ -229,6 +241,37 @@ fun SearchPage(data: () -> JSONObject?, dark: Boolean, onGo: (String, String) ->
                                 Text(highlighted(t.take(70), toks, hl),
                                     color = colors.textSub, fontSize = 12.sp,
                                     maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                    }
+                }
+                /* 教材全书命中段（2026-11-18）：小节粒度跳转 tbread@bi */
+                if (tbHits.isNotEmpty()) {
+                    item(key = "tb-head") {
+                        Text(
+                            "教材全书 · ${tbHits.size} 条命中",
+                            color = colors.accent, fontSize = 10.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
+                    for (h in tbHits) {
+                        item(key = "tb:" + h.chapterId + ":" + h.bi) {
+                            OpsCard(Modifier.fillMaxWidth().clickable {
+                                onGo("tbread", h.chapterId + "@" + h.bi)
+                            }) {
+                                Text("教材 · " + h.chapterTitle, color = colors.accent,
+                                    fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Spacer(Modifier.height(4.dp))
+                                Text(highlighted(h.sec.ifEmpty { h.chapterTitle }, toks, hl),
+                                    color = colors.textMain, fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold, maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis)
+                                Spacer(Modifier.height(5.dp))
+                                Text(highlighted(h.text.take(70), toks, hl),
+                                    color = colors.textSub, fontSize = 12.sp, maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis)
                             }
                         }
                     }
