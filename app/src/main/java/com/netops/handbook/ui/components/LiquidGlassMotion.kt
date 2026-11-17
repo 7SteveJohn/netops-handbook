@@ -53,7 +53,7 @@ import kotlin.math.cos
 import kotlin.math.tanh
 
 /**
- * iOS 26 / FlClash 阻尼水滴拖拽与弹性升起控制器：
+ * Liquid Glass 阻尼水滴拖拽与弹性升起控制器：
  * - 按下立即触发凸透镜水滴膨胀（pressedScale）与折射渐入（pressProgress -> 1f）；
  * - 快速点击时卡住两个到位门控（升起 >= 0.80 且滑行误差 < 3%）后再用欠阻尼流体弹簧回落，还原真实水珠表面张力震颤；
  * - 拖拽时采用连续增量更新（无 touchSlop 半格瞬移跳变），并支持水平/垂直双轴归一化速度驱动体积守恒拉伸挤压。
@@ -212,7 +212,7 @@ internal class DampedDragAnimation(
 }
 
 /**
- * 独立悬浮液态水滴按钮物理控制器（对标 iOS 26 / Kyant0 LiquidButton）：
+ * 独立悬浮液态水滴按钮物理控制器（对标 Liquid Glass / Kyant0 LiquidButton）：
  * - 指针按下立即触发 `pressProgress -> 1f` 与 `scale -> pressedScale` 凸透镜水珠鼓起；
  * - 真机快速轻点门控（<45ms）：抬手时若 `pressProgress < 0.84f`，先经 `withTimeoutOrNull(130L)` 等待或推升至
  *   `>= 0.84f` 让水珠完整鼓起显形，随后以欠阻尼流体弹簧 `spring(0.46f, 340f)` 回落至 `0f` / `1f` 产生 Q 弹震颤；

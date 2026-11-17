@@ -35,7 +35,7 @@
   }
 }
 
-/* 视图切换（iOS 26 风格：弹性过冲 + 柔和淡入） */
+/* 视图切换（Liquid Glass 风格：弹性过冲 + 柔和淡入） */
 .view.is-active {
   animation: view-spring-in var(--t-view, .5s) var(--ease-apple-spring);
 }
@@ -45,7 +45,7 @@
   100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-/* 弹入（iOS 26 风格：明显弹性过冲——快速弹出→回弹→稳定） */
+/* 弹入（Liquid Glass 风格：明显弹性过冲——快速弹出→回弹→稳定） */
 .anim-pop { animation: apple-pop .56s var(--ease-apple-spring); }
 @keyframes apple-pop {
   0%   { transform: scale(.72); opacity: 0; }
@@ -62,7 +62,7 @@
 .card.is-open .card__body { grid-template-rows: 1fr; }
 .card__body > div { overflow: hidden; min-height: 0; }
 
-/* 底部弹窗滑入（iOS 26 风格：轻微弹性过冲） */
+/* 底部弹窗滑入（Liquid Glass 风格：轻微弹性过冲） */
 .sheet {
   transition: transform .52s var(--ease-apple-smooth);
 }
@@ -252,7 +252,7 @@
               opacity .34s var(--ease-apple-smooth);
 }
 
-/* ===== TabBar 常规全宽（Apple Liquid Glass — 真正贴边长方形，无任何圆角） ===== */
+/* ===== TabBar 常规全宽（Liquid Glass — 真正贴边长方形，无任何圆角） ===== */
 /* 设计要点：贴底全宽、纯平直（无圆角）、顶部细边 + 顶部高光、28px blur、 */
 /* 上浮阴影 + 滚动时变实、选中胶囊精修、暗色完整适配。 */
 /* body 底部留白：覆盖悬浮态 tabbar (60px+12gap) + 40px 安全距离；
@@ -261,17 +261,17 @@ body{
   padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)) !important;
 }
 
-/* ===== TabBar 悬浮胶囊（Apple Liquid Glass — 真正悬浮，细节精致） ===== */
+/* ===== TabBar 悬浮胶囊（Liquid Glass — 真正悬浮，细节精致） ===== */
 /* 设计要点：左右 16px 留白、底部 10px 留白、32px 圆角胶囊、3 层柔和阴影、 */
 /* 1px 内部高光描边、滚动时变实、选中态胶囊更紧凑精致、暗色完整适配。 */
-  /* ===== TabBar 悬浮胶囊（Apple Liquid Glass — 真正"悬浮"，细节精致） ===== */
+  /* ===== TabBar 悬浮胶囊（Liquid Glass — 真正"悬浮"，细节精致） ===== */
   /* 设计要点：左右 16px 留白、底部 10px 留白、32px 圆角胶囊、3 层柔和阴影、 */
   /* 1px 内部高光描边、滚动时变实、选中态胶囊更紧凑精致、暗色完整适配。 */
   body.tabbar-float .tabbar{
     position: fixed !important;
     left: max(24px, env(safe-area-inset-left, 16px)) !important;
     right: max(24px, env(safe-area-inset-right, 16px)) !important;
-    /* iOS 26 Tab Bar：Floating 8pt above the bottom safe area inset */
+    /* Liquid Glass Tab Bar：Floating 8pt above the bottom safe area inset */
     bottom: calc(max(8px, env(safe-area-inset-bottom, 0px)) + 8px) !important;
     z-index: 90;
     display: grid !important;
@@ -280,7 +280,7 @@ body{
     padding: 8px 8px !important;
     overflow: visible;
 
-    /* iOS26 Liquid Glass：极薄玻璃 + 强模糊折射（背景仅 12% 不透明）
+    /* Liquid Glass：极薄玻璃 + 强模糊折射（背景仅 12% 不透明）
        2026-08-11 校准：blur/saturate 走 tokens（thinMaterial 级），
        避免与 ::before 双层 40px 叠加过厚 */
     background: rgba(255, 255, 255, .22) !important;
@@ -324,7 +324,7 @@ body{
      历史：2026-08-11 曾做纯变实（iOS Safari 工具栏行为），2026-10-26 移除。
      几何本就全程不变。 */
 
-/* 暗色适配（iOS 26 Liquid Glass 暗色变体） */
+/* 暗色适配（Liquid Glass 暗色变体） */
 @media (prefers-color-scheme: dark){
   body.tabbar-float .tabbar{
     background: rgba(30, 30, 35, .18) !important;
@@ -583,7 +583,7 @@ body.glass-on.is-scrolled .appbar{ box-shadow:var(--glass-shadow); }
  *   - 双层光影：specular 顶部高光 + rim 边缘光
  * ----------------------------------------------------------- */
 
-/* 1. AppBar 顶栏：iOS 26 style，滚动后变得更不透明 */
+/* 1. AppBar 顶栏：Liquid Glass style，滚动后变得更不透明 */
 .appbar{
   /* 内容层上方（功能性）的玻璃。板厚从 .78/.62 降到 .30/.20：
      用户真机反馈"顶部有一道光线很出戏"，那是下面 ::before 的 80% 白高光带叠在
@@ -629,7 +629,7 @@ html.dark .appbar::before{
   background: linear-gradient(180deg, rgba(255, 255, 255, .08) 0%, transparent 14%);
 }
 
-/* 2. TabBar 底栏：iOS 26 style，圆角浮动 + 多层阴影 */
+/* 2. TabBar 底栏：Liquid Glass style，圆角浮动 + 多层阴影 */
 .tabbar{
   position: fixed !important;
   left: 0; right: 0; bottom: 0;
@@ -752,7 +752,7 @@ html.dark .appbar::before{
   top: var(--tabbar-pad-y, 6px);
   bottom: var(--tabbar-pad-y, 6px);
   /* 2026-11-14 尺寸分档（源码级考证：FlClash _minLensWidth84/_maxItemExtent86、
-     iOS 26 pill 高 44-50pt）：手机默认 94×48（=86+8；96×52 手机实测偏大）。
+     Liquid Glass pill 高 44-50pt）：手机默认 94×48（=86+8；96×52 手机实测偏大）。
      平板 sw≥600 沿用 96×52（2026-11-13 验收值，覆盖在 05-views.css 600px 断点）。
      禁止宽屏拉大成发泡塑料。 */
   width: calc((100% - 2 * var(--tabbar-pad-x, 8px)) / 4 + 8px);

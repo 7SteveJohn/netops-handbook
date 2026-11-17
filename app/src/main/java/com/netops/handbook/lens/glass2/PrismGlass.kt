@@ -179,7 +179,7 @@ half4 main(float2 fragCoord) {
     float rise = 1.0 - clamp(inset / bevel, 0.0, 1.0);
     float2 shiftDp;
     if (lens) {
-        // iOS 27 抬起镜:沿法线向外,rim 处为 0、一个 bevel 处最深,向中部缓退
+        // Liquid Glass 抬起镜:沿法线向外,rim 处为 0、一个 bevel 处最深,向中部缓退
         shiftDp = normal * -uOptics.x
             * smoothstep(0.0, bevel, inset)
             * (1.0 - smoothstep(bevel, halfMinor, inset));
@@ -194,7 +194,7 @@ half4 main(float2 fragCoord) {
     float2 windowPx = uGlassTL + point * uDp;
     half4 base = sampleFrosted(windowPx + shift, frost);
     if (uEdge.y > 0.0 && inset < kPartReach) {
-        // iOS 27 沿法线镜像分色:两侧横向、圆角纵向,rim 处最宽向内收
+        // Liquid Glass 沿法线镜像分色:两侧横向、圆角纵向,rim 处最宽向内收
         float2 part = normal.yx * 0.5 * uEdge.y
             * (0.6 + 0.4 * abs(normal.y) * max(1.0 - inset / kPartHold, 0.0))
             * (1.0 - smoothstep(kPartHold, kPartReach, inset));
@@ -245,7 +245,7 @@ half4 main(float2 fragCoord) {
     float shine = min(uLight.x * facing * mix(band, tail, uRim.x), 1.0);
     glass += (float3(coverage) - (1.0 - uRim.z) * glass) * shine;
 
-    // iOS 27 的 rim 暗线:画在最外像素,两侧最深
+    // Liquid Glass 的 rim 暗线:画在最外像素,两侧最深
     float line = clamp((kLine - edge) / (1.0 / uDp) + 0.5, 0.0, 1.0);
     float across = abs(normal.x);
     float darken = mix(uEdge.x, uRim.w, across * across * across);

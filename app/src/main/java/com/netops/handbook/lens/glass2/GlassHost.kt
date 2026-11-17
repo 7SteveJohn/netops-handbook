@@ -111,7 +111,7 @@ fun ComponentActivity.installGlassHost(
                     )
                 }
 
-                // 2. MagicOS 11 空间液态毛玻璃抽屉覆盖层
+                // 2. 空间毛玻璃 空间液态毛玻璃抽屉覆盖层
                 com.netops.handbook.ui.pages.DrawerOverlay(
                     data = { com.netops.handbook.ui.PageData.dataRoot },
                     dark = dark,
@@ -120,7 +120,7 @@ fun ComponentActivity.installGlassHost(
                     backdrop = pageBackdrop,
                 )
 
-                // 3. iOS 26 + MagicOS 11 渐进模糊顶栏与悬浮玻璃控制胶囊
+                // 3. Liquid Glass 渐进模糊顶栏与悬浮玻璃控制胶囊
                 val route = AppShellState.pageRoute
                 val hideTopBar = AppShellState.overlaid || AppShellState.drawerOpen || route == "cli"
                 if (!hideTopBar) {
@@ -144,7 +144,7 @@ fun ComponentActivity.installGlassHost(
                     )
                 }
 
-                // 4. iOS 26 / FlClash 液态玻璃导航栏（紧凑横屏且非贴底时锚定左侧居中偏下导轨）
+                // 4. Liquid Glass 液态玻璃导航栏（紧凑横屏且非贴底时锚定左侧居中偏下导轨）
                 val hideDock = AppShellState.overlaid || AppShellState.drawerOpen ||
                     route == "cli" || route == "search" || route == "settings"
                 if (!hideDock) {
@@ -225,7 +225,7 @@ private fun GlassContentHost(
                     val bottomLeftCenter = Offset(w * 0.16f, h * 0.80f)
                     val bottomLeftRadius = (maxDim * 0.66f).coerceAtLeast(8f)
 
-                    // iOS 26 空间极光环境微晕（按尺寸在 drawWithCache 零分配预构建，仅无壁纸且 ultra 档启用）
+                    // Liquid Glass 空间极光环境微晕（按尺寸在 drawWithCache 零分配预构建，仅无壁纸且 ultra 档启用）
                     val lightIceAurora = Brush.radialGradient(
                         0.00f to Color(0xFF38BDF8).copy(alpha = 0.11f),
                         0.42f to Color(0xFF2563EB).copy(alpha = 0.07f),

@@ -24,7 +24,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * 术语表 / 学习路线图页（iOS 26 + MagicOS 11 液态玻璃与横屏双列网格升级版）：
+ * 术语表 / 学习路线图页（Liquid Glass 液态玻璃与横屏双列网格升级版）：
  * - 接入 `rememberOpsPagePadding()`：自动避让横屏左侧竖排玻璃导轨、紧凑 48dp 顶栏与挖孔安全区；
  * - 逐项惰性卡片化：竖屏单列空间玻璃卡、横屏双列等分卡片网格（每行 2 卡），彻底摆脱全量同步组合；
  * - 序号与分类统计标签统一挂载 `glassBadgeSurface`。

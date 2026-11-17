@@ -60,7 +60,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.abs
 
 /**
- * 液态玻璃视觉原语体系（iOS 26 + MagicOS 11 微组件分层光学架构）：
+ * 液态玻璃视觉原语体系（Liquid Glass 微组件分层光学架构）：
  *
  * 1. 壳层大面积实时折射：仅顶栏胶囊 / 悬浮导轨 / 空间抽屉使用实时模糊采样；
  * 2. 滚动列表微组件（OpsCard / OpsChip / 按钮 / 搜索槽）：严格零离屏缓冲（无 SaveLayer /
@@ -434,7 +434,7 @@ fun Modifier.glassSpecularBorder(
 }
 
 /**
- * 卡片级液态玻璃表面（iOS 26 / MagicOS 11 空间层板，零离屏缓冲、零 `composed`、单次 `drawWithCache`）：
+ * 卡片级液态玻璃表面（Liquid Glass 空间层板，零离屏缓冲、零 `composed`、单次 `drawWithCache`）：
  * - `"none"` 档：平涂 `colors.cardBg` + `1.dp` 清爽实线边，零反光；
  * - `"standard"` 档（温润云母）：单顶边 22% 柔雾微光（浅 `White@0.26f` / 深 `White@0.045f`）+ `0.72.dp` 柔和丝光边，无底边焦散；
  * - `"ultra"` 档（璀璨水晶）：高透层板（无壁纸微透瓷晶透出底层极光微晕）+ 双弧面 Cabochon 水晶天光（34%）

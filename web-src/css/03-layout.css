@@ -226,7 +226,7 @@ body.tabbar-regular .tabbar {
 }
 
 /* 底栏液态玻璃：悬浮圆角胶囊 / 常规贴底栏。
-   2026-08-11 联网校准 iOS 26 thinMaterial（导航/tab bar）：
+   2026-08-11 联网校准 Liquid Glass thinMaterial（导航/tab bar）：
    blur 16-20px · saturate 1.4-1.65x · 低不透明度白底 · 顶部 1pt 高光 */
 /* 底栏那层玻璃现在住在 06-anim.css 的 .tabbar 自身（配方变量 --gr-tabbar-*）。
    这里旧的 body.glass-on .tabbar::before / ::after 两条规则是上一代遗留：

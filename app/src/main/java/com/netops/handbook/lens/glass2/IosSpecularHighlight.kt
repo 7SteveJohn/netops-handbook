@@ -31,7 +31,7 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /*
- * iOS 26 方向性锐利边缘镜面高光（对齐 Kyant0/AndroidLiquidGlass DefaultHighlightShaderString，Apache-2.0）：
+ * Liquid Glass 方向性锐利边缘镜面高光（对齐 Kyant0/AndroidLiquidGlass DefaultHighlightShaderString，Apache-2.0）：
  * 利用圆角矩形 SDF 法向梯度 `abs(dot(grad, normal))^falloff` 生成对角双峰刀锋镜面高光，
  * 并通过精确 SDF 环带抗锯齿裁剪适配 miuix 全矩形 HighlightDrawing 管线。
  */
@@ -192,7 +192,7 @@ private fun rememberQuantizedGravityAngle(): State<Float> {
 }
 
 /**
- * iOS 26 45° 刀锋对角镜面高光（随重力微幅偏转 ±20%，保持左上/右下主高光锚定不乱跑）。
+ * Liquid Glass 45° 刀锋对角镜面高光（随重力微幅偏转 ±20%，保持左上/右下主高光锚定不乱跑）。
  * 仅在 draw 期读取 `.value`，零重组。
  */
 @Composable

@@ -395,7 +395,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
        透明」；页面头卡能用是因为库把 shader 挂在 RenderEffect 上且每帧重录）。
        透镜的 RuntimeShader 直画在此 view 久经验证，栏体同款直画，代价=每帧
        一次小面积 shader。抓图未就绪/低版本/失败回退实色（chromeB1）。
-       交互透镜（drawGlass）不受影响，玻璃栏上再叠放大透镜=iOS 26 分层玻璃。 */
+       交互透镜（drawGlass）不受影响，玻璃栏上再叠放大透镜=Liquid Glass 分层玻璃。 */
     private NativeBackdrop backdropSource;          // 静态壁纸采样源（对齐 AndroidLiquidGlassView 官方标准源）
 
     public void setBackdropSource(NativeBackdrop src) {
@@ -934,7 +934,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
         this.jsPillW = pillWPx;
         this.jsPillH = pillHPx;
         /* 严禁在平板/宽屏下跟随格子无限拉伸膨胀成 500px 巨型色块：
-           严格对齐 FlClash 实测 84dp、iOS 26 紧凑胶囊标准（不超过 88dp）。
+           严格对齐 FlClash 实测 84dp、Liquid Glass 紧凑胶囊标准（不超过 88dp）。
            横排底栏药丸锁在紧凑水滴黄金尺寸，高不超过 48dp。 */
         if (!dockVertical) {
             float maxPillW = 100f * density;
@@ -1333,7 +1333,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
      * target = 0.20·tanh(|v|/3) − 0.15·tanh(braking/25)，v 单位"格/秒"。
      */
     private void wobble(double now) {
-        /* 流体弹性动力学（对齐 Apple Liquid Glass / FlClash 表面张力）：
+        /* 流体弹性动力学（对齐 Liquid Glass / FlClash 表面张力）：
            切页与拖拽均带有自然流体微拉伸，到达目标格时伴随水滴表面张力回弹，
            彻底消除僵硬死塑料块质感 */
         double target = 0;
@@ -2747,7 +2747,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
                 glassPaint.setAlpha(255);
                 canvas.drawRoundRect(pillRect, r, r, glassPaint);
 
-                /* 3D 菲涅尔全反射边缘暗线（iOS 26 Raised Lens / FlClash 核心特征：
+                /* 3D 菲涅尔全反射边缘暗线（Liquid Glass Raised Lens / FlClash 核心特征：
                    外圈 1.0dp 细腻暗线，在亮底栏上立起 3D 水滴凸起厚度，彻底告别平整白塑料片） */
                 Paint darkRimP = new Paint(Paint.ANTI_ALIAS_FLAG);
                 darkRimP.setStyle(Paint.Style.STROKE);
@@ -2780,7 +2780,7 @@ public class LensBarView extends View implements Choreographer.FrameCallback, Th
                         canvas.drawRoundRect(pillRect, r, r, gp);
                     }
                 }
-                /* Apple Liquid Glass 顶部 Specular 环境高光弧（-90° 顶光）+ 边缘晶莹倒角 */
+                /* Liquid Glass 顶部 Specular 环境高光弧（-90° 顶光）+ 边缘晶莹倒角 */
                 drawBloomStroke(canvas, pillRect.left, pillRect.top, pillRect.right, pillRect.bottom,
                         r, Math.max(0.75f, liftV), -90f);
                 canvas.restoreToCount(save);

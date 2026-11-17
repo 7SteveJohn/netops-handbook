@@ -253,7 +253,7 @@ private fun rememberThemeSpinState(isDark: Boolean): Pair<Float, Float> {
 }
 
 /**
- * iOS 26 导航栏 + 活体水珠透镜顶栏：
+ * Liquid Glass 导航栏 + 活体水珠透镜顶栏：
  * 1. 底层背景保持 ProgressiveBlur (start=0.66, end=1.0, 20dp) 渐进高斯散射 + 四停渐隐遮罩防叠字；
  * 2. 左侧悬浮圆球（40dp / 紧凑横屏 36dp）采用高透水晶凸透镜 + `LiquidOrbController`
  *    （快速轻点 >=0.84f 冲顶膨胀 1.32x、tanh 阻尼牵引、atan2 体积守恒拉伸、0.46f 欠阻尼震颤回弹、
@@ -671,7 +671,7 @@ private fun ThemeMorphCanvas(
 }
 
 /**
- * iOS 26 双档单球按钮（极致 = 活体清透水珠透镜 1.32x；标准 = 温润云母磨砂微弹球 1.15x）：
+ * Liquid Glass 双档单球按钮（极致 = 活体清透水珠透镜 1.32x；标准 = 温润云母磨砂微弹球 1.15x）：
  * - 极致档 (`ultraNow == true`)：`blur(3dp -> 0.5dp)` + `contrast = 1.08f, saturation = 1.76f` + 强凸镜 `lens(11..18dp, 20..34dp)` + `1.32x` 水珠鼓起；
  * - 标准档 (`ultraNow == false`)：`blur(13dp)` + 云母柔雾底色 + 温和 `lens(4dp, 6dp, depthEffect = false, CA = 0f)` + `1.15x` 柔雾微弹。
  */

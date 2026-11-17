@@ -195,10 +195,10 @@ private class PillMicaSheenBrushCache {
 }
 
 /**
- * iOS 26 / FlClash 同源双档分级悬浮液态玻璃导航栏（LiquidBottomTabs 光学架构 + 紧凑横屏侧边导轨）：
+ * Liquid Glass 同源双档分级悬浮液态玻璃导航栏（LiquidBottomTabs 光学架构 + 紧凑横屏侧边导轨）：
  * - 「极致 (`ultra`)」：7.2dp 冕牌水晶散射 + 高对比增艳（1.08 / 1.78）+ 26/34dp 弧面色散厚折光 + 刀锋高光，
  *   按压/滑行时离屏磨砂消融 94% 化为纯净清澈水滴（1.37x 跨栏界膨胀 + 8..17/14..28dp 棱镜色散凸透镜）；
- * - 「标准 (`standard`)」：对标 iOS 26.1 Frosted 模式的 16.5dp 温润云母重磨砂 + 8/9dp 温和微倒角零色散 +
+ * - 「标准 (`standard`)」：对标 柔雾磨砂（Frosted）模式的 16.5dp 温润云母重磨砂 + 8/9dp 温和微倒角零色散 +
  *   柔和丝光边，按压/滑行时保留 62% 云母柔雾质感与 1.17x 内敛气垫轻弹；
  * - 手机紧凑横屏且非贴底时自动切换为左侧 `VerticalLiquidGlassRail` 竖排液态玻璃导轨（宽 58dp、高约 248dp）。
  */
@@ -241,7 +241,7 @@ fun FloatingGlassDock(
 
     val accentColor = if (isDark) Color(0xFF0A84FF) else Color(0xFF007AFF)
 
-    // 「原生贴底」模式：还原 iOS 17 / iOS 18 经典平直通栏 UITabBar（横屏自动收紧至 46dp 并避让左右挖孔）
+    // 「原生贴底」模式：还原 经典通栏 经典平直通栏 UITabBar（横屏自动收紧至 46dp 并避让左右挖孔）
     if (isDocked) {
         val navBottomDocked = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
         ClassicIosDockedTabBar(
@@ -302,7 +302,7 @@ fun FloatingGlassDock(
 
         val dockHeight = 64.dp
         val totalBarHeight = dockHeight + navBottom
-        // 严格同心几何：内外间距四边统一 4.dp（R_outer - R_inner = 4.dp，栏高 64dp / 药丸 56dp 对齐 iOS 26）
+        // 严格同心几何：内外间距四边统一 4.dp（R_outer - R_inner = 4.dp，栏高 64dp / 药丸 56dp 对齐 Liquid Glass）
         val innerPadding = 4.dp
         val innerPaddingPx = with(density) { innerPadding.toPx() }
 
@@ -320,7 +320,7 @@ fun FloatingGlassDock(
         val itemWidthPx = with(density) { itemWidth.toPx() }
         val pillHeight = dockHeight - innerPadding * 2
 
-        // 橡皮筋越界微移（iOS 26 拖到两端时整栏 ±4dp 弹性跟随）
+        // 橡皮筋越界微移（Liquid Glass 拖到两端时整栏 ±4dp 弹性跟随）
         val offsetAnimation = remember { Animatable(0f) }
         val rubberBandPx = with(density) { 4.dp.toPx() }
         val panelOffset by remember(totalDockWidthPx, rubberBandPx) {
@@ -342,7 +342,7 @@ fun FloatingGlassDock(
             return ((posX - innerPaddingPx) / itemWidthPx).toInt().coerceIn(0, items.lastIndex)
         }
 
-        // iOS 26 水滴膨胀比例：悬浮态 56dp → 78dp（上下各漫出栏体边缘 7dp，触发跨栏界弯月面折射）
+        // Liquid Glass 水滴膨胀比例：悬浮态 56dp → 78dp（上下各漫出栏体边缘 7dp，触发跨栏界弯月面折射）
         val pressedScaleRatio = 78f / 56f
 
         val dampedDrag = remember(animationScope, items.size, itemWidthPx, pressedScaleRatio) {
@@ -983,7 +983,7 @@ fun FloatingGlassDock(
 }
 
 /**
- * 手机紧凑横屏专属：iOS 26 / MagicOS 11 左侧悬浮竖排液态玻璃导轨（宽 58dp，高约 248dp）：
+ * 手机紧凑横屏专属：Liquid Glass 左侧悬浮竖排液态玻璃导轨（宽 58dp，高约 248dp）：
  * 复用同源 5 层 LayerBackdrop + offscreenLayerBackdrop + 垂直 DampedDragAnimation 水滴凸透镜折射滑块。
  */
 @Composable
@@ -1825,7 +1825,7 @@ private fun ClassicIosDockedTabBar(
         navPadding.calculateEndPadding(layoutDirection),
     )
 
-    // 经典 iOS 17 / 18 UITabBar Chrome 材质底色（细腻高遮盖磨砂，无透镜畸变、无药丸）
+    // 经典 经典通栏 UITabBar Chrome 材质底色（细腻高遮盖磨砂，无透镜畸变、无药丸）
     val barSurfaceColor = when {
         !isShaderGlass && isDark -> Color(0xFF161618).copy(alpha = 0.96f)
         !isShaderGlass && !isDark -> Color(0xFFF9F9FB).copy(alpha = 0.96f)

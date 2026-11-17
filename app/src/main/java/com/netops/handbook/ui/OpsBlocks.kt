@@ -54,7 +54,7 @@ import kotlinx.coroutines.delay
 import org.json.JSONArray
 
 /**
- * 全站渲染组件库（iOS 26 + MagicOS 11 微组件液态玻璃升级版）：
+ * 全站渲染组件库（Liquid Glass 微组件液态玻璃升级版）：
  * 全部列表子项原语均走单遍 `drawWithCache` 零离屏缓冲路径，严控 25,000+ 块滚动帧率。
  */
 
