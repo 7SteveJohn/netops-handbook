@@ -88,3 +88,6 @@ dist/
 # 隔离实验工作区（KernelSU 同帧管线原型，独立 git 仓，不入主库）
 /new/
 .refs/
+
+# 教材知识库源（workflow 生成的教材全文，本地私有；公开仓库只入库 assets/textbook 生成 JSON）
+/教材知识库/
