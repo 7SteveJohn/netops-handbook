@@ -30,8 +30,8 @@ object AppShellState {
     var overlaid by mutableStateOf(false)
 
     /** 顶栏标题/副标题/返回态（Router.apply 直写）。 */
-    var title by mutableStateOf("NetOps 2.0")
-    var subtitle by mutableStateOf("网络学习辅助手册")
+    var title by mutableStateOf("脉络")
+    var subtitle by mutableStateOf("网络与运维随身手册")
     var navBack by mutableStateOf(false)
 
     /** M3-1：SimpleListPage 当前路由（"glossary"/"roadmap"/null——共用一个
@@ -53,6 +53,12 @@ object AppShellState {
      *  关闭=拖拽/scrim/back 由 Compose 端动画后置回 false）。 */
     var drawerOpen by mutableStateOf(false)
 
+    /** 底栏贴底样式（true=贴底常规，false=悬浮胶囊）。 */
+    var dockDocked by mutableStateOf(false)
+
+    /** 液态玻璃档位（"none" / "standard" / "ultra"）。 */
+    var glassLevel by mutableStateOf("ultra")
+
     fun pagesGo(route: String, arg: String?) {
         val prev = pageRoute
         pageRoute = route
@@ -62,6 +68,12 @@ object AppShellState {
             "dict" -> 2
             "me" -> 3
             else -> 0
+        }
+        val meta = com.netops.handbook.lens.Router.META[route]
+        if (meta != null) {
+            title = meta.title
+            subtitle = meta.sub
+            navBack = meta.tab != meta.route
         }
         /* dock 联动单点(2026-11-15)：cli=全屏终端(输入行在 dock 弹窗带内)与
            search=全屏覆盖——两路由 dock 退位，离开时回归。覆盖层(抽屉/设置)

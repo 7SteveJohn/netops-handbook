@@ -31,7 +31,7 @@ android {
         targetSdk = 34
         /* 对外版本号固定 2.1.0（用户 2026-11-11 定：不再随交付递增）。
            versionCode 只作内部递增（保证覆盖安装可识别新旧包），不对外展示。 */
-        versionCode = 14
+        versionCode = 16
         versionName = "2.1.0"
     }
 
@@ -86,6 +86,7 @@ dependencies {
     implementation(libs.compose.foundation)
     implementation(libs.compose.material3)
     implementation(libs.activity.compose)
+    implementation(libs.haze)
     /* P0 探针(2026-11-12)不引库:backdrop 2.x 全系要求 compileSdk 37(项目 36,
        升级要连动 AGP)。库的核心 = Compose 1.9 GraphicsLayer + RenderEffect,
        探针直接用平台 API 手写同构链,判活后按需再议引库或自持实现。 */

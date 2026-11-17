@@ -9,7 +9,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="referrer" content="no-referrer">
-<title>NetOps 2.0 · 网络学习辅助手册</title>
+<title>脉络 · NetCraft — 网络与运维随身手册</title>
 <script>
 (function() {
   /* Android 降级判定 v3（2026-09-22）：仍然「是 Android 就降」，但降的代价变小了。
@@ -50,8 +50,8 @@
         <svg class="icon" aria-hidden="true"><use href="#i-menu" id="navUse"/></svg>
       </button>
       <div class="appbar__title">
-        <div class="appbar__name ellipsis" id="barName">NetOps 2.0</div>
-        <div class="appbar__sub ellipsis" id="barSub">网络学习辅助手册</div>
+        <div class="appbar__name ellipsis" id="barName">脉络 · NetCraft</div>
+        <div class="appbar__sub ellipsis" id="barSub">网络与运维随身手册</div>
       </div>
       <div class="grow"></div>
       <button class="ibtn" id="btnSearch" type="button" aria-label="搜索">
@@ -110,8 +110,8 @@
     <div class="row gap-3">
       <svg class="icon icon--lg" style="color:var(--accent)" aria-hidden="true"><use href="#i-network"/></svg>
       <div class="grow">
-        <div style="font-size:15px;font-weight:800">技能目录</div>
-        <div class="t-xs t-mute" id="drawerSub">网络学习辅助手册 · 离线版</div>
+        <div style="font-size:15px;font-weight:800">脉络 · NetCraft</div>
+        <div class="t-xs t-mute" id="drawerSub">网络与运维随身手册 · 离线版</div>
       </div>
     </div>
     <div class="row gap-1" style="margin-top:12px">
@@ -1765,8 +1765,8 @@ var doneMods = A.countDone(A.MODS);
 var pct = Math.round(doneMods / A.MODS.length * 100);
 var h = '';
 h += '<div class="hero">' + GRID + '<div class="hero__glow"></div><div class="hero__inner">' +
-'<div class="hero__eyebrow">' + icon('i-zap', 'icon--xs') + 'OFFLINE READY</div>' +
-'<div class="hero__title">网络学习<br>辅助手册 2.0</div>' +
+'<div class="hero__eyebrow">' + icon('i-zap', 'icon--xs') + 'OFFLINE · NETCRAFT</div>' +
+'<div class="hero__title">脉络 · NetCraft<br>网络与运维手册</div>' +
 '<div class="hero__desc">从零基础数通到云原生架构 · 排障字典 · 面试题库<br>辅助工具，配合教材与真机实验使用<br>纯离线运行，无需任何网络连接</div>' +
 '<div class="hero__stats">' +
 stat(A.MODS.length, '知识模块') +
@@ -2028,7 +2028,7 @@ h += '<div class="list">' +
 '<svg class="icon icon--sm t-mute" aria-hidden="true"><use href="#i-chev-right"/></svg></button>' +
 '</div>';
 h += '<div class="center t-xs t-mute" style="padding:22px 0 6px;line-height:1.7">' +
-'NetOps 2.0 · 网络学习辅助手册<br>完全离线运行 · 无网络权限 · 无第三方依赖<br>' +
+'脉络 · NetCraft · 网络与运维随身手册<br>完全离线运行 · 无网络权限 · 无第三方依赖<br>' +
 '构建 ' + esc((w.__BUILD__ || '') || '本地源码（未经 build.js）') + '</div>';
 return page(h);
 };
@@ -2236,7 +2236,7 @@ var $ = U.$, $$ = U.$$, esc = U.esc, icon = U.icon;
 var view, scroll, appbar, barName, barSub, barFill, navUse, themeUse, drawer, scrim, edge, fab;
 var drawerCtl;
 var META = {
-learn:    { t: 'NetOps 2.0',  s: '网络学习辅助手册', tab: 'learn', accent: 'teal' },
+learn:    { t: '脉络 · NetCraft',  s: '网络与运维随身手册', tab: 'learn', accent: 'teal' },
 fault:    { t: '排障字典',     s: '现象 → 根因 → 命令 → 验证', tab: 'fault', accent: 'rose' },
 dict:     { t: '命令字典',     s: '华为 / Cisco / 中兴 / Linux', tab: 'dict', accent: 'blue' },
 iv:       { t: '面试题库',     s: '高频真题与 STAR 话术', tab: 'me', accent: 'amber' },
@@ -3600,7 +3600,7 @@ p.modules.forEach(function (m) { s += mdOfModule(m); });
 U.download('NetOps-' + p.short + '.md', s);
 }
 function exportAll() {
-var s = '# NetOps 2.0 · 网络学习辅助手册\n\n> 离线知识库导出 · ' + new Date().toLocaleString('zh-CN') + '\n\n';
+var s = '# 脉络 · NetCraft · 网络与运维随身手册\n\n> 离线知识库导出 · ' + new Date().toLocaleString('zh-CN') + '\n\n';
 CORE.phases.forEach(function (p) {
 s += '\n## ' + p.title + '\n\n' + p.desc + '\n\n';
 p.modules.forEach(function (m) { s += mdOfModule(m); });
@@ -4879,6 +4879,6 @@ if (document.readyState === 'loading') {
 document.addEventListener('DOMContentLoaded', init, { once: true });
 } else { init(); }
 })();
-;window.__BUILD__='20261114-1612-c2df15';</script>
+;window.__BUILD__='20261118-0417-28dd39';</script>
 </body>
 </html>

@@ -129,7 +129,10 @@ object WallpaperPrefs {
         val blur = blurDp()
         decodeExec.execute {
             val ctx = appContext ?: return@execute
-            val o = android.graphics.BitmapFactory.Options().apply { inSampleSize = 2 }
+            val o = android.graphics.BitmapFactory.Options().apply {
+                inSampleSize = 2
+                inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888
+            }
             val sharp = try {
                 if (file.startsWith("/")) {
                     java.io.FileInputStream(java.io.File(file)).use {
@@ -149,7 +152,8 @@ object WallpaperPrefs {
                software 位图无独立 surface,Compose Image 直绘安全。 */
             val soft = if (sharp.config == android.graphics.Bitmap.Config.HARDWARE)
                 sharp.copy(android.graphics.Bitmap.Config.ARGB_8888, false) else sharp
-            wallBitmap = preBlur(ctx, soft, blur)
+            /* 保留清晰高清原图供 Compose 背景与液态玻璃实时模糊/折射采样（不再缩到 320px 盒式糊成色块） */
+            wallBitmap = soft
             android.util.Log.i("WallpaperPrefs",
                 "wallBitmap ready ${soft.width}x${soft.height} cfg=${soft.config}")
         }

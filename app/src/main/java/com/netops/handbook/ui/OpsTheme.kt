@@ -32,10 +32,15 @@ data class OpsColors(
     val notePlain: Color,
     val codeBg: Color,
     val codeLabel: Color,
+    val glassLevel: String = "ultra",
 )
 
-/** 明暗×direct 四象限色板（值逐条对齐 NativeBlocks.palette）。 */
-fun opsColors(dark: Boolean, direct: Boolean): OpsColors {
+/** 明暗 × direct × 液态玻璃三档色板（值逐条对齐 NativeBlocks.palette，开启壁纸时按档位拉开透光率）。 */
+fun opsColors(
+    dark: Boolean,
+    direct: Boolean,
+    glassLevel: String = "ultra",
+): OpsColors {
     val c = if (dark) OpsColors(
         dark = true, direct = direct,
         bg = Color(0xFF0C0D10),
@@ -55,6 +60,7 @@ fun opsColors(dark: Boolean, direct: Boolean): OpsColors {
         notePlain = Color(0xFF2C2C2E),
         codeBg = Color(0xFF18181B),
         codeLabel = Color(0xFF94A3B8),
+        glassLevel = glassLevel,
     ) else OpsColors(
         dark = false, direct = direct,
         bg = Color(0xFFF2F2F7),
@@ -74,12 +80,33 @@ fun opsColors(dark: Boolean, direct: Boolean): OpsColors {
         notePlain = Color(0xFFF6F6F8),
         codeBg = Color(0xFF0F172A),
         codeLabel = Color(0xFF94A3B8),
+        glassLevel = glassLevel,
     )
-    return if (!direct) c else c.copy(
-        bg = Color.Transparent,
-        cardBg = if (dark) Color(0xD61C1C1E) else Color(0xD6FFFFFF),   // α214
-        border = if (dark) Color(0x28FFFFFF) else Color(0x24000000),   // α40/α36
-    )
+    if (!direct) return c
+    return when (glassLevel) {
+        "none" -> c.copy(
+            bg = Color.Transparent,
+            cardBg = if (dark) Color(0xF518191E) else Color(0xF7FFFFFF),   // 96%~97% 纯平省电近实底
+            chipBgOff = if (dark) Color(0xFF2C2C2E) else Color(0xFFF1F1F5),
+            border = if (dark) Color(0xFF38383E) else Color(0xFFD8D8E0),
+            textMute = if (dark) Color(0xFFA1A1AA) else Color(0xFF4B5563),
+        )
+        "standard" -> c.copy(
+            bg = Color.Transparent,
+            cardBg = if (dark) Color(0xDE18191E) else Color(0xE3FFFFFF),   // 87%~89% 温润云母半透
+            chipBgOff = if (dark) Color(0xCC282A30) else Color(0xD9F2F3F7),
+            border = if (dark) Color(0x2EFFFFFF) else Color(0x8CFFFFFF),
+            textMute = if (dark) Color(0xFFA1A1AA) else Color(0xFF4B5563),
+        )
+        else -> c.copy(
+            bg = Color.Transparent,
+            cardBg = if (dark) Color(0xA812151E) else Color(0xABFFFFFF),   // 66%~67% 冕牌水晶高透层板（正文对比度 > 7.3:1）
+            chipBgOff = if (dark) Color(0x80242836) else Color(0x8CFFFFFF),
+            border = if (dark) Color(0x47FFFFFF) else Color(0xB8FFFFFF),
+            textSub = if (dark) Color(0xFFD8D8DF) else Color(0xFF3A3A3E),
+            textMute = if (dark) Color(0xFFB4B4BE) else Color(0xFF434C59),
+        )
+    }
 }
 
 /** 页面组件读取入口（M3 起逐页替换 NativeBlocks.Palette）。 */
@@ -88,11 +115,12 @@ val LocalOpsColors = staticCompositionLocalOf { opsColors(dark = false, direct =
 /**
  * 全站主题宿主（M3-1）：所有 Compose 页入口必须包此层——LocalOpsColors 缺省值
  * 是 light/非直铺，深色页不包会把白底色板喂给组件（CliScreen 靠独立 dark 参数
- * 侥幸绕开，M3 起统一走这里）。
+ * 侥幸绕开，M3 起统一走这里）。实时订阅 `AppShellState.glassLevel`，切档当帧重组色板。
  */
 @Composable
 fun OpsTheme(dark: Boolean, direct: Boolean, content: @Composable () -> Unit) {
-    val colors = remember(dark, direct) { opsColors(dark, direct) }
+    val glassLevel = AppShellState.glassLevel
+    val colors = remember(dark, direct, glassLevel) { opsColors(dark, direct, glassLevel) }
     androidx.compose.runtime.CompositionLocalProvider(LocalOpsColors provides colors) {
         content()
     }

@@ -42,8 +42,8 @@
     var h = '';
 
     h += '<div class="hero">' + GRID + '<div class="hero__glow"></div><div class="hero__inner">' +
-      '<div class="hero__eyebrow">' + icon('i-zap', 'icon--xs') + 'OFFLINE READY</div>' +
-      '<div class="hero__title">网络学习<br>辅助手册 2.0</div>' +
+      '<div class="hero__eyebrow">' + icon('i-zap', 'icon--xs') + 'OFFLINE · NETCRAFT</div>' +
+      '<div class="hero__title">脉络 · NetCraft<br>网络与运维手册</div>' +
       '<div class="hero__desc">从零基础数通到云原生架构 · 排障字典 · 面试题库<br>辅助工具，配合教材与真机实验使用<br>纯离线运行，无需任何网络连接</div>' +
       '<div class="hero__stats">' +
         stat(A.MODS.length, '知识模块') +
@@ -335,7 +335,7 @@
     '</div>';
 
     h += '<div class="center t-xs t-mute" style="padding:22px 0 6px;line-height:1.7">' +
-      'NetOps 2.0 · 网络学习辅助手册<br>完全离线运行 · 无网络权限 · 无第三方依赖<br>' +
+      '脉络 · NetCraft · 网络与运维随身手册<br>完全离线运行 · 无网络权限 · 无第三方依赖<br>' +
       '构建 ' + esc((w.__BUILD__ || '') || '本地源码（未经 build.js）') + '</div>';
     return page(h);
   };

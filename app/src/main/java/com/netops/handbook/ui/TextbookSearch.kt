@@ -1,12 +1,14 @@
 package com.netops.handbook.ui
 
 import android.content.Context
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * 教材全文检索桥（2026-11-18，教材接入）：search.json 倒排索引
- * （gen-textbook.js 产出）的读取与查询。
+ * 教材全文检索桥（2026-11-18，教材接入 & 异步紧凑索引优化）：search.json 倒排索引
+ * （gen-textbook.js 产出）的后台单例装载与零装箱交集查询。
  *
  * 索引单元 = h2 小节（章首到首个 h2 前 = 单元 0，bi=0 顶）；词表 =
  * 拉丁词(≥2 位小写) + 中文 2-gram（与生成端 tokensOf 同规则）；查询 =
@@ -19,41 +21,67 @@ class TbSearchIndex private constructor(
     val chapters: List<Pair<String, String>>,
     /** 倒排快照（书序 = si 序）：ci 章序 / bi 跳转块 / sec 小节标题 / text 预览。 */
     private val snips: List<Snip>,
-    private val terms: JSONObject,
+    /** 紧凑原始整型倒排表（装载完毕后即释放 4.7MB JSONObject DOM 树）。 */
+    private val terms: Map<String, IntArray>,
 ) {
     class Snip(val ci: Int, val bi: Int, val sec: String, val text: String)
     class Hit(val chapterId: String, val chapterTitle: String, val bi: Int, val sec: String, val text: String)
 
-    /** 单词 → si 集；任一成分不在索引 = 该词命中失败（emptySet）。 */
-    private fun tokenSis(tok: String): Set<Int> {
+    /** 两个升序 IntArray 线性归并求交集（零 Integer 装箱）。 */
+    private fun intersectSorted(a: IntArray, b: IntArray): IntArray {
+        if (a.isEmpty() || b.isEmpty()) return EMPTY_INTS
+        val tmp = IntArray(minOf(a.size, b.size))
+        var i = 0
+        var j = 0
+        var k = 0
+        while (i < a.size && j < b.size) {
+            val va = a[i]
+            val vb = b[j]
+            when {
+                va == vb -> {
+                    tmp[k++] = va
+                    i++
+                    j++
+                }
+                va < vb -> i++
+                else -> j++
+            }
+        }
+        return if (k == tmp.size) tmp else tmp.copyOf(k)
+    }
+
+    /** 单词 → 升序 si 数组；任一成分不在索引 = 该词命中失败（EMPTY_INTS）。 */
+    private fun tokenSis(tok: String): IntArray {
         val required = if (tok.matches(LATIN)) listOf(tok)
         else tbTokenize(tok).filter { it.length >= 2 }
-        if (required.isEmpty()) return emptySet()
-        var acc: MutableSet<Int>? = null
+        if (required.isEmpty()) return EMPTY_INTS
+        var acc: IntArray? = null
         for (w in required) {
-            val arr = terms.optJSONArray(w) ?: return emptySet()
-            val s = HashSet<Int>(arr.length())
-            for (i in 0 until arr.length()) s.add(arr.optInt(i))
-            acc = if (acc == null) s else acc!!.apply { retainAll(s) }
-            if (acc!!.isEmpty()) return acc
+            val arr = terms[w] ?: return EMPTY_INTS
+            acc = if (acc == null) arr else intersectSorted(acc, arr)
+            if (acc.isEmpty()) return EMPTY_INTS
         }
-        return acc ?: emptySet()
+        return acc ?: EMPTY_INTS
     }
 
     /** 多词交集查询（SearchPage 分词口径：小写 + 空格切分），按书序取前 30。 */
     fun query(toks: List<String>): List<Hit> {
         if (toks.isEmpty()) return emptyList()
-        var acc: Set<Int>? = null
+        var acc: IntArray? = null
         for (tok in toks) {
             val s = tokenSis(tok)
-            acc = if (acc == null) s else acc!!.intersect(s)
+            acc = if (acc == null) s else intersectSorted(acc, s)
+            if (acc.isEmpty()) return emptyList()
         }
         val final = acc ?: return emptyList()
         if (final.isEmpty()) return emptyList()
-        val out = ArrayList<Hit>(30)
-        for (si in snips.indices) {
-            if (si !in final) continue
+        val limit = minOf(final.size, 30)
+        val out = ArrayList<Hit>(limit)
+        for (idx in 0 until final.size) {
+            val si = final[idx]
+            if (si !in snips.indices) continue
             val sn = snips[si]
+            if (sn.ci !in chapters.indices) continue
             val (id, title) = chapters[sn.ci]
             out.add(Hit(id, title, sn.bi, sn.sec, sn.text))
             if (out.size >= 30) break
@@ -62,9 +90,14 @@ class TbSearchIndex private constructor(
     }
 
     companion object {
+        private val EMPTY_INTS = IntArray(0)
         private val LATIN = Regex("[a-z0-9][a-z0-9._+-]*")
         private val LATIN_ANY = Regex("[a-z0-9._+-]+")
         private val CJK = Regex("[\\u4e00-\\u9fff]{2,}")
+
+        @Volatile
+        private var cached: TbSearchIndex? = null
+        private val loadLock = Any()
 
         /** 与 gen-textbook.js tokensOf 同规则：拉丁词(≥2) + 中文 2-gram。 */
         fun tbTokenize(s: String): Set<String> {
@@ -78,25 +111,66 @@ class TbSearchIndex private constructor(
             return out
         }
 
-        /** assets 读取（search.json 缺失/损坏 = null，搜索页静默降级）。 */
-        fun load(ctx: Context): TbSearchIndex? = try {
-            val root = JSONObject(ctx.assets.open("textbook/search.json")
-                .bufferedReader().use { it.readText() })
-            val chs = ArrayList<Pair<String, String>>()
-            val chArr = root.optJSONArray("ch") ?: JSONArray()
-            for (i in 0 until chArr.length()) {
-                val o = chArr.optJSONArray(i) ?: continue
-                chs.add(o.optString(0) to o.optString(1))
+        /** IO 协程懒加载进程级单例，避免 4.7MB JSON 阻塞主线程或进出搜索页重复解析。 */
+        suspend fun getOrLoad(ctx: Context): TbSearchIndex? {
+            cached?.let { return it }
+            return withContext(Dispatchers.IO) {
+                load(ctx.applicationContext)
             }
-            val snips = ArrayList<Snip>()
-            val snArr = root.optJSONArray("snips") ?: JSONArray()
-            for (i in 0 until snArr.length()) {
-                val o = snArr.optJSONArray(i) ?: continue
-                snips.add(Snip(o.optInt(0), o.optInt(1), o.optString(2), o.optString(3)))
+        }
+
+        /** assets 读取并拍平为原始 IntArray 倒排表（search.json 缺失/损坏 = null）。 */
+        fun load(ctx: Context): TbSearchIndex? {
+            cached?.let { return it }
+            synchronized(loadLock) {
+                cached?.let { return it }
+                return try {
+                    val appCtx = ctx.applicationContext ?: ctx
+                    val root = JSONObject(
+                        appCtx.assets.open("textbook/search.json")
+                            .bufferedReader(Charsets.UTF_8).use { it.readText() }
+                    )
+                    val chArr = root.optJSONArray("ch") ?: JSONArray()
+                    val chs = ArrayList<Pair<String, String>>(chArr.length())
+                    for (i in 0 until chArr.length()) {
+                        val o = chArr.optJSONArray(i) ?: continue
+                        chs.add(o.optString(0) to o.optString(1))
+                    }
+                    val snArr = root.optJSONArray("snips") ?: JSONArray()
+                    val snips = ArrayList<Snip>(snArr.length())
+                    for (i in 0 until snArr.length()) {
+                        val o = snArr.optJSONArray(i) ?: continue
+                        snips.add(Snip(o.optInt(0), o.optInt(1), o.optString(2), o.optString(3)))
+                    }
+                    val termsObj = root.optJSONObject("terms")
+                    val termMap = HashMap<String, IntArray>(
+                        if (termsObj != null) (termsObj.length() * 4 / 3) + 16 else 16
+                    )
+                    if (termsObj != null) {
+                        val keys = termsObj.keys()
+                        while (keys.hasNext()) {
+                            val k = keys.next()
+                            val arr = termsObj.optJSONArray(k) ?: continue
+                            val len = arr.length()
+                            if (len == 0) continue
+                            val ints = IntArray(len)
+                            var sorted = true
+                            var prev = Int.MIN_VALUE
+                            for (i in 0 until len) {
+                                val v = arr.optInt(i)
+                                ints[i] = v
+                                if (v < prev) sorted = false
+                                prev = v
+                            }
+                            if (!sorted) ints.sort()
+                            termMap[k] = ints
+                        }
+                    }
+                    TbSearchIndex(chs, snips, termMap).also { cached = it }
+                } catch (e: Throwable) {
+                    null
+                }
             }
-            TbSearchIndex(chs, snips, root.optJSONObject("terms") ?: JSONObject())
-        } catch (e: Throwable) {
-            null
         }
     }
 }

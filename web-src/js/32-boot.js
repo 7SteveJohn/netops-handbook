@@ -13,7 +13,7 @@
 
   /* 路由元数据 */
   var META = {
-    learn:    { t: 'NetOps 2.0',  s: '网络学习辅助手册', tab: 'learn', accent: 'teal' },
+    learn:    { t: '脉络 · NetCraft',  s: '网络与运维随身手册', tab: 'learn', accent: 'teal' },
     fault:    { t: '排障字典',     s: '现象 → 根因 → 命令 → 验证', tab: 'fault', accent: 'rose' },
     dict:     { t: '命令字典',     s: '华为 / Cisco / 中兴 / Linux', tab: 'dict', accent: 'blue' },
     iv:       { t: '面试题库',     s: '高频真题与 STAR 话术', tab: 'me', accent: 'amber' },
@@ -1829,7 +1829,7 @@
     U.download('NetOps-' + p.short + '.md', s);
   }
   function exportAll() {
-    var s = '# NetOps 2.0 · 网络学习辅助手册\n\n> 离线知识库导出 · ' + new Date().toLocaleString('zh-CN') + '\n\n';
+    var s = '# 脉络 · NetCraft · 网络与运维随身手册\n\n> 离线知识库导出 · ' + new Date().toLocaleString('zh-CN') + '\n\n';
     CORE.phases.forEach(function (p) {
       s += '\n## ' + p.title + '\n\n' + p.desc + '\n\n';
       p.modules.forEach(function (m) { s += mdOfModule(m); });

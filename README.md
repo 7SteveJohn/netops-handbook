@@ -1,33 +1,36 @@
-# NetOps 2.0 — 网络学习辅助手册
+# 脉络 · NetCraft
 
-> 从零基础数通到云原生架构，把网络知识体系装进口袋随身查。**完全离线，无需任何网络连接。**
+**离线网络工程与运维随身手册**
+
+> 从零基础数通到云原生架构，把完整的网络与系统运维知识体系装进口袋随身查。**完全离线，零权限声明，无需任何网络连接。**
 >
-> 89 个知识模块、41 个排障案例、76 条多厂商命令对照、738 条 CLI 模拟器命令、53 道面试真题 ——
+> **12 大领域 50 章（约 120 万字）运维教材全书** + 89 个知识模块、41 个排障案例、76 条多厂商命令对照、738 条 CLI 模拟器命令、53 道面试真题、199 道测验题 ——
 > 全装在一个安装包里，打开即用，不联网、不注册、不看广告。
 >
 > 先说清楚定位：它是**辅助工具**，得配着教材、网课和真机实验一起用，不是一门能独立走完的课。
 
-[![Platform](https://img.shields.io/badge/platform-Android%2024%2B-green.svg)](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.5)
+[![Platform](https://img.shields.io/badge/platform-Android%2024%2B-green.svg)](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.1.0)
 [![Offline](https://img.shields.io/badge/network-100%25%20offline-orange.svg)](#)
-[![Release](https://img.shields.io/badge/release-v2.0.5-blue.svg)](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.5)
+[![UI](https://img.shields.io/badge/UI-Jetpack%20Compose%20%C2%B7%20Liquid%20Glass-0A84FF.svg)](#)
+[![Release](https://img.shields.io/badge/release-v2.1.0-blue.svg)](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.1.0)
 
 ---
 
 ## 它是什么
 
-NetOps 2.0 是一个为零基础萌新做的 **Android 离线网络学习辅助 App**。
+**脉络 · NetCraft**（原名 NetOps Handbook）是一个为零基础学习者与一线网络/系统运维工程师打造的 **Android 原生离线网络工程与运维随身手册 App**，采用全新 **Jetpack Compose + iOS 26 液态玻璃（Liquid Glass）** 光学交互设计。
 
-所有内容——知识模块、排障案例、命令字典、面试题库、CLI 模拟器、22 张内置壁纸（横竖屏成对）——都打包在安装包里，装机即用，断网也能查。
+所有内容——**50 章 120 万字运维教材全书**、知识模块、排障案例、五平台命令字典、面试题库、CLI 模拟器、22 张内置横竖屏成对壁纸——全部离线封装在安装包内，装机即用，机房断网也能秒查。
 
 适合这些场景：
 
-- 🏗 机房割接现场，没网也能查命令
-- 📝 面试突击复习，通勤路上刷题
-- 📖 上课学网络时当随身字典，课前预习、课后查漏
-- 🎯 对着教材和实验看路线图，知道自己在学哪一块
-- 🔧 现场排障速查，秒找对应命令和思路
+- 🏗 机房割接现场，没网也能秒查多厂商命令与排障步骤
+- 📘 通勤与自习时系统精读 50 章网络与 Linux 运维讲义，断点续读
+- 📝 面试突击复习，随时翻阅 STAR 话术拆解与 199 道自测题
+- 📖 上课学网络时当随身字典，全局秒搜协议原理、命令与教材段落
+- 🔧 现场排障速查，对照「现象 → 根因 → 排查命令」快速定位故障
 
-不适合：指望只翻它就把网络学会。系统学习还得靠教材、课程和真机练习。
+不适合：指望只翻它就把网络学会。系统掌握工程能力还得靠真机实验与现场实践。
 
 ## 界面一览
 
@@ -35,75 +38,81 @@ NetOps 2.0 是一个为零基础萌新做的 **Android 离线网络学习辅助 
   <tr>
     <td align="center" width="25%">
       <img src="screenshots/01-home.jpg" width="100%" alt="首页" /><br />
-      <sub><b>首页</b> — 学习进度、四阶段路径与工具箱</sub>
+      <sub><b>首页</b> — 液态水晶底栏、学习进度与教材全书直达</sub>
     </td>
     <td align="center" width="25%">
-      <img src="screenshots/02-roadmap.jpg" width="100%" alt="学习路线图" /><br />
-      <sub><b>学习路线图</b> — 成长节奏与各阶段该达到什么水平</sub>
+      <img src="screenshots/02-textbook.jpg" width="100%" alt="运维教材全书" /><br />
+      <sub><b>运维教材全书</b> — 12 领域 50 章 · 120 万字讲义与小节快跳</sub>
     </td>
     <td align="center" width="25%">
       <img src="screenshots/03-module.jpg" width="100%" alt="知识模块" /><br />
-      <sub><b>知识模块</b> — 原理正文 + 拓扑示意 + 分步操作</sub>
+      <sub><b>知识模块</b> — 原理正文 + 拓扑示意 + 多厂商命令与实验</sub>
     </td>
     <td align="center" width="25%">
       <img src="screenshots/04-faults.jpg" width="100%" alt="排障案例" /><br />
-      <sub><b>排障案例</b> — 「现象 → 分析 → 命令」三段式</sub>
+      <sub><b>排障案例</b> — 41 个现场故障「现象 → 分析 → 命令」</sub>
     </td>
   </tr>
   <tr>
     <td align="center" width="25%">
       <img src="screenshots/05-dict.jpg" width="100%" alt="命令字典" /><br />
-      <sub><b>命令字典</b> — 华为 / Cisco / 中兴 / Linux 并排对照</sub>
+      <sub><b>命令字典</b> — 华为 / Cisco / 中兴 / Linux / Windows 对照</sub>
     </td>
     <td align="center" width="25%">
       <img src="screenshots/06-cli.jpg" width="100%" alt="CLI 模拟器" /><br />
-      <sub><b>CLI 模拟器</b> — 离线命令沙盒，673 条命令真实回显</sub>
+      <sub><b>CLI 模拟器</b> — 六平台离线沙盒，738 条命令真实回显</sub>
     </td>
     <td align="center" width="25%">
       <img src="screenshots/07-interview.jpg" width="100%" alt="面试真题" /><br />
-      <sub><b>面试真题</b> — 53 题带 STAR 拆解，可按目标岗位筛选</sub>
+      <sub><b>面试真题</b> — 53 题全量附考察点、STAR 拆解与参考话术</sub>
     </td>
     <td align="center" width="25%">
-      <img src="screenshots/08-profile.jpg" width="100%" alt="我的" /><br />
-      <sub><b>我的</b> — 总进度、分项统计、错题本与数据备份</sub>
+      <img src="screenshots/08-profile.jpg" width="100%" alt="我的与个性化" /><br />
+      <sub><b>我的</b> — 进度环、分项统计、三档液态玻璃与备份恢复</sub>
     </td>
   </tr>
 </table>
 
-## 五大功能
+## 核心板块
+
+### 📘 运维教材全书 — 12 领域 · 50 章 · 约 120 万字
+
+体系化覆盖从底层通信原理到云原生 SRE 的完整工程讲义，离线随包秒开：
+
+- **12 大技术领域、50 章深度正文**（1,003 个二级小节、25,059 个结构化内容块）：涵盖网络基础与协议、园区网与无线、路由与数据中心（OSPF/IS-IS/BGP/VXLAN/EVPN）、广域网与 VPN、安全与 QoS、虚拟化与 Kubernetes 容器网络、Linux 服务器与数据库运维（8 章）、监控与自动化运维、备份容灾与割接管理、机房综合布线、端到端排障方法论及跨厂商命令矩阵
+- **丝滑章节阅读器**：顶部 H2 小节冰晶胶囊快跳条、自适应宽表横向浏览、围栏命令块高亮、上下章无缝切换与「上次读到」断点续读
+- **全书毫秒级检索**：内置中文 2-gram + 拉丁词倒排索引，右上角全局搜索输入任意协议或命令，一键空降对应章节段落
 
 ### 📚 学习 — 89 个知识模块
 
-按阶段组织的学习路径，从 OSI 七层模型一路走到云原生 SRE：
+按四阶段组织的速查与带练卡片路径：
 
-1. **零基础入门与基础设施**（13 模块）— OSI/TCP 分层、IPv4/掩码与网关、ARP、ICMP 与 ping/tracert、TCP/UDP 与三次握手、DHCP、华为 VRP 视图与配置管理
-2. **园区网核心与高可用**（12 模块）— 静态路由与最长匹配、VLAN / Trunk / SVI、STP / RSTP 端口角色、OSPF 多区域与 LSA、BGP 属性选路、MSTP / VRRP / iStack / Eth-Trunk
-3. **广域网、安全与自动化**（17 模块）— NAT / PPPoE / MPLS L3VPN、ACL 与防火墙 Zone、IPsec、802.1X、无线 AC-AP 与 802.11r 漫游、Netmiko / Ansible / Git / GitOps
-4. **云原生与 SRE**（26 模块）— VXLAN / EVPN、IPv6、BGP unnumbered（v4 走 v6 下一跳）、SNMP 与 gNMI/YANG 流式遥测、Prometheus / Syslog、K8s CNI / Calico / NetworkPolicy / Ingress 选型 / Gateway API / CoreDNS、eBPF、混沌工程、SLI / SLO / 错误预算
+1. **零基础入门与基础设施**（18 模块）— OSI/TCP 分层、IPv4/掩码与网关、ARP、ICMP 与 ping/tracert、TCP/UDP、DHCP、DNS、NTP、抓包（tcpdump/Wireshark）、iperf3、Windows 分层排障、华为 VRP 视图与开局实验
+2. **园区网核心与高可用**（19 模块）— 静态路由与最长匹配、VLAN / Trunk / SVI、STP / RSTP / MSTP、OSPF 多区域与 LSA、IS-IS、BGP 属性选路、VRRP / iStack / M-LAG / Eth-Trunk、组播 IGMP/PIM、QoS
+3. **广域网、安全、无线与 NetDevOps**（22 模块）— NAT / PPPoE / MPLS L3VPN / SD-WAN、ACL 与防火墙 Zone、IPsec / SSL VPN / MACsec、802.1X 准入、无线 AC-AP 与 802.11r 漫游、Netmiko / Ansible / GitOps
+4. **云原生与高级前沿**（30 模块）— VXLAN / EVPN、IPv6、BGP unnumbered、SNMP / NetFlow / gNMI 流式遥测、Prometheus / Zabbix / Syslog、K8s CNI / Calico / NetworkPolicy / Gateway API / CoreDNS、eBPF、混沌工程、SLI / SLO
 
-每个模块点进去就是完整的内容页，支持收藏和进度标记。
+每个模块均含原理机制、网络拓扑、多厂商配置、分步操作路径与避坑提示，支持一键收藏与掌握进度标记。
 
 ### 🔧 排障 — 41 个真实场景
 
 典型故障的「现象 → 分析 → 命令」三段式卡片：
 
-- 链路不通怎么排查？从物理层到路由逐层定位
+- 链路不通怎么排查？从物理层光衰、双工错配到路由表逐层定位
 - 隧道 MSS 导致大包丢包？`tcp adjust-mss` 一行搞定
-- STP 风暴 / MAC 地址漂移 / OSPF 邻居起不来……每个都有对应的急救命令
+- STP 风暴 / MAC 漂移 / OSPF 卡 ExStart / M-LAG 脑裂 / Docker 网段冲突……每项均附现象判据与急救命令
 
 ### 📖 字典 — 76 条多厂商命令对照
 
-同一功能，华为 / Cisco / 中兴 / Linux 四家命令并排显示：
+同一功能，**华为 / Cisco / 中兴 / Linux / Windows** 五平台命令并排对照、支持按分类筛选与单格一键复制：
 
 ```
 示例：Trunk 放行 VLAN
   华为: port trunk allow-pass vlan 10
   Cisco: switchport trunk allowed vlan 10
   中兴: port trunk permit vlan 10
-  Linux: -
+  Linux: bridge vlan add vid 10 dev eth0
 ```
-
-还收录了高频巡检命令（BGP 邻居汇总、路由表查看、接口简要状态等）。
 
 ### 💻 CLI 终端模拟器 — 738 条命令
 
@@ -112,66 +121,77 @@ NetOps 2.0 是一个为零基础萌新做的 **Android 离线网络学习辅助 
 - **738 条命令**：华为 VRP / Cisco IOS / 中兴 / Linux / K8s / Windows 六平台
 - **智能匹配**：精确匹配 → 前缀联想 → 模糊近似建议；输入 `display` 自动列出全部 `display` 开头的命令
 - **分组帮助**：`help` 按平台/功能分组展示常用命令示例
-- **历史持久化**：命令历史存本地，上下方向键翻看，重开 App 自动恢复
-- **平台切换**：`mode hw|cs|zte|lx` 随时切换设备类型，提示符跟随变化
+- **历史持久化**：命令历史存本地，上下翻看，重开 App 自动恢复
+- **平台切换**：随时切换设备类型，终端提示符跟随变化
 
 ### 📝 面试 — 53 道真题
 
-从概念题到架构设计题，覆盖各层次：
+从基础协议辨析到大型网络架构设计题全覆盖：
 
 - 「Hybrid 接口和 Access / Trunk 的区别？」
 - 「OSPF 的 LSA 类型有哪些？Type 7 是什么？」
 - 「iptables 规则多了性能会怎样？是 O(n) 还是指数级？」
 - 「公有云里 Calico 为什么不能直接跑 BGP？」
 
-每道题带解析和 STAR 拆解（S/T/A/R 各说哪一句、落点在哪里），帮你在面试前快速过一遍关键知识点。
+全部 53 道真题均配备**考察点、STAR 拆解（S/T/A/R）与参考话术**，并支持按目标岗位（数通 / 云原生 / SRE / 安全 / 自动化）智能排序与关联卡片回看。
 
-### 👤 我的 — 进度追踪与资源
+### 👤 我的与个性化外观
 
-- **总进度圆环**：已掌握 / 总项数百分比
-- **分项统计**：知识模块、排障案例、面试真题各自完成度
-- **收藏夹**：把常看的模块或命令一键收藏
-- **模拟测验**：199 道选择题，随机抽 10 题、答完判分、记历史最佳与连击
-- **错题本**：答错的题自动留下，每题带「回看这张卡」锚点，一键跳回对应模块并展开；再练时做对一次即自动移出错题本（本地持久化，重启不丢）
-- **资源入口**：速查表（14 张高频对照表）、术语词典（48 条）、学习路线图
-- **内置壁纸**：14 张精选壁纸（二次元 / 芙宁娜 / 今汐 / 卡提希娅 / 雷电将军 / 纳西妲 / 守岸人），或从相册自选，壁纸模式下内容层半透明
-- **个性化质感**：液态玻璃（通透度 10-95% 可调）/ 标准毛玻璃 / 高斯模糊三种全局质感
-- **数据备份**：进度 / 收藏 / 测验成绩一键导出 JSON，换机可导入恢复
+- **总进度圆环与四格统计**：实时追踪知识模块、排障案例、面试真题掌握度
+- **模拟测验（199 题）与错题本闭环**：随机抽题判分、记录连击；错题自动归集并带锚点一键跳回原知识卡，重练答对自动移出
+- **随身工具箱**：速查表（14 张高频对照表）、术语词典（58 条）、子网/掩码计算与学习路线图
+- **三档液态玻璃（Liquid Glass）**：
+  - **极致**：iOS 26 通透冕牌水晶 + 活体凸透镜水滴折射、彩虹色散与无壁纸空间极光微晕
+  - **标准**：温润云母柔雾磨砂 + 内敛气垫微弹，适合长时间专注阅读且功耗均衡
+  - **无**：纯平实底极简模式，零着色器开销最省电
+- **双态导航与横屏自适应**：「悬浮胶囊 / 原生贴底」一键切换；横屏自动切换为左侧竖排液态水晶导轨 + 双列宽屏卡片网格
+- **22 张自适应壁纸 + 相册自选**：内置二次元 6 套 + 简约质感 5 套（横竖屏成对随旋转自动切换），支持相册选图与 JSON 全量进度备份导出/恢复
 
 ## 使用方式
 
-1. **下载安装** → [Releases 页面](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.5) 下载 `app-release.apk`，允许「未知来源」安装即可
-2. **打开即用** → 底部四个 Tab 切换：**学习 / 排障 / 字典 / 我的**（面试题库在「我的」页内）
-3. **搜索** → 右上角 🔍 图标全局搜索任意关键词
-4. **深色模式** → 右上角 ☀️ 图标切换明暗主题
-5. **边缘滑动返回** → 屏幕左缘或右缘向内滑即返回上一层（等同返回键，页面内横向滚动不受影响）
-6. **返回导航** → Android 物理返回键逐层回退，到根页可退出
+1. **下载安装** → 前往 [Releases 页面](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.1.0) 下载正式签名包 `NetCraft-v2.1.0.apk`，直接安装即可（旧版 NetOps 用户可直接覆盖安装升级，进度与收藏完整保留）
+2. **打开即用** → 底部四个 Tab 切换：**学习 / 排障 / 字典 / 我的**；首页首屏可直接进入 **「运维教材全书」**
+3. **全局检索** → 右上角灵动水滴胶囊点 🔍 秒搜全站知识卡、命令与 120 万字教材段落
+4. **明暗切换** → 右上角双格胶囊点 ☀️ / 🌙（或横滑水珠）实时切换深浅色主题
+5. **侧滑目录** → 左上角 ☰ 呼出空间毛玻璃抽屉快速跳转任意阶段与工具
 
-> **注意**：本应用**不申请任何权限**——没有网络，没有存储，没有震动。首次安装时系统可能提示「未知的开发者」，这是正常的安全提示，选择「仍然安装」即可。
+> **隐私说明**：本应用**不申请任何系统权限**——无联网权限、无存储权限、无广告 SDK、无后台服务。首次安装时系统提示「未知来源」属正常现象，确认安装即可。
 
 ## 内容一览
 
 | 类别 | 数量 | 示例 |
 |------|------|------|
-| 知识模块 | 89 | OSI 分层、ARP/ICMP/TCP/DHCP、静态路由、VLAN/Trunk、STP/RSTP、OSPF/BGP、VXLAN/EVPN、gNMI 遥测、eBPF、GitOps… |
-| 排障案例 | 41 | 链路不通、MSS 过小丢包、STP 风暴、MAC 漂移、OSPF 邻居异常… |
-| 命令对照 | 76 | Trunk 放行、端口描述、VLAN 创建、OSPF 邻居、BGP 汇总、接口状态… |
-| 面试真题 | 53 | Hybrid vs Trunk、LSA 类型、iptables 复杂度、Calico 云端限制…（全部含 STAR 拆解） |
-| 模拟测验 | 199 题 | 按阶段抽 10 题、答完自动判分、记历史最佳与连击；新增题覆盖 ARP/TCP/DHCP/静态路由/STP/遥测/BGP unnumbered，2026-10-30 补齐 20 个零覆盖模块与 A6/I4/F2 缺口 |
-| 速查表 | 14 张 | 高频命令对照表（按场景分类） |
-| 术语词典 | 58 条 | 核心网络运维术语的定义与辨析 |
+| 运维教材全书 | 50 章（约 120 万字） | 12 大领域 · 1,003 个二级小节，从 OSI/路由交换/防火墙到 K8s/Linux 运维/SRE 全景讲义 |
+| 知识模块 | 89 | OSI 分层、ARP/ICMP/TCP/DHCP、静态路由、VLAN/Trunk、STP/RSTP、OSPF/IS-IS/BGP、VXLAN/EVPN、gNMI 遥测、eBPF、GitOps… |
+| 排障案例 | 41 | 链路不通、MSS 过小丢包、STP 风暴、MAC 漂移、OSPF 邻居异常、M-LAG 脑裂、Docker 网段冲突… |
+| 命令对照 | 76 | 华为 / Cisco / 中兴 / Linux / Windows 五平台横向对照（Trunk 放行、OSPF/BGP 巡检、接口状态等） |
+| CLI 模拟器 | 738 条命令 | 六平台离线终端沙盒，支持前缀补全、模糊建议与历史记录持久化 |
+| 面试真题 | 53 | Hybrid vs Trunk、LSA 类型、iptables 复杂度、Calico 云端限制…（100% 含考察点与 STAR 拆解） |
+| 模拟测验 | 199 题 | 按阶段抽 10 题自动判分，全量绑定知识卡锚点与错题本闭环复习 |
+| 速查表 | 14 张 | 子网掩码、常见端口、协议号、生成树、抓包过滤器、EVPN 路由类型等高频速查表 |
+| 术语词典 | 58 条 | 核心网络与云原生运维术语定义与易混概念辨析 |
 
-## 技术细节
+## 技术架构
 
-- **纯离线**：零权限声明，零外部请求，所有内容与美术资源（SVG/CSS）内联打包
-- **移动优化**：安全区域适配（刘海屏/挖孔屏）、边到边沉浸界面、输入法弹出时标签栏自动让位、左右边缘滑动返回与页面内横向滚动互不干扰、冷启动不闪白
-- **单文件 SPA**：全部前端代码打包为一个 `index.html`，通过 Android WebView 加载
-- **开源协议**：仅供学习交流 · 禁止商用（见 LICENSE）
+- **Jetpack Compose 全原生 UI + AGSL 实时光学着色器**：顶栏、悬浮胶囊/贴底双态底栏、侧边抽屉与全部 13 个功能页面均由原生 Compose 驱动；壳层采用 `LayerBackdrop` 同帧采样与凸透镜色散折射着色器，滚动列表微组件采用单遍 `drawWithCache` 零离屏缓冲架构保障 120Hz 满帧顺滑
+- **高性能离线检索引擎**：120 万字教材采用后台 IO 预热 + 原始整型数组倒排索引（检索延迟 `< 0.3ms`），章节正文采用异步流式预解析与 LRU 缓存
+- **五道自动化构建门禁**：离线零外链门禁、玻璃覆盖门禁、内容与统计一致性门禁、44 组壁纸明暗 WCAG 对比度门禁、JS-Native 桥面零死桥门禁
+- **开源协议**：仅供学习交流 · 禁止商用（见 [LICENSE](./LICENSE)）
 
 ## 更新日志
 
 > 对外版本号固定 **2.1.0**（2026-11-11 起）：`versionName` 不再随交付递增，
-> 内部 `versionCode` 只用于覆盖安装识别新旧包；`dist/` 命名统一带日期区分。
+> 内部 `versionCode` 用于覆盖安装识别新旧包。
+
+### v2.1.0 · 品牌焕新「脉络 · NetCraft」+ 120 万字教材全书 + 全 Compose 液态玻璃终版（2026-11-18，code 16）
+
+- **正式更名「脉络 · NetCraft」**：告别易造成误解的 `2.0` 后缀，桌面短名焕新为 **「脉络」**（保持 `com.netops.handbook` 包名兼容，旧版用户可直接覆盖升级不丢进度）
+- **120 万字「运维教材全书」离线随包**：新增 12 大领域、50 章、1,003 小节体系化教材，首页首屏直达卡片 + H2 冰晶胶囊快跳条 + 断点续读 + 全局倒排秒搜直达小节
+- **全站 Jetpack Compose 化与 iOS 26 液态玻璃打磨**：
+  - 底部 Dock 与横屏侧边导轨升级高折射率冕牌水晶光学（常驻边缘折光、钻石切边高光、按压磨砂动态消融化作 `1.37x` 纯水凸透镜大水滴，保留纯粹 iOS 经典无药丸「原生贴底」双态切换）
+  - 顶栏左上圆钮与右上搜索/主题双格胶囊接入活体水珠物理引擎（极速轻点冲顶膨胀门控、`tanh` 表面张力牵引、跨格滑行水珠与 `☀️ ↔ 🌙` 180° 弹性旋转）
+  - 拉开 **「无 / 标准（温润云母磨砂）/ 极致（通透冕牌水晶）」** 三档全链路透光率、模糊度与回弹张力层级（无壁纸模式下「极致」档自带空间极光微晕）
+- **手机与平板横屏全面适配**：紧凑横屏自动启用 `48dp` 顶栏 + 左侧竖排液态水晶导轨 + 双列卡片/分栏布局，适配挖孔屏安全区零遮挡
 
 ### 2.1.0 修订 · 运维教材全书接入（2026-11-18）
 
@@ -468,7 +488,7 @@ CLI 模拟器终于像样了。命令从原来 200 多条扩到 500 多条，前
 
 ## 下载
 
-📥 [**v2.0.5 Release（含 APK）**](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.0.5)
+📥 [**v2.1.0 Release（正式签名版 APK）**](https://github.com/7SteveJohn/netops-handbook/releases/tag/v2.1.0)
 
 ## 许可
 

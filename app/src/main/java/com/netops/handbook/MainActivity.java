@@ -313,6 +313,7 @@ public class MainActivity extends AppCompatActivity {
         if (!"none".equals(level) && !"standard".equals(level) && !"ultra".equals(level)) return;
         getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(KEY_GLASS, level).apply();
         com.netops.handbook.lens.NativeBlocks.GLASS_LEVEL = level;
+        com.netops.handbook.ui.AppShellState.INSTANCE.setGlassLevel(level);
         com.netops.handbook.lens.glass2.DockBus.pushGlassLevel(level);
         if (lensBar != null) lensBar.onGlassLevelChanged();
         if (appbarBar != null) appbarBar.invalidateBackdrop();
@@ -601,6 +602,7 @@ public class MainActivity extends AppCompatActivity {
     private void markStatePagesDirty() {
         if (nativeMe != null) nativeMe.invalidateData();
         if (nativeFav != null) nativeFav.invalidateData();
+        runOnUiThread(() -> com.netops.handbook.ui.PageData.INSTANCE.bumpVersion());
     }
 
     private void notifyBarsSwitchSettled() {
@@ -765,19 +767,6 @@ public class MainActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     com.netops.handbook.ui.PageData.INSTANCE.setRoot(root);
                     com.netops.handbook.ui.PageData.INSTANCE.bumpVersion();
-                    android.util.Log.i("WallDebug", "apply select=" + com.netops.handbook.lens.WallpaperPrefs.INSTANCE.getSelect()
-                            + " customFile=" + com.netops.handbook.lens.WallpaperPrefs.INSTANCE.getCustomFile());
-                    try {
-                        java.io.File spf = new java.io.File(getApplicationInfo().dataDir, "shared_prefs/netops.shell.xml");
-                        java.io.FileInputStream fis = new java.io.FileInputStream(spf);
-                        byte[] pbuf = new byte[2048]; int pn = fis.read(pbuf); fis.close();
-                        String body = new String(pbuf, 0, Math.max(0, pn));
-                        android.util.Log.i("WallDebug", "spFile=" + spf.getAbsolutePath()
-                                + " hasCustom=" + body.contains("custom") + " len=" + pn);
-                    } catch (Throwable t) {
-                        android.util.Log.i("WallDebug", "spRead fail: " + t);
-                    }
-                    com.netops.handbook.lens.WallpaperPrefs.INSTANCE.apply(MainActivity.this);
                 });
                 if (nativeMe != null) runOnUiThread(() -> nativeMe.setPageData(root));
                 if (false) {
@@ -803,141 +792,130 @@ public class MainActivity extends AppCompatActivity {
     /** M1d-3(2026-11-14)：WebView 摘除——内容壳只承载壁纸层+原生页（WebView
      *  独占路由 cli 已于 M1b 迁 Compose；状态真源已 SP 化 M2-4/M1c）。 */
     private void createContentShell(int bg) {
-        /* 2026-11-02 液态玻璃内容容器：壁纸层包进一层，整层挂
-           RenderEffect(RuntimeShader)——shader 的 uContent=本层实时内容，
-           药丸区域内折射、区域外原样（Kyant0/AndroidLiquidGlass 机制移植，
-           GPU 逐帧零回读）。挂载点见 attach 时 lensBar.attachContentContainer。 */
-        contentContainer = new FrameLayout(this);
-        contentContainer.setLayoutParams(new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
-        root.addView(contentContainer);
-        /* 首帧主题色：NetOpsShell 已向 ThemeBus 注册（onCreate 末尾
-           ThemeBus.setDark(resolvedDark()) 统一广播），此处不再点名。 */
-        /* 原生收藏夹页（N2 收尾）。 */
-        nativeFav = new com.netops.handbook.lens.NativeFavView(this);
-        ThemeBus.register(nativeFav);
-        addNativePage(nativeFav);
-        nativeFav.setNav((route, arg) -> nativeGo(route, arg));
+        /* USE_GLASS2 全 Compose 时代（2026-11-18 性能优化）：全部 16 条路由均由 Compose PagesOverlay
+           渲染，不再冷启动构建 12 套退役 Java View 页面树与全屏 switchOverlay 快照层——
+           既砍掉冷启动重复 setPageData 主线程开销，又根除切页时 overLayer 全屏 PixelCopy
+           覆盖层冻结 FloatingGlassDock 水滴回弹动画的卡顿隐患。 */
+        if (!com.netops.handbook.lens.glass2.DockBus.USE_GLASS2) {
+            contentContainer = new FrameLayout(this);
+            contentContainer.setLayoutParams(new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+            root.addView(contentContainer);
+            /* 原生收藏夹页（N2 收尾）。 */
+            nativeFav = new com.netops.handbook.lens.NativeFavView(this);
+            ThemeBus.register(nativeFav);
+            addNativePage(nativeFav);
+            nativeFav.setNav((route, arg) -> nativeGo(route, arg));
 
-        /* 原生壁纸层：给原生页的玻璃件（AndroidLiquidGlassView）提供静态采样源。 */
-        nativeBackdrop = new com.netops.handbook.lens.NativeBackdrop(this);
-        ThemeBus.register(nativeBackdrop);
-        nativeBackdrop.setLayoutParams(new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
-        root.addView(nativeBackdrop);
-        if (lensBar != null) lensBar.setBackdropSource(nativeBackdrop);
+            /* 原生壁纸层：给原生页的玻璃件（AndroidLiquidGlassView）提供静态采样源。 */
+            nativeBackdrop = new com.netops.handbook.lens.NativeBackdrop(this);
+            ThemeBus.register(nativeBackdrop);
+            nativeBackdrop.setLayoutParams(new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+            root.addView(nativeBackdrop);
+            if (lensBar != null) lensBar.setBackdropSource(nativeBackdrop);
 
-        /* 原生学习首页（N2）：必须挂在壁纸层之上（曾先建后建壁纸层，被整屏壁纸挡住）。 */
-        /* 原生学习首页（N2）：阶段入口 + 进度环 + 工具箱。 */
-        nativeHome = new com.netops.handbook.lens.NativeHomeView(this);
-        ThemeBus.register(nativeHome);
-        addNativePage(nativeHome);
-        nativeHome.setNav((route, arg) -> nativeGo(route, arg));
+            /* 原生学习首页（N2）：阶段入口 + 进度环 + 工具箱。 */
+            nativeHome = new com.netops.handbook.lens.NativeHomeView(this);
+            ThemeBus.register(nativeHome);
+            addNativePage(nativeHome);
+            nativeHome.setNav((route, arg) -> nativeGo(route, arg));
 
-        if (nativeHome != null) nativeHome.setGlassSource(nativeBackdrop);
+            if (nativeHome != null) nativeHome.setGlassSource(nativeBackdrop);
 
-        /* 原生「我的」页 + 设置面板（N2 收尾）。 */
-        nativeMe = new com.netops.handbook.lens.NativeMeView(this);
-        ThemeBus.register(nativeMe);
-        addNativePage(nativeMe);
-        nativeMe.setBackupHooks(new com.netops.handbook.lens.NativeMeView.BackupHooks() {
-            @Override public void onExport() { exportBackup(); }
-            @Override public void onImport() { importBackup(); }
-        });
-        /* M4-3(2026-11-16)：设置页 Compose 化——NativeSettingsPanel(342 行 View)
-           整段退役（类保留至 M6 物理删除；settings 路由=SettingsPage）。 */
-
-        /* 原生抽屉：M4-2(2026-11-16)退役——Compose DrawerOverlay 接管
-           （GlassContentHost 内 PagesOverlay 之上挂载，AppShellState.drawerOpen
-           驱动）。NativeDrawerView 类保留至 M6 物理删除。 */
-        /* 原生搜索页（N5）：原生输入框 + 命中高亮 + 键盘自适应。
-           View 层退役(2026-11-14)：覆盖层归 overLayer（ComposeView 之上），否则被 Compose 页盖住。 */
-        nativeSearch = new com.netops.handbook.lens.NativeSearchView(this);
-        ThemeBus.register(nativeSearch);
-        addOverlayPage(nativeSearch);
-        nativeSearch.setNav((type, id, pid) -> {
-            if ("mod".equals(type)) {
-                nativeGo("phase-focus", (pid == null || pid.isEmpty() ? "p-1" : pid) + "|" + id);
-            } else {
-                nativeGo(type.equals("gloss") ? "glossary" : type.equals("ref") ? "refs" : type, "");
-            }
-        });
-
-        /* 原生阶段详情页（全量原生化 N1）：WebView 之上覆盖整个内容区；
-           顶部让出 appbar（原生页自己不画顶栏），底部让出 dock。 */
-        nativePhase = new com.netops.handbook.lens.NativePhaseView(this);
-        ThemeBus.register(nativePhase);
-        nativePhase.setLayoutParams(new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
-        nativePhase.setVisibility(android.view.View.GONE);
-        nativePhase.setGlassSource(nativeBackdrop);
-        nativePhase.setStateListener((id, kind, on) -> {
-            markStatePagesDirty();
-            if (webView == null) return;
-            String js = "window.NetOpsNativeState && NetOpsNativeState("
-                    + org.json.JSONObject.quote(id) + "," + org.json.JSONObject.quote(kind)
-                    + "," + on + ");";
-            webView.post(() -> {
-                if (webView != null) webView.evaluateJavascript(js, null);
+            /* 原生「我的」页 + 设置面板（N2 收尾）。 */
+            nativeMe = new com.netops.handbook.lens.NativeMeView(this);
+            ThemeBus.register(nativeMe);
+            addNativePage(nativeMe);
+            nativeMe.setBackupHooks(new com.netops.handbook.lens.NativeMeView.BackupHooks() {
+                @Override public void onExport() { exportBackup(); }
+                @Override public void onImport() { importBackup(); }
             });
-        });
-        root.addView(nativePhase);
 
-        /* 原生文档列表页（N4）：排障 / 面试 共用 NativeDocList，各自一个 Config。 */
-        nativeFault = addDocList(docConfig("排障案例", "案例", "已解决", "faults", "fault", "", "", true));
-        nativeIv = addDocList(docConfig("面试题库", "问题", "已准备", "interview", "iv", "IVQ", "Q", true));
-        ThemeBus.register(nativeFault);
-        ThemeBus.register(nativeIv);
+            /* 原生搜索页（N5） */
+            nativeSearch = new com.netops.handbook.lens.NativeSearchView(this);
+            ThemeBus.register(nativeSearch);
+            addOverlayPage(nativeSearch);
+            nativeSearch.setNav((type, id, pid) -> {
+                if ("mod".equals(type)) {
+                    nativeGo("phase-focus", (pid == null || pid.isEmpty() ? "p-1" : pid) + "|" + id);
+                } else {
+                    nativeGo(type.equals("gloss") ? "glossary" : type.equals("ref") ? "refs" : type, "");
+                }
+            });
 
-        /* 原生命令字典页（N4）：命令对照表 + 分类筛选。 */
-        nativeDict = new com.netops.handbook.lens.NativeDictView(this);
-        ThemeBus.register(nativeDict);
-        nativeDict.setGlassSource(nativeBackdrop);
-        nativeDict.setLayoutParams(new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
-        nativeDict.setVisibility(android.view.View.GONE);
-        root.addView(nativeDict);
+            /* 原生阶段详情页（全量原生化 N1） */
+            nativePhase = new com.netops.handbook.lens.NativePhaseView(this);
+            ThemeBus.register(nativePhase);
+            nativePhase.setLayoutParams(new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+            nativePhase.setVisibility(android.view.View.GONE);
+            nativePhase.setGlassSource(nativeBackdrop);
+            nativePhase.setStateListener((id, kind, on) -> {
+                markStatePagesDirty();
+                if (webView == null) return;
+                String js = "window.NetOpsNativeState && NetOpsNativeState("
+                        + org.json.JSONObject.quote(id) + "," + org.json.JSONObject.quote(kind)
+                        + "," + on + ");";
+                webView.post(() -> {
+                    if (webView != null) webView.evaluateJavascript(js, null);
+                });
+            });
+            root.addView(nativePhase);
 
-        /* 速查表 / 术语表 / 路线图（N4）：三个轻量原生页。 */
-        nativeRefs = new com.netops.handbook.lens.NativeRefsView(this);
-        ThemeBus.register(nativeRefs);
-        nativeRefs.setGlassSource(nativeBackdrop);
-        addNativePage(nativeRefs);
-        nativeGlossary = new com.netops.handbook.lens.NativeSimpleList(this);
-        ThemeBus.register(nativeGlossary);
-        nativeGlossary.setGlassSource(nativeBackdrop);
-        addNativePage(nativeGlossary);
-        nativeRoadmap = new com.netops.handbook.lens.NativeSimpleList(this);
-        ThemeBus.register(nativeRoadmap);
-        nativeRoadmap.setGlassSource(nativeBackdrop);
-        addNativePage(nativeRoadmap);
-        nativeQuiz = new com.netops.handbook.lens.NativeQuizView(this);
-        ThemeBus.register(nativeQuiz);
-        nativeQuiz.setGlassSource(nativeBackdrop);
-        addNativePage(nativeQuiz);
+            /* 原生文档列表页（N4）：排障 / 面试 共用 NativeDocList，各自一个 Config。 */
+            nativeFault = addDocList(docConfig("排障案例", "案例", "已解决", "faults", "fault", "", "", true));
+            nativeIv = addDocList(docConfig("面试题库", "问题", "已准备", "interview", "iv", "IVQ", "Q", true));
+            ThemeBus.register(nativeFault);
+            ThemeBus.register(nativeIv);
 
-        /* 快照交叉淡化覆盖层（P1-3）：z 序在全部原生页之上、抽屉之下（先于 drawer addView）。
-           不可点击 → 命中测试穿透，淡出期间触摸直达新页面。 */
-        switchOverlay = new android.widget.ImageView(this);
-        switchOverlay.setLayoutParams(new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
-        switchOverlay.setVisibility(android.view.View.GONE);
-        overLayer.addView(switchOverlay);
+            /* 原生命令字典页（N4）：命令对照表 + 分类筛选。 */
+            nativeDict = new com.netops.handbook.lens.NativeDictView(this);
+            ThemeBus.register(nativeDict);
+            nativeDict.setGlassSource(nativeBackdrop);
+            nativeDict.setLayoutParams(new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+            nativeDict.setVisibility(android.view.View.GONE);
+            root.addView(nativeDict);
 
-        /* 原生页滚动 → 顶栏玻璃实时重抓：这些页的滚动不经过 WebView，
-           JS 侧监听不到，玻璃会静止不动（2026-10-30 用户：「通透在哪儿」） */
-        hookAppbarScroll(nativePhase);
-        hookAppbarScroll(nativeFault);
-        hookAppbarScroll(nativeIv);
-        hookAppbarScroll(nativeDict);
-        hookAppbarScroll(nativeHome);
-        hookAppbarScroll(nativeMe);
-        hookAppbarScroll(nativeQuiz);
-        hookAppbarScroll(nativeRefs);
-        hookAppbarScroll(nativeFav);
-        hookAppbarScroll(nativeSearch);
-        hookAppbarScroll(nativeGlossary);
-        hookAppbarScroll(nativeRoadmap);
+            /* 速查表 / 术语表 / 路线图（N4）：三个轻量原生页。 */
+            nativeRefs = new com.netops.handbook.lens.NativeRefsView(this);
+            ThemeBus.register(nativeRefs);
+            nativeRefs.setGlassSource(nativeBackdrop);
+            addNativePage(nativeRefs);
+            nativeGlossary = new com.netops.handbook.lens.NativeSimpleList(this);
+            ThemeBus.register(nativeGlossary);
+            nativeGlossary.setGlassSource(nativeBackdrop);
+            addNativePage(nativeGlossary);
+            nativeRoadmap = new com.netops.handbook.lens.NativeSimpleList(this);
+            ThemeBus.register(nativeRoadmap);
+            nativeRoadmap.setGlassSource(nativeBackdrop);
+            addNativePage(nativeRoadmap);
+            nativeQuiz = new com.netops.handbook.lens.NativeQuizView(this);
+            ThemeBus.register(nativeQuiz);
+            nativeQuiz.setGlassSource(nativeBackdrop);
+            addNativePage(nativeQuiz);
+
+            /* 快照交叉淡化覆盖层（P1-3） */
+            switchOverlay = new android.widget.ImageView(this);
+            switchOverlay.setLayoutParams(new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+            switchOverlay.setVisibility(android.view.View.GONE);
+            overLayer.addView(switchOverlay);
+
+            hookAppbarScroll(nativePhase);
+            hookAppbarScroll(nativeFault);
+            hookAppbarScroll(nativeIv);
+            hookAppbarScroll(nativeDict);
+            hookAppbarScroll(nativeHome);
+            hookAppbarScroll(nativeMe);
+            hookAppbarScroll(nativeQuiz);
+            hookAppbarScroll(nativeRefs);
+            hookAppbarScroll(nativeFav);
+            hookAppbarScroll(nativeSearch);
+            hookAppbarScroll(nativeGlossary);
+            hookAppbarScroll(nativeRoadmap);
+        }
 
         bridge = new Bridge();
 
@@ -945,7 +923,9 @@ public class MainActivity extends AppCompatActivity {
         rendererGone = false;
 
         /* 侧栏让位：每次布局后对齐原生页左缩进（旋转/分屏都走这里，幂等） */
-        root.getViewTreeObserver().addOnGlobalLayoutListener(this::applyDockInset);
+        if (!com.netops.handbook.lens.glass2.DockBus.USE_GLASS2) {
+            root.getViewTreeObserver().addOnGlobalLayoutListener(this::applyDockInset);
+        }
 
         /* 原生透镜层：叠在 WebView 之上，只画底部药丸那一块。
            它需要 PixelCopy(API 33+) + AGSL，两者都不可用时内部自动降级为半透明，不崩。
@@ -1018,47 +998,44 @@ public class MainActivity extends AppCompatActivity {
         }
 
         /* R2 原生顶栏：顶部独立窗，画玻璃背景 + 标题 + 三键；
-           搜索/抽屉在场时整窗退位（见 AppBarView）。
-           几何由 AppBarView 自测（P0-2，2026-10-31）：不再向网页索取，
-           因此也不需要 2026-10-30 那个「等 WebView 布局变化再量」的钩子。 */
-        try {
-            appbarBar = com.netops.handbook.lens.AppBarView.attach(this, root, webView);
-            ThemeBus.register(appbarBar);   /* 替代原 attach 时 setDark：register 自带当前值回调 */
-            if (nativeBackdrop != null) appbarBar.setWallpaperSource(nativeBackdrop);
-            /* View 层退役(2026-11-14)：非按钮区透传改派 Compose 树（root 里已无活页面）。 */
-            if (composeHost != null) appbarBar.setAnchor(composeHost);
-            /* 主题键原生翻转：只改**模式**（auto 之外的显式深浅），
-               不必再指望 evaluateJavascript 写得进网页层——pushTheme 会推
-               apply()，JS 的 UI.theme.get() 直接走 themeMode() 桥回读，失败面为零。 */
-            appbarBar.themeFlip = () -> runOnUiThread(() -> {
-                String m = resolvedDark() ? "light" : "dark";
-                rememberTheme(m);
-                pushTheme(resolvedDark(m));
-            });
-            /* View 层退役(2026-11-14)：抽屉/搜索键原生直触（HTML click 链已死）。
-               0=抽屉（open + dock 退位）；1=搜索（Router.go 落 nativeSearch+页面态）。 */
-            appbarBar.navAction = i -> runOnUiThread(() -> {
-                if (i == 0) {
-                    /* navBack 态(阶段/搜索等子路由)左键=返回；根路由=抽屉。
-                       M4-2：抽屉 Compose 化（DrawerOverlay 读 AppShellState.drawerOpen）。 */
-                    if (com.netops.handbook.lens.Router.INSTANCE.getNavBack()) {
-                        com.netops.handbook.lens.Router.INSTANCE.back();
-                    } else {
-                        com.netops.handbook.ui.AppShellState.INSTANCE.setDrawerOpen(true);
-                        pushOverlaidAll(true);
+           仅在旧版 USE_GLASS2 == false 时启用；USE_GLASS2 走纯 Compose LiquidGlassTopBar。 */
+        if (!com.netops.handbook.lens.glass2.DockBus.USE_GLASS2) {
+            try {
+                appbarBar = com.netops.handbook.lens.AppBarView.attach(this, root, webView);
+                ThemeBus.register(appbarBar);   /* 替代原 attach 时 setDark：register 自带当前值回调 */
+                if (nativeBackdrop != null) appbarBar.setWallpaperSource(nativeBackdrop);
+                /* View 层退役(2026-11-14)：非按钮区透传改派 Compose 树（root 里已无活页面）。 */
+                if (composeHost != null) appbarBar.setAnchor(composeHost);
+                /* 主题键原生翻转：只改**模式**（auto 之外的显式深浅），
+                   不必再指望 evaluateJavascript 写得进网页层——pushTheme 会推
+                   apply()，JS 的 UI.theme.get() 直接走 themeMode() 桥回读，失败面为零。 */
+                appbarBar.themeFlip = () -> runOnUiThread(() -> {
+                    String m = resolvedDark() ? "light" : "dark";
+                    rememberTheme(m);
+                    pushTheme(resolvedDark(m));
+                });
+                /* View 层退役(2026-11-14)：抽屉/搜索键原生直触（HTML click 链已死）。
+                   0=抽屉（open + dock 退位）；1=搜索（Router.go 落 nativeSearch+页面态）。 */
+                appbarBar.navAction = i -> runOnUiThread(() -> {
+                    if (i == 0) {
+                        /* navBack 态(阶段/搜索等子路由)左键=返回；根路由=抽屉。
+                           M4-2：抽屉 Compose 化（DrawerOverlay 读 AppShellState.drawerOpen）。 */
+                        if (com.netops.handbook.lens.Router.INSTANCE.getNavBack()) {
+                            com.netops.handbook.lens.Router.INSTANCE.back();
+                        } else {
+                            com.netops.handbook.ui.AppShellState.INSTANCE.setDrawerOpen(true);
+                            pushOverlaidAll(true);
+                        }
+                    } else if (i == 1) {
+                        com.netops.handbook.lens.Router.INSTANCE.go("search", "", false);
                     }
-                } else if (i == 1) {
-                    com.netops.handbook.lens.Router.INSTANCE.go("search", "", false);
-                }
-            });
-        } catch (Throwable t) {
-            Log.w(TAG, "原生顶栏挂载失败（不影响主流程）", t);
-            appbarBar = null;
+                });
+            } catch (Throwable t) {
+                Log.w(TAG, "原生顶栏挂载失败（不影响主流程）", t);
+                appbarBar = null;
+            }
+            applyAppBarSelfGeometry();
         }
-        /* ❗attach 后补算几何：applyAppBarSelfGeometry 只在 insets 变化时触发，
-           若首次回调早于 attach（appbarBar 为 null 被跳过），hasGeometry 永远 false →
-           顶栏一帧不画、露出 CSS 顶栏白块（2026-11-07 定位）。 */
-        applyAppBarSelfGeometry();
 
         /* M1d-3：无 WebView 载入链——几何自算一次落位（网页就绪钩子已不存在）。 */
         computeDockGeometry();
@@ -2056,7 +2033,7 @@ public class MainActivity extends AppCompatActivity {
                 final String js = "if(window.NetOpsOnWallpaper) NetOpsOnWallpaper('" + dataUrl + "');";
                 if (webView != null) webView.post(() -> { if (webView != null) webView.evaluateJavascript(js, null); });
                 /* 面板若开着，刷新按钮态（「从相册选取」→「更换自定义壁纸」）：
-                   JS 侧 applyWallpaper 已同步写完 WP_KEY='custom'，FIFO 队列里
+                   JS 侧 applyWallpaper 已同步写完 WP_KEY='custom'，FIFO 队列里 */
             });
         }
     }

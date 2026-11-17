@@ -55,6 +55,7 @@ public final class ThemeBus {
         MAIN.post(() -> {
             if (dark == d) return;
             dark = d;
+            com.netops.handbook.ui.AppShellState.INSTANCE.setDark(d);
             Log.i(TAG, "setDark=" + d + " sinks=" + SINKS.size());
             for (DarkAware s : new ArrayList<>(SINKS)) {
                 try {

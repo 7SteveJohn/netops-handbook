@@ -30,7 +30,7 @@ object Router {
     )
 
     val META: Map<String, Meta> = listOf(
-        Meta("learn", "NetOps 2.0", "网络学习辅助手册", "learn", "teal"),
+        Meta("learn", "脉络", "网络与运维随身手册", "learn", "teal"),
         Meta("fault", "排障字典", "现象 → 根因 → 命令 → 验证", "fault", "rose"),
         Meta("dict", "命令字典", "华为 / Cisco / 中兴 / Linux", "dict", "blue"),
         Meta("iv", "面试题库", "高频真题与 STAR 话术", "me", "amber"),
@@ -88,6 +88,9 @@ object Router {
         title = m.title
         subtitle = m.sub
         navBack = !isRoot(st.route)
+        com.netops.handbook.ui.AppShellState.title = m.title
+        com.netops.handbook.ui.AppShellState.subtitle = m.sub
+        com.netops.handbook.ui.AppShellState.navBack = !isRoot(st.route)
         onNavigate?.invoke(st, restoreScroll)
     }
 

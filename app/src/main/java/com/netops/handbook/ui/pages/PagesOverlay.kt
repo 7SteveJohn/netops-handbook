@@ -72,7 +72,7 @@ fun PagesOverlay(
             QuizPage(data, dark)
         }
         "fav" -> OpsTheme(dark, direct) {
-            FavPage(data, dark) { r, a -> onGo(r, a) }
+            FavPage(data, dark, onGo = { r, a -> onGo(r, a) }, onState = onState)
         }
         "me" -> OpsTheme(dark, direct) {
             MePage(data, dark,

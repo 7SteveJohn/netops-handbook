@@ -91,3 +91,12 @@ dist/
 
 # 教材知识库源（workflow 生成的教材全文，本地私有；公开仓库只入库 assets/textbook 生成 JSON）
 /教材知识库/
+
+/.zcode/
+/.tmp-*/
+/.tmp-*
+/t4.png
+/tablet_screen*.png
+/LiquidGlassAndroid*
+/dock*.kt
+/LensBarView*.txt

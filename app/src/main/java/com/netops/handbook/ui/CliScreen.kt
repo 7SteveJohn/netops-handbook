@@ -2,45 +2,39 @@ package com.netops.handbook.ui
 
 import android.content.Context
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -52,15 +46,13 @@ import androidx.compose.ui.unit.sp
 import org.json.JSONObject
 
 /**
- * CLI 模拟器页（2026-11-14 M1b，全 Compose）：31-views.js V.cli + 05-views.css
- * CLI 段的 Compose 版。终端流（五色行 + 600 行钳制）+ 平台提示符 + 输入行 +
- * 快捷 chips（QUICK_GROUPS 分组 ×COMMON_CMDS 过滤，renderQuick 同款）。
+ * CLI 模拟器页（2026-11-14 M1b / 2026-11-18 液态玻璃快捷胶囊与横屏挖孔屏安全区适配）。
  *
- * 状态：历史 50 条持久化（SP netops_shell/cli_hist——备份裸键兼容，M1d 接入
- * 导出/导入）；模式 cliMode 会话内（与 JS 一致不持久化）；命令库 CliEngine 懒加载。
+ * 终端流（五色行 + 600 行钳制）+ 平台提示符 + 输入行 + 快捷玻璃胶囊（QUICK_GROUPS × COMMON_CMDS）。
+ * 安全区：补齐横屏左右 displayCutout 与导航栏避让（无左侧导轨），防止刘海/挖孔吃掉终端提示符，
+ * 并内置紧凑玻璃返回头栏与横向可滚快捷胶囊条，保证横竖屏视口完整舒展。
  */
 
-/* 终端色板（01-tokens.css --term-*：text 系明暗同值，dark 换 bg 系） */
 private data class TermColors(
     val bg: Color, val bg2: Color, val border: Color, val text: Color,
     val green: Color, val cyan: Color, val rose: Color, val dim: Color,
@@ -82,6 +74,13 @@ private fun lineColor(c: TermColors, cls: String): Color = when (cls) {
 
 private const val CLI_SCROLLBACK = 600
 
+private val CLI_MODES = listOf(
+    "hw" to "华为 VRP",
+    "cs" to "Cisco IOS",
+    "zte" to "中兴 ZXR10",
+    "lx" to "Linux",
+)
+
 /** Java 侧挂载入口（Composeable lambda 无法在 Java 源里书写）。 */
 fun androidx.compose.ui.platform.ComposeView.setCliContent(
     dataSupplier: () -> JSONObject?, dark: () -> Boolean,
@@ -89,7 +88,11 @@ fun androidx.compose.ui.platform.ComposeView.setCliContent(
     setViewCompositionStrategy(
         androidx.compose.ui.platform.ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed
     )
-    setContent { CliScreen(dataSupplier, dark()) }
+    setContent {
+        OpsTheme(dark(), false) {
+            CliScreen(dataSupplier, dark())
+        }
+    }
 }
 
 @Composable
@@ -111,7 +114,8 @@ fun CliScreen(dataSupplier: () -> JSONObject?, dark: Boolean) {
                 try {
                     val arr = org.json.JSONArray(raw)
                     for (i in 0 until arr.length()) add(arr.optString(i))
-                } catch (_: Throwable) { }
+                } catch (_: Throwable) {
+                }
             }
         }
     }
@@ -127,7 +131,7 @@ fun CliScreen(dataSupplier: () -> JSONObject?, dark: Boolean) {
         if (db.size != 738) {
             android.util.Log.w("CliScreen", "命令库条数 ${db.size} 与门禁 738 不一致——数据管道漂移")
         }
-        print("NetOps CLI 模拟器 v2.0 · 完全离线 · 命令库就绪 · ${db.size} 条命令", "info")
+        print("脉络 NetCraft CLI · 完全离线 · 命令库就绪 · ${db.size} 条命令", "info")
         print("输入 help 查看分组帮助，mode hw|cs|zte|lx 切换平台，前缀输入可联想命令。", "dim")
     }
     /* 新行自动滚底（键盘弹出/输出追加） */
@@ -150,55 +154,108 @@ fun CliScreen(dataSupplier: () -> JSONObject?, dark: Boolean) {
         r.mode?.let { if (it != mode) mode = it }
     }
 
-    val common = remember(quickGroup) {
-        val arr = JSONObject().let { o ->
-            /* common 从 db 取不出 plat=all 原始清单——CliEngine 另存 common 表 */
-            emptyList<CliEngine.Item>()
-        }
-        arr
-    }
+    val compactLand = isOpsCompactLandscape()
+    /* CLI 路由隐藏全局顶栏与底栏/导轨，使用 rememberOpsPagePadding 自动避让状态栏、底部手势栏与横屏左右挖孔 */
+    val pagePad = rememberOpsPagePadding(
+        extraTop = if (compactLand) 6.dp else 10.dp,
+        extraBottom = if (compactLand) 6.dp else 10.dp,
+        horizontal = 16.dp,
+        hasDock = false,
+        hasTopBar = false,
+    )
 
     Column(
         Modifier
             .fillMaxSize()
-            /* ❗顶栏让位(2026-11-15 平板实证)：缺 statusTop+84dp 时整页画进顶栏
-               下面，透过半透明顶栏 frost 看=花屏重影(其他页均有此让位)。 */
-            .padding(
-                top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 84.dp,
-                bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 10.dp
-            )
+            .padding(pagePad)
             .imePadding()
-            .padding(horizontal = 16.dp, vertical = 10.dp)
     ) {
-        /* 说明条（V.cli note） */
-        Text(
-            "离线命令沙盒：内置 VRP / Linux 常用命令的模拟回显。输入 help 查看支持列表，clear 清屏。",
-            color = colors.textSub, fontSize = 12.3.sp, lineHeight = 16.sp,
-            modifier = Modifier.padding(bottom = 11.dp)
-        )
-        /* 终端 */
+        /* 紧凑玻璃控制头栏：返回胶囊 + 标题 + 平台快捷切换胶囊 */
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = if (compactLand) 6.dp else 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "← 返回",
+                    color = colors.textMain,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .glassChipSurface(colors, active = false, shape = RoundedCornerShape(10.dp))
+                        .glassClickable { com.netops.handbook.lens.Router.back() }
+                        .padding(horizontal = 10.dp, vertical = 5.5.dp)
+                )
+                Spacer(Modifier.width(10.dp))
+                Column {
+                    Text(
+                        "CLI 模拟器",
+                        color = colors.textMain,
+                        fontSize = if (compactLand) 14.5.sp else 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (!compactLand) {
+                        Text(
+                            "离线沙盒 · 输入 help 查看支持列表，clear 清屏",
+                            color = colors.textMute,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+            }
+            Row(
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                for ((mk, mLabel) in CLI_MODES) {
+                    val active = mode == mk
+                    Text(
+                        mLabel,
+                        color = if (active) Color.White else colors.textSub,
+                        fontSize = 11.sp,
+                        fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
+                        modifier = Modifier
+                            .glassChipSurface(colors, active = active, shape = RoundedCornerShape(9.dp))
+                            .glassClickable {
+                                if (!active) {
+                                    mode = mk
+                                    print("已切换终端平台：$mLabel", "info")
+                                }
+                            }
+                            .padding(horizontal = 8.5.dp, vertical = 4.5.dp)
+                    )
+                }
+            }
+        }
+
+        /* 终端主体（曜石深底 + 菲涅尔暗玻璃细边） */
+        val termShape = RoundedCornerShape(14.dp)
         Column(
             Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .heightIn(min = 260.dp)
-                .clip(RoundedCornerShape(12.dp))
+                .heightIn(min = if (compactLand) 120.dp else 220.dp)
+                .clip(termShape)
                 .background(tc.bg)
-                .border(1.dp, tc.border, RoundedCornerShape(12.dp))
+                .glassSpecularBorder(shape = termShape, width = 0.85.dp, intensity = 0.85f)
         ) {
             LazyColumn(
                 state = listState,
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .padding(11.dp)
+                    .padding(horizontal = 12.dp, vertical = if (compactLand) 8.dp else 11.dp)
             ) {
                 items(lines) { l ->
                     Text(
                         l.text,
                         color = lineColor(tc, l.cls),
                         fontSize = 11.8.sp,
-                        lineHeight = 11.8.sp * 1.7f,
+                        lineHeight = 11.8.sp * 1.65f,
                         fontFamily = FontFamily.Monospace
                     )
                 }
@@ -208,74 +265,104 @@ fun CliScreen(dataSupplier: () -> JSONObject?, dark: Boolean) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(tc.bg2)
-                    .padding(horizontal = 11.dp, vertical = 9.dp)
+                    .padding(horizontal = 12.dp, vertical = if (compactLand) 7.dp else 9.dp)
             ) {
                 Text(
                     CliEngine.promptOf(mode),
-                    color = tc.green, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                    color = tc.green,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
                     fontFamily = FontFamily.Monospace
                 )
-                Spacer(Modifier.width(7.dp))
-                TextField(
+                Spacer(Modifier.width(8.dp))
+                BasicTextField(
                     value = input,
                     onValueChange = { input = it },
                     singleLine = true,
                     textStyle = TextStyle(
-                        color = tc.text, fontSize = 15.sp, fontFamily = FontFamily.Monospace
+                        color = tc.text,
+                        fontSize = 14.5.sp,
+                        fontFamily = FontFamily.Monospace
                     ),
-                    placeholder = { Text("输入命令…", color = tc.dim, fontSize = 15.sp) },
+                    cursorBrush = SolidColor(tc.green),
                     keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Ascii, imeAction = ImeAction.Send
+                        keyboardType = KeyboardType.Ascii,
+                        imeAction = ImeAction.Send
                     ),
-                    keyboardActions = KeyboardActions { run(input) },
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color.Transparent,
-                        unfocusedContainerColor = Color.Transparent,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                        cursorColor = tc.green,
-                    ),
-                    modifier = Modifier.weight(1f)
+                    keyboardActions = KeyboardActions(onSend = { run(input) }),
+                    modifier = Modifier.weight(1f),
+                    decorationBox = { inner ->
+                        Box(contentAlignment = Alignment.CenterStart) {
+                            if (input.isEmpty()) {
+                                Text(
+                                    "输入命令（如 display ip interface brief）…",
+                                    color = tc.dim,
+                                    fontSize = 13.5.sp,
+                                    maxLines = 1
+                                )
+                            }
+                            inner()
+                        }
+                    }
                 )
-                Spacer(Modifier.width(7.dp))
-                Button(
-                    onClick = { run(input) },
-                    colors = ButtonDefaults.buttonColors(containerColor = colors.accent),
-                    modifier = Modifier.widthIn(min = 46.dp)
-                ) { Text("→", color = Color.White, fontSize = 15.sp) }
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "执行 →",
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .glassChipSurface(colors, active = true, shape = RoundedCornerShape(10.dp))
+                        .glassClickable { run(input) }
+                        .padding(horizontal = 11.dp, vertical = 6.dp)
+                )
             }
         }
-        /* 快捷 chips（分组行 + 命令行；命令点按 = 填入并执行） */
+
+        /* 快捷玻璃胶囊（分组行 + 常用命令行；均支持横向滚动防横竖屏截断） */
         Column(
             verticalArrangement = Arrangement.spacedBy(6.dp),
-            modifier = Modifier.padding(top = 10.dp)
+            modifier = Modifier.padding(top = if (compactLand) 7.dp else 10.dp)
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(vertical = 1.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
                 for ((k, label) in CliEngine.QUICK_GROUPS) {
+                    val active = k == quickGroup
                     Text(
                         label,
-                        color = if (k == quickGroup) colors.accent else colors.textMute,
-                        fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                        color = if (active) Color.White else colors.textSub,
+                        fontSize = 11.5.sp,
+                        fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
                         modifier = Modifier
-                            .clip(RoundedCornerShape(9.dp))
-                            .background(if (k == quickGroup) colors.chipBgOn else colors.chipBgOff)
+                            .glassChipSurface(colors, active = active, shape = RoundedCornerShape(9.dp))
+                            .glassClickable { quickGroup = k }
                             .padding(horizontal = 10.dp, vertical = 5.dp)
-                            .clickable { quickGroup = k }
                     )
                 }
             }
             val commonCmds = remember(quickGroup) { CliEngine.commonFor(quickGroup).take(8) }
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(vertical = 1.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
                 for (x in commonCmds) {
                     Text(
                         x.cmd,
                         color = colors.textSub,
-                        fontSize = 11.sp,
+                        fontSize = 11.5.sp,
+                        fontFamily = FontFamily.Monospace,
                         modifier = Modifier
-                            .clip(RoundedCornerShape(9.dp))
-                            .background(colors.chipBgOff)
+                            .glassChipSurface(colors, active = false, shape = RoundedCornerShape(9.dp))
+                            .glassClickable { run(x.cmd) }
                             .padding(horizontal = 10.dp, vertical = 5.dp)
-                            .clickable { run(x.cmd) }
                     )
                 }
             }

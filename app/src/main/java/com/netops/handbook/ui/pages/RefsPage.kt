@@ -1,25 +1,25 @@
 package com.netops.handbook.ui.pages
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -28,16 +28,18 @@ import com.netops.handbook.ui.OpsCard
 import com.netops.handbook.ui.OpsColors
 import com.netops.handbook.ui.OpsTheme
 import com.netops.handbook.ui.PageData
+import com.netops.handbook.ui.glassBadgeSurface
+import com.netops.handbook.ui.isOpsLandscape
+import com.netops.handbook.ui.rememberOpsPagePadding
 import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * 速查表页（2026-11-14 M3-2①）：NativeRefsView 的 Compose 版。
+ * 速查表页（2026-11-14 M3-2① / 2026-11-18 液态玻璃徽章与横屏双列速查网格适配）。
  *
- * 形态 = 一页铺完 12 张表（2026-10-27 定案：快速扫不需要两级导航）；
- * 单卡 = 标题 15sp bold + 说明 11.5sp + cols/rows 表格（首列 weight 1.4、
- * 隔行 chipBgOff 底、表头 11sp bold textMute）；ref 深链 = detailId 直达单表
- * （Router ref 路由 → AppShellState.refsDetail）。
+ * 形态 = 一页铺完 12 张高频表（快速扫不需要两级导航）；
+ * 横屏宽视口下采用双列卡片并排（单列宽约 370dp+，与竖屏单卡同宽不挤压列数），
+ * 深链 ref 路由 = detailId 居中舒适限宽 780dp 直达单表。
  */
 @Composable
 fun RefsPage(detailId: String?, dataSupplier: () -> org.json.JSONObject?) {
@@ -45,40 +47,103 @@ fun RefsPage(detailId: String?, dataSupplier: () -> org.json.JSONObject?) {
     val ver = PageData.version
     val refs = remember(ver) {
         val arr = dataSupplier()?.optJSONArray("refs") ?: JSONArray()
-        val out = ArrayList<JSONObject>()
+        val out = ArrayList<JSONObject>(arr.length())
         for (i in 0 until arr.length()) arr.optJSONObject(i)?.let { out.add(it) }
         out
     }
-    val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
-    Column(
-        Modifier
-            .fillMaxSize()
-            .padding(
-                top = statusTop + 84.dp,
-                bottom = navBottom
-            )
-            .padding(horizontal = 14.dp, vertical = 10.dp)
+    val pagePad = rememberOpsPagePadding(hasDock = true, hasTopBar = true)
+    val land = isOpsLandscape()
+    val cfg = LocalConfiguration.current
+    val twoCol = land && cfg.screenWidthDp >= 680
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = pagePad,
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 96.dp)) {
-            item {
-                val hit = detailId?.let { id -> refs.firstOrNull { it.optString("id") == id } }
-                if (hit != null) {
-                    RefsTableCard(hit, colors)
-                } else {
-                    OpsCard {
+        val hit = detailId?.let { id -> refs.firstOrNull { it.optString("id") == id } }
+        if (hit != null) {
+            item(key = hit.optString("id", "hit")) {
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.TopCenter
+                ) {
+                    Box(
+                        modifier = if (land) Modifier.widthIn(max = 780.dp).fillMaxWidth() else Modifier.fillMaxWidth()
+                    ) {
+                        RefsTableCard(hit, colors)
+                    }
+                }
+            }
+        } else {
+            item(key = "__refs_head__") {
+                OpsCard {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
                         Text("速查表", color = colors.textMain, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
-                        Spacer(Modifier.height(6.dp))
                         Text(
-                            "高频速查表 · 共 ${refs.size} 张。面试前 10 分钟过一遍最有效。",
-                            color = colors.textMute, fontSize = 12.5.sp
+                            "共 ${refs.size} 张",
+                            color = colors.accent,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .glassBadgeSurface(colors, RoundedCornerShape(9.dp))
+                                .padding(horizontal = 8.dp, vertical = 3.5.dp)
                         )
                     }
-                    Spacer(Modifier.height(10.dp))
-                    for (r in refs) {
-                        RefsTableCard(r, colors)
-                        Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "高频速查表 · 面试前 10 分钟或排障现场过一遍最有效。",
+                        color = colors.textMute,
+                        fontSize = 12.5.sp
+                    )
+                }
+            }
+            if (twoCol && refs.size > 1) {
+                val pairs = refs.chunked(2)
+                items(
+                    count = pairs.size,
+                    key = { pIdx ->
+                        val p = pairs[pIdx]
+                        "rp:" + p.joinToString("|") { it.optString("id") }
+                    }
+                ) { pIdx ->
+                    val pair = pairs[pIdx]
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Box(Modifier.weight(1f)) {
+                            RefsTableCard(pair[0], colors)
+                        }
+                        if (pair.size == 2) {
+                            Box(Modifier.weight(1f)) {
+                                RefsTableCard(pair[1], colors)
+                            }
+                        } else {
+                            Spacer(Modifier.weight(1f))
+                        }
+                    }
+                }
+            } else {
+                items(
+                    count = refs.size,
+                    key = { idx -> refs[idx].optString("id").ifEmpty { "ref_$idx" } }
+                ) { idx ->
+                    Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.TopCenter
+                    ) {
+                        Box(
+                            modifier = if (land) Modifier.widthIn(max = 780.dp).fillMaxWidth() else Modifier.fillMaxWidth()
+                        ) {
+                            RefsTableCard(refs[idx], colors)
+                        }
                     }
                 }
             }
@@ -88,41 +153,82 @@ fun RefsPage(detailId: String?, dataSupplier: () -> org.json.JSONObject?) {
 
 @Composable
 private fun RefsTableCard(r: JSONObject, colors: OpsColors) {
+    val cols = r.optJSONArray("cols")
+    val rows = r.optJSONArray("rows")
     OpsCard {
-        Text(r.optString("t"), color = colors.textMain, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                r.optString("t"),
+                color = colors.textMain,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f)
+            )
+            if (rows != null && rows.length() > 0) {
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "${rows.length()} 项",
+                    color = colors.accent,
+                    fontSize = 10.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .glassBadgeSurface(colors, RoundedCornerShape(8.dp))
+                        .padding(horizontal = 7.dp, vertical = 2.5.dp)
+                )
+            }
+        }
         val d = r.optString("d")
         if (d.isNotEmpty()) {
             Spacer(Modifier.height(4.dp))
             Text(d, color = colors.textMute, fontSize = 11.5.sp)
         }
-        val cols = r.optJSONArray("cols") ?: return@OpsCard
-        val rows = r.optJSONArray("rows") ?: return@OpsCard
+        if (cols == null || rows == null) return@OpsCard
         val n = cols.length()
         if (n == 0) return@OpsCard
-        Spacer(Modifier.height(4.dp))
-        Row(Modifier.padding(top = 10.dp, bottom = 4.dp)) {
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 10.dp, bottom = 5.dp)
+        ) {
             for (i in 0 until n) {
                 Text(
-                    cols.optString(i), color = colors.textMute,
-                    fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                    cols.optString(i),
+                    color = colors.textMute,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
                     modifier = Modifier
                         .weight(if (i == 0) 1.4f else 1f)
-                        .padding(horizontal = 4.dp)
+                        .padding(horizontal = 5.dp)
                 )
             }
         }
-                for (i in 0 until rows.length()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(0.7.dp)
+                .background(colors.hairline)
+        )
+        Spacer(Modifier.height(3.dp))
+        for (i in 0 until rows.length()) {
             val cells = rows.optJSONArray(i) ?: continue
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 6.dp)
                     .then(
                         if (i % 2 == 1) Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(colors.chipBgOff)
+                            .clip(RoundedCornerShape(7.dp))
+                            .background(
+                                if (colors.direct) colors.chipBgOff.copy(alpha = 0.68f)
+                                else colors.chipBgOff
+                            )
                         else Modifier
                     )
+                    .padding(vertical = 6.dp)
             ) {
                 for (c in 0 until n) {
                     Text(
@@ -132,7 +238,7 @@ private fun RefsTableCard(r: JSONObject, colors: OpsColors) {
                         fontWeight = if (c == 0) FontWeight.SemiBold else FontWeight.Normal,
                         modifier = Modifier
                             .weight(if (c == 0) 1.4f else 1f)
-                            .padding(horizontal = 4.dp)
+                            .padding(horizontal = 5.dp)
                     )
                 }
             }
