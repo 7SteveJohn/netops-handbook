@@ -170,6 +170,18 @@ function build() {
       process.exit(1);
     }
   }
+  /* 教材全书同步生成：assets/textbook/*（书架索引/章 blocks/全文倒排）。
+     源 = 本地私有 教材知识库/（不入库），公开仓库无源 → 工具自身静默跳过。 */
+  try {
+    require('./tools/gen-textbook.js');
+  } catch (e) {
+    if (/Cannot find module/.test(String(e && e.message))) {
+      console.log('  · 跳过 textbook 生成（此环境无私有工具 gen-textbook.js）');
+    } else {
+      console.error('\n  ✗ textbook 生成失败：' + e.message);
+      process.exit(1);
+    }
+  }
   const report = [];
 
   const preErrs = syntaxCheck(CSS_FILES, true).concat(syntaxCheck(JS_FILES, false));
